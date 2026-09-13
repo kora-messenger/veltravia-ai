@@ -77,6 +77,26 @@ The connector framework enforces the following principles — structurally where
 10. Every future connector declares its supported capabilities and permissions. (Registry validation rejects metadata that is incomplete or references undeclared permissions.)
 11. Registration never grants permissions. (A connector's granted-permission set starts empty; grants are explicit, auditable, and revocable.)
 
+## 5b. Tool System rules (Step 5, `tools/core`)
+
+The tool layer enforces these principles — all of them tested:
+
+1. AI-generated tool requests are untrusted input.
+2. Tool ids are validated (the registry rejects malformed definitions).
+3. Tool inputs are schema-validated before execution; problems name fields, never values.
+4. Tools have explicit definitions (no anonymous or ad-hoc tools).
+5. Tools must declare required permissions.
+6. Registration does not grant permission — grants are explicit and auditable.
+7. Tools cannot access raw credentials (they hold references at most).
+8. Tools cannot bypass the ConnectorManager (connector-backed tools authorize through it and cannot have local handlers).
+9. Tools cannot execute arbitrary code.
+10. Tools cannot dynamically create unrestricted executable functions (handlers are typed, validated, pre-registered, and rejected for connector-backed tools).
+11. High/critical actions require human confirmation; risk level can only RAISE the bar, and confirmations are single-use, input-bound (SHA-256 digest), and expiring.
+12. Tool execution produces auditable events (requested, denied, confirmation requested/approved/rejected, started, completed, failed).
+13. Secrets never appear in tool error messages, validation problems, or audit events (values are never echoed; everything is scrubbed).
+14. Tool results are normalized (schema-validated objects) before being returned to the AI.
+15. The AI cannot escalate its own permissions (claimed permissions grant nothing).
+
 ## 6. Repository & supply-chain hygiene
 
 - Minimal dependency surface: no dependency is added speculatively. Every dependency addition goes through review.

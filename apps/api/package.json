@@ -18,6 +18,8 @@
     "@veltravia/connector-core": "*",
     "@veltravia/connector-mock": "*",
     "@veltravia/shared": "*",
+    "@veltravia/tool-core": "*",
+    "@veltravia/tool-mock": "*",
     "@veltravia/types": "*",
     "fastify": "^5.2.0"
   },
