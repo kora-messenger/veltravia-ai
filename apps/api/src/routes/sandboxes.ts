@@ -166,64 +166,77 @@ export function registerSandboxRoutes(
   manager: SandboxManager,
   projectEngine: ProjectEngine,
 ): void {
-  app.post('/api/sandboxes', {
-    schema: {
-      body: {
-        type: 'object',
-        properties: {
-          workspaceRef: { type: 'string', minLength: 1, maxLength: 128 },
-          commandPolicy: commandPolicySchema,
-          networkPolicy: networkPolicySchema,
-          defaultLimits: limitsSchema,
-          defaultEnvironment: environmentSchema,
-          ttlMs: { type: 'integer', minimum: 1, maximum: 86400000 },
+  app.post(
+    '/api/sandboxes',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          properties: {
+            workspaceRef: { type: 'string', minLength: 1, maxLength: 128 },
+            commandPolicy: commandPolicySchema,
+            networkPolicy: networkPolicySchema,
+            defaultLimits: limitsSchema,
+            defaultEnvironment: environmentSchema,
+            ttlMs: { type: 'integer', minimum: 1, maximum: 86400000 },
+          },
+          required: ['workspaceRef'],
+          additionalProperties: false,
         },
-        required: ['workspaceRef'],
-        additionalProperties: false,
       },
     },
-  }, async (request, reply) => {
-    const body = request.body as Record<string, unknown>;
-    // Shape first: a path-like or malformed workspace reference is a 400
-    // before the engine is even consulted.
-    try {
-      validateWorkspaceRef(body.workspaceRef as string);
-    } catch (error) {
-      const { status, body: errorBody } = toHttpError(error);
-      return reply.code(status).send(errorBody);
-    }
-    try {
-      // Project Engine integration: the workspace must exist. The sandbox
-      // references it; it can never bypass the engine's rules.
-      await assertWorkspaceExists(projectEngine, body.workspaceRef as string);
-    } catch (error) {
-      if (isProjectError(error)) {
-        const status = error.code === 'WORKSPACE_NOT_FOUND' ? 404 : 400;
-        return reply.code(status).send({ error: error.toJSON() });
+    async (request, reply) => {
+      const body = request.body as Record<string, unknown>;
+      // Shape first: a path-like or malformed workspace reference is a 400
+      // before the engine is even consulted.
+      try {
+        validateWorkspaceRef(body.workspaceRef as string);
+      } catch (error) {
+        const { status, body: errorBody } = toHttpError(error);
+        return reply.code(status).send(errorBody);
       }
-      return reply.code(400).send({
-        error: { code: 'SANDBOX_INVALID_REQUEST', message: 'unknown workspace' },
-      });
-    }
-    try {
-      const sandbox = await manager.createSandbox({
-        workspaceRef: body.workspaceRef as string,
-        ...(body.commandPolicy !== undefined
-          ? { commandPolicy: body.commandPolicy as { allowedCommands: string[]; allowShellExecution?: boolean } }
-          : {}),
-        ...(body.networkPolicy !== undefined ? { networkPolicy: body.networkPolicy as never } : {}),
-        ...(body.defaultLimits !== undefined ? { defaultLimits: body.defaultLimits as never } : {}),
-        ...(body.defaultEnvironment !== undefined
-          ? { defaultEnvironment: body.defaultEnvironment as Record<string, string> }
-          : {}),
-        ...(body.ttlMs !== undefined ? { ttlMs: body.ttlMs as number } : {}),
-      });
-      return reply.code(201).send(sandboxResponse(sandbox));
-    } catch (error) {
-      const { status, body: errorBody } = toHttpError(error);
-      return reply.code(status).send(errorBody);
-    }
-  });
+      try {
+        // Project Engine integration: the workspace must exist. The sandbox
+        // references it; it can never bypass the engine's rules.
+        await assertWorkspaceExists(projectEngine, body.workspaceRef as string);
+      } catch (error) {
+        if (isProjectError(error)) {
+          const status = error.code === 'WORKSPACE_NOT_FOUND' ? 404 : 400;
+          return reply.code(status).send({ error: error.toJSON() });
+        }
+        return reply.code(400).send({
+          error: { code: 'SANDBOX_INVALID_REQUEST', message: 'unknown workspace' },
+        });
+      }
+      try {
+        const sandbox = await manager.createSandbox({
+          workspaceRef: body.workspaceRef as string,
+          ...(body.commandPolicy !== undefined
+            ? {
+                commandPolicy: body.commandPolicy as {
+                  allowedCommands: string[];
+                  allowShellExecution?: boolean;
+                },
+              }
+            : {}),
+          ...(body.networkPolicy !== undefined
+            ? { networkPolicy: body.networkPolicy as never }
+            : {}),
+          ...(body.defaultLimits !== undefined
+            ? { defaultLimits: body.defaultLimits as never }
+            : {}),
+          ...(body.defaultEnvironment !== undefined
+            ? { defaultEnvironment: body.defaultEnvironment as Record<string, string> }
+            : {}),
+          ...(body.ttlMs !== undefined ? { ttlMs: body.ttlMs as number } : {}),
+        });
+        return reply.code(201).send(sandboxResponse(sandbox));
+      } catch (error) {
+        const { status, body: errorBody } = toHttpError(error);
+        return reply.code(status).send(errorBody);
+      }
+    },
+  );
 
   app.get('/api/sandboxes', async () => {
     const sandboxes = await manager.listSandboxes();
@@ -269,42 +282,50 @@ export function registerSandboxRoutes(
    * execution behind the isolation boundary - never in the API process,
    * never with inherited environment, never with host paths.
    */
-  app.post('/api/sandboxes/:sandboxId/executions', {
-    schema: {
-      body: {
-        type: 'object',
-        properties: {
-          command: { type: 'string', minLength: 1, maxLength: 64 },
-          arguments: {
-            type: 'array',
-            maxItems: 64,
-            items: { type: 'string', maxLength: 4096 },
+  app.post(
+    '/api/sandboxes/:sandboxId/executions',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          properties: {
+            command: { type: 'string', minLength: 1, maxLength: 64 },
+            arguments: {
+              type: 'array',
+              maxItems: 64,
+              items: { type: 'string', maxLength: 4096 },
+            },
+            workingDirectory: { type: 'string', maxLength: 512 },
+            environment: environmentSchema,
+            limits: limitsSchema,
           },
-          workingDirectory: { type: 'string', maxLength: 512 },
-          environment: environmentSchema,
-          limits: limitsSchema,
+          required: ['command'],
+          additionalProperties: false,
         },
-        required: ['command'],
-        additionalProperties: false,
       },
     },
-  }, async (request, reply) => {
-    const { sandboxId } = request.params as { sandboxId: string };
-    const body = request.body as Record<string, unknown>;
-    try {
-      const result = await manager.startExecution(sandboxId, {
-        command: body.command as string,
-        arguments: (body.arguments as string[] | undefined) ?? [],
-        ...(body.workingDirectory !== undefined ? { workingDirectory: body.workingDirectory as string } : {}),
-        ...(body.environment !== undefined ? { environment: body.environment as Record<string, string> } : {}),
-        ...(body.limits !== undefined ? { limits: body.limits as never } : {}),
-      });
-      return reply.send(resultResponse(result));
-    } catch (error) {
-      const { status, body: errorBody } = toHttpError(error);
-      return reply.code(status).send(errorBody);
-    }
-  });
+    async (request, reply) => {
+      const { sandboxId } = request.params as { sandboxId: string };
+      const body = request.body as Record<string, unknown>;
+      try {
+        const result = await manager.startExecution(sandboxId, {
+          command: body.command as string,
+          arguments: (body.arguments as string[] | undefined) ?? [],
+          ...(body.workingDirectory !== undefined
+            ? { workingDirectory: body.workingDirectory as string }
+            : {}),
+          ...(body.environment !== undefined
+            ? { environment: body.environment as Record<string, string> }
+            : {}),
+          ...(body.limits !== undefined ? { limits: body.limits as never } : {}),
+        });
+        return reply.send(resultResponse(result));
+      } catch (error) {
+        const { status, body: errorBody } = toHttpError(error);
+        return reply.code(status).send(errorBody);
+      }
+    },
+  );
 
   app.get('/api/sandboxes/:sandboxId/executions/:executionId', async (request, reply) => {
     const { sandboxId, executionId } = request.params as {
@@ -334,4 +355,3 @@ export function registerSandboxRoutes(
     }
   });
 }
-

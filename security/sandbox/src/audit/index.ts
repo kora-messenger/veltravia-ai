@@ -28,7 +28,9 @@ export const SANDBOX_AUDIT_EVENT_TYPES = [
 export type SandboxAuditEventType = (typeof SANDBOX_AUDIT_EVENT_TYPES)[number];
 
 export function isSandboxAuditEventType(value: unknown): value is SandboxAuditEventType {
-  return typeof value === 'string' && (SANDBOX_AUDIT_EVENT_TYPES as readonly string[]).includes(value);
+  return (
+    typeof value === 'string' && (SANDBOX_AUDIT_EVENT_TYPES as readonly string[]).includes(value)
+  );
 }
 
 /** One immutable, secret-free sandbox audit record. */

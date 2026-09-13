@@ -23,10 +23,7 @@
  *     that does not exist)
  */
 
-import type {
-  RuntimeExecutionRequest,
-  RuntimeExecutionOutcome,
-} from '../types/index.js';
+import type { RuntimeExecutionRequest, RuntimeExecutionOutcome } from '../types/index.js';
 
 export interface SandboxRuntime {
   /** Runtime identifier (e.g. "mock", "container", "microvm"). */

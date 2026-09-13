@@ -12,14 +12,17 @@ import { NetworkPolicyRejectedError } from '../errors/index.js';
 import type { NetworkDestination, NetworkPolicy } from '../types/index.js';
 
 const HOST_PATTERN = /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i;
-const WILDCARD_HOST_PATTERN = /^\*\.(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i;
+const WILDCARD_HOST_PATTERN =
+  /^\*\.(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i;
 const MAX_DESTINATIONS = 16;
 const HOST_MAX_LENGTH = 253;
 
 /** Validates one allowlist destination. */
 export function validateNetworkDestination(destination: NetworkDestination): NetworkDestination {
   if (typeof destination !== 'object' || destination === null || Array.isArray(destination)) {
-    throw new NetworkPolicyRejectedError('destinations must be objects', { reason: 'not-an-object' });
+    throw new NetworkPolicyRejectedError('destinations must be objects', {
+      reason: 'not-an-object',
+    });
   }
   const { host, port } = destination;
   if (typeof host !== 'string' || host.length === 0) {

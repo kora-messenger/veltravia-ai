@@ -60,15 +60,11 @@ describe('sandbox lifecycle', () => {
     await expect(
       manager.createSandbox({ workspaceRef: 'ws-1', commandPolicy: { allowedCommands: ['sudo'] } }),
     ).rejects.toThrow();
-    await expect(
-      manager.createSandbox({ workspaceRef: '/host/path' }),
-    ).rejects.toThrow();
+    await expect(manager.createSandbox({ workspaceRef: '/host/path' })).rejects.toThrow();
     await expect(
       manager.createSandbox({ workspaceRef: 'ws-1', commandPolicy: { allowedCommands: [] } }),
     ).rejects.toThrow();
-    await expect(
-      manager.createSandbox({ workspaceRef: 'ws-1', ttlMs: 0 }),
-    ).rejects.toThrow();
+    await expect(manager.createSandbox({ workspaceRef: 'ws-1', ttlMs: 0 })).rejects.toThrow();
     await expect(
       manager.createSandbox({
         workspaceRef: 'ws-1',
@@ -131,7 +127,9 @@ describe('sandbox lifecycle', () => {
     await expect(
       manager.startExecution(sandbox.id, { command: 'node', arguments: ['x'] }),
     ).rejects.toThrow(SandboxNotReadyError);
-    await expect(manager.destroySandbox(sandbox.id)).resolves.toMatchObject({ status: 'destroyed' });
+    await expect(manager.destroySandbox(sandbox.id)).resolves.toMatchObject({
+      status: 'destroyed',
+    });
     // The lifecycle machine itself refuses destroyed -> anything
     expect(() => assertSandboxTransition('destroyed', 'running')).toThrow(
       InvalidSandboxTransitionError,
@@ -236,10 +234,10 @@ describe('execution commands and results', () => {
   it('enforces the timeout: mark, terminate, prevent, release', async () => {
     const { manager, clock } = buildManager();
     const sandbox = await readySandbox(manager);
-    const result = await manager.startExecution(
-      sandbox.id,
-      { command: 'node', arguments: ['hang'] },
-    );
+    const result = await manager.startExecution(sandbox.id, {
+      command: 'node',
+      arguments: ['hang'],
+    });
     expect(result.status).toBe('timed_out');
     expect(result.timedOut).toBe(true);
     expect(result.terminated).toBe(true);
@@ -301,10 +299,18 @@ describe('execution commands and results', () => {
     const { manager } = buildManager();
     const sandbox = await readySandbox(manager);
     await expect(
-      manager.startExecution(sandbox.id, { command: 'node', arguments: ['x'], limits: { timeoutMs: 0 } }),
+      manager.startExecution(sandbox.id, {
+        command: 'node',
+        arguments: ['x'],
+        limits: { timeoutMs: 0 },
+      }),
     ).rejects.toThrow();
     await expect(
-      manager.startExecution(sandbox.id, { command: 'node', arguments: ['x'], limits: { timeoutMs: -5 } }),
+      manager.startExecution(sandbox.id, {
+        command: 'node',
+        arguments: ['x'],
+        limits: { timeoutMs: -5 },
+      }),
     ).rejects.toThrow();
     await expect(
       manager.startExecution(sandbox.id, {

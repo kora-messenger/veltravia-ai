@@ -1,7 +1,12 @@
 import type { ProjectEngine } from '@veltravia/project-core';
 import type { SandboxManager } from '@veltravia/sandbox-core';
 import { createMockSandboxManager } from '@veltravia/sandbox-mock';
-import { defineObjectSchema, defineTool, type ToolDefinition, type ToolImplementation } from '@veltravia/tool-core';
+import {
+  defineObjectSchema,
+  defineTool,
+  type ToolDefinition,
+  type ToolImplementation,
+} from '@veltravia/tool-core';
 
 /**
  * Builds the API's SandboxManager.
@@ -11,10 +16,12 @@ import { defineObjectSchema, defineTool, type ToolDefinition, type ToolImplement
  * (container / microVM / dedicated worker) later implements the same
  * SandboxRuntime interface; nothing else changes.
  */
-export function createSandboxManager(options: {
-  now?: () => Date;
-  auditSink?: (event: unknown) => void;
-} = {}): SandboxManager {
+export function createSandboxManager(
+  options: {
+    now?: () => Date;
+    auditSink?: (event: unknown) => void;
+  } = {},
+): SandboxManager {
   return createMockSandboxManager(options).manager;
 }
 
@@ -54,7 +61,12 @@ export function createSandboxTools(manager: SandboxManager): {
       category: 'system',
       inputSchema: defineObjectSchema({
         properties: {
-          workspaceRef: { type: 'string', description: 'Project Engine workspace id.', minLength: 1, maxLength: 128 },
+          workspaceRef: {
+            type: 'string',
+            description: 'Project Engine workspace id.',
+            minLength: 1,
+            maxLength: 128,
+          },
         },
         required: ['workspaceRef'],
         additionalProperties: false,
@@ -97,14 +109,28 @@ export function createSandboxTools(manager: SandboxManager): {
       category: 'system',
       inputSchema: defineObjectSchema({
         properties: {
-          sandboxId: { type: 'string', description: 'Target sandbox id.', minLength: 1, maxLength: 64 },
-          command: { type: 'string', description: 'Allowlisted executable name.', minLength: 1, maxLength: 64 },
+          sandboxId: {
+            type: 'string',
+            description: 'Target sandbox id.',
+            minLength: 1,
+            maxLength: 64,
+          },
+          command: {
+            type: 'string',
+            description: 'Allowlisted executable name.',
+            minLength: 1,
+            maxLength: 64,
+          },
           arguments: {
             type: 'array',
             description: 'Arguments passed without a shell.',
             items: { type: 'string', minLength: 0, maxLength: 4096 },
           },
-          workingDirectory: { type: 'string', description: 'Workspace-relative working directory.', maxLength: 512 },
+          workingDirectory: {
+            type: 'string',
+            description: 'Workspace-relative working directory.',
+            maxLength: 512,
+          },
         },
         required: ['sandboxId', 'command'],
         additionalProperties: false,
@@ -116,7 +142,10 @@ export function createSandboxTools(manager: SandboxManager): {
           stdout: { type: 'string', description: 'Bounded, scrubbed stdout.' },
           stderr: { type: 'string', description: 'Bounded, scrubbed stderr.' },
           timedOut: { type: 'boolean', description: 'Whether the timeout killed the execution.' },
-          terminated: { type: 'boolean', description: 'Whether limits or cancellation terminated it.' },
+          terminated: {
+            type: 'boolean',
+            description: 'Whether limits or cancellation terminated it.',
+          },
           truncated: { type: 'boolean', description: 'Whether output was truncated.' },
         },
         required: ['status', 'exitCode', 'stdout', 'stderr', 'timedOut', 'terminated', 'truncated'],
@@ -153,12 +182,18 @@ export function createSandboxTools(manager: SandboxManager): {
     definition: defineTool({
       id: 'sandbox.stop',
       name: 'Stop Sandbox',
-      description: 'Stops a sandbox and cancels its active execution. Terminal for execution; only destroy follows.',
+      description:
+        'Stops a sandbox and cancels its active execution. Terminal for execution; only destroy follows.',
       version: '1.0.0',
       category: 'system',
       inputSchema: defineObjectSchema({
         properties: {
-          sandboxId: { type: 'string', description: 'Target sandbox id.', minLength: 1, maxLength: 64 },
+          sandboxId: {
+            type: 'string',
+            description: 'Target sandbox id.',
+            minLength: 1,
+            maxLength: 64,
+          },
         },
         required: ['sandboxId'],
         additionalProperties: false,
@@ -192,7 +227,12 @@ export function createSandboxTools(manager: SandboxManager): {
       category: 'system',
       inputSchema: defineObjectSchema({
         properties: {
-          sandboxId: { type: 'string', description: 'Target sandbox id.', minLength: 1, maxLength: 64 },
+          sandboxId: {
+            type: 'string',
+            description: 'Target sandbox id.',
+            minLength: 1,
+            maxLength: 64,
+          },
         },
         required: ['sandboxId'],
         additionalProperties: false,

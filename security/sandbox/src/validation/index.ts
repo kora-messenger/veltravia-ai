@@ -42,10 +42,13 @@ function validateLimitValue(field: keyof ResourceLimits, value: number): number 
     });
   }
   if (value <= 0) {
-    throw new LimitsRejectedError(`${field} must be positive (zero and negative values are rejected)`, {
-      field,
-      reason: 'non-positive',
-    });
+    throw new LimitsRejectedError(
+      `${field} must be positive (zero and negative values are rejected)`,
+      {
+        field,
+        reason: 'non-positive',
+      },
+    );
   }
   const ceiling = RESOURCE_LIMIT_CEILINGS[field];
   if (value > ceiling) {
@@ -64,7 +67,9 @@ export function validateResourceLimits(
   context: string,
 ): ResourceLimits {
   if (typeof limits !== 'object' || limits === null || Array.isArray(limits)) {
-    throw new InvalidSandboxRequestError(`${context} must be an object`, { reason: 'not-an-object' });
+    throw new InvalidSandboxRequestError(`${context} must be an object`, {
+      reason: 'not-an-object',
+    });
   }
   if (limits.timeoutMs === undefined) throw missing('timeoutMs');
   if (limits.maxMemoryMb === undefined) throw missing('maxMemoryMb');

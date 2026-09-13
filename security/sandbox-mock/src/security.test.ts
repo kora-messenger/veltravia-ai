@@ -41,7 +41,9 @@ describe('environment isolation', () => {
     // None of the actual host environment appears anywhere in the request
     for (const capturedRequest of runtime.capturedRequests) {
       for (const hostKey of Object.keys(process.env)) {
-        expect(capturedRequest.environmentKeys, `host var ${hostKey} leaked`).not.toContain(hostKey);
+        expect(capturedRequest.environmentKeys, `host var ${hostKey} leaked`).not.toContain(
+          hostKey,
+        );
       }
     }
     // Spot-check the secrets that matter most
@@ -91,7 +93,9 @@ describe('workspace + filesystem boundary', () => {
   it('rejects host paths, absolute paths, and traversal in the working directory', async () => {
     const { manager } = buildManager();
     const sandbox = await readySandbox(manager);
-    const rejected = ['', undefined].slice(0, 0).concat(['/', '/etc', '../escape', 'a/../..', 'C:\\x', 'a\\b']);
+    const rejected = ['', undefined]
+      .slice(0, 0)
+      .concat(['/', '/etc', '../escape', 'a/../..', 'C:\\x', 'a\\b']);
     for (const workingDirectory of rejected) {
       await expect(
         manager.startExecution(sandbox.id, {
@@ -235,7 +239,10 @@ describe('sandbox-core source hygiene', () => {
   });
 
   it('the mock runtime executes no host code (source scan)', () => {
-    const source = readFileSync(join(process.cwd(), 'security', 'sandbox-mock', 'src', 'index.ts'), 'utf8');
+    const source = readFileSync(
+      join(process.cwd(), 'security', 'sandbox-mock', 'src', 'index.ts'),
+      'utf8',
+    );
     expect(source).not.toMatch(/child_process/);
     expect(source).not.toMatch(/spawnSync|execSync|execFileSync/);
     expect(source).not.toMatch(/process\.env/);

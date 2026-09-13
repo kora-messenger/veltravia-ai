@@ -142,10 +142,7 @@ export function assertCommandAllowed(
     throw new CommandNotAllowedError(name, 'shell execution is disabled');
   }
   if (!policy.allowedCommands.some((allowed) => allowed.toLowerCase() === lower)) {
-    throw new CommandNotAllowedError(
-      name,
-      'the command is not on the sandbox profile allowlist',
-    );
+    throw new CommandNotAllowedError(name, 'the command is not on the sandbox profile allowlist');
   }
 }
 
@@ -165,9 +162,12 @@ export function validateArguments(args: readonly unknown[]): string[] {
     });
   }
   if (args.length > ARGUMENT_MAX_COUNT) {
-    throw new InvalidSandboxRequestError(`arguments must not exceed ${ARGUMENT_MAX_COUNT} entries`, {
-      reason: 'too-many',
-    });
+    throw new InvalidSandboxRequestError(
+      `arguments must not exceed ${ARGUMENT_MAX_COUNT} entries`,
+      {
+        reason: 'too-many',
+      },
+    );
   }
   return args.map((argument, index) => {
     if (typeof argument !== 'string') {

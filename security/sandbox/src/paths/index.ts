@@ -33,7 +33,10 @@ export type PathRejectReason =
 /** Validates and normalizes a workspace-relative path. Throws on violation. */
 export function normalizeWorkspaceRelativePath(input: string, field: string): string {
   if (typeof input !== 'string') {
-    throw new InvalidSandboxRequestError(`${field} must be a string`, { field, reason: 'not-a-string' });
+    throw new InvalidSandboxRequestError(`${field} must be a string`, {
+      field,
+      reason: 'not-a-string',
+    });
   }
   const path = input.trim();
   if (path === ROOT_PATH || path === '.') {
@@ -49,16 +52,22 @@ export function normalizeWorkspaceRelativePath(input: string, field: string): st
     });
   }
   if (path.startsWith('/') || path.startsWith('\\')) {
-    throw new InvalidSandboxRequestError(`${field} must be workspace-relative (absolute host paths are rejected)`, {
-      field,
-      reason: 'absolute-path',
-    });
+    throw new InvalidSandboxRequestError(
+      `${field} must be workspace-relative (absolute host paths are rejected)`,
+      {
+        field,
+        reason: 'absolute-path',
+      },
+    );
   }
   if (/^[A-Za-z]:[\\/]/.test(path)) {
-    throw new InvalidSandboxRequestError(`${field} must be workspace-relative (Windows paths are rejected)`, {
-      field,
-      reason: 'windows-path',
-    });
+    throw new InvalidSandboxRequestError(
+      `${field} must be workspace-relative (Windows paths are rejected)`,
+      {
+        field,
+        reason: 'windows-path',
+      },
+    );
   }
   if (path.includes('\\')) {
     throw new InvalidSandboxRequestError(`${field} must use forward slashes only`, {

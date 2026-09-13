@@ -68,10 +68,10 @@ export function buildIsolatedEnvironment(
     ...Object.entries(requestEnvironment ?? {}),
   ];
   if (entries.length > ENV_MAX_ENTRIES) {
-    throw new EnvironmentRejectedError(
-      `environment must not exceed ${ENV_MAX_ENTRIES} entries`,
-      { reason: 'too-many', limit: ENV_MAX_ENTRIES },
-    );
+    throw new EnvironmentRejectedError(`environment must not exceed ${ENV_MAX_ENTRIES} entries`, {
+      reason: 'too-many',
+      limit: ENV_MAX_ENTRIES,
+    });
   }
   for (const [name, value] of entries) {
     validateEnvironmentEntry(name, value);
@@ -122,9 +122,12 @@ export function validateEnvironmentEntry(name: string, value: string): void {
   }
   // eslint-disable-next-line no-control-regex -- rejecting control characters is the entire point.
   if (/[\x00-\x1f\u007f]/.test(value)) {
-    throw new EnvironmentRejectedError(`environment value for "${name}" contains control characters`, {
-      reason: 'control-character',
-    });
+    throw new EnvironmentRejectedError(
+      `environment value for "${name}" contains control characters`,
+      {
+        reason: 'control-character',
+      },
+    );
   }
 }
 

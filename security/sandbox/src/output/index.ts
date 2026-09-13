@@ -37,7 +37,10 @@ export function boundOutput(text: string, maxOutputBytes: number): BoundedOutput
 }
 
 /** Full safe pipeline for one output stream: bound -> scrub. */
-export function sanitizeOutput(text: string, limits: ResourceLimits): {
+export function sanitizeOutput(
+  text: string,
+  limits: ResourceLimits,
+): {
   readonly text: string;
   readonly truncated: boolean;
   readonly scrubbedCount: number;

@@ -136,10 +136,9 @@ export class SandboxManager {
     const workspaceRef = validateWorkspaceRef(input.workspaceRef);
     const ttlMs = input.ttlMs ?? DEFAULT_TTL_MS;
     if (!Number.isInteger(ttlMs) || ttlMs <= 0 || ttlMs > MAX_TTL_MS) {
-      throw new InvalidSandboxRequestError(
-        `ttlMs must be a positive integer up to ${MAX_TTL_MS}`,
-        { reason: 'invalid-ttl' },
-      );
+      throw new InvalidSandboxRequestError(`ttlMs must be a positive integer up to ${MAX_TTL_MS}`, {
+        reason: 'invalid-ttl',
+      });
     }
     const hasOverrides =
       input.commandPolicy !== undefined ||
@@ -266,7 +265,12 @@ export class SandboxManager {
     this.emit(
       'sandbox_execution_requested',
       `execution "${executionId}" requested on sandbox "${sandboxId}": ${validated.command}`,
-      { sandboxId, executionId, command: validated.command, argumentCount: validated.arguments.length },
+      {
+        sandboxId,
+        executionId,
+        command: validated.command,
+        argumentCount: validated.arguments.length,
+      },
     );
 
     const startedAt = this.now().toISOString();
@@ -379,7 +383,10 @@ export class SandboxManager {
   }
 
   /** Returns one execution record. Terminal records never resume. */
-  async getExecution(sandboxId: SandboxId, executionId: ExecutionId): Promise<SandboxExecutionRecord> {
+  async getExecution(
+    sandboxId: SandboxId,
+    executionId: ExecutionId,
+  ): Promise<SandboxExecutionRecord> {
     await this.getSandbox(sandboxId);
     const state = this.executions.get(executionId);
     if (!state || state.record.sandboxId !== sandboxId) {
@@ -393,7 +400,10 @@ export class SandboxManager {
    * A cancelled execution can never resume or be re-submitted; a new
    * execution needs a fresh startExecution call.
    */
-  async cancelExecution(sandboxId: SandboxId, executionId: ExecutionId): Promise<SandboxExecutionRecord> {
+  async cancelExecution(
+    sandboxId: SandboxId,
+    executionId: ExecutionId,
+  ): Promise<SandboxExecutionRecord> {
     await this.getSandbox(sandboxId);
     const state = this.executions.get(executionId);
     if (!state || state.record.sandboxId !== sandboxId) {
@@ -435,7 +445,10 @@ export class SandboxManager {
 
   // ---------------------------------------------------------------- internals
 
-  private validateExecutionRequest(sandbox: SandboxRecord, request: SandboxExecutionRequest): {
+  private validateExecutionRequest(
+    sandbox: SandboxRecord,
+    request: SandboxExecutionRequest,
+  ): {
     command: string;
     arguments: string[];
     workingDirectory: string;
@@ -619,7 +632,9 @@ export class SandboxManager {
     metadata: Record<string, unknown>,
   ): void {
     if (!this.auditSink) return;
-    this.auditSink(createSandboxAuditEvent({ type, summary, metadata, timestamp: this.now().toISOString() }));
+    this.auditSink(
+      createSandboxAuditEvent({ type, summary, metadata, timestamp: this.now().toISOString() }),
+    );
   }
 }
 
@@ -628,8 +643,11 @@ function assertCommandAllowedRaw(sandbox: SandboxRecord, command: string): strin
   return command;
 }
 
-function normalizeUsage(usage: RuntimeExecutionOutcome['resourceUsage']): RuntimeExecutionOutcome['resourceUsage'] {
-  const n = (value: number | undefined) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0);
+function normalizeUsage(
+  usage: RuntimeExecutionOutcome['resourceUsage'],
+): RuntimeExecutionOutcome['resourceUsage'] {
+  const n = (value: number | undefined) =>
+    typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
   return {
     cpuTimeMs: n(usage?.cpuTimeMs),
     memoryPeakMb: n(usage?.memoryPeakMb),
@@ -674,10 +692,7 @@ type ProfileInput = {
 };
 
 /** Builds and validates a complete sandbox profile from partial input. */
-function buildProfile(
-  input: ProfileInput | undefined,
-  base?: SandboxProfile,
-): SandboxProfile {
+function buildProfile(input: ProfileInput | undefined, base?: SandboxProfile): SandboxProfile {
   const source = input ?? {};
   const commandPolicy =
     source.commandPolicy !== undefined

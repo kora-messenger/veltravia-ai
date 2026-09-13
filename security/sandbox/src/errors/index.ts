@@ -102,11 +102,10 @@ export class ExecutionNotFoundError extends SandboxError {
 /** Illegal lifecycle transition (e.g. destroyed -> running, stopped -> running). */
 export class InvalidSandboxTransitionError extends SandboxError {
   constructor(from: string, to: string) {
-    super(
-      'SANDBOX_INVALID_TRANSITION',
-      `Invalid sandbox transition: ${from} -> ${to}.`,
-      { from, to },
-    );
+    super('SANDBOX_INVALID_TRANSITION', `Invalid sandbox transition: ${from} -> ${to}.`, {
+      from,
+      to,
+    });
     this.name = 'InvalidSandboxTransitionError';
   }
 }

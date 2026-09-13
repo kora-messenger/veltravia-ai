@@ -54,9 +54,7 @@ describe('command policy', () => {
       'C:\\Windows\\System32\\cmd.exe',
     ];
     for (const command of rejected) {
-      expect(() => assertCommandAllowed(command, policy), command).toThrow(
-        CommandNotAllowedError,
-      );
+      expect(() => assertCommandAllowed(command, policy), command).toThrow(CommandNotAllowedError);
     }
     // Control characters fail the structural name check first
     expect(() => assertCommandAllowed('node\u0000', policy)).toThrow(InvalidSandboxRequestError);
@@ -66,19 +64,31 @@ describe('command policy', () => {
     // The denylist is CODE, not data - it always wins.
     const profileInput = { allowedCommands: ['node', 'rm', 'sudo'], allowShellExecution: false };
     expect(() => validateCommandPolicy(profileInput)).toThrow(InvalidSandboxRequestError);
-    expect(() => assertCommandAllowed('rm', { allowedCommands: ['rm'], allowShellExecution: false })).toThrow(
-      CommandNotAllowedError,
-    );
+    expect(() =>
+      assertCommandAllowed('rm', { allowedCommands: ['rm'], allowShellExecution: false }),
+    ).toThrow(CommandNotAllowedError);
     for (const denied of HARD_DENIED_COMMANDS) {
-      expect(() => assertCommandAllowed(denied, { allowedCommands: [denied], allowShellExecution: false }), denied).toThrow();
+      expect(
+        () =>
+          assertCommandAllowed(denied, { allowedCommands: [denied], allowShellExecution: false }),
+        denied,
+      ).toThrow();
     }
   });
 
   it('rejects allowlist entries that are shells, paths, or invalid names', () => {
-    expect(() => validateCommandPolicy({ allowedCommands: ['bash'], allowShellExecution: false })).toThrow();
-    expect(() => validateCommandPolicy({ allowedCommands: ['../tool'], allowShellExecution: false })).toThrow();
-    expect(() => validateCommandPolicy({ allowedCommands: [], allowShellExecution: false })).toThrow();
-    expect(() => validateCommandPolicy({ allowedCommands: ['node'], allowShellExecution: 'yes' as never })).toThrow();
+    expect(() =>
+      validateCommandPolicy({ allowedCommands: ['bash'], allowShellExecution: false }),
+    ).toThrow();
+    expect(() =>
+      validateCommandPolicy({ allowedCommands: ['../tool'], allowShellExecution: false }),
+    ).toThrow();
+    expect(() =>
+      validateCommandPolicy({ allowedCommands: [], allowShellExecution: false }),
+    ).toThrow();
+    expect(() =>
+      validateCommandPolicy({ allowedCommands: ['node'], allowShellExecution: 'yes' as never }),
+    ).toThrow();
   });
 
   it('validates command names and arguments structurally', () => {
@@ -153,7 +163,9 @@ describe('environment isolation', () => {
     const keys = Object.keys(env);
     expect(keys).toEqual(['A', 'B']);
     for (const hostKey of Object.keys(process.env)) {
-      expect(keys).not.toContain(hostKey === 'A' || hostKey === 'B' ? `__never__${hostKey}` : hostKey);
+      expect(keys).not.toContain(
+        hostKey === 'A' || hostKey === 'B' ? `__never__${hostKey}` : hostKey,
+      );
     }
   });
 
@@ -182,10 +194,15 @@ describe('environment isolation', () => {
     expect(() => validateEnvironmentEntry('MY_KEY', 'x'.repeat(3000))).toThrow(
       EnvironmentRejectedError,
     );
-    expect(() => buildIsolatedEnvironment({}, new Array(40).fill(0).reduce<Record<string, string>>((acc, _, i) => {
-      acc[`EXTRA_${i}`] = '1';
-      return acc;
-    }, {}))).toThrow(EnvironmentRejectedError);
+    expect(() =>
+      buildIsolatedEnvironment(
+        {},
+        new Array(40).fill(0).reduce<Record<string, string>>((acc, _, i) => {
+          acc[`EXTRA_${i}`] = '1';
+          return acc;
+        }, {}),
+      ),
+    ).toThrow(EnvironmentRejectedError);
   });
 
   it('validates default environments at creation time', () => {
@@ -199,20 +216,23 @@ describe('network policy', () => {
   it('is disabled by default and rejects unrestricted access', () => {
     const disabled = validateNetworkPolicy({ mode: 'disabled', allowedDestinations: [] });
     expect(disabled.mode).toBe('disabled');
-    expect(() => validateNetworkPolicy({ mode: 'unrestricted', allowedDestinations: [] } as never)).toThrow();
-    expect(() => validateNetworkPolicy({ mode: 'internet', allowedDestinations: [] } as never)).toThrow();
+    expect(() =>
+      validateNetworkPolicy({ mode: 'unrestricted', allowedDestinations: [] } as never),
+    ).toThrow();
+    expect(() =>
+      validateNetworkPolicy({ mode: 'internet', allowedDestinations: [] } as never),
+    ).toThrow();
     // disabled + destinations is a contradiction
-    expect(() => validateNetworkPolicy({ mode: 'disabled', allowedDestinations: [{ host: 'evil.example' }] })).toThrow();
+    expect(() =>
+      validateNetworkPolicy({ mode: 'disabled', allowedDestinations: [{ host: 'evil.example' }] }),
+    ).toThrow();
   });
 
   it('allowlist mode requires explicit valid destinations', () => {
     expect(() => validateNetworkPolicy({ mode: 'allowlist', allowedDestinations: [] })).toThrow();
     const ok = validateNetworkPolicy({
       mode: 'allowlist',
-      allowedDestinations: [
-        { host: 'registry.npmjs.org', port: 443 },
-        { host: '*.npmjs.org' },
-      ],
+      allowedDestinations: [{ host: 'registry.npmjs.org', port: 443 }, { host: '*.npmjs.org' }],
     });
     expect(ok.allowedDestinations).toHaveLength(2);
     const rejected = [
@@ -225,7 +245,10 @@ describe('network policy', () => {
       { host: 'registry.npmjs.org', port: 443.5 },
     ];
     for (const destination of rejected) {
-      expect(() => validateNetworkPolicy({ mode: 'allowlist', allowedDestinations: [destination] }), JSON.stringify(destination)).toThrow();
+      expect(
+        () => validateNetworkPolicy({ mode: 'allowlist', allowedDestinations: [destination] }),
+        JSON.stringify(destination),
+      ).toThrow();
     }
     // duplicates rejected
     expect(() =>
@@ -240,20 +263,35 @@ describe('network policy', () => {
 describe('resource limits', () => {
   it('provides safe defaults and rejects zero/negative/non-integer/absurd values', () => {
     const limits = validateResourceLimits(
-      { timeoutMs: 5000, maxMemoryMb: 128, maxCpuTimeMs: 2000, maxOutputBytes: 1024, maxProcesses: 4, maxFileBytes: 1024 },
+      {
+        timeoutMs: 5000,
+        maxMemoryMb: 128,
+        maxCpuTimeMs: 2000,
+        maxOutputBytes: 1024,
+        maxProcesses: 4,
+        maxFileBytes: 1024,
+      },
       'limits',
     );
     expect(limits.timeoutMs).toBe(5000);
     const rejected = [0, -1, 1.5, NaN, Infinity];
     for (const value of rejected) {
-      expect(() => validateResourceLimits({ timeoutMs: value } as never, 'limits'), String(value)).toThrow(
-        LimitsRejectedError,
-      );
+      expect(
+        () => validateResourceLimits({ timeoutMs: value } as never, 'limits'),
+        String(value),
+      ).toThrow(LimitsRejectedError);
     }
     // absurdly large -> rejected, never clamped
     expect(() =>
       validateResourceLimits(
-        { timeoutMs: 600_001, maxMemoryMb: 256, maxCpuTimeMs: 10_000, maxOutputBytes: 1024, maxProcesses: 4, maxFileBytes: 1024 },
+        {
+          timeoutMs: 600_001,
+          maxMemoryMb: 256,
+          maxCpuTimeMs: 10_000,
+          maxOutputBytes: 1024,
+          maxProcesses: 4,
+          maxFileBytes: 1024,
+        },
         'limits',
       ),
     ).toThrow(/ceiling/);
@@ -321,7 +359,9 @@ describe('output handling and scrubbing', () => {
     expect(containsSecretShapedContent(leaked)).toBe(true);
     expect(containsSecretShapedContent('all clean here')).toBe(false);
     // private keys, bearer headers, JWTs, and password assignments
-    expect(scrubSecrets('-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----').count).toBe(1);
+    expect(
+      scrubSecrets('-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----').count,
+    ).toBe(1);
     expect(scrubSecrets('Authorization: Bearer abcdef123456789012345').count).toBe(1);
     expect(scrubSecrets('password=hunter2-secret-value').count).toBe(1);
     expect(scrubSecrets('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.sig').count).toBe(1);

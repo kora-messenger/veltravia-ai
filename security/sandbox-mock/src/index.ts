@@ -134,8 +134,12 @@ export class MockSandboxRuntime implements SandboxRuntime {
     if (has('leak')) {
       return this.success(request, {
         stdout:
-          'config: github_pat_' + 'a'.repeat(36) + '\n' +
-          'token=ghp_' + 'b'.repeat(36) + '\n' +
+          'config: github_pat_' +
+          'a'.repeat(36) +
+          '\n' +
+          'token=ghp_' +
+          'b'.repeat(36) +
+          '\n' +
           'password=hunter2-super-secret-value',
       });
     }
@@ -332,7 +336,12 @@ export class MockSandboxRuntime implements SandboxRuntime {
   private limitBreach(
     request: RuntimeExecutionRequest,
     reason: 'memory' | 'cpu' | 'processes' | 'file_size',
-    usage: { memoryPeakMb?: number; cpuTimeMs?: number; processCount?: number; fileBytesWritten?: number },
+    usage: {
+      memoryPeakMb?: number;
+      cpuTimeMs?: number;
+      processCount?: number;
+      fileBytesWritten?: number;
+    },
   ): RuntimeExecutionOutcome {
     return {
       exitCode: null,
@@ -379,11 +388,13 @@ export function createSequentialIdGenerator(prefix: string): () => string {
  * test/CI configuration. Every manager rule runs for real; only the actual
  * process spawn is simulated.
  */
-export function createMockSandboxManager(options: {
-  now?: () => Date;
-  runtimeId?: string;
-  auditSink?: SandboxAuditSink;
-} = {}): {
+export function createMockSandboxManager(
+  options: {
+    now?: () => Date;
+    runtimeId?: string;
+    auditSink?: SandboxAuditSink;
+  } = {},
+): {
   manager: SandboxManager;
   runtime: MockSandboxRuntime;
 } {
@@ -397,4 +408,3 @@ export function createMockSandboxManager(options: {
   });
   return { manager, runtime };
 }
-
