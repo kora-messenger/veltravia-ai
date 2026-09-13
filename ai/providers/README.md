@@ -5,13 +5,15 @@ One adapter package per AI provider, each implementing the `AIProvider` interfac
 ```
 ai/providers/
 ├── mock/        # IMPLEMENTED (Step 2): deterministic, offline, keyless provider
-├── gemini/      # FUTURE
+├── gemini/      # IMPLEMENTED (Step 3): Google Gemini via the official Interactions API
 ├── openai/      # FUTURE
 ├── anthropic/   # FUTURE
 └── ...          # FUTURE
 ```
 
-## How a future adapter works (not built yet)
+## How an adapter works
+
+The Gemini adapter (`ai/providers/gemini`) is the reference implementation:
 
 1. Create `ai/providers/<name>/` as an npm workspace named `@veltravia/ai-provider-<name>`, depending on `@veltravia/ai-core`.
 2. Implement `AIProvider`: translate the normalized `AIRequest` into the vendor's format and the vendor's response back into the normalized `AIResponse`.

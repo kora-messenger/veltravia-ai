@@ -1,0 +1,26 @@
+{
+  "name": "@veltravia/ai-provider-gemini",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Official Gemini adapter for Veltravia AI - implements the provider-neutral AIProvider interface via Google's Interactions API (the only place the Gemini SDK is used).",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/ai-core": "*",
+    "@veltravia/config": "*",
+    "@google/genai": "^2.22.0"
+  }
+}

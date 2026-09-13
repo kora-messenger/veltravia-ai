@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@veltravia/ai-core": "*",
+    "@veltravia/ai-provider-gemini": "*",
     "@veltravia/ai-provider-mock": "*",
     "@veltravia/config": "*",
     "@veltravia/shared": "*",

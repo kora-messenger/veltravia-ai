@@ -16,9 +16,9 @@ Veltravia AI is an advanced AI software-development platform. The end state is a
 
 The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
 
-## Current state: Step 2 — AI Core
+## Current state: Step 3 — Gemini Provider
 
-The foundation (Step 1) is complete: monorepo, tooling, CI, security documentation. Step 2 adds the **AI Core** (`ai/core`, workspace `@veltravia/ai-core`): provider-neutral types, the `AIProvider` interface, the `ModelRegistry`, a deterministic `AIRouter`, the normalized error system, configuration handling, and a `POST /api/ai/generate` endpoint wired to a **mock provider** (`ai/providers/mock`). Real provider adapters (Gemini, OpenAI, Anthropic, …) are deliberately NOT connected yet — the architecture they will plug into is what this step builds. `connectors/`, `project-engine/`, `agents/`, and `prompts/` remain intentionally empty of code.
+The AI Core (Step 2) is complete and unchanged. Step 3 connects the first REAL AI provider: **Google Gemini**, via Google's currently recommended interface — the **Interactions API** (GA June 2026; the legacy `generateContent` API is deliberately not used) — through the official `@google/genai` SDK. The adapter lives in `ai/providers/gemini` and implements the existing `AIProvider` interface; the AI Core, router, API route, and web app required NO redesign and contain zero Gemini-specific code. The mock provider stays registered alongside Gemini, so the platform boots and tests fully offline without any credentials. OpenAI/Anthropic adapters, agents, and the project engine remain future work. `connectors/`, `project-engine/`, `agents/`, and `prompts/` remain intentionally empty of code.
 
 ## Repository structure
 
@@ -43,13 +43,14 @@ New shared libraries (e.g. `packages/logger`, `packages/database`) slot in as ne
 
 ### `ai/` — AI orchestration
 
-| Directory                | Responsibility                                                                                                             | Status                   |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| `ai/core/`               | The provider-neutral AI Core: types, provider interface, model registry, deterministic router, typed errors, configuration | **Implemented (Step 2)** |
-| `ai/providers/mock/`     | Deterministic, offline, keyless mock provider used by tests and the API                                                    | **Implemented (Step 2)** |
-| `ai/providers/<vendor>/` | One adapter per real provider (Gemini, OpenAI, Anthropic, …), each its own workspace                                       | Future                   |
-| `ai/agents/`             | Agent definitions (planner, builder, reviewer, debugger) composed on `ai/core`                                             | Future                   |
-| `ai/prompts/`            | Versioned prompt templates, reviewed and tested like code                                                                  | Future                   |
+| Directory               | Responsibility                                                                                                                              | Status                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `ai/core/`              | The provider-neutral AI Core: types, provider interface, model registry, deterministic router, typed errors, configuration                  | **Implemented (Step 2)** |
+| `ai/providers/mock/`    | Deterministic, offline, keyless mock provider used by tests and the API                                                                     | **Implemented (Step 2)** |
+| `ai/providers/gemini/`  | The Google Gemini adapter: the ONLY code importing `@google/genai`; Interactions API mapping, error normalization, retry-policy abstraction | **Implemented (Step 3)** |
+| `ai/providers/<other>/` | One adapter per additional real provider (OpenAI, Anthropic, …), each its own workspace                                                     | Future                   |
+| `ai/agents/`            | Agent definitions (planner, builder, reviewer, debugger) composed on `ai/core`                                                              | Future                   |
+| `ai/prompts/`           | Versioned prompt templates, reviewed and tested like code                                                                                   | Future                   |
 
 #### AI Core design (Step 2)
 
@@ -70,6 +71,26 @@ New shared libraries (e.g. `packages/logger`, `packages/database`) slot in as ne
 **API integration:** `apps/api` exposes `POST /api/ai/generate` with a Fastify-validated client contract that is deliberately NOT the internal `AIRequest` shape. The API layer maps the body to the core request, maps `AIError.code`s to HTTP statuses (400/404/422/502/503/500), and returns `{ error: { code, message } }` on failure — no stack traces, no internals, no secrets. See `docs/security.md` §3a for the AI Core's hard restrictions (no shell, no filesystem, no generated-code execution).
 
 **Mock provider (`ai/providers/mock`):** implements the same interface, returns deterministic content built from the input, predictable usage numbers, stable request ids, and a fixed (or injected) clock. It needs no network and no API key, so the entire core — registry, router, errors, and the live API endpoint — is testable offline.
+
+#### Gemini adapter (Step 3)
+
+`ai/providers/gemini` (workspace `@veltravia/ai-provider-gemini`) connects Google Gemini through the **Interactions API** — Google's current recommended interface (`interactions.create`), GA since June 2026. The legacy `generateContent` API is intentionally not used.
+
+**Isolation.** The adapter is the ONLY place in the platform that imports `@google/genai`. The AI Core, the router, the API route, and the web app see only the `AIProvider` interface and normalized types. If Google replaced their entire SDK tomorrow, only this one package would change.
+
+**Request mapping** (`src/mapping.ts`): `user` messages → `user_input` steps, `assistant` → `model_output` steps; `request.system` plus `system`-role messages merge into `system_instruction`; structured output → `response_format` (`type: "text"`, `mime_type: "application/json"`, schema); `temperature`/`maxOutputTokens` → `generation_config`. The adapter sends the full history each request (stateless), so Veltravia never depends on Gemini's server-side conversation state.
+
+**Response mapping**: `model_output` text content → `AIResponse.content`; `usage.total_input_tokens/total_output_tokens/total_tokens` → `AIUsage` (missing fields stay `undefined` — nothing is fabricated); interaction status → normalized finish reason (`completed` → `stop`, `incomplete`/`budget_exceeded` → `length`, `failed`/`cancelled` → `error`); interaction id → `requestId`.
+
+**Configuration** (`src/config.ts`): `GEMINI_API_KEY` (server-only), `GEMINI_MODEL` (default `gemini-3.8-flash`), `GEMINI_REQUEST_TIMEOUT_MS`, `GEMINI_ENABLED`, `GEMINI_STORE_INTERACTIONS`, `GEMINI_THINKING_LEVEL`. The key is read in exactly one place and handed to the SDK client at construction; it is never logged, returned, or committed.
+
+**Registered models**: `gemini-3.8-flash` (default — Google's current Flash flagship, built for long-horizon software engineering) and `gemini-3.1-pro-preview` (SOTA reasoning/coding), both declaring `text-generation`, `code-generation`, and `structured-output`. The default model id is configuration, not code.
+
+**Error normalization** (`src/errors.ts`): every failure — SDK `ApiError` (400 → invalid request, 401/403 → configuration, 404 → model not found, 429 → rate limited, 5xx → unavailable), timeouts, network faults, malformed responses — becomes a typed `AIError` with a `retryable` flag and a scrubbed message. The API key substring is redacted from every message and detail before it can surface anywhere.
+
+**Retry policy** (`src/retry.ts`): an abstraction, not a loop — Step 3 performs NO automatic retries (`NoRetryPolicy`), while every error already carries `retryable`/`retryAfterMs` data so a future backoff/circuit-breaker policy (the reference `ConservativeRetryPolicy` is included but not wired in) can be adopted without touching the provider.
+
+**Future stateful conversations**: Gemini's `previous_interaction_id` is a documented, optional hook in the mapping layer (read from model metadata); the provider-neutral `AIRequest` deliberately has NO Gemini conversation concept, so providers with different conversation mechanisms remain first-class citizens.
 
 #### Streaming (planned, not implemented)
 
@@ -111,17 +132,18 @@ Documentation, developer helper scripts (`scripts/check.sh` mirrors CI locally),
 
 ## Evolution plan
 
-| Step                       | Scope                       | What gets built                                                                                                                           |
-| -------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| **1. Foundation** _(done)_ | Structure, tooling, CI      | Monorepo, lint/test/build, CI, security documentation                                                                                     |
-| **2. Core AI** _(current)_ | `ai/core`, mock, `apps/api` | Provider-neutral types, `AIProvider` interface, model registry, capability system, deterministic router, typed errors, `/api/ai/generate` |
-| 2b. Real providers         | `ai/providers/*`            | First vendor adapters (Gemini/OpenAI/Anthropic) behind the same interface, secrets via the secret manager                                 |
-| 2. Core AI                 | `ai/*` workspaces           | Provider router + adapters, prompt versioning, first agents                                                                               |
-| 3. Project engine          | `project-engine/*`          | Isolated workspaces, sandboxed execution                                                                                                  |
-| 4. Connectors              | `connectors/*`              | Connector interface + first providers, credential isolation                                                                               |
-| 5. Persistence & auth      | `apps/api`, packages        | Database, authentication, multi-user state                                                                                                |
-| 6. Self-development        | `ai/`, `security/`          | Propose → test → review → deploy loop, behind human-approval gates                                                                        |
-| 7. Production              | deployment                  | Real deployment target (cloud), monitoring, staging                                                                                       |
+| Step                               | Scope                       | What gets built                                                                                                                                |
+| ---------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1. Foundation** _(done)_         | Structure, tooling, CI      | Monorepo, lint/test/build, CI, security documentation                                                                                          |
+| **2. Core AI** _(done)_            | `ai/core`, mock, `apps/api` | Provider-neutral types, `AIProvider` interface, model registry, capability system, deterministic router, typed errors, `/api/ai/generate`      |
+| **3. Gemini provider** _(current)_ | `ai/providers/gemini`       | First real adapter: Interactions API (the current official Gemini interface), error normalization, retry-policy abstraction, live-test harness | `ai/core`, mock, `apps/api` | Provider-neutral types, `AIProvider` interface, model registry, capability system, deterministic router, typed errors, `/api/ai/generate` |
+| 2b. Real providers                 | `ai/providers/*`            | First vendor adapters (Gemini/OpenAI/Anthropic) behind the same interface, secrets via the secret manager                                      |
+| 2. Core AI                         | `ai/*` workspaces           | Provider router + adapters, prompt versioning, first agents                                                                                    |
+| 3. Project engine                  | `project-engine/*`          | Isolated workspaces, sandboxed execution                                                                                                       |
+| 4. Connectors                      | `connectors/*`              | Connector interface + first providers, credential isolation                                                                                    |
+| 5. Persistence & auth              | `apps/api`, packages        | Database, authentication, multi-user state                                                                                                     |
+| 6. Self-development                | `ai/`, `security/`          | Propose → test → review → deploy loop, behind human-approval gates                                                                             |
+| 7. Production                      | deployment                  | Real deployment target (cloud), monitoring, staging                                                                                            |
 
 Later steps add their own dependencies only when they become necessary — this is a standing rule, not a Step 1 rule.
 

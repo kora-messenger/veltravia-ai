@@ -35,6 +35,19 @@ The AI Core package (`ai/core`) and its providers are an _abstraction layer only
 
 Those capabilities belong exclusively to the future controlled systems (`project-engine/execution/` for sandboxed execution, `security/` for approval gates). The Step 2 core is deliberately incapable of doing any of them: it has no child-process, filesystem, or network imports, and its configuration surface contains no secrets. Code review must reject any change that introduces these capabilities outside their designated future modules.
 
+## 3b. AI provider credentials — Gemini (Step 3)
+
+The first real provider credential exists as of Step 3: the Gemini API key. Its handling rules:
+
+- **Read once, in one place.** Only `ai/providers/gemini/src/config.ts` reads `GEMINI_API_KEY`. The value is handed to the Google SDK client at construction and stored privately in the provider instance.
+- **Never surfaced.** The key must never appear in logs, error messages, HTTP responses, or analytics. The adapter's error normalizer redacts the key substring from every message and detail it produces (`src/errors.ts`), and unit tests assert the redaction. Code review must reject any change that logs or returns provider credentials.
+- **Never client-side.** The key is a server-environment secret. It must never be shipped to the web app, baked into a build, or referenced in client code.
+- **Never in the repository.** `.env` is git-ignored; only `.env.example` (placeholders) is committed. CI is intentionally keyless — the optional live integration test (`tests/live/gemini.live.test.ts`) is skipped unless explicitly enabled locally.
+- **Disable switch.** `GEMINI_ENABLED=false` un-registers the adapter at boot even when a key exists.
+- **No vendor leakage.** Vendor SDK types and errors never leave the adapter package; everything crossing the boundary is a normalized Veltravia type or `AIError`.
+
+The same rules apply to every future provider adapter (OpenAI, Anthropic, …): credentials are bound inside the adapter, scrubbed from all surfaces, and never trusted to the prompt stream.
+
 ## 4. Self-development requires controlled testing and approval
 
 - The future self-development system (the platform proposing improvements to itself) must follow a fixed pipeline: **propose → test → review → approve → deploy**.

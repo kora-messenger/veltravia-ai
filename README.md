@@ -2,8 +2,8 @@
 
 Veltravia AI is an advanced AI software-development platform. Its long-term goal is a system that can build web and mobile applications, backend systems and APIs, generate and modify code, test and debug projects, connect to multiple AI providers and external services, maintain project memory, and improve itself through a controlled, reviewed self-development process.
 
-**Current development stage: Step 2 — AI Core.**
-The AI Core abstraction layer is implemented (`ai/core`): provider-neutral request/response types, the `AIProvider` interface, a model registry with a capability system, a deterministic router, typed errors, and configuration. A **mock provider** powers the `POST /api/ai/generate` endpoint end to end. Real AI providers (Gemini, OpenAI, Claude, …) have deliberately NOT been connected yet — Step 2 builds the architecture they will plug into. No autonomous coding, self-development, or code execution exists (see [docs/architecture.md](docs/architecture.md)).
+**Current development stage: Step 3 — Gemini Provider.**
+The AI Core abstraction layer (Step 2) is implemented (`ai/core`): provider-neutral request/response types, the `AIProvider` interface, a model registry with a capability system, a deterministic router, typed errors, and configuration. Step 3 connects the first real provider: the **Gemini adapter** (`ai/providers/gemini`), built on Google's current official interface — the **Interactions API** — through the `@google/genai` SDK. The adapter is the ONLY code in the platform that imports the Gemini SDK; the AI Core, router, `POST /api/ai/generate` endpoint, and web app remain 100% provider-neutral. The offline **mock provider** stays registered alongside Gemini, so the platform boots and tests without any credentials. Other providers (OpenAI, Claude, …), autonomous coding, self-development, and code execution do NOT exist yet (see [docs/architecture.md](docs/architecture.md)).
 
 ## Technology stack
 
@@ -70,20 +70,31 @@ npm run dev:api   # http://localhost:3000/health
 npm run dev:web   # http://localhost:5173
 ```
 
-## The AI Core (Step 2)
+## The AI Core and the provider system
 
 - **Provider-neutral by design.** Veltravia AI owns its internal interface (`AIRequest`/`AIResponse`); vendor formats exist only inside future adapter packages. Adding a provider = one adapter + registry entries, nothing else changes.
 - **Capability system.** Models declare capabilities (text-generation, vision, embeddings, …); the router only picks models that declare everything a request needs.
 - **Typed errors everywhere.** One normalized error hierarchy with stable codes (`AI_MODEL_NOT_FOUND`, …) — vendor errors never reach application code.
 - **Mock provider.** Deterministic, offline, keyless — the whole core is testable without the Internet.
-- **No secrets.** The core reads only routing/limit config from the environment; real API keys will be bound inside future adapters via the secret manager.
+- **No secrets in the core.** The core reads only routing/limit config from the environment; real API keys are bound inside adapters.
+- **Gemini adapter (Step 3).** `ai/providers/gemini` implements `AIProvider` on top of Google's current official interface — the Interactions API (`interactions.create`, GA June 2026) — via the official `@google/genai` SDK. It maps requests/responses, normalizes every error (with the API key scrubbed from all messages), and is the ONLY code in the platform that imports the Gemini SDK. The API registers it only when `GEMINI_API_KEY` is present; without a key, the offline mock serves everything.
+
+### Optional live Gemini test
+
+The test suite never contacts the real Gemini API — `tests/live/gemini.live.test.ts` skips unless BOTH `RUN_GEMINI_INTEGRATION_TESTS=true` AND `GEMINI_API_KEY` are set locally:
+
+```bash
+RUN_GEMINI_INTEGRATION_TESTS=true GEMINI_API_KEY=... npx vitest run tests/live/gemini.live.test.ts
+```
+
+CI never sets these, so CI stays offline and keyless.
 
 ## Testing
 
 Tests use **Vitest**:
 
 - Unit tests live next to the code they test (`packages/*/src/*.test.ts`, `ai/**/src/**/*.test.ts`, `apps/*/src/**/*.test.ts`) — covering the registry, router, validation, error system, config, and the mock provider.
-- Cross-workspace integration tests live in [`tests/`](tests/) — the API health test and the `/api/ai/generate` tests exercise the real Fastify app against the mock provider, including error mapping and secret-leak checks.
+- Cross-workspace integration tests live in [`tests/`](tests/) — the API health test, the `/api/ai/generate` mock tests, and the Gemini router/API integration tests exercise the real Fastify app and the real router, including error mapping and secret-leak checks (all with a fake Gemini client — no network, no key).
 - Vitest resolves workspace packages directly from their TypeScript sources, so tests never require a prior build step.
 
 ## GitHub Actions / CI
