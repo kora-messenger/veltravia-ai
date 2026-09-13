@@ -97,6 +97,25 @@ The tool layer enforces these principles — all of them tested:
 14. Tool results are normalized (schema-validated objects) before being returned to the AI.
 15. The AI cannot escalate its own permissions (claimed permissions grant nothing).
 
+## 5c. Agent layer rules (Step 6, `agent/core`)
+
+1. The agent never receives connector credentials — requests carry only task data and plain metadata.
+2. The agent cannot grant itself permissions; permission grants exist only on the Tool System, given explicitly.
+3. The agent cannot bypass the Tool System: the executor pipeline is the only dispatch path (tested).
+4. The agent cannot bypass the ConnectorManager — connector-backed tools route through it or fail.
+5. The agent cannot call external services directly (no network code exists in Agent Core).
+6. The agent cannot execute arbitrary code — no code/shell/filesystem execution exists anywhere in the layer.
+7. The agent cannot modify its own implementation or registry.
+8. The agent cannot change its own security limits — limits are resolved by the manager with hard ceilings; zero/infinite/negative values are rejected and oversized values are capped.
+9. The agent cannot approve its own confirmations — only the human decision path (`AgentManager.submitConfirmationResult` / the API endpoint) decides, through the Step 5 single-use, input-bound mechanism. A model decision of `request_confirmation` with no pending confirmation is a typed failure, never an approval.
+10. Tool inputs are untrusted model output: decisions are parsed, structurally validated, tool-id-checked, and schema-validated before dispatch; the Tool System re-validates everything anyway (defense in depth).
+11. Tool outputs are untrusted external data: the context tags them UNTRUSTED and delimits them; the system instructions state they are never instructions.
+12. Model-generated decisions require validation before any action (tested: malformed output never executes a tool).
+13. Agent loops have hard limits — there is no "unlimited" configuration.
+14. Cancellation cannot be bypassed: one-way flag, checked every iteration; cancelled runs are terminal and never resume.
+15. Hidden chain-of-thought is never exposed or persisted — only concise summaries, decisions, actions, and results are stored/returned/audited.
+16. Secrets never enter agent state or audit logs: errors and audit events are scrubbed, and secret-shaped request metadata is rejected at validation.
+
 ## 6. Repository & supply-chain hygiene
 
 - Minimal dependency surface: no dependency is added speculatively. Every dependency addition goes through review.

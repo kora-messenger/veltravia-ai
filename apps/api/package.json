@@ -11,6 +11,8 @@
     "dev": "tsx watch src/main.ts"
   },
   "dependencies": {
+    "@veltravia/agent-core": "*",
+    "@veltravia/agent-mock": "*",
     "@veltravia/ai-core": "*",
     "@veltravia/ai-provider-gemini": "*",
     "@veltravia/ai-provider-mock": "*",

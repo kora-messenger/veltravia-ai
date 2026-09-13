@@ -16,21 +16,25 @@ Veltravia AI is an advanced AI software-development platform. The end state is a
 
 The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
 
-## Current state: Step 5 — Tool/Function System
+## Current state: Step 6 — AI Agent Layer
 
-Step 5 adds the **tool system**: the controlled layer between AI orchestration and actions.
+Step 6 adds the **AI agent layer**: the provider-neutral orchestration that decides when and why to use tools.
+
+- `agent/core` (`@veltravia/agent-core`): the `Agent` abstraction with a controlled execution method; `AgentRequest` (task, optional session/project/user ids, optional tool filter, caller limits, plain metadata — never secrets) and `AgentResponse` (completed / awaiting_tool / awaiting_confirmation / failed / cancelled / limit_reached — safe normalized data, never chain-of-thought); `AgentState` with a controlled state machine (idle → planning → waiting_for_tool / waiting_for_confirmation / executing → terminal; terminal statuses never transition again — a cancelled run never resumes); the `DefaultAgent` loop (validate request → bounded iterations → decide via a `DecisionSource` → parse + validate the `AgentDecision` → dispatch tool requests THROUGH the Tool System → record normalized results → terminate or pause on confirmations); `AgentExecutionLimits` (safe defaults + hard ceilings — there is no unlimited); cancellation (one-way flag, audited, never auto-resumed); an `AgentRegistry` (duplicate ids rejected) and an `AgentManager` (create/get/continue/confirm/cancel/list — no background workers, no job queues); `ModelDecisionSource` bridging AI Core (Agent → AI Core → AI Router → AI Provider — no vendor SDKs anywhere in Agent Core); trust-tagged context where tool results are UNTRUSTED DATA; and scrubbed agent audit events.
+- `agent/mock` (`@veltravia/agent-mock`): deterministic, offline, credential-free scripted agents (`ScriptedDecisionSource`, `createMockAgent`) that drive the REAL loop for tests and CI — including deliberately malformed decisions.
+- `apps/api` gained safe agent endpoints: `POST /api/agents/run`, `GET /api/agents/runs/:runId`, `POST /api/agents/runs/:runId/cancel`, `POST /api/agents/runs/:runId/confirmation`, `GET /api/agents` — no secrets, no chain-of-thought, no unlimited limits, no self-approval. See [agents.md](agents.md).
+
+Everything from Steps 1–5 is unchanged and still green (Step 5 recap below). The agent is a GENERAL ORCHESTRATOR — not a coding agent, not a project engine, not self-development: it cannot create files, run code, modify its implementation, approve its own confirmations, or exceed its limits. Connector-backed tool execution beyond authorization remains deliberately disabled (the Step 5 boundary).
+
+## Step 5 recap — Tool/Function System
+
+Step 5 added the **tool system**: the controlled layer between AI orchestration and actions.
 
 - `tools/core` (`@veltravia/tool-core`): `ToolDefinition` (id, input/output schemas, permissions, risk level, optional connector reference), provider-neutral schema validation (rejects missing fields, wrong types, malformed and unexpected input — problem messages name fields, never values), the `ToolRegistry` (validated registration, duplicate rejection), the `ToolManager` (registration grants NOTHING; explicit, auditable permission grants; runtime availability; human confirmation decisions), `ToolInvocation`/`ToolInvocationResult` (a request is never permission to execute), and the `ToolExecutor` — the gated pipeline: exists → available → input valid → permissions → connector authorization → confirmation → execute → output validation → normalized result. Plus typed scrubbed errors and tool audit events.
 - `tools/mock` (`@veltravia/tool-mock`): deterministic, offline, credential-free proof tools — an executable summarizer (input validation + normalized results), a critical-risk purge tool (risk-forced confirmation), and a connector-backed reference tool (Tool → ConnectorManager → Connector).
 - `apps/api` gained read-only endpoints (`GET /api/tools`, `GET /api/tools/:id`) exposing safe metadata only — no execution endpoint exists.
 
-Everything from Steps 1–4 is unchanged and still green: the AI Core (`ai/core`), the mock provider, the Gemini adapter (`ai/providers/gemini`), and the connector framework (`connectors/core`, `connectors/mock`). Connector-backed tools authorize through the ConnectorManager and can never bypass it — and their external execution is deliberately not enabled yet (the pipeline stops at a typed "not enabled" failure). The future AI agent layer (Step 6) will decide when and why to use tools. See [tools.md](tools.md).
-
-The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
-
-## Current state: Step 5 — Tool/Function System
-
-The AI Core (Step 2) is complete and unchanged. Step 3 connects the first REAL AI provider: **Google Gemini**, via Google's currently recommended interface — the **Interactions API** (GA June 2026; the legacy `generateContent` API is deliberately not used) — through the official `@google/genai` SDK. The adapter lives in `ai/providers/gemini` and implements the existing `AIProvider` interface; the AI Core, router, API route, and web app required NO redesign and contain zero Gemini-specific code. The mock provider stays registered alongside Gemini, so the platform boots and tests fully offline without any credentials. OpenAI/Anthropic adapters, agents, and the project engine remain future work. `connectors/`, `project-engine/`, `agents/`, and `prompts/` remain intentionally empty of code.
+Steps 1–4 were unchanged and stayed green: the AI Core (`ai/core`), the mock provider, the Gemini adapter (`ai/providers/gemini`), and the connector framework (`connectors/core`, `connectors/mock`). Connector-backed tools authorize through the ConnectorManager and can never bypass it — and their external execution is deliberately not enabled yet (the pipeline stops at a typed "not enabled" failure). The AI agent layer (Step 6) now decides when and why to use tools. See [tools.md](tools.md) and [agents.md](agents.md).
 
 ## Repository structure
 
@@ -61,7 +65,9 @@ New shared libraries (e.g. `packages/logger`, `packages/database`) slot in as ne
 | `ai/providers/mock/`    | Deterministic, offline, keyless mock provider used by tests and the API                                                                     | **Implemented (Step 2)** |
 | `ai/providers/gemini/`  | The Google Gemini adapter: the ONLY code importing `@google/genai`; Interactions API mapping, error normalization, retry-policy abstraction | **Implemented (Step 3)** |
 | `ai/providers/<other>/` | One adapter per additional real provider (OpenAI, Anthropic, …), each its own workspace                                                     | Future                   |
-| `ai/agents/`            | Agent definitions (planner, builder, reviewer, debugger) composed on `ai/core`                                                              | Future                   |
+| `agent/core/`           | The provider-neutral agent layer: Agent interface, state machine, controlled loop, decisions, limits, cancellation, audit                   | **Implemented (Step 6)** |
+| `agent/mock/`           | Deterministic, offline scripted agents driving the real loop for tests/CI                                                                   | **Implemented (Step 6)** |
+| `ai/agents/`            | Future specialized agent definitions (planner, builder, reviewer, debugger) composed on `agent/core`                                        | Future                   |
 | `ai/prompts/`           | Versioned prompt templates, reviewed and tested like code                                                                                   | Future                   |
 
 #### AI Core design (Step 2)
@@ -156,19 +162,19 @@ Documentation, developer helper scripts (`scripts/check.sh` mirrors CI locally),
 
 ## Evolution plan
 
-| Step                                   | Scope                       | What gets built                                                                                                                                                                                              |
-| -------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **1. Foundation** _(done)_             | Structure, tooling, CI      | Monorepo, lint/test/build, CI, security documentation                                                                                                                                                        |
-| **2. Core AI** _(done)_                | `ai/core`, mock, `apps/api` | Provider-neutral types, `AIProvider` interface, model registry, capability system, deterministic router, typed errors, `/api/ai/generate`                                                                    |
-| **3. Gemini provider** _(done)_        | `ai/providers/gemini`       | First real adapter: Interactions API (the current official Gemini interface), error normalization, retry-policy abstraction, live-test harness                                                               |
-| **4. Connector architecture** _(done)_ | `connectors/core`, `mock`   | Provider-neutral connector interface, metadata, capabilities, permission system, credential references, operation declarations, registry, manager, typed errors, audit events, read-only API                 |
-| **5. Tool/Function System** _(done)_   | `tools/core`, `mock`        | Tool definitions, schema validation, registry, manager, permission gating, human confirmation (single-use, input-bound, expiring), availability, controlled invocation pipeline, audit events, read-only API |
-| 6. AI agent layer                      | `ai/`, `apps/api`           | Orchestration that decides when/why to use tools, surfaces confirmations to humans, consumes normalized results                                                                                              |
-| 7. Project engine                      | `project-engine/*`          | Isolated workspaces, filesystem abstraction, sandboxed execution                                                                                                                                             |
-| 8. Real connectors                     | `connectors/providers/*`    | First vendor connectors (source control, databases, storage, payments) behind the same interface                                                                                                             |
-| 9. Persistence & auth                  | `apps/api`, packages        | Database, authentication, multi-user state                                                                                                                                                                   |
-| 10. Self-development                   | `ai/`, `security/`          | Propose → test → review → deploy loop, behind human-approval gates                                                                                                                                           |
-| 11. Production                         | deployment                  | Real deployment target (cloud), monitoring, staging                                                                                                                                                          |
+| Step                                   | Scope                            | What gets built                                                                                                                                                                                              |
+| -------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **1. Foundation** _(done)_             | Structure, tooling, CI           | Monorepo, lint/test/build, CI, security documentation                                                                                                                                                        |
+| **2. Core AI** _(done)_                | `ai/core`, mock, `apps/api`      | Provider-neutral types, `AIProvider` interface, model registry, capability system, deterministic router, typed errors, `/api/ai/generate`                                                                    |
+| **3. Gemini provider** _(done)_        | `ai/providers/gemini`            | First real adapter: Interactions API (the current official Gemini interface), error normalization, retry-policy abstraction, live-test harness                                                               |
+| **4. Connector architecture** _(done)_ | `connectors/core`, `mock`        | Provider-neutral connector interface, metadata, capabilities, permission system, credential references, operation declarations, registry, manager, typed errors, audit events, read-only API                 |
+| **5. Tool/Function System** _(done)_   | `tools/core`, `mock`             | Tool definitions, schema validation, registry, manager, permission gating, human confirmation (single-use, input-bound, expiring), availability, controlled invocation pipeline, audit events, read-only API |
+| **6. AI agent layer** _(done)_         | `agent/core`, `mock`, `apps/api` | Controlled orchestration: bounded loops, validated decisions, tool requests through the Tool System, human confirmations, cancellation, safe run/confirmation API                                            |
+| 7. Project engine                      | `project-engine/*`               | Isolated workspaces, filesystem abstraction, sandboxed execution                                                                                                                                             |
+| 8. Real connectors                     | `connectors/providers/*`         | First vendor connectors (source control, databases, storage, payments) behind the same interface                                                                                                             |
+| 9. Persistence & auth                  | `apps/api`, packages             | Database, authentication, multi-user state                                                                                                                                                                   |
+| 10. Self-development                   | `ai/`, `security/`               | Propose → test → review → deploy loop, behind human-approval gates                                                                                                                                           |
+| 11. Production                         | deployment                       | Real deployment target (cloud), monitoring, staging                                                                                                                                                          |
 
 Later steps add their own dependencies only when they become necessary — this is a standing rule, not a Step 1 rule.
 

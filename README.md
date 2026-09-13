@@ -2,8 +2,8 @@
 
 Veltravia AI is an advanced AI software-development platform. Its long-term goal is a system that can build web and mobile applications, backend systems and APIs, generate and modify code, test and debug projects, connect to multiple AI providers and external services, maintain project memory, and improve itself through a controlled, reviewed self-development process.
 
-**Current development stage: Step 5 — Tool/Function System.**
-Steps 1–4 are complete: the monorepo foundation, the provider-neutral **AI Core** (`ai/core`) with its mock provider, the **Gemini adapter** (`ai/providers/gemini`, the only code importing the Gemini SDK), and the **connector framework** (`connectors/core` + `connectors/mock`). Step 5 adds the **tool system**: `tools/core` (`@veltravia/tool-core`) — strongly typed tool definitions with input/output schemas, a validated registry, a permission-gated manager (registration grants nothing), a human-confirmation flow (single-use, input-bound, expiring; high/critical risk always requires it), runtime availability, a controlled invocation pipeline (exists → available → input valid → permissions → connector authorization → confirmation → execute → output validation), typed scrubbed errors, and audit events — plus `tools/mock` (`@veltravia/tool-mock`), deterministic offline proof tools, and read-only API endpoints (`GET /api/tools`). Connector-backed tools authorize through the ConnectorManager and can never bypass it; their external execution is deliberately not enabled yet, and no AI agent exists yet (see [docs/architecture.md](docs/architecture.md) and [docs/tools.md](docs/tools.md)).
+**Current development stage: Step 6 — AI Agent Layer.**
+Steps 1–5 are complete: the monorepo foundation, the provider-neutral **AI Core** (`ai/core`) with its mock provider, the **Gemini adapter** (`ai/providers/gemini`, the only code importing the Gemini SDK), the **connector framework** (`connectors/core` + `connectors/mock`), and the **tool system** (`tools/core` + `tools/mock`: schema-validated tool definitions, a permission-gated manager where registration grants nothing, single-use input-bound human confirmations, and a controlled invocation pipeline ending at the ConnectorManager). Step 6 adds the **AI agent layer**: `agent/core` (`@veltravia/agent-core`) — provider-neutral agents that reason about a task, request tools THROUGH the Tool System (never around it), process normalized results, pause for human confirmations, and complete within hard limits (no unlimited loops, no unbounded history); a controlled state machine with terminal statuses, validated decisions (raw model output is never acted on), cancellation, scrubbed audit events, and trust-tagged context that treats tool results as UNTRUSTED DATA — plus `agent/mock` (`@veltravia/agent-mock`), deterministic offline scripted agents, and safe run/confirmation/cancellation API endpoints (`/api/agents…`). The agent is a GENERAL ORCHESTRATOR, not a coding agent: it cannot execute code, touch files, approve its own confirmations, or change its limits (see [docs/architecture.md](docs/architecture.md) and [docs/agents.md](docs/agents.md)).
 
 ## Technology stack
 
@@ -41,6 +41,9 @@ veltravia-ai/
 ├── tools/         # Tool & function system (Step 5)
 │   ├── core/       # Tool definitions, validation, registry, manager, executor, audit
 │   └── mock/       # Deterministic offline proof tools
+├── agent/         # AI agent layer (Step 6)
+│   ├── core/       # Agent interface, state machine, loop, decisions, limits, cancellation, audit
+│   └── mock/       # Deterministic offline scripted agents
 ├── project-engine/ # Future isolated workspace/execution engine
 ├── security/       # Future security modules (policy, sandboxing, secrets)
 ├── tests/          # Cross-workspace integration tests
@@ -134,7 +137,7 @@ Veltravia AI will evolve step by step (details in [docs/architecture.md](docs/ar
 3. **Gemini provider** _(done)_ — first real adapter (`ai/providers/gemini`), Interactions API
 4. **Connector architecture** _(done)_ — provider-neutral connector framework (`connectors/core`, `connectors/mock`), credential isolation, read-only API
 5. **Tool/Function System** _(done)_ — tool definitions, schema validation, permission gating, human confirmation, controlled invocation (`tools/core`, `tools/mock`), read-only API
-6. **AI agent layer** — orchestration that decides when and why to use tools
+6. **AI agent layer** _(done)_ — controlled agent orchestration (`agent/core`, `agent/mock`): bounded loops, validated decisions, tool requests through the Tool System, human confirmations, cancellation
 7. **Project engine** — isolated workspaces, filesystem abstraction, sandboxed execution (`project-engine/`)
 8. **Real connectors** — vendor integrations (source control, databases, storage, payments) behind the same interface
 9. **Self-development** — propose → test → review → deploy pipeline, behind approval gates (`security/`)

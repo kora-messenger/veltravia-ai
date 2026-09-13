@@ -1,14 +1,17 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AICore } from '@veltravia/ai-core';
 import type { ConnectorManager } from '@veltravia/connector-core';
+import type { AgentManager } from '@veltravia/agent-core';
 import type { ToolManager } from '@veltravia/tool-core';
 import { formatTimestamp } from '@veltravia/shared';
 import { VELTRAVIA_NAME, VELTRAVIA_VERSION, type HealthCheckResponse } from '@veltravia/types';
 import { createAICore } from './ai.js';
 import { createConnectorManager } from './connectors.js';
+import { createAgentManager } from './agents.js';
 import { createToolManager } from './tools.js';
 import { registerAIRoutes } from './routes/ai-generate.js';
 import { registerConnectorRoutes } from './routes/connectors.js';
+import { registerAgentRoutes } from './routes/agents.js';
 import { registerToolRoutes } from './routes/tools.js';
 
 export interface BuildAppOptions {
@@ -18,6 +21,8 @@ export interface BuildAppOptions {
   readonly connectors?: ConnectorManager;
   /** Pre-built ToolManager (tests inject one); defaults to the mock tools. */
   readonly tools?: ToolManager;
+  /** Pre-built AgentManager (tests inject one); defaults to the demo agents. */
+  readonly agents?: AgentManager;
 }
 
 /**
@@ -50,6 +55,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Execution is deliberately NOT exposed - the agent layer owns invocation.
   const tools = options.tools ?? createToolManager();
   registerToolRoutes(app, tools);
+
+  // Agent execution endpoints: bounded runs, confirmation flow, cancellation.
+  // Responses carry safe normalized state only - never chain-of-thought.
+  const agents = options.agents ?? createAgentManager();
+  registerAgentRoutes(app, agents);
 
   return app;
 }
