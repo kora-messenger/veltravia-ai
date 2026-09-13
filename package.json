@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Veltravia AI - an advanced AI software-development platform. Step 2: AI Core.",
+  "description": "Veltravia AI - an advanced AI software-development platform. Step 4: Connector architecture.",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -12,7 +12,9 @@
     "apps/*",
     "ai/core",
     "ai/providers/mock",
-    "ai/providers/gemini"
+    "ai/providers/gemini",
+    "connectors/core",
+    "connectors/mock"
   ],
   "scripts": {
     "lint": "eslint . && prettier --check .",
@@ -20,10 +22,11 @@
     "test": "vitest run",
     "build:packages": "npm run build --workspace @veltravia/types && npm run build --workspace @veltravia/shared && npm run build --workspace @veltravia/config",
     "build:ai": "npm run build --workspace @veltravia/ai-core && npm run build --workspace @veltravia/ai-provider-mock && npm run build --workspace @veltravia/ai-provider-gemini",
-    "build": "npm run build:packages && npm run build:ai && npm run build --workspace @veltravia/api && npm run build --workspace @veltravia/web",
+    "build": "npm run build:packages && npm run build:ai && npm run build:connectors && npm run build --workspace @veltravia/api && npm run build --workspace @veltravia/web",
     "dev:api": "npm run build:packages && npm run build:ai && npm run dev --workspace @veltravia/api",
     "dev:web": "npm run build:packages && npm run dev --workspace @veltravia/web",
-    "check": "bash scripts/check.sh"
+    "check": "bash scripts/check.sh",
+    "build:connectors": "npm run build --workspace @veltravia/connector-core && npm run build --workspace @veltravia/connector-mock"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

@@ -2,8 +2,8 @@
 
 Veltravia AI is an advanced AI software-development platform. Its long-term goal is a system that can build web and mobile applications, backend systems and APIs, generate and modify code, test and debug projects, connect to multiple AI providers and external services, maintain project memory, and improve itself through a controlled, reviewed self-development process.
 
-**Current development stage: Step 3 — Gemini Provider.**
-The AI Core abstraction layer (Step 2) is implemented (`ai/core`): provider-neutral request/response types, the `AIProvider` interface, a model registry with a capability system, a deterministic router, typed errors, and configuration. Step 3 connects the first real provider: the **Gemini adapter** (`ai/providers/gemini`), built on Google's current official interface — the **Interactions API** — through the `@google/genai` SDK. The adapter is the ONLY code in the platform that imports the Gemini SDK; the AI Core, router, `POST /api/ai/generate` endpoint, and web app remain 100% provider-neutral. The offline **mock provider** stays registered alongside Gemini, so the platform boots and tests without any credentials. Other providers (OpenAI, Claude, …), autonomous coding, self-development, and code execution do NOT exist yet (see [docs/architecture.md](docs/architecture.md)).
+**Current development stage: Step 4 — Connector Architecture.**
+Steps 1–3 are complete: the monorepo foundation, the provider-neutral **AI Core** (`ai/core`) with its mock provider, and the **Gemini adapter** (`ai/providers/gemini`, built on Google's current official interface — the Interactions API — the only code importing the Gemini SDK). Step 4 adds the **connector framework**: `connectors/core` (`@veltravia/connector-core`) — a provider-neutral `Connector` interface, typed metadata, capabilities, a declared-vs-granted permission system, credential **references** (never values), operation declarations, a validated registry, a permission-gating manager, typed scrubbed errors, and audit events — plus `connectors/mock` (`@veltravia/connector-mock`), a deterministic offline proof connector, and read-only API endpoints (`GET /api/connectors`). No vendor connectors, no tool execution, no autonomous coding, and no code execution exist yet (see [docs/architecture.md](docs/architecture.md) and [docs/connectors.md](docs/connectors.md)).
 
 ## Technology stack
 
@@ -33,8 +33,11 @@ veltravia-ai/
 │   └── types/      # Shared TypeScript domain types
 ├── ai/
 │   ├── core/       # AI Core: types, provider interface, registry, router, errors, config
-│   └── providers/  # mock/ implemented; real vendor adapters arrive later
-├── connectors/     # Future external-service connector system
+│   └── providers/  # mock/ + gemini/ implemented; other adapters arrive later
+├── connectors/    # Connector framework (Step 4)
+│   ├── core/       # Provider-neutral connector interface, permissions, registry, manager
+│   ├── mock/       # Deterministic offline proof connector
+│   └── providers/  # Future vendor connectors (GitHub, databases, storage, payments, …)
 ├── project-engine/ # Future isolated workspace/execution engine
 ├── security/       # Future security modules (policy, sandboxing, secrets)
 ├── tests/          # Cross-workspace integration tests
@@ -94,7 +97,7 @@ CI never sets these, so CI stays offline and keyless.
 Tests use **Vitest**:
 
 - Unit tests live next to the code they test (`packages/*/src/*.test.ts`, `ai/**/src/**/*.test.ts`, `apps/*/src/**/*.test.ts`) — covering the registry, router, validation, error system, config, and the mock provider.
-- Cross-workspace integration tests live in [`tests/`](tests/) — the API health test, the `/api/ai/generate` mock tests, and the Gemini router/API integration tests exercise the real Fastify app and the real router, including error mapping and secret-leak checks (all with a fake Gemini client — no network, no key).
+- Cross-workspace integration tests live in [`tests/`](tests/) — the API health test, the `/api/ai/generate` mock tests, the Gemini router/API integration tests, and the connector API tests (`apps/api/src/tests/`) exercise the real Fastify app and the real registry/router, including error mapping and secret-leak checks (all with fake/ offline clients — no network, no key). Connector-core tests additionally prove that registration grants no permissions, that secret-like values never surface in errors or audit events, and that the mock connector runs fully offline.
 - Vitest resolves workspace packages directly from their TypeScript sources, so tests never require a prior build step.
 
 ## GitHub Actions / CI
@@ -116,14 +119,17 @@ The full policy lives in [docs/security.md](docs/security.md). The non-negotiabl
 - Production secrets are stored in a proper secret manager (GitHub Actions secrets today; a dedicated vault later), never in code or config files.
 - AI-generated code will eventually execute **only inside an isolated sandbox** — never with unrestricted access to the host machine.
 - The future self-development system requires controlled testing and explicit human approval before any production change.
-- Connector credentials are isolated from generated project code.
+- Connector credentials are referenced, never stored in the connector core, never returned via API responses, and never logged (scrubbed from every error and audit event).
 
 ## Architecture overview
 
 Veltravia AI will evolve step by step (details in [docs/architecture.md](docs/architecture.md)):
 
 1. **Foundation** _(done)_ — monorepo, tooling, CI, security documentation
-2. **Core AI** _(this step)_ — provider-agnostic AI Core (`ai/core`), mock provider, `/api/ai/generate`; real provider adapters come next
-3. **Project engine** — isolated workspaces, filesystem abstraction, sandboxed execution (`project-engine/`)
-4. **Connectors** — external-service integrations with credential isolation (`connectors/`)
-5. **Self-development** — propose → test → review → deploy pipeline, behind approval gates (`security/`)
+2. **Core AI** _(done)_ — provider-agnostic AI Core (`ai/core`), mock provider, `/api/ai/generate`
+3. **Gemini provider** _(done)_ — first real adapter (`ai/providers/gemini`), Interactions API
+4. **Connector architecture** _(done)_ — provider-neutral connector framework (`connectors/core`, `connectors/mock`), credential isolation, read-only API
+5. **Tool/Function System** — permission-gated operation execution through the ConnectorManager
+6. **Project engine** — isolated workspaces, filesystem abstraction, sandboxed execution (`project-engine/`)
+7. **Real connectors** — vendor integrations (source control, databases, storage, payments) behind the same interface
+8. **Self-development** — propose → test → review → deploy pipeline, behind approval gates (`security/`)

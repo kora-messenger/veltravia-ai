@@ -57,9 +57,25 @@ The same rules apply to every future provider adapter (OpenAI, Anthropic, …): 
 
 ## 5. Connector credentials are isolated
 
-- Connector credentials (Slack, GitHub, Google, …) are held by `connectors/core/` and stored in the secret manager — never in generated project code, never in AI prompts, and never exposed to code the AI generates.
+- Connector credentials (Slack, GitHub, Google, …) are held by a **Secure Credential Store** — never in generated project code, never in AI prompts, and never exposed to code the AI generates.
 - When a user's generated project needs a connector capability, it talks to the Veltravia API, which performs the connector call on its behalf. The credential never crosses the boundary.
 - Connector scopes follow least-privilege: each connector requests only the scopes it needs.
+
+## 5a. Connector framework rules (Step 4, `connectors/core`)
+
+The connector framework enforces the following principles — structurally where possible, all of them tested:
+
+1. Connector credentials are never committed to Git. (`.env` is git-ignored; only placeholders ship.)
+2. Connector credentials are never hard-coded. (A `CredentialReference` is a metadata-only pointer; the core has no field capable of holding a value.)
+3. Connector credentials are never returned through API responses. (The read-only connector endpoints omit credential data entirely; tests assert no token-shaped material appears in payloads.)
+4. Connector credentials are never logged. (Every error message and audit event is scrubbed of secret-like strings at construction; tests feed known token shapes and assert redaction.)
+5. Generated code never automatically receives unrestricted connector credentials. (The AI holds references only; a future secure store fetches secrets at approved-operation time.)
+6. Connector operations are permission-gated. (`authorizeOperation` checks grants; an ungranted operation is blocked and audited.)
+7. High-risk operations require explicit user confirmation eventually. (Any operation requiring a `high`/`critical` permission is marked confirmation-mandatory — even if its declaration says otherwise.)
+8. Connector execution happens only through controlled tooling. (The core cannot execute anything; Step 5's Tool/Function System routes through the manager's gate.)
+9. The AI cannot invent arbitrary connector operations. (Only declared, validated, registered operations exist; unknown operations are rejected with typed errors.)
+10. Every future connector declares its supported capabilities and permissions. (Registry validation rejects metadata that is incomplete or references undeclared permissions.)
+11. Registration never grants permissions. (A connector's granted-permission set starts empty; grants are explicit, auditable, and revocable.)
 
 ## 6. Repository & supply-chain hygiene
 
