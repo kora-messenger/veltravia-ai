@@ -1,0 +1,33 @@
+{
+  "name": "veltravia-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia AI - an advanced AI software-development platform. Step 1: project foundation.",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "build:packages": "npm run build --workspace @veltravia/types && npm run build --workspace @veltravia/shared && npm run build --workspace @veltravia/config",
+    "build": "npm run build:packages && npm run build --workspace @veltravia/api && npm run build --workspace @veltravia/web",
+    "dev:api": "npm run build:packages && npm run dev --workspace @veltravia/api",
+    "dev:web": "npm run build:packages && npm run dev --workspace @veltravia/web",
+    "check": "bash scripts/check.sh"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@types/node": "^20.17.0",
+    "eslint": "^10.0.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^3.0.5"
+  }
+}
