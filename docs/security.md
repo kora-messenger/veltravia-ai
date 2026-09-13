@@ -20,6 +20,21 @@ This document defines the security rules for Veltravia AI from day one. It is a 
 - The sandbox is the enforcement point of `project-engine/execution/`: restricted filesystem, restricted network access, CPU/memory/time limits, and a non-privileged user.
 - **The AI must never receive unrestricted access to the host machine.** No raw shell passthrough, no host filesystem mounts, no host network access by default.
 
+## 3a. AI Core scope — hard restrictions (Step 2)
+
+The AI Core package (`ai/core`) and its providers are an _abstraction layer only_. They MUST NOT:
+
+- execute shell commands
+- execute generated code
+- access the filesystem (arbitrarily or otherwise)
+- access environment secrets (API keys are bound only inside future provider adapters, via the secret manager)
+- access GitHub credentials
+- modify their own source code
+- modify GitHub Actions or CI configuration
+- deploy themselves
+
+Those capabilities belong exclusively to the future controlled systems (`project-engine/execution/` for sandboxed execution, `security/` for approval gates). The Step 2 core is deliberately incapable of doing any of them: it has no child-process, filesystem, or network imports, and its configuration surface contains no secrets. Code review must reject any change that introduces these capabilities outside their designated future modules.
+
 ## 4. Self-development requires controlled testing and approval
 
 - The future self-development system (the platform proposing improvements to itself) must follow a fixed pipeline: **propose → test → review → approve → deploy**.

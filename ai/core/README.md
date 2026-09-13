@@ -1,9 +1,16 @@
 # ai/core/
 
-The provider-agnostic AI router. Responsibilities once implemented (Step 2):
+**Implemented in Step 2 — AI Core.** The provider-neutral AI abstraction layer of Veltravia AI. `@veltravia/ai-core`.
 
-- a single request interface for all AI calls, independent of vendor
-- retry, timeout, and circuit-breaker logic so one dead provider cannot stall the platform
-- token/cost budget enforcement per request, per user, and per run
+| Module              | Responsibility                                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `src/types/`        | The normalized vocabulary: `AIMessage`, `AIRequest`, `AIResponse`, `AIModelInfo`, `AIUsage`, `AICapability`     |
+| `src/provider/`     | The `AIProvider` interface every vendor adapter must implement                                                  |
+| `src/registry/`     | `ModelRegistry`: the single source of truth for models, capabilities, availability                              |
+| `src/router/`       | `AIRouter`: deterministic selection (explicit model → configured default → capability scan)                     |
+| `src/errors/`       | The normalized error system (`InvalidAIRequestError`, `ModelNotFoundError`, `CapabilityNotSupportedError`, ...) |
+| `src/config/`       | Routing/limit configuration from the environment - no secrets, ever                                             |
+| `src/core.ts`       | `AICore`: the facade the rest of the platform calls (`generate()`)                                              |
+| `src/validation.ts` | `validateAIRequest`: strict request validation with collected issues                                            |
 
-**Intentionally empty in Step 1.** Becomes an npm workspace (`@veltravia/ai-core`) when implementation starts.
+Design rules: vendor API formats never cross the package boundary; adding a provider means writing one adapter and registering its models - nothing else changes. See [docs/architecture.md](../../docs/architecture.md) and [docs/security.md](../../docs/security.md).

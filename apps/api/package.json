@@ -11,6 +11,8 @@
     "dev": "tsx watch src/main.ts"
   },
   "dependencies": {
+    "@veltravia/ai-core": "*",
+    "@veltravia/ai-provider-mock": "*",
     "@veltravia/config": "*",
     "@veltravia/shared": "*",
     "@veltravia/types": "*",

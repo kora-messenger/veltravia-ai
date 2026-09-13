@@ -1,5 +1,23 @@
 # ai/providers/
 
-One adapter package per AI provider, each implementing the shared interface defined in `ai/core`. The router never imports vendor SDKs directly — only adapters do.
+One adapter package per AI provider, each implementing the `AIProvider` interface from `@veltravia/ai-core`. The router never imports vendor SDKs directly - only adapters do. The vendor's request/response format exists ONLY inside an adapter; everything else speaks Veltravia's normalized types.
 
-**Intentionally empty in Step 1.** No provider integrations (OpenAI, Anthropic, Google, OpenRouter, …) are implemented yet; each becomes its own workspace (`@veltravia/ai-provider-*`) in Step 2.
+```
+ai/providers/
+├── mock/        # IMPLEMENTED (Step 2): deterministic, offline, keyless provider
+├── gemini/      # FUTURE
+├── openai/      # FUTURE
+├── anthropic/   # FUTURE
+└── ...          # FUTURE
+```
+
+## How a future adapter works (not built yet)
+
+1. Create `ai/providers/<name>/` as an npm workspace named `@veltravia/ai-provider-<name>`, depending on `@veltravia/ai-core`.
+2. Implement `AIProvider`: translate the normalized `AIRequest` into the vendor's format and the vendor's response back into the normalized `AIResponse`.
+3. Convert every vendor error into the normalized error classes (`AIProviderError` etc.) - vendor error shapes must never leave the adapter.
+4. Register the adapter's models (id, capabilities, limits) into the `ModelRegistry` at bootstrap.
+5. Read its API key from the secret manager at runtime - never from code, never from `.env` in the repo.
+6. Add the package to the root `workspaces` and build order; CI picks it up automatically.
+
+Because every adapter satisfies the same interface, Veltravia AI stays independent of any single AI company - providers can be added, removed, or reordered without touching application code.

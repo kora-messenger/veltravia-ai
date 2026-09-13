@@ -2,8 +2,8 @@
 
 Veltravia AI is an advanced AI software-development platform. Its long-term goal is a system that can build web and mobile applications, backend systems and APIs, generate and modify code, test and debug projects, connect to multiple AI providers and external services, maintain project memory, and improve itself through a controlled, reviewed self-development process.
 
-**Current development stage: Step 1 — Foundation.**
-This repository currently contains the project structure, tooling, CI pipeline, and documentation only. No AI, connector, or execution functionality is implemented yet — those belong to later development steps (see [docs/architecture.md](docs/architecture.md)).
+**Current development stage: Step 2 — AI Core.**
+The AI Core abstraction layer is implemented (`ai/core`): provider-neutral request/response types, the `AIProvider` interface, a model registry with a capability system, a deterministic router, typed errors, and configuration. A **mock provider** powers the `POST /api/ai/generate` endpoint end to end. Real AI providers (Gemini, OpenAI, Claude, …) have deliberately NOT been connected yet — Step 2 builds the architecture they will plug into. No autonomous coding, self-development, or code execution exists (see [docs/architecture.md](docs/architecture.md)).
 
 ## Technology stack
 
@@ -31,7 +31,9 @@ veltravia-ai/
 │   ├── shared/     # Framework-agnostic utilities
 │   ├── config/     # Environment variable loading/validation
 │   └── types/      # Shared TypeScript domain types
-├── ai/             # Future AI orchestration (intentionally empty in Step 1)
+├── ai/
+│   ├── core/       # AI Core: types, provider interface, registry, router, errors, config
+│   └── providers/  # mock/ implemented; real vendor adapters arrive later
 ├── connectors/     # Future external-service connector system
 ├── project-engine/ # Future isolated workspace/execution engine
 ├── security/       # Future security modules (policy, sandboxing, secrets)
@@ -68,12 +70,20 @@ npm run dev:api   # http://localhost:3000/health
 npm run dev:web   # http://localhost:5173
 ```
 
+## The AI Core (Step 2)
+
+- **Provider-neutral by design.** Veltravia AI owns its internal interface (`AIRequest`/`AIResponse`); vendor formats exist only inside future adapter packages. Adding a provider = one adapter + registry entries, nothing else changes.
+- **Capability system.** Models declare capabilities (text-generation, vision, embeddings, …); the router only picks models that declare everything a request needs.
+- **Typed errors everywhere.** One normalized error hierarchy with stable codes (`AI_MODEL_NOT_FOUND`, …) — vendor errors never reach application code.
+- **Mock provider.** Deterministic, offline, keyless — the whole core is testable without the Internet.
+- **No secrets.** The core reads only routing/limit config from the environment; real API keys will be bound inside future adapters via the secret manager.
+
 ## Testing
 
 Tests use **Vitest**:
 
-- Unit tests live next to the code they test (`packages/*/src/*.test.ts`, `apps/*/src/**/*.test.ts`).
-- Cross-workspace integration tests live in [`tests/`](tests/) — for example, the API health test exercises the real Fastify app and verifies the monorepo wiring end to end.
+- Unit tests live next to the code they test (`packages/*/src/*.test.ts`, `ai/**/src/**/*.test.ts`, `apps/*/src/**/*.test.ts`) — covering the registry, router, validation, error system, config, and the mock provider.
+- Cross-workspace integration tests live in [`tests/`](tests/) — the API health test and the `/api/ai/generate` tests exercise the real Fastify app against the mock provider, including error mapping and secret-leak checks.
 - Vitest resolves workspace packages directly from their TypeScript sources, so tests never require a prior build step.
 
 ## GitHub Actions / CI
@@ -97,12 +107,12 @@ The full policy lives in [docs/security.md](docs/security.md). The non-negotiabl
 - The future self-development system requires controlled testing and explicit human approval before any production change.
 - Connector credentials are isolated from generated project code.
 
-## Future architecture overview
+## Architecture overview
 
 Veltravia AI will evolve step by step (details in [docs/architecture.md](docs/architecture.md)):
 
-1. **Foundation** _(this step)_ — monorepo, tooling, CI, security documentation
-2. **Core AI** — provider-agnostic AI router (`ai/`), prompts, agents
+1. **Foundation** _(done)_ — monorepo, tooling, CI, security documentation
+2. **Core AI** _(this step)_ — provider-agnostic AI Core (`ai/core`), mock provider, `/api/ai/generate`; real provider adapters come next
 3. **Project engine** — isolated workspaces, filesystem abstraction, sandboxed execution (`project-engine/`)
 4. **Connectors** — external-service integrations with credential isolation (`connectors/`)
 5. **Self-development** — propose → test → review → deploy pipeline, behind approval gates (`security/`)
