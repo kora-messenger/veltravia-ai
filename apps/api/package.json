@@ -19,6 +19,8 @@
     "@veltravia/config": "*",
     "@veltravia/connector-core": "*",
     "@veltravia/connector-mock": "*",
+    "@veltravia/project-core": "*",
+    "@veltravia/project-mock": "*",
     "@veltravia/shared": "*",
     "@veltravia/tool-core": "*",
     "@veltravia/tool-mock": "*",

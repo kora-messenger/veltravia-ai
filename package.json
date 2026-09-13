@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Veltravia AI - an advanced AI software-development platform. Step 6: AI Agent Layer.",
+  "description": "Veltravia AI - an advanced AI software-development platform. Step 7: Project & Workspace Engine.",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -18,7 +18,9 @@
     "tools/core",
     "tools/mock",
     "agent/core",
-    "agent/mock"
+    "agent/mock",
+    "project-engine/core",
+    "project-engine/mock"
   ],
   "scripts": {
     "lint": "eslint . && prettier --check .",
@@ -26,13 +28,14 @@
     "test": "vitest run",
     "build:packages": "npm run build --workspace @veltravia/types && npm run build --workspace @veltravia/shared && npm run build --workspace @veltravia/config",
     "build:ai": "npm run build --workspace @veltravia/ai-core && npm run build --workspace @veltravia/ai-provider-mock && npm run build --workspace @veltravia/ai-provider-gemini",
-    "build": "npm run build:packages && npm run build:ai && npm run build:connectors && npm run build:tools && npm run build:agent && npm run build --workspace @veltravia/api && npm run build --workspace @veltravia/web",
+    "build": "npm run build:packages && npm run build:ai && npm run build:connectors && npm run build:tools && npm run build:agent && npm run build:project && npm run build --workspace @veltravia/api && npm run build --workspace @veltravia/web",
     "dev:api": "npm run build:packages && npm run build:ai && npm run dev --workspace @veltravia/api",
     "dev:web": "npm run build:packages && npm run dev --workspace @veltravia/web",
     "check": "bash scripts/check.sh",
     "build:connectors": "npm run build --workspace @veltravia/connector-core && npm run build --workspace @veltravia/connector-mock",
     "build:tools": "npm run build --workspace @veltravia/tool-core && npm run build --workspace @veltravia/tool-mock",
-    "build:agent": "npm run build --workspace @veltravia/agent-core && npm run build --workspace @veltravia/agent-mock"
+    "build:agent": "npm run build --workspace @veltravia/agent-core && npm run build --workspace @veltravia/agent-mock",
+    "build:project": "npm run build --workspace @veltravia/project-core && npm run build --workspace @veltravia/project-mock"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

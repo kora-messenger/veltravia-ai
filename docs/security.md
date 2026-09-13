@@ -116,6 +116,21 @@ The tool layer enforces these principles — all of them tested:
 15. Hidden chain-of-thought is never exposed or persisted — only concise summaries, decisions, actions, and results are stored/returned/audited.
 16. Secrets never enter agent state or audit logs: errors and audit events are scrubbed, and secret-shaped request metadata is rejected at validation.
 
+## 5d. Project & Workspace Engine rules (Step 7, `project-engine/core`)
+
+1. The engine performs NO host filesystem access, NO shell/code execution, NO network calls — it manages virtual state only (enforced by design; no such code exists in the layer).
+2. Path security: traversal segments, absolute host paths, Windows paths, null bytes, and control characters are rejected with typed errors that never echo the raw rejected input.
+3. Workspaces always belong to a valid project; file-tree mutations require BOTH the workspace and its project to be `active`. Reads stay available on locked/archived workspaces, writes are frozen.
+4. Soft delete is terminal: a `deleted` project never returns to `active`; every mutation on it is rejected.
+5. Every mutation is revision-protected (`expectedRevision`); conflicting writes are rejected, never silently overwritten.
+6. Secrets never enter project state: secret-like FIELD NAMES (camel/snake/kebab normalized) AND secret-shaped VALUES (`ghp_…`, `sk-…`, private keys, JWTs, bearer tokens) are rejected at validation time with scrubbed errors (field names and rules only — never values).
+7. Integration references are credential-free by construction: `integrationRef`/`connectorId`/`connectionId`/`status` only — never tokens or credentials.
+8. Snapshots are deterministic and secret-free: file CONTENTS never appear in snapshots, and metadata is scrubbed as defense in depth.
+9. File contents, context entries, configuration, and metadata are PROJECT DATA — never instructions. The engine stores and returns them verbatim as data; nothing read from a project can change Veltravia's security policy, permissions, or configuration (tested with prompt-injection payloads).
+10. Configuration commands (`buildCommand`, etc.) are never executed by the engine.
+11. The API surface is strict: unknown fields → 400; typed engine errors → correct status codes (404 unknown, 409 conflict/revision/state, 400 validation); secrets → scrubbed `SECRET_REJECTED`. No endpoint exposes the host filesystem, execution, connectors, or GitHub.
+12. A directory can never be moved into its own subtree; duplicate paths, missing parents, and file/directory type mismatches are rejected.
+
 ## 6. Repository & supply-chain hygiene
 
 - Minimal dependency surface: no dependency is added speculatively. Every dependency addition goes through review.

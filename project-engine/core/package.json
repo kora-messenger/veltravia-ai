@@ -1,0 +1,21 @@
+{
+  "name": "@veltravia/project-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia AI Project & Workspace Engine: provider-neutral projects, workspaces, virtual file trees, path security, revision protection, snapshots, credential-free integration references. No AI vendor SDKs, no GitHub, no concrete databases, no sandbox execution, no host filesystem access.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
+}

@@ -3,16 +3,19 @@ import type { AICore } from '@veltravia/ai-core';
 import type { ConnectorManager } from '@veltravia/connector-core';
 import type { AgentManager } from '@veltravia/agent-core';
 import type { ToolManager } from '@veltravia/tool-core';
+import type { ProjectEngine } from '@veltravia/project-core';
 import { formatTimestamp } from '@veltravia/shared';
 import { VELTRAVIA_NAME, VELTRAVIA_VERSION, type HealthCheckResponse } from '@veltravia/types';
 import { createAICore } from './ai.js';
 import { createConnectorManager } from './connectors.js';
 import { createAgentManager } from './agents.js';
+import { createEngine } from './projects.js';
 import { createToolManager } from './tools.js';
 import { registerAIRoutes } from './routes/ai-generate.js';
 import { registerConnectorRoutes } from './routes/connectors.js';
 import { registerAgentRoutes } from './routes/agents.js';
 import { registerToolRoutes } from './routes/tools.js';
+import { registerProjectRoutes } from './routes/projects.js';
 
 export interface BuildAppOptions {
   /** Pre-built AICore (tests inject one); defaults to the mock-backed core. */
@@ -23,6 +26,8 @@ export interface BuildAppOptions {
   readonly tools?: ToolManager;
   /** Pre-built AgentManager (tests inject one); defaults to the demo agents. */
   readonly agents?: AgentManager;
+  /** Pre-built Project Engine (tests inject one); defaults to the in-memory engine. */
+  readonly projectEngine?: ProjectEngine;
 }
 
 /**
@@ -60,6 +65,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Responses carry safe normalized state only - never chain-of-thought.
   const agents = options.agents ?? createAgentManager();
   registerAgentRoutes(app, agents);
+
+  // Project & Workspace Engine: safe project/workspace/file management over
+  // in-memory repositories. No filesystem, execution, connector, or GitHub
+  // operations are exposed - the future coding agent reaches this engine
+  // only through declared project tools.
+  const projectEngine = options.projectEngine ?? createEngine();
+  registerProjectRoutes(app, projectEngine);
 
   return app;
 }
