@@ -1,0 +1,24 @@
+{
+  "name": "@veltravia/sandbox-mock",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic, offline Mock Sandbox Runtime for @veltravia/sandbox-core. DEVELOPMENT/CI ONLY - provides NO OS-level isolation and executes NO host code; behaviors (success/failure/timeout/output-limit/cancellation/resource-breach/prompt-injection payloads) are simulated logically for tests. A production runtime implements the same SandboxRuntime interface behind a hardened boundary.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/sandbox-core": "0.1.0"
+  }
+}

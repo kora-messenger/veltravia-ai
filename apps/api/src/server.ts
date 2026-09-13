@@ -4,6 +4,7 @@ import type { ConnectorManager } from '@veltravia/connector-core';
 import type { AgentManager } from '@veltravia/agent-core';
 import type { ToolManager } from '@veltravia/tool-core';
 import type { ProjectEngine } from '@veltravia/project-core';
+import type { SandboxManager } from '@veltravia/sandbox-core';
 import { formatTimestamp } from '@veltravia/shared';
 import { VELTRAVIA_NAME, VELTRAVIA_VERSION, type HealthCheckResponse } from '@veltravia/types';
 import { createAICore } from './ai.js';
@@ -11,6 +12,8 @@ import { createConnectorManager } from './connectors.js';
 import { createAgentManager } from './agents.js';
 import { createEngine } from './projects.js';
 import { createToolManager } from './tools.js';
+import { createSandboxManager } from './sandboxes.js';
+import { registerSandboxRoutes } from './routes/sandboxes.js';
 import { registerAIRoutes } from './routes/ai-generate.js';
 import { registerConnectorRoutes } from './routes/connectors.js';
 import { registerAgentRoutes } from './routes/agents.js';
@@ -28,6 +31,8 @@ export interface BuildAppOptions {
   readonly agents?: AgentManager;
   /** Pre-built Project Engine (tests inject one); defaults to the in-memory engine. */
   readonly projectEngine?: ProjectEngine;
+  /** Pre-built SandboxManager (tests inject one); defaults to the mock runtime. */
+  readonly sandboxes?: SandboxManager;
 }
 
 /**
@@ -56,9 +61,18 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const connectors = options.connectors ?? createConnectorManager();
   registerConnectorRoutes(app, connectors);
 
+  // Sandbox engine: sandboxes, structured execution, cancellation. All
+  // execution flows through the SandboxManager into the runtime behind the
+  // isolation boundary - never in the API process, never with inherited
+  // environment, never unrestricted.
+  const projectEngine = options.projectEngine ?? createEngine();
+  const sandboxes = options.sandboxes ?? createSandboxManager();
+  registerSandboxRoutes(app, sandboxes, projectEngine);
+
   // Read-only tool surface: definitions, permissions, risk, availability.
   // Execution is deliberately NOT exposed - the agent layer owns invocation.
-  const tools = options.tools ?? createToolManager();
+  // Sandbox tools ride the same controlled pipeline (Step 5 gates apply).
+  const tools = options.tools ?? createToolManager(() => new Date(), sandboxes);
   registerToolRoutes(app, tools);
 
   // Agent execution endpoints: bounded runs, confirmation flow, cancellation.
@@ -69,8 +83,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Project & Workspace Engine: safe project/workspace/file management over
   // in-memory repositories. No filesystem, execution, connector, or GitHub
   // operations are exposed - the future coding agent reaches this engine
-  // only through declared project tools.
-  const projectEngine = options.projectEngine ?? createEngine();
+  // only through declared project tools. (The sandbox layer validates
+  // workspace references against this engine above.)
   registerProjectRoutes(app, projectEngine);
 
   return app;

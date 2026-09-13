@@ -1,7 +1,9 @@
 import { ConnectorManager } from '@veltravia/connector-core';
 import { createMockConnector } from '@veltravia/connector-mock';
+import type { SandboxManager } from '@veltravia/sandbox-core';
 import { ToolManager } from '@veltravia/tool-core';
 import { createConnectorBackedMockTool, createMockSummarizeTool } from '@veltravia/tool-mock';
+import { createSandboxTools } from './sandboxes.js';
 
 /**
  * Builds the API's ToolManager.
@@ -16,7 +18,10 @@ import { createConnectorBackedMockTool, createMockSummarizeTool } from '@veltrav
  * permission set, and the read-only API can neither execute tools nor
  * grant anything.
  */
-export function createToolManager(now: () => Date = () => new Date()): ToolManager {
+export function createToolManager(
+  now: () => Date = () => new Date(),
+  sandboxes?: SandboxManager,
+): ToolManager {
   const connectors = new ConnectorManager({ now });
   connectors.register(createMockConnector({ now }));
   connectors.configure('mock');
@@ -26,5 +31,18 @@ export function createToolManager(now: () => Date = () => new Date()): ToolManag
   manager.register(summarize.definition);
   manager.registerImplementation(summarize.implementation);
   manager.register(createConnectorBackedMockTool());
+
+  // Sandbox tools: declared through the same controlled pipeline - schemas,
+  // permissions (empty until granted), risk levels, and forced confirmation
+  // for sandbox.execute (high risk). Registration grants NOTHING.
+  if (sandboxes) {
+    const sandboxTools = createSandboxTools(sandboxes);
+    for (const definition of sandboxTools.definitions) {
+      manager.register(definition);
+    }
+    for (const implementation of sandboxTools.implementations) {
+      manager.registerImplementation(implementation);
+    }
+  }
   return manager;
 }

@@ -138,6 +138,21 @@ The tool layer enforces these principles — all of them tested:
 - Production builds are built from a clean CI install, never from a developer's local `node_modules`.
 - Automated dependency/audit scanning will be added to CI in a later step.
 
+## 5e. Sandbox Engine rules (Step 8, `security/sandbox`)
+
+1. All project code and AI-generated code is **untrusted**. Nothing executes in the API host process: the SandboxManager is a pure orchestrator, and the ONLY executor is the `SandboxRuntime` adapter behind the isolation boundary. No unrestricted `/api/exec` or `/api/shell` endpoint exists.
+2. Commands are structured `command + arguments[]` — never a shell string. `sh -c` / `bash -c` / `cmd /c` / `powershell -Command` do not exist as an execution path; shell interpreters are denied unless an explicitly reviewed policy exists (Step 8 never enables one).
+3. Command policy is **allowlist-first**: a command runs only when it is a valid executable name AND is allowlisted AND is not on the hard denylist (`rm`, `sudo`, `kill`, `chmod`, … — the denylist is code and always wins over data-driven profiles).
+4. The host environment is **never inherited** (source-scan enforced): the execution environment is built only from validated explicit entries; loader/hijack names (`LD_PRELOAD`, `NODE_OPTIONS`, `BASH_ENV`, …) and secret-shaped values are rejected.
+5. Network is **disabled by default**; only an explicit hostname allowlist exists. Unrestricted internet access is not a policy state.
+6. Every execution carries complete, positive, ceiling-bounded resource limits (timeout, memory, cpu, output, processes, file bytes); zero/negative/absurd values are rejected, never clamped. Timeouts terminate work and orphan nothing.
+7. Cancellation is one-way: `running → stopping → cancelled` is terminal, the `cancelRequested` flag wins over late completions, and a cancelled execution can never resume.
+8. Sandbox stdout/stderr are untrusted data: bounded, truncation-marked, and secret-scrubbed before storage/return/audit. Prompt-injection payloads in output have zero authority (tested).
+9. Sandbox permissions (`sandbox.create/execute/stop/destroy`) are granted only via the Tool System; `sandbox.execute` is high risk and always requires the Step 5 single-use input-bound human confirmation. The sandbox cannot grant itself anything — profiles and limits are immutable after creation.
+10. The sandbox references a Project Engine workspace only by opaque id (validated, path-like values rejected); execution requests carry no workspace field, so cross-workspace access is impossible by construction.
+11. Lifecycle transitions are validated (`destroyed` terminal; `stopped`/`expired` only lead to `destroyed`); sandboxes have a TTL and expire lazily, cancelling active work.
+12. The mock runtime provides **NO OS-level isolation** and claims none (`providesOsIsolation: false`; enforcement reports are honest `enforced`/`requested`/`unavailable`). JavaScript restrictions are not a security boundary; a production runtime requires real isolation (container/microVM) — see docs/sandbox.md.
+
 ## 7. Incident response
 
 - Suspected secret leak → rotate first, investigate second.

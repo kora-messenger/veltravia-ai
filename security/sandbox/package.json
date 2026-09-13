@@ -1,0 +1,21 @@
+{
+  "name": "@veltravia/sandbox-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia AI Sandbox Engine core: provider-neutral secure code-execution abstraction. Sandboxes, lifecycle, command policy (allowlist + hard denylist, no shells), environment isolation (no host inheritance), network policy (disabled by default), resource limits with hard ceilings, bounded + scrubbed output, audit events. Zero dependencies; executes nothing itself - all execution flows through the SandboxRuntime isolation-boundary adapter.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
+}
