@@ -16,15 +16,18 @@ Veltravia AI is an advanced AI software-development platform. The end state is a
 
 The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
 
-## Current state: Step 11A — Web UI foundation
+## Current state: Step 11B — Web UI: Dashboard, Projects, Project detail
 
-`apps/web` now carries the product UI foundation: a token-based design
-system (`src/design/`), a reusable accessible component library
-(`src/components/ui/`), a light/dark/system theme architecture
-(`src/theme/`), and an authenticated-shell layout with responsive drawer
-navigation (`src/shell/`). The shell routes Dashboard / Projects / Settings
-to explicitly-unavailable placeholder pages; feature screens arrive in
-later steps. Details: `docs/ui.md`.
+`apps/web` now carries the product UI foundation (Step 11A: token-based
+design system in `src/design/`, accessible component library in
+`src/components/ui/`, light/dark/system theme architecture in `src/theme/`,
+responsive application shell in `src/shell/`) plus the first real feature
+surface (Step 11B): a typed fetch client (`src/api/`) that validates and
+maps API responses to safe view models (engine-internal fields never reach
+React state), and the Dashboard / Projects / Project detail pages with
+create, edit (revision-safe), archive/restore (confirmation-gated), and
+workspace creation — all backed by the real Project Engine API. Settings
+remains an explicit placeholder. Details: `docs/ui.md`.
 
 ## Prior state: Step 10 — Real connectors: GitHub + `invoke_tool`
 

@@ -1,3 +1,4 @@
+import { readEnv } from '@veltravia/config';
 import type { FastifyInstance } from 'fastify';
 import {
   InvalidPathError,
@@ -84,6 +85,18 @@ const projectTypeSchema = {
 
 const metadataSchema = { type: 'object', additionalProperties: true };
 
+/**
+ * Development owner identity for project creation.
+ *
+ * Until authentication exists (a later roadmap step), ownership defaults
+ * server-side to an opaque reference so the frontend never hardcodes a user
+ * identity. A real deployment derives `ownerRef` from the authenticated
+ * session instead; the field is identity metadata, never a credential.
+ */
+function developmentOwnerRef(): string {
+  return readEnv('VELTRAVIA_DEFAULT_OWNER_REF') ?? 'veltravia-dev-user';
+}
+
 export function registerProjectRoutes(app: FastifyInstance, engine: ProjectEngine): void {
   // -----------------------------------------------------------------
   // Projects
@@ -91,7 +104,7 @@ export function registerProjectRoutes(app: FastifyInstance, engine: ProjectEngin
 
   const createProjectSchema = {
     type: 'object',
-    required: ['name', 'description', 'projectType', 'ownerRef'],
+    required: ['name', 'description', 'projectType'],
     additionalProperties: false,
     properties: {
       name: { type: 'string', minLength: 1, maxLength: 128 },
@@ -108,7 +121,7 @@ export function registerProjectRoutes(app: FastifyInstance, engine: ProjectEngin
         name: string;
         description: string;
         projectType: Project['projectType'];
-        ownerRef: string;
+        ownerRef?: string;
         version?: string;
         metadata?: Record<string, unknown>;
       };
@@ -116,7 +129,7 @@ export function registerProjectRoutes(app: FastifyInstance, engine: ProjectEngin
         name: body.name,
         description: body.description,
         projectType: body.projectType,
-        ownerRef: body.ownerRef,
+        ownerRef: body.ownerRef ?? developmentOwnerRef(),
         ...(body.version !== undefined ? { version: body.version } : {}),
         ...(body.metadata !== undefined ? { metadata: body.metadata } : {}),
       });

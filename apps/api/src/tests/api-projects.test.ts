@@ -43,6 +43,22 @@ async function createWorkspace(
 }
 
 describe('Project API', () => {
+  it('assigns a development owner server-side when the client omits ownerRef', async () => {
+    const { app } = buildProjectApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      payload: {
+        name: 'Frontend-created project',
+        description: 'Created without a frontend-owned identity',
+        projectType: 'web',
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    const body = response.json() as { ownerRef: string };
+    expect(body.ownerRef).toBe('veltravia-dev-user');
+  });
+
   it('creates, lists, and retrieves projects', async () => {
     const { app } = buildProjectApp();
     const project = await createProject(app);

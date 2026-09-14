@@ -1,4 +1,4 @@
-# Web UI Foundation (Step 11A)
+# Web UI (Step 11A foundation + Step 11B project surface)
 
 The `apps/web` package hosts the Veltravia AI product UI. Step 11A
 establishes the design system, the reusable component library, the
@@ -69,7 +69,10 @@ pattern; toasts announce through a polite live region.
   menu (theme cycling; account/sign-out are explicitly disabled until
   authentication exists).
 - `useHashRoute.ts` — minimal hash routing (`#/dashboard`, `#/projects`,
-  `#/settings`); unknown hashes fall back to the dashboard.
+  `#/projects/<id>`, `#/settings`); unknown hashes fall back to the
+  dashboard. `RouteState` carries route parameters (e.g. the project id)
+  to page components; `navigateToHash` drives programmatic navigation.
+  The project-detail route highlights the Projects navigation item.
 
 Responsive behavior is deliberate, not a shrink: below 900px the sidebar
 becomes an overlay drawer (backdrop + Escape close), the top bar gains a
@@ -93,5 +96,55 @@ The web app is a rendering surface only:
 
 UI tests colocate with sources (`*.test.tsx`, jsdom environment via a
 per-file `@vitest-environment jsdom` pragma) and cover the shell
-(navigation, active state, collapse, drawer), theme behavior, and
-component states (disabled, loading, error, keyboard, ARIA wiring).
+(navigation, active state, collapse, drawer, routing with parameters),
+theme behavior, and component states (disabled, loading, error, keyboard,
+ARIA wiring). Page tests mock the `api/` modules and assert loading,
+ready, empty, error+retry, and dialog flows end to end.
+
+## Web API client (Step 11B)
+
+`apps/web/src/api/` is the single network seam:
+
+- `client.ts` — `apiRequest()` wraps `fetch` (injected for tests), sends
+  JSON bodies, and normalizes every failure into a typed `ApiError`
+  (`status`, `code`, scrubbed `message`). Network failures become code
+  `NETWORK` with a friendly message; error internals/stacks never reach
+  the screen.
+- `projects.ts` / `workspaces.ts` — typed calls over the Project Engine
+  routes. Responses are validated and mapped to safe VIEW MODELS:
+  engine-internal fields (`metadata`, `ownerRef`, logical `root`) are
+  dropped before anything reaches React state. `updateProject` always
+  sends `expectedRevision` (revision safety).
+- `use-async-resource.ts` — one `useAsyncResource(loadFn, deps)` hook
+  powering loading / ready / error(+retry) states; no ad-hoc fetch logic
+  in components.
+
+In development, Vite proxies `/api/*` to the local API service
+(`VELTRAVIA_API_PROXY_TARGET`, default `http://localhost:3000`) so the
+browser sees same-origin requests.
+
+## Project pages (Step 11B)
+
+`apps/web/src/pages/` (styles in `pages.css`, all colors/spacing from the
+design tokens):
+
+- **Dashboard** — project overview (totals, active/archived), a
+  recently-updated grid, create-project entry point, and the same
+  empty/error states as the Projects page.
+- **Projects** — the full project list with status filters
+  (All / Active / Archived), open/archive/restore actions.
+- **Project detail** (`#/projects/<id>`) — identity, status, type,
+  timestamps, a workspace overview, edit details, archive/restore, and
+  workspace creation (blocked while the project is archived).
+- Dialogs (`pages/projects/`) — create project, edit details,
+  confirm-driven archive/restore, create workspace. All archive/restore
+  actions run through an explicit confirmation; a stale-revision write
+  (HTTP 409 `REVISION_CONFLICT`) is surfaced as a conflict message and the
+  latest server state is reloaded — the UI never silently overwrites.
+
+Forms validate client-side (required name, length caps) and surface
+server errors inline; submit buttons show loading state and cancel is
+disabled while a request is in flight.
+
+Settings remains an honest placeholder until its dedicated roadmap step;
+no future feature is presented as functional.

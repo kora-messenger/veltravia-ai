@@ -1,11 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
-import { useHashRoute } from './useHashRoute';
+import { useHashRoute, type RouteState } from './useHashRoute';
 
 export interface AppShellProps {
-  /** Route content, keyed by route id. */
-  renderPage(routeId: string): ReactNode;
+  /** Route content. Receives the full route state, including parameters. */
+  renderPage(route: RouteState): ReactNode;
 }
 
 /**
@@ -27,10 +27,13 @@ export function AppShell({ renderPage }: AppShellProps) {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [mobileOpen]);
 
+  // The project-detail route highlights the Projects navigation item.
+  const activeNavId = route.id === 'project-detail' ? 'projects' : route.id;
+
   return (
     <div className="v-shell">
       <Sidebar
-        activeRouteId={route.id}
+        activeRouteId={activeNavId}
         onNavigate={navigate}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((value) => !value)}
@@ -40,7 +43,7 @@ export function AppShell({ renderPage }: AppShellProps) {
       <div className="v-shell__main">
         <TopBar route={route} onOpenMobileNav={() => setMobileOpen(true)} />
         <main className="v-shell__content" id="main-content">
-          {renderPage(route.id)}
+          {renderPage(route)}
         </main>
       </div>
     </div>

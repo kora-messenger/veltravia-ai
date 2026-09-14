@@ -1,0 +1,376 @@
+/* ==========================================================================
+   Dashboard + project management pages (Step 11B).
+   All colors/spacing/radius come from the design tokens — no raw values.
+   ========================================================================== */
+
+.v-page {
+  max-width: 72rem;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-5);
+  padding: var(--v-space-5) var(--v-space-5) var(--v-space-8);
+}
+
+/* --- Page header ------------------------------------------------------- */
+
+.v-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--v-space-4);
+  flex-wrap: wrap;
+}
+
+.v-page-header__title {
+  margin: 0;
+  font-size: var(--v-text-2xl);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--v-text);
+}
+
+.v-page-header__description {
+  margin: var(--v-space-1) 0 0;
+  max-width: 44rem;
+  color: var(--v-text-muted);
+}
+
+/* --- Stat tiles --------------------------------------------------------- */
+
+.v-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--v-space-3);
+}
+
+.v-stat-tile {
+  background: var(--v-surface-raised);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  padding: var(--v-space-4) var(--v-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-1);
+}
+
+.v-stat-tile__label {
+  font-size: var(--v-text-sm);
+  color: var(--v-text-muted);
+}
+
+.v-stat-tile__value {
+  font-size: var(--v-text-2xl);
+  font-weight: 650;
+  color: var(--v-text);
+}
+
+/* --- Sections ----------------------------------------------------------- */
+
+.v-page-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+}
+
+.v-page-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--v-space-3);
+  flex-wrap: wrap;
+}
+
+.v-heading-3 {
+  margin: 0;
+  font-size: var(--v-text-lg);
+  font-weight: 650;
+  color: var(--v-text);
+}
+
+/* --- Loading / empty ---------------------------------------------------- */
+
+.v-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--v-space-8) 0;
+}
+
+.v-empty-wide {
+  border: 1px dashed var(--v-border);
+  border-radius: var(--v-radius-lg);
+  background: var(--v-surface-raised);
+}
+
+.v-empty-wide__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--v-space-2);
+  padding: var(--v-space-8) var(--v-space-5);
+  max-width: 26rem;
+  margin: 0 auto;
+}
+
+.v-empty-wide__hint {
+  margin: 0;
+  color: var(--v-text-muted);
+}
+
+/* --- Status filter chips ------------------------------------------------- */
+
+.v-filter {
+  display: inline-flex;
+  gap: var(--v-space-1);
+  padding: var(--v-space-1);
+  background: var(--v-surface-muted);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+}
+
+.v-filter__chip {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--v-text-muted);
+  font: inherit;
+  font-size: var(--v-text-sm);
+  padding: var(--v-space-1) var(--v-space-3);
+  border-radius: var(--v-radius-sm);
+  cursor: pointer;
+  min-height: 2rem;
+}
+
+.v-filter__chip:hover {
+  color: var(--v-text);
+}
+
+.v-filter__chip[aria-pressed='true'] {
+  background: var(--v-surface-raised);
+  color: var(--v-text);
+  box-shadow: var(--v-shadow-1);
+}
+
+/* --- Project cards -------------------------------------------------------- */
+
+.v-project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  gap: var(--v-space-4);
+}
+
+.v-project-card {
+  background: var(--v-surface-raised);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-lg);
+  padding: var(--v-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  transition: border-color var(--v-dur-fast) var(--v-ease-out);
+}
+
+.v-project-card:hover {
+  border-color: var(--v-border-strong);
+}
+
+.v-project-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--v-space-3);
+}
+
+.v-project-card__name {
+  margin: 0;
+  font-size: var(--v-text-lg);
+  font-weight: 650;
+  color: var(--v-text);
+  overflow-wrap: anywhere;
+}
+
+.v-project-card__description {
+  margin: 0;
+  color: var(--v-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.v-project-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-3);
+  flex-wrap: wrap;
+}
+
+.v-project-card__updated {
+  font-size: var(--v-text-sm);
+  color: var(--v-text-muted);
+}
+
+.v-project-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--v-space-2);
+  margin-top: auto;
+}
+
+/* --- Project detail -------------------------------------------------------- */
+
+.v-detail {
+  gap: var(--v-space-4);
+}
+
+.v-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--v-space-4);
+  flex-wrap: wrap;
+}
+
+.v-detail-header__identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.v-detail-header__row {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-3);
+  flex-wrap: wrap;
+}
+
+.v-detail-header__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-3);
+  flex-wrap: wrap;
+}
+
+.v-detail-header__meta-item {
+  font-size: var(--v-text-sm);
+  color: var(--v-text-muted);
+}
+
+/* --- Workspace list -------------------------------------------------------- */
+
+.v-workspace-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface-raised);
+  overflow: hidden;
+}
+
+.v-workspace-row {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-3);
+  padding: var(--v-space-3) var(--v-space-4);
+}
+
+.v-workspace-row + .v-workspace-row {
+  border-top: 1px solid var(--v-border);
+}
+
+.v-workspace-row__name {
+  font-weight: 600;
+  color: var(--v-text);
+  overflow-wrap: anywhere;
+}
+
+.v-workspace-row__created {
+  margin-left: auto;
+  font-size: var(--v-text-sm);
+  color: var(--v-text-muted);
+}
+
+.v-muted-note {
+  margin: 0;
+  color: var(--v-text-muted);
+}
+
+/* --- Form helpers ----------------------------------------------------------- */
+
+.v-form-field {
+  margin-bottom: var(--v-space-4);
+}
+
+.v-form-error {
+  margin: var(--v-space-2) 0 0;
+  font-size: var(--v-text-sm);
+  color: var(--v-error);
+  display: block;
+}
+
+/* --- Responsive: deliberate compact layouts, not shrunken desktop ---------- */
+
+@media (max-width: 900px) {
+  .v-page {
+    padding: var(--v-space-4) var(--v-space-4) var(--v-space-6);
+    gap: var(--v-space-4);
+  }
+
+  .v-page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .v-page-header .v-button {
+    width: 100%;
+  }
+
+  .v-project-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .v-stat-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .v-detail-header {
+    flex-direction: column;
+  }
+
+  .v-workspace-row {
+    flex-wrap: wrap;
+  }
+
+  .v-workspace-row__created {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .v-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .v-filter {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .v-filter__chip {
+    flex: 1;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v-project-card {
+    transition: none;
+  }
+}

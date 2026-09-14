@@ -12,7 +12,7 @@ afterEach(() => {
 function renderShell() {
   return render(
     <ThemeProvider>
-      <AppShell renderPage={(routeId) => <div data-testid={`page-${routeId}`} />} />
+      <AppShell renderPage={(route) => <div data-testid={`page-${route.id}`} />} />
     </ThemeProvider>,
   );
 }
@@ -66,6 +66,21 @@ describe('AppShell', () => {
     expect(screen.getByRole('link', { name: /Settings/ }).getAttribute('aria-current')).toBe(
       'page',
     );
+  });
+
+  it('routes to a project detail page and highlights the Projects nav item', () => {
+    renderShell();
+    window.location.hash = '#/projects/prj-42';
+    fireEvent(window, new HashChangeEvent('hashchange'));
+    expect(screen.getByTestId('page-project-detail')).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Project details' })).toBeDefined();
+    expect(screen.getByRole('link', { name: /Projects/ }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+
+    window.location.hash = '#/projects';
+    fireEvent(window, new HashChangeEvent('hashchange'));
+    expect(screen.getByTestId('page-projects')).toBeDefined();
   });
 
   it('falls back to the dashboard for unknown hashes', () => {

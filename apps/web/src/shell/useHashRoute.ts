@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 
 /**
- * Minimal hash routing (#/dashboard). Future steps can replace this with a
- * fuller router without touching the shell contract: (route, navigate).
+ * Minimal hash routing (#/dashboard, #/projects, #/projects/<id>, #/settings).
+ * Future steps can replace this with a fuller router without touching the
+ * shell contract: (route, navigate).
  */
 
 export interface RouteDef {
@@ -17,19 +18,40 @@ export const ROUTES: readonly RouteDef[] = [
   { id: 'settings', hash: '#/settings', title: 'Settings' },
 ] as const;
 
-const DEFAULT_ROUTE: RouteDef = ROUTES[0] ?? {
-  id: 'dashboard',
-  hash: '#/dashboard',
-  title: 'Dashboard',
-};
+export type RouteId = 'dashboard' | 'projects' | 'project-detail' | 'settings';
 
-function routeForHash(hash: string): RouteDef {
-  const normalized = hash === '' || hash === '#' ? '' : hash;
-  return ROUTES.find((route) => route.hash === normalized) ?? DEFAULT_ROUTE;
+/** The currently active route, with route parameters when present. */
+export interface RouteState {
+  readonly id: RouteId;
+  readonly title: string;
+  readonly projectId: string | null;
+}
+
+const PROJECT_ID_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)$/;
+
+function routeForHash(hash: string): RouteState {
+  if (hash === '' || hash === '#' || hash === '#/dashboard') {
+    return { id: 'dashboard', title: 'Dashboard', projectId: null };
+  }
+  if (hash === '#/projects') {
+    return { id: 'projects', title: 'Projects', projectId: null };
+  }
+  if (hash === '#/settings') {
+    return { id: 'settings', title: 'Settings', projectId: null };
+  }
+  const projectMatch = PROJECT_ID_PATTERN.exec(hash);
+  if (projectMatch !== null) {
+    return {
+      id: 'project-detail',
+      title: 'Project details',
+      projectId: projectMatch[1] ?? null,
+    };
+  }
+  return { id: 'dashboard', title: 'Dashboard', projectId: null };
 }
 
 export function useHashRoute() {
-  const [route, setRoute] = useState<RouteDef>(() => routeForHash(window.location.hash));
+  const [route, setRoute] = useState<RouteState>(() => routeForHash(window.location.hash));
 
   useEffect(() => {
     const onHashChange = () => setRoute(routeForHash(window.location.hash));
@@ -37,12 +59,31 @@ export function useHashRoute() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  const navigate = useCallback((next: RouteDef) => {
-    setRoute(next);
-    if (window.location.hash !== next.hash) {
-      window.location.hash = next.hash;
+  /** Navigates to any supported hash, updating state immediately. */
+  const navigateTo = useCallback((hash: string) => {
+    setRoute(routeForHash(hash));
+    if (window.location.hash !== hash) {
+      window.location.hash = hash;
     }
   }, []);
 
-  return { route, navigate };
+  /** Navigates to a registered route (sidebar navigation). */
+  const navigate = useCallback(
+    (next: RouteDef) => {
+      navigateTo(next.hash);
+    },
+    [navigateTo],
+  );
+
+  return { route, navigate, navigateTo };
+}
+
+/**
+ * Navigates from anywhere in the app. The hash change re-syncs the shell's
+ * route state through its `hashchange` listener.
+ */
+export function navigateToHash(hash: string): void {
+  if (window.location.hash !== hash) {
+    window.location.hash = hash;
+  }
 }

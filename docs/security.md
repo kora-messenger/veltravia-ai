@@ -176,13 +176,18 @@ The tool layer enforces these principles — all of them tested:
 8. The API's demo mode (offline fake transport when env vars are absent) is a documented development-only limitation; gates are real, the remote end is a fixture. Real mode is enabled ONLY by `GITHUB_API_TOKEN` + `GITHUB_REPOSITORIES` env.
 9. The live harness (`tests/live/github.live.test.ts`) is strictly read-only and off unless explicitly enabled locally (`RUN_GITHUB_INTEGRATION_TESTS=true` + env); CI never sets it.
 
-## 5h. Web UI security boundary rules (Step 11A, `apps/web`)
+## 5h. Web UI security boundary rules (Steps 11A–11B, `apps/web`)
 
 1. The web app is a rendering surface only: no credential material (tokens, API keys, database credentials, OAuth access tokens, secrets, private keys) may enter React state, localStorage, sessionStorage, frontend source, HTML, URL parameters, or browser-visible API responses.
 2. The only client-persisted value today is the theme preference (`veltravia.theme-preference`) — UI state, never credential material.
 3. Future integrations surface credential references and connection status only; the UI never displays or stores raw credentials.
 4. Unimplemented backend features render as clearly-unavailable UI (disabled items, placeholder pages); the UI never fabricates a successful operation.
 5. All styling flows through centralized design tokens (`apps/web/src/design/tokens.css`); no raw color or secret-shaped literals are scattered through components.
+6. Every network call goes through `src/api/client.ts`; failures are normalized to typed `ApiError`s with scrubbed messages — provider internals, stack traces, and raw error payloads never reach the screen.
+7. API responses are validated and mapped to safe view models before React state (`src/api/projects.ts`, `src/api/workspaces.ts`): `metadata`, `ownerRef`, and logical `root` are dropped; the frontend renders server-derived data only.
+8. The frontend NEVER hardcodes a user identity: project creation sends no `ownerRef`; the API assigns one server-side (`VELTRAVIA_DEFAULT_OWNER_REF`, development default `veltravia-dev-user`) until authentication exists. `ownerRef` is identity metadata, never a credential.
+9. Mutating writes are revision-safe in the UI: project edits send `expectedRevision`; a 409 `REVISION_CONFLICT` is surfaced to the user and the latest server state is reloaded — the UI never silently overwrites.
+10. Consequential actions (archive/restore) require an explicit confirmation dialog and report server rejections honestly; the UI never fakes success or retries destructively.
 
 ## 7. Incident response
 

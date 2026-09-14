@@ -1,9 +1,9 @@
 import { Menu, type MenuItemDef } from '../components/ui';
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider';
-import type { RouteDef } from './useHashRoute';
+import type { RouteState } from './useHashRoute';
 
 export interface TopBarProps {
-  route: RouteDef;
+  route: RouteState;
   onOpenMobileNav(): void;
 }
 
