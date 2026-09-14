@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { AICore } from '@veltravia/ai-core';
 import type { ConnectorManager } from '@veltravia/connector-core';
 import type { AgentManager } from '@veltravia/agent-core';
+import type { CodingAgentManager } from '@veltravia/coding-agent-core';
 import type { ToolManager } from '@veltravia/tool-core';
 import type { ProjectEngine } from '@veltravia/project-core';
 import type { SandboxManager } from '@veltravia/sandbox-core';
@@ -17,6 +18,8 @@ import { registerSandboxRoutes } from './routes/sandboxes.js';
 import { registerAIRoutes } from './routes/ai-generate.js';
 import { registerConnectorRoutes } from './routes/connectors.js';
 import { registerAgentRoutes } from './routes/agents.js';
+import { registerCodingRoutes } from './routes/coding.js';
+import { createCodingManager } from './coding.js';
 import { registerToolRoutes } from './routes/tools.js';
 import { registerProjectRoutes } from './routes/projects.js';
 
@@ -33,6 +36,8 @@ export interface BuildAppOptions {
   readonly projectEngine?: ProjectEngine;
   /** Pre-built SandboxManager (tests inject one); defaults to the mock runtime. */
   readonly sandboxes?: SandboxManager;
+  /** Pre-built CodingAgentManager (tests inject one); defaults to the demo coding agent. */
+  readonly coding?: CodingAgentManager;
 }
 
 /**
@@ -86,6 +91,23 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // only through declared project tools. (The sandbox layer validates
   // workspace references against this engine above.)
   registerProjectRoutes(app, projectEngine);
+
+  // Coding Agent endpoints: bounded, state-machine-driven coding runs. Every
+  // file mutation and validation flows through the Tool System above; plan
+  // approvals and tool confirmations are decided by humans through the API.
+  const coding =
+    options.coding ??
+    // The coding agent gets its OWN Tool System instance, seeded with the
+    // sandbox tools and the project file tools, with explicit server-side
+    // grants. It never mutates the read-only tool surface above - tools
+    // registered for coding do not appear on /api/tools and cannot change
+    // the availability of tools other consumers see.
+    createCodingManager({
+      projectEngine,
+      sandboxes,
+      now: () => new Date(),
+    });
+  registerCodingRoutes(app, coding);
 
   return app;
 }

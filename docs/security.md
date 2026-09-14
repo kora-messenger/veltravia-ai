@@ -153,6 +153,17 @@ The tool layer enforces these principles — all of them tested:
 11. Lifecycle transitions are validated (`destroyed` terminal; `stopped`/`expired` only lead to `destroyed`); sandboxes have a TTL and expire lazily, cancelling active work.
 12. The mock runtime provides **NO OS-level isolation** and claims none (`providesOsIsolation: false`; enforcement reports are honest `enforced`/`requested`/`unavailable`). JavaScript restrictions are not a security boundary; a production runtime requires real isolation (container/microVM) — see docs/sandbox.md.
 
+## 5f. Coding Agent rules (Step 9, `coding-agent/core`)
+
+1. The coding agent reaches project files and sandboxes ONLY through the Tool System — there is no direct filesystem, execution, or engine access, and no tool id outside the registered coding surface can be invoked. Unknown action types are rejected: the model cannot invent tools.
+2. Plans require HUMAN approval before any mutation when plan approval is enabled (the server default). The agent never approves its own plan or tool confirmations; rejections fail the run typed and terminal.
+3. File content is UNTRUSTED DATA: read results are delimited in context and never treated as instructions. Prompt-injection attempts in file content or sandbox output gain zero authority (tested).
+4. Revision discipline is enforced manager-side: the agent must have read or created a file before updating or deleting it, stale revisions fail typed, and the sandbox id is NEVER taken from decisions — it is pinned to the run's own sandbox.
+5. Secret-shaped content is rejected before it reaches the workspace, the sandbox, errors, or audit (`CODING_SECRET_REJECTED`); all surfaces are scrubbed.
+6. Every run is bounded by server-side limits with hard ceilings (iterations, tool calls, duration, consecutive failures). Limits from decisions are ignored; no run is unlimited.
+7. Runs are state-machine-driven with terminal statuses (`completed`/`failed`/`cancelled`); cancellation is one-way, committed mutations are preserved, and audit records everything.
+8. API responses carry the safe run view only — no file contents, no secrets, no chain-of-thought. The demo decision source is offline and scripted; no real model is wired into the API yet (documented development-only limitation).
+
 ## 7. Incident response
 
 - Suspected secret leak → rotate first, investigate second.

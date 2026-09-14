@@ -32,6 +32,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: [
+      'coding-agent/*/src/**/*.test.ts',
       'packages/*/src/**/*.test.ts',
       'apps/*/src/**/*.test.ts',
       'ai/**/src/**/*.test.ts',

@@ -1,0 +1,29 @@
+{
+  "name": "@veltravia/coding-agent-mock",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline, deterministic Coding Agent mock: a scripted decision source plus a complete fixture environment (in-memory Project Engine + mock sandbox runtime + real Tool System). Executes NO host code, touches NO host filesystem, reaches NO network, reads NO credentials.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/coding-agent-core": "*",
+    "@veltravia/project-core": "*",
+    "@veltravia/project-mock": "*",
+    "@veltravia/sandbox-core": "*",
+    "@veltravia/sandbox-mock": "*",
+    "@veltravia/tool-core": "*"
+  }
+}
