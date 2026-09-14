@@ -1,0 +1,182 @@
+/*
+ * Veltravia AI design tokens.
+ *
+ * Primitive palette + semantic roles, centralized so components never
+ * hardcode colors. Two concrete themes (light / dark) are switched by
+ * [data-theme] on <html>; the provider resolves "system" into one of them.
+ */
+
+:root {
+  /* ---------- Primitive palette (brand: violet-indigo) ---------- */
+  --v-brand-50: #f1effd;
+  --v-brand-100: #e3dffb;
+  --v-brand-200: #c7c0f7;
+  --v-brand-300: #a99df0;
+  --v-brand-400: #8d7fe9;
+  --v-brand-500: #7163dc;
+  --v-brand-600: #5a4bd3;
+  --v-brand-700: #4839b4;
+  --v-brand-800: #382c8e;
+  --v-brand-900: #291f66;
+
+  --v-neutral-0: #ffffff;
+  --v-neutral-50: #fafafd;
+  --v-neutral-100: #f2f1f7;
+  --v-neutral-200: #e5e3ee;
+  --v-neutral-300: #cfccdd;
+  --v-neutral-400: #a7a3ba;
+  --v-neutral-500: #7c7892;
+  --v-neutral-600: #5d5a72;
+  --v-neutral-700: #454256;
+  --v-neutral-800: #2b2938;
+  --v-neutral-900: #1a1826;
+  --v-neutral-950: #0e0d16;
+
+  --v-green-600: #1f8a5b;
+  --v-green-400: #3ac98b;
+  --v-amber-600: #b7791f;
+  --v-amber-400: #e2a93b;
+  --v-red-600: #c2404a;
+  --v-red-400: #e5566b;
+  --v-blue-600: #2c6fb3;
+  --v-blue-400: #56a0e0;
+
+  /* ---------- Typography ---------- */
+  --v-font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --v-font-mono:
+    ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --v-text-2xs: 0.6875rem; /* 11px */
+  --v-text-xs: 0.75rem; /* 12px */
+  --v-text-sm: 0.8125rem; /* 13px */
+  --v-text-md: 0.875rem; /* 14px */
+  --v-text-lg: 1rem; /* 16px */
+  --v-text-xl: 1.25rem; /* 20px */
+  --v-text-2xl: 1.5rem; /* 24px */
+  --v-text-3xl: 1.875rem; /* 30px */
+
+  --v-weight-regular: 400;
+  --v-weight-medium: 500;
+  --v-weight-semibold: 600;
+  --v-weight-bold: 700;
+
+  /* ---------- Spacing ---------- */
+  --v-space-05: 0.125rem; /* 2px */
+  --v-space-1: 0.25rem; /* 4px */
+  --v-space-2: 0.5rem; /* 8px */
+  --v-space-3: 0.75rem; /* 12px */
+  --v-space-4: 1rem; /* 16px */
+  --v-space-5: 1.5rem; /* 24px */
+  --v-space-6: 2rem; /* 32px */
+  --v-space-7: 3rem; /* 48px */
+  --v-space-8: 4rem; /* 64px */
+
+  /* ---------- Radius (restrained) ---------- */
+  --v-radius-xs: 3px;
+  --v-radius-sm: 5px;
+  --v-radius-md: 8px;
+  --v-radius-lg: 12px;
+  --v-radius-full: 999px;
+
+  /* ---------- Shadows (subtle elevation) ---------- */
+  --v-shadow-1: 0 1px 2px rgb(26 24 38 / 0.06), 0 1px 3px rgb(26 24 38 / 0.05);
+  --v-shadow-2: 0 4px 10px rgb(26 24 38 / 0.08), 0 1px 3px rgb(26 24 38 / 0.06);
+  --v-shadow-3: 0 12px 32px rgb(26 24 38 / 0.16), 0 4px 12px rgb(26 24 38 / 0.1);
+
+  /* ---------- Motion (restrained) ---------- */
+  --v-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --v-dur-fast: 120ms;
+  --v-dur-base: 180ms;
+  --v-dur-slow: 240ms;
+
+  /* ---------- Semantic roles: LIGHT (default) ---------- */
+  --v-bg: var(--v-neutral-50);
+  --v-surface: var(--v-neutral-0);
+  --v-surface-raised: #ffffff;
+  --v-surface-muted: var(--v-neutral-100);
+  --v-surface-hover: var(--v-neutral-100);
+
+  --v-primary: var(--v-brand-600);
+  --v-primary-hover: var(--v-brand-700);
+  --v-primary-active: var(--v-brand-800);
+  --v-primary-fg: #ffffff;
+  --v-primary-muted: var(--v-brand-100);
+
+  --v-secondary: var(--v-neutral-100);
+  --v-secondary-hover: var(--v-neutral-200);
+  --v-secondary-fg: var(--v-text);
+
+  --v-danger: var(--v-red-600);
+  --v-danger-hover: #a8333c;
+  --v-danger-fg: #ffffff;
+
+  --v-text: var(--v-neutral-900);
+  --v-text-muted: var(--v-neutral-600);
+  --v-text-faint: var(--v-neutral-500);
+  --v-text-on-primary: var(--v-primary-fg);
+
+  --v-border: var(--v-neutral-200);
+  --v-border-strong: var(--v-neutral-300);
+  --v-border-muted: var(--v-neutral-100);
+
+  --v-success: var(--v-green-600);
+  --v-success-muted: #e6f5ee;
+  --v-warning: var(--v-amber-600);
+  --v-warning-muted: #fbf1de;
+  --v-error: var(--v-red-600);
+  --v-error-muted: #fae9ea;
+  --v-info: var(--v-blue-600);
+  --v-info-muted: #e8f1fa;
+
+  --v-focus-ring: 0 0 0 2px var(--v-bg), 0 0 0 4px var(--v-brand-400);
+
+  --v-overlay: rgb(26 24 38 / 0.4);
+}
+
+/* ---------- Semantic roles: DARK ---------- */
+[data-theme='dark'] {
+  --v-bg: var(--v-neutral-950);
+  --v-surface: #151420;
+  --v-surface-raised: #1b1928;
+  --v-surface-muted: #1e1c2b;
+  --v-surface-hover: #262334;
+
+  --v-primary: var(--v-brand-400);
+  --v-primary-hover: var(--v-brand-300);
+  --v-primary-active: var(--v-brand-200);
+  --v-primary-fg: var(--v-neutral-950);
+  --v-primary-muted: rgb(141 127 233 / 0.16);
+
+  --v-secondary: var(--v-neutral-800);
+  --v-secondary-hover: #38354a;
+  --v-secondary-fg: var(--v-text);
+
+  --v-danger: var(--v-red-400);
+  --v-danger-hover: #ef7083;
+  --v-danger-fg: var(--v-neutral-950);
+
+  --v-text: #eceaf4;
+  --v-text-muted: #a5a1b8;
+  --v-text-faint: #7d7993;
+
+  --v-border: #2a2739;
+  --v-border-strong: #3b3750;
+  --v-border-muted: #211f2e;
+
+  --v-success: var(--v-green-400);
+  --v-success-muted: rgb(58 201 139 / 0.12);
+  --v-warning: var(--v-amber-400);
+  --v-warning-muted: rgb(226 169 59 / 0.12);
+  --v-error: var(--v-red-400);
+  --v-error-muted: rgb(229 86 107 / 0.12);
+  --v-info: var(--v-blue-400);
+  --v-info-muted: rgb(86 160 224 / 0.12);
+
+  --v-focus-ring: 0 0 0 2px var(--v-bg), 0 0 0 4px var(--v-brand-300);
+
+  --v-shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --v-shadow-2: 0 4px 10px rgb(0 0 0 / 0.45);
+  --v-shadow-3: 0 12px 32px rgb(0 0 0 / 0.55);
+
+  --v-overlay: rgb(4 3 10 / 0.6);
+}

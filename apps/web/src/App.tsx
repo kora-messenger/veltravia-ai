@@ -1,20 +1,27 @@
-import { VELTRAVIA_NAME, VELTRAVIA_VERSION } from '@veltravia/types';
+import { AppShell } from './shell/AppShell';
+import { ThemeProvider } from './theme/ThemeProvider';
+import { ToastProvider } from './components/ui';
+import { DashboardPage, ProjectsPage, SettingsPage } from './pages';
 
 export function App() {
   return (
-    <main
-      style={{
-        fontFamily: 'system-ui, sans-serif',
-        margin: '0 auto',
-        maxWidth: 720,
-        padding: '4rem 1.5rem',
-      }}
-    >
-      <h1>{VELTRAVIA_NAME}</h1>
-      <p>An advanced AI software-development platform.</p>
-      <p>
-        <strong>Development stage:</strong> Step 1 &mdash; Foundation (v{VELTRAVIA_VERSION})
-      </p>
-    </main>
+    <ThemeProvider>
+      <ToastProvider>
+        <AppShell
+          renderPage={(routeId) => {
+            switch (routeId) {
+              case 'dashboard':
+                return <DashboardPage />;
+              case 'projects':
+                return <ProjectsPage />;
+              case 'settings':
+                return <SettingsPage />;
+              default:
+                return <DashboardPage />;
+            }
+          }}
+        />
+      </ToastProvider>
+    </ThemeProvider>
   );
 }

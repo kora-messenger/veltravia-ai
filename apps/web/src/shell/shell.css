@@ -1,0 +1,204 @@
+/*
+ * Application shell layout: desktop grid, tablet tweaks, and a deliberate
+ * mobile layout (drawer navigation instead of a shrunk desktop sidebar).
+ */
+
+.v-shell {
+  display: flex;
+  min-height: 100dvh;
+  width: 100%;
+}
+
+/* ------------------------------ Sidebar ------------------------------ */
+
+.v-sidebar {
+  width: 15rem;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--v-surface);
+  border-right: 1px solid var(--v-border);
+  transition:
+    width var(--v-dur-base) var(--v-ease-out),
+    transform var(--v-dur-base) var(--v-ease-out);
+}
+.v-sidebar--collapsed {
+  width: 3.5rem;
+}
+
+.v-sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--v-space-3) var(--v-space-3);
+  gap: var(--v-space-2);
+}
+.v-sidebar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  color: var(--v-text);
+  text-decoration: none;
+  font-weight: var(--v-weight-semibold);
+  min-width: 0;
+}
+.v-sidebar__logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  border-radius: var(--v-radius-sm);
+  background: linear-gradient(135deg, var(--v-brand-600), var(--v-brand-400));
+  color: #ffffff;
+  font-size: var(--v-text-sm);
+  font-weight: var(--v-weight-bold);
+}
+.v-sidebar__collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: none;
+  border-radius: var(--v-radius-sm);
+  background: transparent;
+  color: var(--v-text-faint);
+  cursor: pointer;
+  transition:
+    transform var(--v-dur-base) var(--v-ease-out),
+    color var(--v-dur-fast) var(--v-ease-out);
+}
+.v-sidebar--collapsed .v-sidebar__collapse {
+  transform: rotate(180deg);
+}
+.v-sidebar__collapse:hover {
+  color: var(--v-text);
+  background: var(--v-surface-hover);
+}
+
+.v-sidebar__nav {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-05);
+  padding: var(--v-space-2) var(--v-space-3);
+  flex: 1;
+}
+.v-sidebar__link {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  padding: var(--v-space-2) var(--v-space-2);
+  border-radius: var(--v-radius-sm);
+  color: var(--v-text-muted);
+  text-decoration: none;
+  font-weight: var(--v-weight-medium);
+  font-size: var(--v-text-md);
+  transition:
+    background-color var(--v-dur-fast) var(--v-ease-out),
+    color var(--v-dur-fast) var(--v-ease-out);
+}
+.v-sidebar__link:hover {
+  background: var(--v-surface-hover);
+  color: var(--v-text);
+  text-decoration: none;
+}
+.v-sidebar__link--active {
+  background: var(--v-primary-muted);
+  color: var(--v-primary);
+}
+.v-sidebar--collapsed .v-sidebar__link {
+  justify-content: center;
+}
+
+.v-sidebar__footer {
+  padding: var(--v-space-3);
+  border-top: 1px solid var(--v-border-muted);
+}
+
+/* ------------------------------ Main area ---------------------------- */
+
+.v-shell__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.v-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-3);
+  height: 3.5rem;
+  flex: none;
+  padding: 0 var(--v-space-5);
+  background: var(--v-bg);
+  border-bottom: 1px solid var(--v-border);
+}
+.v-topbar__menu-button {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  border-radius: var(--v-radius-sm);
+  background: transparent;
+  color: var(--v-text);
+  cursor: pointer;
+}
+.v-topbar__menu-button:hover {
+  background: var(--v-surface-hover);
+}
+.v-topbar__title {
+  font-size: var(--v-text-md);
+}
+.v-topbar__spacer {
+  flex: 1;
+}
+
+.v-shell__content {
+  flex: 1;
+  padding: var(--v-space-6) var(--v-space-7);
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+/* ------------------------------ Mobile ------------------------------- */
+
+.v-shell__backdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .v-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 45;
+    transform: translateX(-100%);
+    box-shadow: var(--v-shadow-2);
+    width: 15rem !important;
+  }
+  .v-sidebar--mobile-open {
+    transform: translateX(0);
+  }
+  .v-sidebar__collapse {
+    display: none;
+  }
+  .v-shell__backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 44;
+    background: var(--v-overlay);
+    animation: v-fade-in var(--v-dur-base) var(--v-ease-out);
+  }
+  .v-topbar__menu-button {
+    display: inline-flex;
+  }
+  .v-shell__content {
+    padding: var(--v-space-4);
+  }
+}

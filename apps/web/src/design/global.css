@@ -1,0 +1,145 @@
+/*
+ * Veltravia AI global base styles: reset, typography scale, focus policy,
+ * reduced-motion policy. All colors flow through tokens.css.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--v-bg);
+  color: var(--v-text);
+  font-family: var(--v-font-sans);
+  font-size: var(--v-text-md);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  height: 100%;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-weight: var(--v-weight-semibold);
+  line-height: 1.25;
+  color: var(--v-text);
+}
+
+p {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+/* Visible, consistent focus for all interactive elements. */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--v-focus-ring);
+  border-radius: var(--v-radius-xs);
+}
+
+a {
+  color: var(--v-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+::selection {
+  background: var(--v-brand-200);
+  color: var(--v-neutral-900);
+}
+
+[data-theme='dark'] ::selection {
+  background: var(--v-brand-700);
+  color: #ffffff;
+}
+
+/* ---------- Typography utility classes ---------- */
+.v-display {
+  font-size: var(--v-text-3xl);
+  font-weight: var(--v-weight-bold);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.v-heading-1 {
+  font-size: var(--v-text-2xl);
+  font-weight: var(--v-weight-semibold);
+  letter-spacing: -0.01em;
+}
+
+.v-heading-2 {
+  font-size: var(--v-text-xl);
+  font-weight: var(--v-weight-semibold);
+}
+
+.v-heading-3 {
+  font-size: var(--v-text-lg);
+  font-weight: var(--v-weight-semibold);
+}
+
+.v-body {
+  font-size: var(--v-text-md);
+}
+
+.v-label {
+  font-size: var(--v-text-sm);
+  font-weight: var(--v-weight-medium);
+}
+
+.v-caption {
+  font-size: var(--v-text-xs);
+  color: var(--v-text-muted);
+}
+
+.v-mono {
+  font-family: var(--v-font-mono);
+  font-size: 0.9em;
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

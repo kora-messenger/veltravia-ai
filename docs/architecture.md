@@ -16,7 +16,17 @@ Veltravia AI is an advanced AI software-development platform. The end state is a
 
 The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
 
-## Current state: Step 10 — Real connectors: GitHub + `invoke_tool`
+## Current state: Step 11A — Web UI foundation
+
+`apps/web` now carries the product UI foundation: a token-based design
+system (`src/design/`), a reusable accessible component library
+(`src/components/ui/`), a light/dark/system theme architecture
+(`src/theme/`), and an authenticated-shell layout with responsive drawer
+navigation (`src/shell/`). The shell routes Dashboard / Projects / Settings
+to explicitly-unavailable placeholder pages; feature screens arrive in
+later steps. Details: `docs/ui.md`.
+
+## Prior state: Step 10 — Real connectors: GitHub + `invoke_tool`
 
 Step 10 adds the **first real connector** (source control, GitHub-flavored) and an optional `invoke_tool` action so coding runs can call explicitly allowlisted connector tools.
 
@@ -70,10 +80,10 @@ Steps 1–4 were unchanged and stayed green: the AI Core (`ai/core`), the mock p
 
 ### `apps/` — deployable applications
 
-| Directory   | Purpose                                                                                                                                                                                 |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/web/` | The Veltravia AI web application (Vite + React). Today: a minimal shell. Later: the dashboard/IDE where users interact with the platform.                                               |
-| `apps/api/` | The backend API service (Fastify). Today: a health endpoint. Later: the public API that fronts all AI, connector, and project-engine capabilities, plus authentication and persistence. |
+| Directory   | Purpose                                                                                                                                                                                                    |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web/` | The Veltravia AI web application (Vite + React). Step 11A added the design system, component library, theme architecture, and application shell (see `docs/ui.md`); feature screens arrive in later steps. |
+| `apps/api/` | The backend API service (Fastify). Today: a health endpoint. Later: the public API that fronts all AI, connector, and project-engine capabilities, plus authentication and persistence.                    |
 
 Applications are the only things that get deployed. Everything else is a library.
 

@@ -38,6 +38,7 @@ export default defineConfig({
       'coding-agent/*/src/**/*.test.ts',
       'packages/*/src/**/*.test.ts',
       'apps/*/src/**/*.test.ts',
+      'apps/*/src/**/*.test.tsx',
       'ai/**/src/**/*.test.ts',
       'connectors/**/src/**/*.test.ts',
       'tools/**/src/**/*.test.ts',
