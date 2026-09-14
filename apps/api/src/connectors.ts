@@ -1,6 +1,8 @@
 import { ConnectorManager } from '@veltravia/connector-core';
 import { createMockConnector } from '@veltravia/connector-mock';
 
+import { createGitHubApiConnector } from './github.js';
+
 /**
  * Builds the API's ConnectorManager.
  *
@@ -17,5 +19,13 @@ import { createMockConnector } from '@veltravia/connector-mock';
 export function createConnectorManager(now: () => Date = () => new Date()): ConnectorManager {
   const manager = new ConnectorManager({ now });
   manager.register(createMockConnector({ now }));
+  // Step 10: the GitHub connector is visible read-only (metadata + status
+  // only). It is registered here with NO permission grants - the endpoints
+  // below cannot execute anything, and grants belong to operators.
+  const github = createGitHubApiConnector({ now });
+  manager.register(github.runtime.connector);
+  // Tracked, not awaited: while the connection is establishing (or if it
+  // fails), /api/connectors reports the honest status. Fail-closed.
+  void manager.connect(github.runtime.connectorId).catch(() => undefined);
   return manager;
 }

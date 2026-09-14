@@ -86,6 +86,7 @@ export const CODING_ACTION_TYPES = [
   'delete_file',
   'move_file',
   'validate',
+  'invoke_tool',
 ] as const;
 
 export type CodingActionType = (typeof CODING_ACTION_TYPES)[number];
@@ -104,7 +105,19 @@ export type CodingAction =
     }
   | { readonly type: 'delete_file'; readonly path: string }
   | { readonly type: 'move_file'; readonly fromPath: string; readonly toDirectory: string }
-  | { readonly type: 'validate'; readonly command: string; readonly arguments?: readonly string[] };
+  | { readonly type: 'validate'; readonly command: string; readonly arguments?: readonly string[] }
+  | {
+      /**
+       * Invokes one explicitly allow-listed Tool System tool (e.g. a GitHub
+       * connector tool). The tool id must appear in the server-provided
+       * allowlist; the Tool System remains the gate (schema, permissions,
+       * connector authorization, confirmation). The agent can never invent
+       * a tool, grant a permission, or bypass the pipeline.
+       */
+      readonly type: 'invoke_tool';
+      readonly toolId: string;
+      readonly input: Readonly<Record<string, unknown>>;
+    };
 
 // ---------------------------------------------------------------------------
 // Decisions (what the decision source produces each step)
@@ -142,6 +155,21 @@ export interface CodingDecisionContext {
   readonly validationResults: readonly CodingValidationResult[];
   /** Files the run has changed so far. */
   readonly changedFiles: readonly string[];
+  /**
+   * Metadata of the Tool System tools this run may invoke via `invoke_tool`
+   * (the server-side allowlist). Safe declarations only - no credentials, no
+   * connector internals. The model receives THIS, never a back door.
+   */
+  readonly availableTools: readonly CodingAvailableTool[];
+}
+
+/** Safe tool metadata surfaced to the decision source. */
+export interface CodingAvailableTool {
+  readonly toolId: string;
+  readonly name: string;
+  readonly description: string;
+  readonly riskLevel: string;
+  readonly requiresConfirmation: boolean;
 }
 
 /**

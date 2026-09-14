@@ -19,6 +19,7 @@
     "@veltravia/config": "*",
     "@veltravia/connector-core": "*",
     "@veltravia/connector-mock": "*",
+    "@veltravia/connector-github": "*",
     "@veltravia/project-core": "*",
     "@veltravia/project-mock": "*",
     "@veltravia/sandbox-core": "*",

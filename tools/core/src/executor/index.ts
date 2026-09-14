@@ -38,6 +38,16 @@ export interface ToolExecutorHost {
    * unknown or the tool system is not wired to connectors.
    */
   authorizeConnectorOperation(tool: ToolDefinition): OperationAuthorization;
+  /**
+   * OPTIONAL connector operation execution seam (Step 10). When wired, a
+   * connector-backed tool EXECUTES through this callback after the full gate
+   * (authorization + confirmation) has passed. When absent, connector-backed
+   * tools still stop at the Step 5 boundary - the failure is explicit.
+   */
+  executeConnectorOperation?(
+    tool: ToolDefinition,
+    input: Readonly<Record<string, unknown>>,
+  ): Promise<Record<string, unknown>>;
 }
 
 /**
@@ -252,40 +262,59 @@ export class ToolExecutor {
     }
 
     // 7. Execute.
-    if (tool.connector !== undefined) {
-      // Step 5 boundary: connector operation execution is NOT enabled yet.
-      // The full gate above ran (existence, availability, input, permissions,
-      // connector authorization, confirmation) - this failure is the
-      // explicit stub that marks external execution as future work.
-      throw new ToolExecutionError(
-        tool.id,
-        'execution of connector-backed tools is not enabled yet (connector operation execution arrives with the connector execution layer)',
-        {
-          details: {
-            connectorId: tool.connector.connectorId,
-            operationId: tool.connector.operationId,
-          },
-        },
-      );
-    }
-
-    const implementation = this.implementations.get(tool.id);
-    if (implementation === undefined) {
-      throw new ToolExecutionError(tool.id, 'no implementation is registered for this local tool');
-    }
-
-    this.audit('tool_execution_started', tool.id, `Execution of tool "${tool.id}" started`, {
-      invocationId: invocation.id,
-    });
-
     let output: Record<string, unknown>;
-    try {
-      output = await implementation.handler(invocation.input, { invocation });
-    } catch (error) {
-      if (isToolError(error)) throw error;
-      throw new ToolExecutionError(tool.id, (error as Error).message ?? 'handler failed', {
-        cause: error,
+    if (tool.connector !== undefined) {
+      // Connector-backed tool. When a connector execution layer is wired
+      // (Step 10: GitHub Connector), execution flows through it - the full
+      // gate above (existence, availability, input, tool permissions,
+      // connector authorization, confirmation) has already passed, and the
+      // connector layer re-checks its own scope and permissions.
+      if (this.host.executeConnectorOperation === undefined) {
+        // Step 5 boundary: no execution layer is wired. The failure is the
+        // explicit stub that marks external execution as not enabled.
+        throw new ToolExecutionError(
+          tool.id,
+          'execution of connector-backed tools is not enabled yet (connector operation execution arrives with the connector execution layer)',
+          {
+            details: {
+              connectorId: tool.connector.connectorId,
+              operationId: tool.connector.operationId,
+            },
+          },
+        );
+      }
+      this.audit('tool_execution_started', tool.id, `Execution of tool "${tool.id}" started`, {
+        invocationId: invocation.id,
       });
+      try {
+        output = await this.host.executeConnectorOperation(tool, invocation.input);
+      } catch (error) {
+        if (isToolError(error)) throw error;
+        throw new ToolExecutionError(tool.id, (error as Error).message ?? 'operation failed', {
+          cause: error,
+        });
+      }
+    } else {
+      const implementation = this.implementations.get(tool.id);
+      if (implementation === undefined) {
+        throw new ToolExecutionError(
+          tool.id,
+          'no implementation is registered for this local tool',
+        );
+      }
+
+      this.audit('tool_execution_started', tool.id, `Execution of tool "${tool.id}" started`, {
+        invocationId: invocation.id,
+      });
+
+      try {
+        output = await implementation.handler(invocation.input, { invocation });
+      } catch (error) {
+        if (isToolError(error)) throw error;
+        throw new ToolExecutionError(tool.id, (error as Error).message ?? 'handler failed', {
+          cause: error,
+        });
+      }
     }
 
     // 8. Validate + normalize the output before it can reach the AI.

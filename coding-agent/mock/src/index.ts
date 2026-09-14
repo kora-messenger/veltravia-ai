@@ -24,6 +24,15 @@ import {
   type ToolDefinition,
   type ToolImplementation,
 } from '@veltravia/tool-core';
+import { ConnectorManager } from '@veltravia/connector-core';
+import {
+  createFakeRepository,
+  createGitHubConnectorRuntime,
+  createGitHubOperationExecutor,
+  createGitHubToolDefinitions,
+  FakeGitHubTransport,
+  GITHUB_CONNECTOR_ID,
+} from '@veltravia/connector-github';
 
 // ---------------------------------------------------------------------------
 // Scripted decision source
@@ -213,12 +222,16 @@ export interface CodingFixtureEnvironment {
   /** Ids of the seeded project + workspace. */
   readonly projectId: string;
   readonly workspaceId: string;
+  /** The offline GitHub connector transport (fixture repository state). */
+  readonly githubTransport: FakeGitHubTransport;
 }
 
 export interface CreateCodingFixtureEnvironmentOptions {
   readonly now?: () => Date;
   readonly sandboxManager?: SandboxManager;
   readonly projectEngine?: ProjectEngine;
+  /** When true, wires the offline GitHub connector + tools into the environment. */
+  readonly withGitHub?: boolean;
 }
 
 /** Permission grants the coding fixture environment hands to the ToolManager. */
@@ -228,6 +241,11 @@ export const CODING_FIXTURE_PERMISSIONS = [
   'project.delete',
   'sandbox.create',
   'sandbox.execute',
+  'github.repositories.read',
+  'github.branches.read',
+  'github.branches.write',
+  'github.contents.read',
+  'github.contents.write',
 ] as const;
 
 /**
@@ -243,7 +261,53 @@ export async function createCodingFixtureEnvironment(
   const sandboxManager =
     options.sandboxManager ?? createMockSandboxManager({ now, auditSink: () => undefined }).manager;
 
-  const tools = new ToolManager({ now });
+  const githubTransport = new FakeGitHubTransport({
+    state: {
+      repositories: [
+        createFakeRepository({
+          owner: 'veltravia-demo',
+          name: 'fixture-repo',
+          description: 'offline fixture repository',
+          files: {
+            'README.md': '# Fixture repository\n\nOffline content.',
+            'src/index.ts': 'export const value = 1;\n',
+          },
+        }),
+      ],
+    },
+  });
+  const githubRuntime =
+    options.withGitHub === true
+      ? createGitHubConnectorRuntime({
+          connectorId: GITHUB_CONNECTOR_ID,
+          connectionId: 'github-connection:fixture',
+          scope: {
+            repositories: [
+              {
+                owner: 'veltravia-demo',
+                repository: 'fixture-repo',
+                defaultBranch: 'main',
+              },
+            ],
+          },
+          transport: githubTransport,
+          credentialProviderRef: 'env:GITHUB_DEMO_TOKEN',
+          now,
+        })
+      : undefined;
+
+  const connectorManager = new ConnectorManager({ now });
+  const tools = new ToolManager({
+    now,
+    connectors: connectorManager,
+    ...(githubRuntime !== undefined
+      ? {
+          connectorExecutor: createGitHubOperationExecutor({
+            runtimes: new Map([[githubRuntime.connectorId, githubRuntime]]),
+          }),
+        }
+      : {}),
+  });
   const projectTools = createProjectTools(projectEngine);
   for (const definition of projectTools.definitions) {
     tools.register(definition);
@@ -258,7 +322,27 @@ export async function createCodingFixtureEnvironment(
   for (const implementation of sandboxTools.implementations) {
     tools.registerImplementation(implementation);
   }
-  for (const toolId of Object.values(CODING_TOOL_IDS)) {
+  const codingToolIds: string[] = [...Object.values(CODING_TOOL_IDS)];
+  if (githubRuntime !== undefined) {
+    for (const definition of createGitHubToolDefinitions(GITHUB_CONNECTOR_ID)) {
+      tools.register(definition);
+    }
+    // Connector lifecycle goes through the REAL ConnectorManager: register
+    // (grants nothing) -> connect (connect() on the offline fake transport).
+    connectorManager.register(githubRuntime.connector);
+    await connectorManager.connect(githubRuntime.connectorId);
+    codingToolIds.push(
+      ...createGitHubToolDefinitions(GITHUB_CONNECTOR_ID).map((definition) => definition.id),
+    );
+    // The connector permission gate is separate from the tool permission
+    // gate - the fixture grants both explicitly (it is the operator).
+    for (const permission of CODING_FIXTURE_PERMISSIONS) {
+      if (permission.startsWith('github.')) {
+        connectorManager.grantPermission(GITHUB_CONNECTOR_ID, permission);
+      }
+    }
+  }
+  for (const toolId of codingToolIds) {
     const inspection = tools.inspect(toolId);
     for (const permission of inspection.requiredPermissions) {
       tools.grantPermission(toolId, permission);
@@ -281,5 +365,6 @@ export async function createCodingFixtureEnvironment(
     tools,
     projectId: project.id,
     workspaceId: workspace.id,
+    githubTransport,
   };
 }

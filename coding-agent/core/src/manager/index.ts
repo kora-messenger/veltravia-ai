@@ -21,6 +21,19 @@ import {
   validateCodingRunRequest,
 } from '../policy/index.js';
 import { transition } from '../state/index.js';
+
+/** The Tool System tools that are internal to the coding agent. */
+const KNOWN_PROJECT_TOOL_IDS: ReadonlySet<string> = new Set<string>(Object.values(CODING_TOOL_IDS));
+
+/**
+ * True when a tool id is NOT one of the coding agent's internal project or
+ * sandbox tools - i.e. it was reached through the `invoke_tool` allowlist
+ * (e.g. a GitHub connector tool). External tool results are always treated
+ * as untrusted data.
+ */
+function isExternalToolId(toolId: string): boolean {
+  return !KNOWN_PROJECT_TOOL_IDS.has(toolId);
+}
 import {
   isCodingRunTerminal,
   type CodingDecisionContext,
@@ -75,6 +88,13 @@ export interface CodingAgentManagerOptions {
   readonly onAudit?: CodingAuditSink;
   /** Trusted server-side config: whether plans need human approval. Default: true. */
   readonly requirePlanApproval?: boolean;
+  /**
+   * Trusted server-side allowlist of Tool System tool ids the run may invoke
+   * via the `invoke_tool` action (e.g. GitHub connector tools). Empty/absent
+   * = invoke_tool is disabled. The model can never widen this list, and the
+   * Tool System still gates every invocation.
+   */
+  readonly toolAllowlist?: readonly string[];
   /** Trusted server-side limit overrides (still capped by hard ceilings). */
   readonly limits?: Partial<CodingRunLimits>;
 }
@@ -88,6 +108,7 @@ export class CodingAgentManager {
   private readonly now: () => Date;
   private readonly generateRunId: () => string;
   private readonly requirePlanApproval: boolean;
+  private readonly toolAllowlist: readonly string[];
   private readonly limitOverrides: Partial<CodingRunLimits>;
   private readonly runs = new Map<string, ManagedRun>();
 
@@ -98,6 +119,7 @@ export class CodingAgentManager {
     this.generateRunId =
       options.generateRunId ?? (() => `run_${Math.random().toString(36).slice(2, 12)}`);
     this.requirePlanApproval = options.requirePlanApproval ?? true;
+    this.toolAllowlist = options.toolAllowlist ?? [];
     this.limitOverrides = options.limits ?? {};
   }
 
@@ -375,7 +397,16 @@ export class CodingAgentManager {
     if (run.toolCalls >= run.limits.maxToolCalls) {
       return this.finishFailure(run, 'CODING_TOOL_CALL_LIMIT', 'tool-call limit reached');
     }
-    let binding = bindCodingAction(action as never, run.request.projectId, run.request.workspaceId);
+    // An EMPTY allowlist means invoke_tool is off entirely: the policy
+    // context is absent, so the "not enabled" branch fires deterministically.
+    let binding = bindCodingAction(
+      action as never,
+      run.request.projectId,
+      run.request.workspaceId,
+      this.toolAllowlist.length > 0
+        ? { tools: this.tools, allowlist: this.toolAllowlist }
+        : undefined,
+    );
     // Optimistic revision protection (Step 7): every update carries the
     // revision this run last saw for the file. The decision source may pass
     // one explicitly (it only ever sees revisions as untrusted data); when it
@@ -520,6 +551,10 @@ export class CodingAgentManager {
     if (toolId === CODING_TOOL_IDS.sandboxExecute) {
       return this.applyValidationResult(run, String(input.command ?? ''), result);
     }
+    // External Tool System tools (invoke_tool, e.g. GitHub connector tools)
+    // are handled by the same generic path: their OUTPUT is untrusted
+    // external data - bounded replay to the decision source, never trusted
+    // context, never run-state influence beyond the tool-call counter.
     this.applyActionResult(run, toolId, input, result);
     return null;
   }
@@ -571,6 +606,18 @@ export class CodingAgentManager {
           break;
         default:
           break;
+      }
+      if (isExternalToolId(toolId)) {
+        // Bounded untrusted replay - same discipline as file content: only
+        // the last few results are replayed, older ones are just counted.
+        run.untrustedToolResults.push({
+          toolId,
+          status: 'success',
+          output,
+        });
+        if (run.untrustedToolResults.length > MAX_UNTRUSTED_CONTEXT_ITEMS) {
+          run.untrustedToolResults.shift();
+        }
       }
       return;
     }
@@ -770,7 +817,40 @@ export class CodingAgentManager {
       untrustedToolResults: [...run.untrustedToolResults],
       validationResults: [...run.validationResults],
       changedFiles: [...run.changedFiles.keys()],
+      availableTools: this.availableToolMetadata(),
     };
+  }
+
+  /**
+   * Safe tool metadata for the decision source - the allowlisted subset,
+   * declaration-level only. No credentials, no connector internals, and
+   * unavailable tools are excluded: the model cannot even request them.
+   */
+  private availableToolMetadata() {
+    const tools: {
+      toolId: string;
+      name: string;
+      description: string;
+      riskLevel: string;
+      requiresConfirmation: boolean;
+    }[] = [];
+    for (const toolId of this.toolAllowlist) {
+      let inspection;
+      try {
+        inspection = this.tools.inspect(toolId);
+      } catch {
+        continue;
+      }
+      if (inspection.availability.state !== 'available') continue;
+      tools.push({
+        toolId: inspection.definition.id,
+        name: inspection.definition.name,
+        description: inspection.definition.description,
+        riskLevel: inspection.definition.riskLevel,
+        requiresConfirmation: inspection.definition.requiresConfirmation,
+      });
+    }
+    return tools;
   }
 
   private view(run: ManagedRun): CodingRunView {

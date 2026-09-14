@@ -74,6 +74,30 @@ export interface ToolManagerOptions {
    * may expose tools without any connector integration.
    */
   readonly connectors?: ConnectorManager;
+  /**
+   * OPTIONAL connector operation execution layer (Step 10). When wired, a
+   * connector-backed tool that passes the full gate (permissions,
+   * authorization, confirmation) executes through this seam. The layer is
+   * responsible for routing to the right connector connection, enforcing the
+   * connection's repository scope, mapping failures to typed ToolErrors, and
+   * returning a normalized, schema-validable output. When absent,
+   * connector-backed tools fail explicitly (Step 5 boundary).
+   */
+  readonly connectorExecutor?: ConnectorOperationExecutor;
+}
+
+/**
+ * The Step 10 connector operation execution layer contract. The executor
+ * receives the ALREADY-AUTHORIZED tool definition and its schema-validated
+ * input - it must not and cannot re-run the confirmation flow, but it MUST
+ * enforce its own connection scope. Every failure surfaces as a typed
+ * ToolError so no vendor detail leaks upward.
+ */
+export interface ConnectorOperationExecutor {
+  executeConnectorOperation(
+    tool: ToolDefinition,
+    input: Readonly<Record<string, unknown>>,
+  ): Promise<Record<string, unknown>>;
 }
 
 /**
@@ -97,6 +121,7 @@ export class ToolManager {
   private readonly now: () => Date;
   private readonly onAudit?: ToolAuditSink;
   private readonly connectors?: ConnectorManager;
+  private readonly connectorExecutor?: ConnectorOperationExecutor;
   readonly confirmations: InMemoryConfirmationService;
   private readonly records = new Map<string, ManagedToolRecord>();
   private readonly executor: ToolExecutor;
@@ -108,12 +133,22 @@ export class ToolManager {
     this.now = options.now ?? (() => new Date());
     this.onAudit = options.onAudit;
     this.connectors = options.connectors;
+    this.connectorExecutor = options.connectorExecutor;
+    const connectorExecutor = options.connectorExecutor;
     this.executor = new ToolExecutor({
       host: {
         getDefinition: (toolId) => this.getDefinition(toolId),
         getGrantedPermissions: (toolId) => this.getGrantedPermissions(toolId),
         getAvailability: (toolId) => this.getAvailability(toolId),
         authorizeConnectorOperation: (tool) => this.authorizeConnectorOperation(tool),
+        ...(connectorExecutor !== undefined
+          ? {
+              executeConnectorOperation: (
+                tool: ToolDefinition,
+                input: Readonly<Record<string, unknown>>,
+              ) => connectorExecutor.executeConnectorOperation(tool, input),
+            }
+          : {}),
       },
       confirmations: this.confirmations,
       now: this.now,

@@ -16,7 +16,15 @@ Veltravia AI is an advanced AI software-development platform. The end state is a
 
 The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
 
-## Current state: Step 9 — Coding Agent
+## Current state: Step 10 — Real connectors: GitHub + `invoke_tool`
+
+Step 10 adds the **first real connector** (source control, GitHub-flavored) and an optional `invoke_tool` action so coding runs can call explicitly allowlisted connector tools.
+
+- `connectors/github` (`@veltravia/connector-github`): a Step 4 `Connector` implementation with an explicit `owner/repository@branch` scope enforced on EVERY operation, a permission catalog, operation declarations executed ONLY through the Tool System, hardened path/branch/sha validation, revision-protected writes, typed + scrubbed errors, an HTTPS-only production transport (token via provider callback, never retained), and a deterministic offline `FakeGitHubTransport` for tests.
+- `coding-agent/core` gained `invoke_tool`: disabled unless the trusted server-side `toolAllowlist` is non-empty, every invocation re-passes the full Tool System pipeline (permissions, connector auth, forced human confirmation for high-risk tools), and tool results replay as UNTRUSTED DATA.
+- `apps/api` wires the connector env-decided: REAL mode (`GITHUB_API_TOKEN` + `GITHUB_REPOSITORIES`) or offline DEMO mode (documented development-only limitation). `GET /api/connectors` lists it read-only; no credential material ever crosses HTTP. The live harness is strictly read-only and off in CI. See [connectors.md](connectors.md) and [security.md §5g](security.md).
+
+## Prior state: Step 9 — Coding Agent
 
 Step 9 adds the **Coding Agent**: the file-and-validation specialization of the agent loop — bounded, state-machine-driven coding runs that touch project files and run validations ONLY through the Tool System, with humans deciding plans and destructive confirmations.
 
@@ -153,6 +161,7 @@ Because responses are normalized and capability-driven, nothing built in Step 2 
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `connectors/core/`      | **Implemented.** The provider-neutral `Connector` interface, metadata/categories/capabilities, the permission system, credential **references** (never values), operation declarations, registry, manager, typed errors, audit events. |
 | `connectors/mock/`      | **Implemented.** Deterministic, offline, credential-free mock connector that proves the framework (safe for CI).                                                                                                                       |
+| `connectors/github/`    | **Implemented (Step 10).** The first real connector: scoped GitHub source control through the Tool System, with an offline fake transport for tests and a read-only live harness (off in CI).                                          |     |
 | `connectors/providers/` | **Future.** Individual vendor connectors (GitHub, databases, storage, payments, …), each its own package implementing only the `Connector` interface.                                                                                  |
 
 Details in [connectors.md](connectors.md).

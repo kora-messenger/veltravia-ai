@@ -299,3 +299,91 @@ describe('POST /api/coding/runs/:runId/cancel', () => {
     app.close();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Step 10: coding runs that use the GitHub connector through invoke_tool
+// ---------------------------------------------------------------------------
+
+describe('coding runs with the GitHub connector (invoke_tool)', () => {
+  const GITHUB_PLAN: CodingDecision = {
+    type: 'plan',
+    plan: {
+      goal: 'Read the README from the connected GitHub repository.',
+      steps: [{ summary: 'Invoke github-demo.contents.get on README.md' }],
+      filesToInspect: [],
+      filesToModify: [],
+      validations: [],
+      acceptanceCriteria: ['README content was read'],
+    },
+  };
+
+  it('invokes an allowlisted GitHub tool end-to-end through the API', async () => {
+    const { app, projectId, workspaceId } = await createCodedApp([
+      GITHUB_PLAN,
+      {
+        type: 'action',
+        action: {
+          type: 'invoke_tool',
+          toolId: 'github-demo.contents.get',
+          input: {
+            owner: 'veltravia-demo',
+            repository: 'fixture-repo',
+            path: 'README.md',
+            branch: 'main',
+          },
+        },
+      },
+      { type: 'complete', summary: 'README read from the connected repository.' },
+    ]);
+    // Let the demo connector's connect() promise settle (fire-and-forget
+    // wiring in createCodingManager keeps buildApp synchronous).
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    const start = await app.inject({
+      method: 'POST',
+      url: '/api/coding/runs',
+      payload: { projectId, workspaceId, userRequirement: 'Read the GitHub README' },
+    });
+    expect(start.statusCode).toBe(200);
+    expect(start.json().state).toBe('awaiting_approval');
+
+    const approved = await app.inject({
+      method: 'POST',
+      url: `/api/coding/runs/${start.json().runId as string}/confirmation`,
+      payload: { decision: 'approve' },
+    });
+    expect(approved.statusCode).toBe(200);
+    const body = approved.json();
+    expect(body.state).toBe('completed');
+    expect(body.summary).toBe('README read from the connected repository.');
+    app.close();
+  });
+
+  it('fails deterministically when the model invents a non-allowlisted tool', async () => {
+    const { app, projectId, workspaceId } = await createCodedApp([
+      GITHUB_PLAN,
+      {
+        type: 'action',
+        action: {
+          type: 'invoke_tool',
+          toolId: 'github-demo.not.a.tool',
+          input: {},
+        },
+      },
+    ]);
+    const start = await app.inject({
+      method: 'POST',
+      url: '/api/coding/runs',
+      payload: { projectId, workspaceId, userRequirement: 'Use a made-up tool' },
+    });
+    const approved = await app.inject({
+      method: 'POST',
+      url: `/api/coding/runs/${start.json().runId as string}/confirmation`,
+      payload: { decision: 'approve' },
+    });
+    const body = approved.json();
+    expect(body.state).toBe('failed');
+    expect(body.failure?.message ?? '').toMatch(/not allow-listed/i);
+    app.close();
+  });
+});

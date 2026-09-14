@@ -164,6 +164,18 @@ The tool layer enforces these principles — all of them tested:
 7. Runs are state-machine-driven with terminal statuses (`completed`/`failed`/`cancelled`); cancellation is one-way, committed mutations are preserved, and audit records everything.
 8. API responses carry the safe run view only — no file contents, no secrets, no chain-of-thought. The demo decision source is offline and scripted; no real model is wired into the API yet (documented development-only limitation).
 
+## 5g. GitHub connector & invoke_tool rules (Step 10, `connectors/github` + `coding-agent/core`)
+
+1. The connection scope (`owner/repository@branch` list) is enforced on EVERY operation — out-of-scope repositories are invisible even with a token that could read them.
+2. Registration grants nothing. The API wiring grants GitHub tool permissions AND connector permissions explicitly, server-side; the model can never grant, widen, or bypass either gate.
+3. `invoke_tool` is disabled unless the trusted server-side `toolAllowlist` is non-empty; the model can name an allowlisted tool but never add one, and every invocation re-passes the full Tool System pipeline (schema → permissions → connector auth → confirmation → execute).
+4. High/critical-risk GitHub tools (`content_write`, `content_delete`) force single-use, input-bound human confirmation — the agent never self-approves.
+5. File writes/deletes require the current `sha` (revision protection); stale writes fail typed. Branch names, paths, and shas are validated (traversal, null bytes, control characters rejected).
+6. The production transport is HTTPS-only to `api.github.com` with fixed headers, no redirects, and a hard timeout; the token is read per request via provider callback, never retained, never logged, scrubbed from every error and audit event.
+7. Remote repository content is UNTRUSTED DATA: delimited replay in coding context, never instructions — prompt injection gains no authority.
+8. The API's demo mode (offline fake transport when env vars are absent) is a documented development-only limitation; gates are real, the remote end is a fixture. Real mode is enabled ONLY by `GITHUB_API_TOKEN` + `GITHUB_REPOSITORIES` env.
+9. The live harness (`tests/live/github.live.test.ts`) is strictly read-only and off unless explicitly enabled locally (`RUN_GITHUB_INTEGRATION_TESTS=true` + env); CI never sets it.
+
 ## 7. Incident response
 
 - Suspected secret leak → rotate first, investigate second.

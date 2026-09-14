@@ -26,6 +26,7 @@ export default defineConfig({
       '@veltravia/project-mock': r('./project-engine/mock/src/index.ts'),
       '@veltravia/sandbox-core': r('./security/sandbox/src/index.ts'),
       '@veltravia/sandbox-mock': r('./security/sandbox-mock/src/index.ts'),
+      '@veltravia/connector-github': r('./connectors/github/src/index.ts'),
       '@veltravia/coding-agent-core': r('./coding-agent/core/src/index.ts'),
       '@veltravia/coding-agent-mock': r('./coding-agent/mock/src/index.ts'),
       '@veltravia/api': r('./apps/api/src/server.ts'),

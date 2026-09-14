@@ -55,9 +55,19 @@ Registered tool ids (all flow through the Tool System with explicit server-side 
 | `sandbox.create`      | Create the run's validation sandbox                       | low                                  |
 | `sandbox.execute`     | Run a validation command in the sandbox                   | high → **forced human confirmation** |
 
+- The agent must have read or created a file (and hold its revision) before updating or deleting it; stale revisions fail typed (`CODING_STALE_REVISION`).
+
+### `invoke_tool` — connector tools (Step 10)
+
+An OPTIONAL fourth action type lets a run call an explicitly allowlisted connector-backed tool (e.g. the GitHub connector's `github-demo.contents.get`):
+
+- The allowlist is TRUSTED SERVER-SIDE config (`toolAllowlist` on the manager). An empty/absent list disables `invoke_tool` entirely; the model can never widen it, and a tool outside the list fails typed (`CODING_INVALID_DECISION`) before anything executes.
+- Every invocation still passes the FULL Tool System pipeline: schema validation, explicit permissions, connector authorization (the connector's own permission gate is separate and must be granted too), risk classification, and forced single-use human confirmation for high-risk tools (`content_write`/`content_delete` pause the run exactly like plan approval).
+- The tool result reaches the NEXT decision as UNTRUSTED DATA — the same delimited replay used for file content. Malicious repository content (e.g. injected instructions in a README) is visible to the run but gains NO authority; tests prove a run that reads hostile content continues unchanged.
+- Tool failures are recorded honestly (bounded failures, consecutive-failure limit) and never leak connector error internals — messages are scrubbed.
+
 Rules enforced in the manager, not in the model's hands:
 
-- The agent must have read or created a file (and hold its revision) before updating or deleting it; stale revisions fail typed (`CODING_STALE_REVISION`).
 - The sandbox id is NEVER taken from a decision — the manager pins it to the run's own sandbox.
 - File content returned from reads is UNTRUSTED DATA: it is delimited in context and never treated as instructions (prompt-injection attempts gain no authority).
 - Secret-shaped content is rejected before it reaches the workspace or the sandbox (`CODING_SECRET_REJECTED`), and errors/audit are scrubbed.

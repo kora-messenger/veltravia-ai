@@ -5,10 +5,13 @@ import {
   type CodingDecisionSource,
 } from '@veltravia/coding-agent-core';
 import { createScriptedCodingDecisionSource } from '@veltravia/coding-agent-mock';
+import { ConnectorManager } from '@veltravia/connector-core';
+import { createMockConnector } from '@veltravia/connector-mock';
 import type { ProjectEngine } from '@veltravia/project-core';
 import type { SandboxManager } from '@veltravia/sandbox-core';
 import type { ToolManager } from '@veltravia/tool-core';
 
+import { createGitHubApiConnector } from './github.js';
 import { createToolManager } from './tools.js';
 
 /**
@@ -67,8 +70,27 @@ export interface CreateCodingManagerOptions {
  * permissions the coding agent needs, server-side, and nothing else.
  */
 export function createCodingManager(options: CreateCodingManagerOptions): CodingAgentManager {
-  const tools =
-    options.tools ?? createToolManager(options.now ?? (() => new Date()), options.sandboxes);
+  const now = options.now ?? (() => new Date());
+  // The coding agent's OWN ConnectorManager: registering the GitHub
+  // connector here can never affect the read-only /api/connectors surface.
+  const connectors = new ConnectorManager({ now });
+  connectors.register(createMockConnector({ now }));
+  connectors.configure('mock');
+  const tools = options.tools ?? createToolManager(now, options.sandboxes, connectors);
+
+  // Step 10: wire the GitHub connector (real mode via env, offline demo
+  // otherwise). Tools register with explicit grants; the connection happens
+  // through the real lifecycle. Until it is established the Tool System
+  // reports the connector-backed tools as unavailable - fail-closed.
+  const github = createGitHubApiConnector({ now });
+  const githubToolIds = github.registerTools(tools);
+  // The connect is tracked but not awaited: buildApp stays synchronous, and
+  // an unreachable GitHub leaves the tools honestly unavailable (the
+  // ConnectorManager audits the failure; nothing grants availability).
+  void github
+    .registerAndConnect(connectors)
+    .catch(() => undefined)
+    .catch(() => undefined);
   const projectTools = createProjectTools(options.projectEngine);
   for (const definition of projectTools.definitions) {
     tools.register(definition);
@@ -91,5 +113,9 @@ export function createCodingManager(options: CreateCodingManagerOptions): Coding
     decisionSource: options.decisionSource ?? createDemoCodingDecisionSource(),
     now: options.now,
     requirePlanApproval: options.requirePlanApproval ?? true,
+    // invoke_tool allowlist: exactly the GitHub connector tools. The model
+    // can NAME one of these; every execution still passes the full Tool
+    // System pipeline (schema, permissions, connector auth, confirmation).
+    toolAllowlist: githubToolIds,
   });
 }

@@ -74,11 +74,33 @@ Every state change and decision emits a typed, scrubbed `ConnectorAuditEvent` to
 
 `GET /api/connectors` and `GET /api/connectors/:id` expose metadata, capabilities, permissions, operations, and status ONLY. Credential references are omitted from API responses entirely, and no endpoint can mutate connectors, credentials, or external services. Action endpoints arrive with the Tool/Function System.
 
+## The GitHub connector (Step 10)
+
+`connectors/github` (`@veltravia/connector-github`) is the FIRST real connector: source control, GitHub-flavored. It proves the framework with a live vendor, not just the mock.
+
+**One boundary above all:** the connection scope is an explicit list of `owner/repository@branch` entries — the connector can NEVER see repositories outside it, even with a token that could. Scope is enforced on EVERY operation (`requireScope`), not just at connect time.
+
+**Everything flows through the framework.** The runtime implements the Step 4 `Connector` interface; the Step 5 Tool System is the only path to execution. Registration still grants nothing — the API wiring (apps) acts as the operator and grants tool permissions + connector permissions explicitly, server-side.
+
+**Operations (declarations, executed only through the Tool System):** `github.repositories.list/get`, `github.branches.list/get/create`, `github.contents.get/list/create-or-update/delete`. Writes are classified by operation (`read`, `branch_create`, `content_write`, `content_delete`) and every `content_write`/`content_delete` tool is HIGH risk → forced single-use human confirmation.
+
+**Hard rules, tested:**
+
+- Paths are validated against traversal, absolute paths, null bytes, and control characters — malicious repository content can never name a path outside the tree.
+- Updates/deletes require the file's current `sha` (revision protection) — stale writes fail typed, no blind overwrite.
+- Rate-limit (403/429) and auth (401/403) responses map to typed, scrubbed errors; token-shaped strings are scrubbed from every message and audit event.
+- Remote file content is UNTRUSTED DATA. The coding agent replays it delimited, never as instructions.
+- The production transport is HTTPS-only (`api.github.com`), fixed headers, no redirects, hard timeout; the token is read per request via a provider callback and never retained.
+
+**Offline fake (testing):** `FakeGitHubTransport` is a deterministic in-memory GitHub (repositories, branches, files, commits, scoped 404s, injected failures, rate-limit and timeout simulation). It executes NO host code and talks to NO network. `tests/live/github.live.test.ts` is the optional READ-ONLY live harness (off unless `RUN_GITHUB_INTEGRATION_TESTS=true` + `GITHUB_API_TOKEN` + `GITHUB_TEST_REPOSITORIES`; CI never sets these).
+
+**API modes (env-decided):** with `GITHUB_API_TOKEN` + `GITHUB_REPOSITORIES` the API connects in REAL mode through the HTTPS transport; without them it runs in DEMO mode against the offline fixture (documented development-only limitation — the gates are real, the remote end is a fixture). `GET /api/connectors` lists the connector read-only; `credentialProviderRef` is metadata only and no credential material ever crosses the HTTP boundary.
+
 ## Future connectors (NOT built yet)
 
 | Category                     | Examples                                                  |
 | ---------------------------- | --------------------------------------------------------- |
-| Source control               | GitHub, GitLab, Bitbucket                                 |
+| Source control               | ~~GitHub~~ (built, Step 10); GitLab, Bitbucket            |
 | Database                     | PostgreSQL, MongoDB, Supabase, Firebase                   |
 | Storage                      | Cloudflare R2, AWS S3                                     |
 | Payments                     | Stripe, Paystack, Flutterwave                             |

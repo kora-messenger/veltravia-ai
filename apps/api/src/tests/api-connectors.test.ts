@@ -81,3 +81,33 @@ describe('GET /api/connectors/:id', () => {
     app.close();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Step 10: the GitHub connector is visible read-only (metadata + status only)
+// ---------------------------------------------------------------------------
+
+describe('GitHub connector visibility', () => {
+  it('lists the GitHub connector with honest status and no credentials', async () => {
+    const app = buildApp();
+    const response = await app.inject({ method: 'GET', url: '/api/connectors' });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    const github = (body.connectors as { id: string }[]).find(
+      (connector) => connector.id === 'github-demo',
+    );
+    expect(github).toBeDefined();
+    // Read-only surface: no credential material, no granted permissions.
+    expect(JSON.stringify(github)).not.toMatch(/ghp_|token|secret/i);
+    app.close();
+  });
+
+  it('exposes GitHub connector metadata on GET /api/connectors/:id', async () => {
+    const app = buildApp();
+    const response = await app.inject({ method: 'GET', url: '/api/connectors/github-demo' });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.metadata?.id).toBe('github-demo');
+    expect(body.metadata?.category).toBe('source_control');
+    app.close();
+  });
+});

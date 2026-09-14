@@ -34,6 +34,15 @@ export const CODING_TOOL_IDS = {
   sandboxExecute: 'sandbox.execute',
 } as const;
 
+/**
+ * The invoke_tool action's tool id namespace marker. Unlike the fixed
+ * project/sandbox tool ids, invoke_tool targets a SERVER-ALLOWLISTED Tool
+ * System tool (e.g. `github.demo.contents.get`) - the id itself comes from
+ * the decision source and is validated against the allowlist in
+ * bindCodingAction, then re-gated by the Tool System at execution.
+ */
+export const INVOKE_TOOL_ID = 'coding.invoke-tool';
+
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MAX_TEXT = 4000;
 const MAX_ITEMS = 50;
@@ -208,10 +217,19 @@ export interface CodingActionBinding {
  * code: the model can choose an action type and its data, but never a tool id,
  * a permission, or a capability that does not exist here.
  */
+/** Context for the optional `invoke_tool` action (trusted, server-provided). */
+export interface CodingInvokeToolContext {
+  /** The Tool System - availability and risk classification only. */
+  readonly tools: ToolManager;
+  /** Explicit server-side allowlist. Empty or absent = invoke_tool is off. */
+  readonly allowlist: readonly string[];
+}
+
 export function bindCodingAction(
   action: CodingAction,
   projectId: string,
   workspaceId: string,
+  invokeTool?: CodingInvokeToolContext,
 ): CodingActionBinding {
   if (action === null || typeof action !== 'object' || typeof action.type !== 'string') {
     throw new CodingError('CODING_INVALID_DECISION', 'action must be an object with a type');
@@ -291,6 +309,72 @@ export function bindCodingAction(
         },
         state: 'editing',
       };
+    case 'invoke_tool': {
+      // The model can only NAME a tool; the allowlist decides whether the
+      // name is real for this run, and the Tool System re-checks everything
+      // at execution (schema, permissions, connector authorization,
+      // confirmation). Inventing a tool id fails deterministically here.
+      if (invokeTool === undefined) {
+        throw new CodingError(
+          'CODING_INVALID_DECISION',
+          'invoke_tool is not enabled for this run (no tool allowlist was provided)',
+          { details: { type: 'invoke_tool' } },
+        );
+      }
+      const toolId = (action as { toolId?: unknown }).toolId;
+      if (typeof toolId !== 'string' || toolId.length === 0 || toolId.length > 256) {
+        throw new CodingError('CODING_INVALID_DECISION', 'invoke_tool requires a toolId', {
+          details: { field: 'toolId' },
+        });
+      }
+      if (!invokeTool.allowlist.includes(toolId)) {
+        throw new CodingError(
+          'CODING_INVALID_DECISION',
+          `tool "${toolId}" is not allow-listed for this run`,
+          { details: { toolId } },
+        );
+      }
+      let inspection;
+      try {
+        inspection = invokeTool.tools.inspect(toolId);
+      } catch {
+        throw new CodingError('CODING_INVALID_DECISION', `tool "${toolId}" is not registered`, {
+          details: { toolId },
+        });
+      }
+      const input = (action as { input?: unknown }).input;
+      if (
+        input === null ||
+        typeof input !== 'object' ||
+        Array.isArray(input) ||
+        Object.keys(input as Record<string, unknown>).length > 32
+      ) {
+        throw new CodingError(
+          'CODING_INVALID_DECISION',
+          'invoke_tool input must be a small object',
+          { details: { toolId } },
+        );
+      }
+      const serialized = JSON.stringify(input);
+      if (serialized.length > 128 * 1024) {
+        throw new CodingError('CODING_INVALID_DECISION', 'invoke_tool input is too large', {
+          details: { toolId },
+        });
+      }
+      assertNoSecretShaped(serialized, 'invoke_tool.input');
+      // The binding carries the REAL Tool System tool id and its input: the
+      // manager invokes the allowlisted tool through the Tool System exactly
+      // like a project tool, so the full pipeline applies.
+      return {
+        toolId,
+        input: input as Record<string, unknown>,
+        state:
+          inspection.definition.riskLevel === 'high' ||
+          inspection.definition.riskLevel === 'critical'
+            ? 'editing'
+            : 'inspecting',
+      };
+    }
     case 'validate': {
       const args = action.arguments ?? [];
       if (!Array.isArray(args) || args.length > 32) {

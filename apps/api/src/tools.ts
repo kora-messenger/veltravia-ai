@@ -21,10 +21,14 @@ import { createSandboxTools } from './sandboxes.js';
 export function createToolManager(
   now: () => Date = () => new Date(),
   sandboxes?: SandboxManager,
+  /** Existing ConnectorManager to share (e.g. the coding manager's own). */
+  existingConnectors?: ConnectorManager,
 ): ToolManager {
-  const connectors = new ConnectorManager({ now });
-  connectors.register(createMockConnector({ now }));
-  connectors.configure('mock');
+  const connectors = existingConnectors ?? new ConnectorManager({ now });
+  if (existingConnectors === undefined) {
+    connectors.register(createMockConnector({ now }));
+    connectors.configure('mock');
+  }
 
   const manager = new ToolManager({ now, connectors });
   const summarize = createMockSummarizeTool();
