@@ -146,6 +146,35 @@ export interface AgentManagerOptions {
  * queues - a run executes within the creating call (bounded by hard
  * limits) and pauses only on awaiting_confirmation.
  */
+
+/**
+ * Maps the Tool System's safe confirmation view onto the run response.
+ * Only lifecycle-relevant states are surfaced; missing lookups add
+ * nothing (the base ids stay, the UI stays honest about what it knows).
+ */
+function toConfirmationMetadata(confirmation: ReturnType<ToolManager['getConfirmation']>): {
+  riskLevel?: string;
+  state?: 'required' | 'approved' | 'rejected' | 'expired';
+  requestedAt?: string;
+  expiresAt?: string;
+} {
+  if (confirmation === null) return {};
+  if (
+    confirmation.state !== 'required' &&
+    confirmation.state !== 'approved' &&
+    confirmation.state !== 'rejected' &&
+    confirmation.state !== 'expired'
+  ) {
+    return {};
+  }
+  return {
+    riskLevel: confirmation.riskLevel,
+    state: confirmation.state,
+    requestedAt: confirmation.requestedAt,
+    expiresAt: confirmation.expiresAt,
+  };
+}
+
 export class AgentManager {
   private readonly registry: AgentRegistry;
   private readonly now: () => Date;
@@ -455,6 +484,7 @@ export class AgentManager {
         status: entry.status,
         ...(entry.output !== undefined ? { output: entry.output as Record<string, unknown> } : {}),
         ...(entry.error !== undefined ? { error: { ...entry.error } } : {}),
+        requestedAt: entry.requestedAt,
         completedAt: entry.completedAt,
       })),
       ...(snapshot.pendingConfirmation !== undefined
@@ -463,6 +493,12 @@ export class AgentManager {
               confirmationId: snapshot.pendingConfirmation.confirmationId,
               toolId: snapshot.pendingConfirmation.toolId,
               invocationId: snapshot.pendingConfirmation.invocationId,
+              // Safe presentation metadata only (no input, no secrets),
+              // read live from the Tool System so a paused run's poll
+              // honestly reports decision/expiry state.
+              ...toConfirmationMetadata(
+                this.tools.getConfirmation(snapshot.pendingConfirmation.confirmationId),
+              ),
             },
           }
         : {}),

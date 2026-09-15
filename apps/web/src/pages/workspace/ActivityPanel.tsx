@@ -13,6 +13,8 @@ const STATUS_DOT: Record<ActivityEntryView['status'], string> = {
   'awaiting-confirmation': 'v-activity__dot v-activity__dot--awaiting',
   completed: 'v-activity__dot v-activity__dot--completed',
   failed: 'v-activity__dot v-activity__dot--failed',
+  denied: 'v-activity__dot v-activity__dot--cancelled',
+  expired: 'v-activity__dot v-activity__dot--failed',
   cancelled: 'v-activity__dot v-activity__dot--cancelled',
 };
 
@@ -22,6 +24,8 @@ const STATUS_LABEL: Record<ActivityEntryView['status'], string> = {
   'awaiting-confirmation': 'Waiting for confirmation',
   completed: 'Completed',
   failed: 'Failed',
+  denied: 'Not executed',
+  expired: 'Expired',
   cancelled: 'Cancelled',
 };
 

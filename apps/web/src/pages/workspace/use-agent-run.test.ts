@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from '@testing-library/react';
-import type { AgentRunView } from '../../api/agents';
+import type { AgentRunView, PendingConfirmationView } from '../../api/agents';
 import { useAgentRun } from './use-agent-run';
 
 const TERMINAL = ['completed', 'failed', 'cancelled', 'limit_reached'] as const;
@@ -14,14 +14,21 @@ vi.mock('../../api/agents', async (importOriginal) => {
     createAgentRun: vi.fn(),
     getAgentRun: vi.fn(),
     cancelAgentRun: vi.fn(),
+    submitAgentConfirmation: vi.fn(),
   };
 });
 
-import { cancelAgentRun, createAgentRun, getAgentRun } from '../../api/agents';
+import {
+  cancelAgentRun,
+  createAgentRun,
+  getAgentRun,
+  submitAgentConfirmation,
+} from '../../api/agents';
 
 const mockedCreate = vi.mocked(createAgentRun);
 const mockedGet = vi.mocked(getAgentRun);
 const mockedCancel = vi.mocked(cancelAgentRun);
+const mockedSubmitConfirmation = vi.mocked(submitAgentConfirmation);
 
 function run(overrides: Partial<AgentRunView> = {}): AgentRunView {
   return {
@@ -29,10 +36,25 @@ function run(overrides: Partial<AgentRunView> = {}): AgentRunView {
     agentId: 'agent.demo.answer',
     status: 'completed',
     finalOutput: 'Here is the answer.',
+    toolResults: [],
+    pendingConfirmation: null,
     error: null,
     limitReason: null,
     createdAt: '2026-09-15T07:00:00.000Z',
     updatedAt: '2026-09-15T07:00:01.000Z',
+    ...overrides,
+  };
+}
+
+function pending(overrides: Partial<PendingConfirmationView> = {}): PendingConfirmationView {
+  return {
+    confirmationId: 'conf-1',
+    toolId: 'mock.purge',
+    invocationId: 'inv-1',
+    riskLevel: 'critical',
+    state: 'required',
+    requestedAt: '2026-09-15T07:00:00.000Z',
+    expiresAt: '2026-09-15T07:05:00.000Z',
     ...overrides,
   };
 }
@@ -45,6 +67,7 @@ const FLUSH = () => act(async () => {});
 
 beforeEach(() => {
   vi.useFakeTimers();
+  mockedSubmitConfirmation.mockReset();
   mockedCreate.mockReset();
   mockedGet.mockReset();
   mockedCancel.mockReset();
@@ -213,17 +236,51 @@ describe('useAgentRun', () => {
       expect(mockedGet).toHaveBeenCalledTimes(1);
     });
 
-    it('does not poll a paused (awaiting_confirmation) run - it cannot progress alone', async () => {
-      mockedCreate.mockResolvedValue(run({ status: 'awaiting_confirmation', finalOutput: null }));
+    it('follows a paused run on the SLOW cadence so the server stays authoritative', async () => {
+      mockedCreate.mockResolvedValue(
+        run({ status: 'awaiting_confirmation', finalOutput: null, pendingConfirmation: pending() }),
+      );
       const { result } = useHook();
       await act(async () => {
         result.current.start('Work');
       });
       expect(result.current.state.phase).toBe('paused');
+      // Fast cadence never fires while paused.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(900);
+      });
+      expect(mockedGet).not.toHaveBeenCalled();
+      // The slow cadence does (expiry is decided server-side).
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4100);
+      });
+      expect(mockedGet).toHaveBeenCalledWith('run-1');
+    });
+
+    it('stops following a paused run once the server reports the confirmation expired', async () => {
+      mockedCreate.mockResolvedValue(
+        run({ status: 'awaiting_confirmation', finalOutput: null, pendingConfirmation: pending() }),
+      );
+      mockedGet.mockResolvedValue(
+        run({
+          status: 'awaiting_confirmation',
+          finalOutput: null,
+          pendingConfirmation: pending({ state: 'expired' }),
+        }),
+      );
+      const { result } = useHook();
+      await act(async () => {
+        result.current.start('Work');
+      });
       await act(async () => {
         await vi.advanceTimersByTimeAsync(5000);
       });
-      expect(mockedGet).not.toHaveBeenCalled();
+      expect(result.current.state.pendingConfirmation?.state).toBe('expired');
+      expect(mockedGet).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20000);
+      });
+      expect(mockedGet).toHaveBeenCalledTimes(1);
     });
 
     it('never overlaps polling requests (one timer at a time)', async () => {
@@ -524,6 +581,151 @@ describe('useAgentRun', () => {
         await act(async () => {});
         cleanup();
       }
+    });
+  });
+
+  describe('confirmation decisions', () => {
+    it('sends the decision to the server and applies the authoritative response', async () => {
+      mockedCreate.mockResolvedValue(
+        run({ status: 'awaiting_confirmation', finalOutput: null, pendingConfirmation: pending() }),
+      );
+      mockedSubmitConfirmation.mockResolvedValue(
+        run({
+          status: 'completed',
+          finalOutput: 'Done after approval.',
+          toolResults: [
+            {
+              invocationId: 'inv-1',
+              toolId: 'mock.purge',
+              status: 'success',
+              output: { purged: true },
+              error: null,
+              requestedAt: '2026-09-15T07:00:02.000Z',
+              completedAt: '2026-09-15T07:00:03.000Z',
+            },
+          ],
+        }),
+      );
+      const { result } = useHook();
+      await act(async () => {
+        result.current.start('Purge the demo data.');
+      });
+      expect(result.current.state.phase).toBe('paused');
+      await act(async () => {
+        result.current.submitConfirmation('approve');
+      });
+      expect(mockedSubmitConfirmation).toHaveBeenCalledWith('run-1', 'approve');
+      expect(result.current.state.phase).toBe('completed');
+      expect(result.current.state.finalOutput).toBe('Done after approval.');
+      expect(result.current.state.toolResults[0]?.toolId).toBe('mock.purge');
+      expect(result.current.state.pendingConfirmation).toBeNull();
+    });
+
+    it('rejects through the server and shows the run the server reports', async () => {
+      mockedCreate.mockResolvedValue(
+        run({ status: 'awaiting_confirmation', finalOutput: null, pendingConfirmation: pending() }),
+      );
+      mockedSubmitConfirmation.mockResolvedValue(
+        run({
+          status: 'completed',
+          finalOutput: 'The request was denied; nothing was executed.',
+          toolResults: [
+            {
+              invocationId: 'inv-1',
+              toolId: 'mock.purge',
+              status: 'denied',
+              output: null,
+              error: { code: 'TOOL_CONFIRMATION_REJECTED', message: 'rejected by the human' },
+              requestedAt: '2026-09-15T07:00:02.000Z',
+              completedAt: '2026-09-15T07:00:03.000Z',
+            },
+          ],
+        }),
+      );
+      const { result } = useHook();
+      await act(async () => {
+        result.current.start('Purge the demo data.');
+      });
+      await act(async () => {
+        result.current.submitConfirmation('reject');
+      });
+      expect(mockedSubmitConfirmation).toHaveBeenCalledWith('run-1', 'reject');
+      expect(result.current.state.toolResults[0]?.status).toBe('denied');
+      expect(result.current.state.phase).toBe('completed');
+    });
+
+    it('prevents a second decision while one is in flight', async () => {
+      let resolveDecision: (value: AgentRunView) => void = () => {};
+      mockedCreate.mockResolvedValue(
+        run({ status: 'awaiting_confirmation', finalOutput: null, pendingConfirmation: pending() }),
+      );
+      mockedSubmitConfirmation.mockImplementation(
+        () =>
+          new Promise<AgentRunView>((resolve) => {
+            resolveDecision = resolve;
+          }),
+      );
+      const { result } = useHook();
+      await act(async () => {
+        result.current.start('Purge the demo data.');
+      });
+      await act(async () => {
+        result.current.submitConfirmation('approve');
+      });
+      expect(result.current.state.confirmationSubmitting).toBe(true);
+      await act(async () => {
+        result.current.submitConfirmation('approve');
+        result.current.submitConfirmation('reject');
+      });
+      expect(mockedSubmitConfirmation).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        resolveDecision(run({ status: 'completed', finalOutput: 'Done.' }));
+      });
+      expect(result.current.state.confirmationSubmitting).toBe(false);
+    });
+
+    it('is a no-op for an expired confirmation - the server cannot resurrect it', async () => {
+      mockedCreate.mockResolvedValue(
+        run({
+          status: 'awaiting_confirmation',
+          finalOutput: null,
+          pendingConfirmation: pending({ state: 'expired' }),
+        }),
+      );
+      const { result } = useHook();
+      await act(async () => {
+        result.current.start('Purge the demo data.');
+      });
+      await act(async () => {
+        result.current.submitConfirmation('approve');
+      });
+      expect(mockedSubmitConfirmation).not.toHaveBeenCalled();
+    });
+
+    it('keeps the run state and shows an honest note when the decision fails', async () => {
+      mockedCreate.mockResolvedValue(
+        run({ status: 'awaiting_confirmation', finalOutput: null, pendingConfirmation: pending() }),
+      );
+      mockedSubmitConfirmation.mockRejectedValueOnce(new Error('network down'));
+      mockedGet.mockResolvedValue(
+        run({
+          status: 'awaiting_confirmation',
+          finalOutput: null,
+          pendingConfirmation: pending(),
+        }),
+      );
+      const { result } = useHook();
+      await act(async () => {
+        result.current.start('Purge the demo data.');
+      });
+      await act(async () => {
+        result.current.submitConfirmation('approve');
+      });
+      expect(result.current.state.confirmationSubmitting).toBe(false);
+      expect(result.current.state.confirmationError).not.toBeNull();
+      expect(result.current.state.phase).toBe('paused');
+      // One honest resync attempt from the server.
+      expect(mockedGet).toHaveBeenCalledWith('run-1');
     });
   });
 

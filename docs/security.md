@@ -176,7 +176,7 @@ The tool layer enforces these principles — all of them tested:
 8. The API's demo mode (offline fake transport when env vars are absent) is a documented development-only limitation; gates are real, the remote end is a fixture. Real mode is enabled ONLY by `GITHUB_API_TOKEN` + `GITHUB_REPOSITORIES` env.
 9. The live harness (`tests/live/github.live.test.ts`) is strictly read-only and off unless explicitly enabled locally (`RUN_GITHUB_INTEGRATION_TESTS=true` + env); CI never sets it.
 
-## 5h. Web UI security boundary rules (Steps 11A–11C-2, `apps/web`)
+## 5h. Web UI security boundary rules (Steps 11A–11C-3, `apps/web`)
 
 1. The web app is a rendering surface only: no credential material (tokens, API keys, database credentials, OAuth access tokens, secrets, private keys) may enter React state, localStorage, sessionStorage, frontend source, HTML, URL parameters, or browser-visible API responses.
 2. The only client-persisted value today is the theme preference (`veltravia.theme-preference`) — UI state, never credential material.
@@ -195,6 +195,8 @@ The tool layer enforces these principles — all of them tested:
 15. A workspace conversation shows an assistant message ONLY when the Agent API reports a completed run; failed, cancelled, limit-reached, and paused runs surface honest states with no fabricated output. The UI never displays "completed" unless the backend said so, and never shows chain-of-thought (the safe run view exposes only `finalOutput`).
 16. Run polling is bounded (attempt and consecutive-failure ceilings), never overlaps, stops on terminal/paused states, and cleans up on unmount. A stale or mismatched run payload (wrong `runId` or a superseded generation) is discarded — an old run can never overwrite a newer one. Cancellation is requested at most once per run and is claimed only after the server confirms it.
 17. The only browser-persisted value remains the theme preference. Run state, prompts, and responses live in memory; the workspace stores no tokens, no API keys, and no provider material in localStorage or sessionStorage.
+18. Human confirmations (Step 11C-3) are decided by the SERVER, never the browser: the workspace submits only the decision (`approve`/`reject`) to `POST /api/agents/runs/:id/confirmation`, and every rule — expiry, input binding, permissions, single-use — is enforced by the Tool System behind the API. The UI renders only server-reported confirmation metadata (tool id, risk level, state); the requested tool input never reaches the browser. An expired confirmation is terminal in the UI: it cannot be approved, and the card says so. At most one decision is in flight per run, a failed delivery keeps the run at its last server-confirmed state with an honest note (never a fabricated outcome), and a paused run is followed on a slow cadence so server-side expiry is surfaced.
+19. Tool activity (Step 11C-3) renders only what the run view reports: recorded tool invocations and the pending confirmation, in the backend's order, as bounded plain text — never HTML, never executed. Tool output is UNTRUSTED DATA; the panel truncates it with an honest note and the workspace never fabricates a tool call, result, or status.
 
 ## 7. Incident response
 

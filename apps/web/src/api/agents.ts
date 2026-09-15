@@ -1,11 +1,17 @@
 /**
- * Agent API surface + safe UI models (Step 11C-2).
+ * Agent API surface + safe UI models (Steps 11C-2 + 11C-3).
  *
  * Raw backend agent responses are mapped into `AgentRunView` before
- * reaching the UI: unknown/invalid data becomes a typed error, and fields
- * the workspace does not use in this step (iteration counters, tool
- * results, pending confirmations) are dropped rather than passed through.
- * The final answer is the ONLY model output surfaced to the conversation.
+ * reaching the UI: unknown/invalid data becomes a typed error, and
+ * internal counters are dropped rather than passed through. The final
+ * answer is the ONLY model output surfaced to the conversation.
+ *
+ * Step 11C-3 additionally maps the run's tool activity (per-invocation
+ * results) and pending-confirmation metadata into safe view models. Tool
+ * output is UNTRUSTED DATA - it is kept as inert values and rendered as
+ * text, never as instructions. Confirmation fields are metadata only
+ * (risk level, lifecycle state, timestamps); the requested input is
+ * never surfaced and can never be edited from the browser.
  */
 import { apiRequest } from './client';
 
@@ -41,10 +47,48 @@ export interface AgentSummaryView {
   readonly description: string;
 }
 
+/** The Tool System's reported outcome for one tool invocation. */
+export type AgentToolStatus = 'success' | 'failure' | 'denied';
+
+/**
+ * Safe UI model for one recorded tool invocation. `output` is the Tool
+ * System's normalized result - UNTRUSTED DATA, rendered as text only.
+ */
+export interface ToolResultView {
+  readonly invocationId: string;
+  readonly toolId: string;
+  readonly status: AgentToolStatus;
+  /** Normalized tool output (success only). Untrusted external data. */
+  readonly output: Record<string, unknown> | null;
+  /** Typed, secret-free error information (failure/denied only). */
+  readonly error: { readonly code: string; readonly message: string } | null;
+  readonly requestedAt: string | null;
+  readonly completedAt: string | null;
+}
+
+/** The lifecycle states the backend reports for a pending confirmation. */
+export type ConfirmationStateView = 'required' | 'approved' | 'rejected' | 'expired';
+
+/**
+ * Safe UI model for a run's pending human confirmation. Metadata only:
+ * what tool, how risky, and when the request expires. The requested
+ * input, digests, and anything editable never reach the browser.
+ */
+export interface PendingConfirmationView {
+  readonly confirmationId: string;
+  readonly toolId: string;
+  readonly invocationId: string;
+  readonly riskLevel: string | null;
+  readonly state: ConfirmationStateView | null;
+  readonly requestedAt: string | null;
+  readonly expiresAt: string | null;
+}
+
 /**
  * Safe UI model for one agent run. Only the fields the workspace renders:
- * identity, status, the final answer (assistant output), a typed error,
- * and the limit reason. Internal counters and tool history are dropped.
+ * identity, status, the final answer (assistant output), tool activity,
+ * pending-confirmation metadata, a typed error, and the limit reason.
+ * Internal counters are dropped.
  */
 export interface AgentRunView {
   readonly runId: string;
@@ -52,6 +96,10 @@ export interface AgentRunView {
   readonly status: AgentRunStatus;
   /** The run's final answer. Present only when the backend reports completion. */
   readonly finalOutput: string | null;
+  /** Recorded tool invocations, in the backend's authoritative order. */
+  readonly toolResults: readonly ToolResultView[];
+  /** The run's pending human confirmation, if it is paused on one. */
+  readonly pendingConfirmation: PendingConfirmationView | null;
   /** Typed, secret-free failure information (failed runs only). */
   readonly error: { readonly code: string; readonly message: string } | null;
   /** Why a limit-reached run stopped, if reported. */
@@ -75,6 +123,84 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function optionalString(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+const TOOL_STATUSES: readonly AgentToolStatus[] = ['success', 'failure', 'denied'];
+const CONFIRMATION_STATES: readonly ConfirmationStateView[] = [
+  'required',
+  'approved',
+  'rejected',
+  'expired',
+];
+
+/** Maps one raw tool-result entry to a safe view. Malformed entries throw. */
+function toToolResultView(raw: unknown, source: string): ToolResultView {
+  if (!isRecord(raw)) {
+    throw new Error(`Invalid tool result payload from ${source}`);
+  }
+  const invocationId = optionalString(raw.invocationId);
+  const toolId = optionalString(raw.toolId);
+  const status = raw.status;
+  if (invocationId === null || toolId === null || typeof status !== 'string') {
+    throw new Error(`Invalid tool result payload from ${source}`);
+  }
+  if (!TOOL_STATUSES.includes(status as AgentToolStatus)) {
+    throw new Error(`Invalid tool result payload from ${source}`);
+  }
+  let output: Record<string, unknown> | null = null;
+  if (raw.output !== undefined && raw.output !== null) {
+    if (!isRecord(raw.output)) {
+      throw new Error(`Invalid tool result payload from ${source}`);
+    }
+    output = raw.output;
+  }
+  let error: ToolResultView['error'] = null;
+  if (raw.error !== undefined && raw.error !== null) {
+    if (!isRecord(raw.error)) {
+      throw new Error(`Invalid tool result payload from ${source}`);
+    }
+    const code = optionalString(raw.error.code);
+    const message = optionalString(raw.error.message);
+    if (code === null || message === null) {
+      throw new Error(`Invalid tool result payload from ${source}`);
+    }
+    error = { code, message };
+  }
+  return {
+    invocationId,
+    toolId,
+    status: status as AgentToolStatus,
+    output,
+    error,
+    requestedAt: optionalString(raw.requestedAt),
+    completedAt: optionalString(raw.completedAt),
+  };
+}
+
+/** Maps the raw pending-confirmation metadata to a safe view. */
+function toPendingConfirmationView(raw: unknown, source: string): PendingConfirmationView {
+  if (!isRecord(raw)) {
+    throw new Error(`Invalid pending confirmation payload from ${source}`);
+  }
+  const confirmationId = optionalString(raw.confirmationId);
+  const toolId = optionalString(raw.toolId);
+  const invocationId = optionalString(raw.invocationId);
+  if (confirmationId === null || toolId === null || invocationId === null) {
+    throw new Error(`Invalid pending confirmation payload from ${source}`);
+  }
+  const state = raw.state;
+  return {
+    confirmationId,
+    toolId,
+    invocationId,
+    riskLevel: optionalString(raw.riskLevel),
+    state:
+      typeof state === 'string' && CONFIRMATION_STATES.includes(state as ConfirmationStateView)
+        ? (state as ConfirmationStateView)
+        : null,
+    requestedAt: optionalString(raw.requestedAt),
+    expiresAt: optionalString(raw.expiresAt),
+  };
 }
 
 /** Maps one raw agent payload to a safe view model. Malformed payloads throw. */
@@ -103,11 +229,26 @@ function toAgentRunView(raw: unknown, source: string): AgentRunView {
     }
     error = { code, message };
   }
+  let toolResults: readonly ToolResultView[] = [];
+  if (raw.toolResults !== undefined) {
+    if (!Array.isArray(raw.toolResults)) {
+      throw new Error(`Invalid agent run payload from ${source}`);
+    }
+    toolResults = raw.toolResults.map((entry, index) =>
+      toToolResultView(entry, `${source} (tool result ${index})`),
+    );
+  }
+  let pendingConfirmation: PendingConfirmationView | null = null;
+  if (raw.pendingConfirmation !== undefined && raw.pendingConfirmation !== null) {
+    pendingConfirmation = toPendingConfirmationView(raw.pendingConfirmation, source);
+  }
   return {
     runId,
     agentId,
     status: status as AgentRunStatus,
     finalOutput: optionalString(raw.finalOutput),
+    toolResults,
+    pendingConfirmation,
     error,
     limitReason: optionalString(raw.limitReason),
     createdAt: optionalString(raw.createdAt) ?? '',
@@ -175,4 +316,21 @@ export async function cancelAgentRun(runId: string): Promise<AgentRunView> {
     method: 'POST',
   });
   return toAgentRunView(raw, 'POST /api/agents/runs/:runId/cancel');
+}
+
+/**
+ * Submits the human decision for a run's pending confirmation (the only
+ * path an approval can take). The SERVER validates expiry, input binding,
+ * and permissions, executes the tool if approved, and returns the run's
+ * authoritative next state - the browser never decides anything.
+ */
+export async function submitAgentConfirmation(
+  runId: string,
+  decision: 'approve' | 'reject',
+): Promise<AgentRunView> {
+  const raw = await apiRequest<unknown>(
+    `/api/agents/runs/${encodeURIComponent(runId)}/confirmation`,
+    { method: 'POST', body: { decision } },
+  );
+  return toAgentRunView(raw, 'POST /api/agents/runs/:runId/confirmation');
 }

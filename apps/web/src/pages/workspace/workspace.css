@@ -107,6 +107,11 @@
   grid-template-columns: 17.5rem minmax(0, 1fr) 18.75rem;
 }
 
+.v-workspace__agent-picker {
+  padding: 0 var(--v-space-3);
+  margin-bottom: calc(-1 * var(--v-space-2));
+}
+
 .v-workspace__center {
   min-width: 0;
   min-height: 0;
@@ -740,4 +745,100 @@
   .v-wdrawer__backdrop {
     animation: none;
   }
+}
+
+/* ---- Step 11C-3: human confirmation card ---------------------------------- */
+
+.v-confirm-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  padding: var(--v-space-4);
+  background: var(--v-surface-raised);
+  border: 1px solid var(--v-border-strong);
+  border-radius: var(--v-radius-md);
+}
+
+.v-confirm-card__eyebrow {
+  margin: 0;
+  font-size: var(--v-text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--v-warning);
+}
+
+.v-confirm-card__title {
+  margin: 0;
+  font-size: var(--v-text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--v-text);
+}
+
+.v-confirm-card__body {
+  margin: 0;
+  font-size: var(--v-text-sm);
+  line-height: 1.5;
+  color: var(--v-text-muted);
+}
+
+.v-confirm-card__tool {
+  font-family: var(--v-font-mono);
+  font-size: var(--v-text-xs);
+  color: var(--v-text);
+  background: var(--v-surface-muted);
+  border-radius: var(--v-radius-xs);
+  padding: 0.05em 0.35em;
+}
+
+.v-confirm-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--v-space-2);
+}
+
+.v-confirm-card__risk {
+  font-size: var(--v-text-2xs);
+  font-weight: var(--weight-semibold);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--v-radius-full);
+  background: var(--v-surface-muted);
+  color: var(--v-text);
+  border: 1px solid var(--v-border);
+}
+
+.v-confirm-card__risk--critical {
+  background: var(--v-error-muted);
+  border-color: var(--v-danger);
+  color: var(--v-danger);
+}
+
+.v-confirm-card__risk--high {
+  background: var(--v-warning-muted);
+  border-color: var(--v-warning);
+  color: var(--v-warning);
+}
+
+.v-confirm-card__state {
+  font-size: var(--v-text-2xs);
+  color: var(--v-text-faint);
+}
+
+.v-confirm-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--v-space-2);
+}
+
+.v-confirm-card__note {
+  margin: 0;
+  font-size: var(--v-text-xs);
+  color: var(--v-text-faint);
+}
+
+.v-confirm-card__error {
+  margin: 0;
+  font-size: var(--v-text-xs);
+  color: var(--v-danger);
 }

@@ -18,8 +18,9 @@ import { createToolManager } from './tools.js';
  */
 export function createAgentManager(now: () => Date = () => new Date()): AgentManager {
   const tools = createToolManager(now);
-  // The demo tool agent may actually execute the (harmless, offline) mock tool.
+  // The demo tool agents may actually execute the (harmless, offline) mock tools.
   tools.grantPermission('mock.summarize', 'mock.read');
+  tools.grantPermission('mock.purge', 'mock.admin');
 
   const manager = new AgentManager({ tools, now });
   manager.register(
@@ -39,6 +40,30 @@ export function createAgentManager(now: () => Date = () => new Date()): AgentMan
       description:
         'Development-only agent: answers directly without tools. Scripted, no real model.',
       script: DEMO_SCRIPTS.directAnswer(),
+      tools,
+    }),
+  );
+  // Development-only confirmation demo: requests the existing critical-risk
+  // mock tool, whose invocation the framework pauses for a human decision
+  // (the run resumes only through the confirmation endpoint), then answers.
+  manager.register(
+    createMockAgent({
+      id: 'agent.demo.confirm',
+      displayName: 'Demo Confirmation Agent',
+      description:
+        'Development-only agent: requests the critical-risk offline mock tool and waits for a human approval or rejection. Scripted, no real model.',
+      script: [
+        {
+          type: 'request_tool',
+          toolId: 'mock.purge',
+          input: { confirmLabel: 'offline demo' },
+          summary: 'Run the offline critical-risk demo tool',
+        },
+        {
+          type: 'answer',
+          output: 'The demo tool finished. Its recorded result is in the activity panel.',
+        },
+      ],
       tools,
     }),
   );

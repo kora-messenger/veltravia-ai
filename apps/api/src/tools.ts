@@ -2,7 +2,11 @@ import { ConnectorManager } from '@veltravia/connector-core';
 import { createMockConnector } from '@veltravia/connector-mock';
 import type { SandboxManager } from '@veltravia/sandbox-core';
 import { ToolManager } from '@veltravia/tool-core';
-import { createConnectorBackedMockTool, createMockSummarizeTool } from '@veltravia/tool-mock';
+import {
+  createConnectorBackedMockTool,
+  createMockPurgeTool,
+  createMockSummarizeTool,
+} from '@veltravia/tool-mock';
 import { createSandboxTools } from './sandboxes.js';
 
 /**
@@ -34,6 +38,12 @@ export function createToolManager(
   const summarize = createMockSummarizeTool();
   manager.register(summarize.definition);
   manager.registerImplementation(summarize.implementation);
+  // The existing critical-risk mock tool (Step 5): its declaration says no
+  // confirmation, but the framework must still demand one. Registered so
+  // the demo confirmation agent can exercise the forced-confirmation flow.
+  const purge = createMockPurgeTool();
+  manager.register(purge.definition);
+  manager.registerImplementation(purge.implementation);
   manager.register(createConnectorBackedMockTool());
 
   // Sandbox tools: declared through the same controlled pipeline - schemas,

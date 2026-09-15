@@ -19,8 +19,11 @@ describe('GET /api/agents', () => {
     const response = await app.inject({ method: 'GET', url: '/api/agents' });
     expect(response.statusCode).toBe(200);
     const body = response.json();
-    expect(body.agents).toHaveLength(2);
+    expect(body.agents).toHaveLength(3);
     expect(body.agents[0]).toMatchObject({ id: 'agent.demo' });
+    expect(body.agents).toContainEqual(
+      expect.objectContaining({ id: 'agent.demo.confirm', displayName: 'Demo Confirmation Agent' }),
+    );
     expect(response.body).not.toMatch(/ghp_|sk-|AIza|password/i);
     app.close();
   });
@@ -175,6 +178,98 @@ describe('POST /api/agents/runs/:runId/cancel', () => {
       payload: { decision: 'approve' },
     });
     expect(confirm.statusCode).toBe(409);
+    app.close();
+  });
+});
+
+describe('run views: tool activity + confirmation metadata', () => {
+  it('exposes safe confirmation metadata (risk level, state, expiry) on a paused run', async () => {
+    const app = buildApiApp();
+    const paused = await app.inject({
+      method: 'POST',
+      url: '/api/agents/run',
+      payload: { agentId: 'agent.demo.confirm', task: 'Run the confirmation demo.' },
+    });
+    expect(paused.statusCode).toBe(200);
+    const body = paused.json();
+    expect(body.status).toBe('awaiting_confirmation');
+    expect(body.pendingConfirmation).toMatchObject({
+      toolId: 'mock.purge',
+      riskLevel: 'critical',
+      state: 'required',
+    });
+    expect(typeof body.pendingConfirmation.expiresAt).toBe('string');
+    expect(typeof body.pendingConfirmation.requestedAt).toBe('string');
+    // The requested input is NEVER exposed to presentation layers.
+    expect(JSON.stringify(body)).not.toMatch(/confirmLabel/);
+    app.close();
+  });
+
+  it('records tool invocations with requested/completed timestamps', async () => {
+    const app = buildApiApp();
+    const run = await app.inject({
+      method: 'POST',
+      url: '/api/agents/run',
+      payload: { agentId: 'agent.demo', task: 'Summarize.' },
+    });
+    const entry = run.json().toolResults[0];
+    expect(entry.toolId).toBe('mock.summarize');
+    expect(entry.status).toBe('success');
+    expect(typeof entry.requestedAt).toBe('string');
+    expect(typeof entry.completedAt).toBe('string');
+    app.close();
+  });
+
+  it('reports an expired confirmation as expired in later run views', async () => {
+    // Controllable clock: the confirmation is created at T0 and the clock
+    // then advances past its TTL before any decision is made.
+    let clock = new Date('2026-09-13T16:30:00.000Z');
+    const NOW = () => clock;
+    const tools = new ToolManager({ now: NOW });
+    const purge = createMockPurgeTool();
+    tools.register(purge.definition);
+    tools.registerImplementation(purge.implementation);
+    tools.grantPermission('mock.purge', 'mock.admin');
+    const manager = new AgentManager({ tools, now: NOW });
+    manager.register(
+      createMockAgent({
+        id: 'agent.purge-demo',
+        displayName: 'Purge Demo',
+        description: 'requests the critical-risk mock tool',
+        script: [
+          { type: 'request_tool', toolId: 'mock.purge', input: { confirmLabel: 'ok' } },
+          { type: 'answer', output: 'purge complete' },
+        ],
+        tools,
+      }),
+    );
+    const app = buildApp({ agents: manager });
+
+    const paused = await app.inject({
+      method: 'POST',
+      url: '/api/agents/run',
+      payload: { agentId: 'agent.purge-demo', task: 'Purge.' },
+    });
+    const runId = paused.json().runId;
+    expect(paused.json().pendingConfirmation).toMatchObject({ state: 'required' });
+
+    // Beyond the TTL: the run view (polled by the workspace) reports the
+    // confirmation as expired - the server state is authoritative.
+    clock = new Date('2026-09-13T16:40:00.000Z');
+    const stale = await app.inject({ method: 'GET', url: `/api/agents/runs/${runId}` });
+    expect(stale.statusCode).toBe(200);
+    expect(stale.json().status).toBe('awaiting_confirmation');
+    expect(stale.json().pendingConfirmation).toMatchObject({ state: 'expired' });
+
+    // A late approval is honestly refused: the Tool System throws on an
+    // expired confirmation and no execution ever happens.
+    const late = await app.inject({
+      method: 'POST',
+      url: `/api/agents/runs/${runId}/confirmation`,
+      payload: { decision: 'approve' },
+    });
+    expect(late.statusCode).toBe(500);
+    expect(late.json().error).toMatchObject({ code: 'INTERNAL' });
     app.close();
   });
 });

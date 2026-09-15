@@ -23,6 +23,8 @@ import {
 import type { ToolInvocationResult } from '../invocation/index.js';
 import { createToolInvocation, createToolInvocationResult } from '../invocation/index.js';
 import { ToolRegistry } from '../registry/index.js';
+import type { PermissionRiskLevel } from '@veltravia/connector-core';
+import type { ConfirmationState } from '../confirmation/index.js';
 import type { ToolDefinition } from '../types/definition.js';
 import { effectiveConfirmationRequirement } from '../types/definition.js';
 import { ToolExecutor, type ToolImplementation } from '../executor/index.js';
@@ -46,6 +48,18 @@ export interface ToolInspection {
   readonly confirmationRequired: boolean;
   readonly hasConnectorReference: boolean;
   readonly hasLocalImplementation: boolean;
+}
+
+/** Read-only view of one pending/resolved confirmation request (safe metadata only). */
+export interface ConfirmationView {
+  readonly confirmationId: string;
+  readonly invocationId: string;
+  readonly toolId: string;
+  readonly riskLevel: PermissionRiskLevel;
+  readonly state: ConfirmationState;
+  readonly requestedAt: string;
+  readonly expiresAt: string;
+  readonly decidedAt: string | undefined;
 }
 
 export interface InvokeOptions {
@@ -454,6 +468,31 @@ export class ToolManager {
   }
 
   // ---- inspection -------------------------------------------------------------
+
+  /**
+   * Safe, read-only view of one confirmation request (risk level, state,
+   * timestamps - never input data, never secrets). Used by presentation
+   * layers to describe a pending confirmation; all decisions still flow
+   * exclusively through confirm().
+   */
+  getConfirmation(confirmationId: string): ConfirmationView | null {
+    let request: ToolConfirmationRequest;
+    try {
+      request = this.confirmations.get(confirmationId);
+    } catch {
+      return null;
+    }
+    return {
+      confirmationId: request.id,
+      invocationId: request.invocationId,
+      toolId: request.toolId,
+      riskLevel: request.riskLevel,
+      state: request.state,
+      requestedAt: request.requestedAt,
+      expiresAt: request.expiresAt,
+      decidedAt: request.decidedAt,
+    };
+  }
 
   /** Full read-only snapshot: definition, grants, availability, flags. */
   inspect(toolId: string): ToolInspection {

@@ -1,4 +1,4 @@
-# Web UI (Steps 11A + 11B + 11C-1 + 11C-2: live AI workspace)
+# Web UI (Steps 11A + 11B + 11C-1 + 11C-2 + 11C-3: live AI workspace)
 
 The `apps/web` package hosts the Veltravia AI product UI. Step 11A
 establishes the design system, the reusable component library, the
@@ -269,3 +269,36 @@ app reads no environment variables, model output is rendered as plain React
 text nodes (never HTML, never executed), and the only persisted local value
 is the theme preference. These rules are enforced by tests
 (`apps/web/src/security/workspace-boundary.test.ts`).
+
+## Human confirmations and tool activity (Step 11C-3)
+
+The live workspace now surfaces the agent's tool lifecycle and collects
+human decisions — always with the server as the sole authority:
+
+- **Confirmation card.** When a run pauses on `awaiting_confirmation`, a card
+  in the conversation area names the tool (`mock.purge` in the demo), shows
+  the risk level the Tool System reported, and offers exactly two choices:
+  approve or reject. It renders only server-reported metadata — never the
+  requested tool input. The decision is delivered to
+  `POST /api/agents/runs/:id/confirmation`; the UI then shows whatever run
+  state the server confirms. An expired request is terminal: the card says
+  it can no longer be approved and offers no live buttons. At most one
+  decision is in flight per run; a failed delivery keeps the run at its last
+  server-confirmed state, shows an honest note, and resyncs once.
+- **Tool activity.** The activity panel's tool section lists only recorded
+  tool invocations (in the backend's order) plus the pending confirmation
+  when one is reported. Success output is UNTRUSTED DATA: rendered as
+  bounded plain text with an honest truncation note. Denied and failed
+  invocations show their status and the server's message — the UI invents
+  no tool calls, results, or statuses.
+- **Run activity.** The agent section maps each run phase to exactly one
+  honest entry (starting, working, waiting for your decision, finished,
+  failed, cancelled, stopped at a safety limit).
+- **Paused-run following.** A paused run is still followed on a slow
+  cadence so a server-side expiry or state change is reported — while the
+  fast cadence never spins on a run that cannot progress alone.
+
+The browser remains a pure presentation client: no decision logic, no
+provider/tool/sandbox calls, no credentials, and the requested tool input
+never leaves the server (test-enforced in
+`apps/web/src/security/workspace-boundary.test.ts`).

@@ -151,7 +151,8 @@ This is deliberately an architectural boundary, not a complete prompt-injection 
 
 **Development-only limitations (temporary, deliberate):**
 
-- The demo agents (`agent.demo`, `agent.demo.answer`) run on deterministic, offline **scripted decision sources** — no real model is wired into the API yet. Every orchestration concern (gates, confirmations, limits, audit, cancellation) is fully real; swapping in a `ModelDecisionSource` + real provider changes nothing else.
+- The demo agents (`agent.demo`, `agent.demo.answer`, `agent.demo.confirm`) run on deterministic, offline **scripted decision sources** — no real model is wired into the API yet. Every orchestration concern (gates, confirmations, limits, audit, cancellation) is fully real; swapping in a `ModelDecisionSource` + real provider changes nothing else.
+- `agent.demo.confirm` (Step 11C-3) pauses on a real critical-risk confirmation (`mock.purge`) so the workspace's human-approval flow can be exercised end-to-end: the run pauses, the browser collects an approve/reject decision, and the Tool System — never the browser — validates and executes it (or skips it) and returns the next run state. Run views expose tool activity (recorded invocations) and confirmation METADATA only (tool id, risk level, state, expiry); the requested tool input never leaves the server.
 - Runs are in-memory; there are no persistent job queues or background workers in Step 6.
 - The endpoints carry no authentication beyond the app's current boundary (the app has no auth infrastructure yet).
 

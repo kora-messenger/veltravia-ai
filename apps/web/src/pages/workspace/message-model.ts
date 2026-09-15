@@ -39,7 +39,14 @@ export interface ActivityEntryView {
   readonly label: string;
   /** Future statuses an agent/tool step can report. */
   readonly status:
-    'queued' | 'running' | 'awaiting-confirmation' | 'completed' | 'failed' | 'cancelled';
+    | 'queued'
+    | 'running'
+    | 'awaiting-confirmation'
+    | 'completed'
+    | 'failed'
+    | 'denied'
+    | 'expired'
+    | 'cancelled';
   /** Longer explanation shown under the label, if any. */
   readonly detail?: string;
   /** Tool activity only: the risk level the Tool System reports. */

@@ -82,12 +82,22 @@ export interface AgentResponse {
     readonly status: string;
     readonly output?: Record<string, unknown>;
     readonly error?: { readonly code: string; readonly message: string };
+    readonly requestedAt: string;
     readonly completedAt: string;
   }[];
   readonly pendingConfirmation?: {
     readonly confirmationId: string;
     readonly toolId: string;
     readonly invocationId: string;
+    /**
+     * Safe confirmation metadata from the Tool System (risk level,
+     * lifecycle state, request/expiry timestamps - never the input, never
+     * secrets). Present when the Tool System still holds the request.
+     */
+    readonly riskLevel?: string;
+    readonly state?: 'required' | 'approved' | 'rejected' | 'expired';
+    readonly requestedAt?: string;
+    readonly expiresAt?: string;
   };
   readonly finalOutput?: string;
   readonly error?: { readonly code: string; readonly message: string };

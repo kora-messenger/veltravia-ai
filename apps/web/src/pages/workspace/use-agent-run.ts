@@ -26,7 +26,10 @@ import {
   createAgentRun,
   getAgentRun,
   isTerminalRunStatus,
+  submitAgentConfirmation,
   type AgentRunView,
+  type PendingConfirmationView,
+  type ToolResultView,
 } from '../../api/agents';
 
 /** The UI phases a workspace run moves through. */
@@ -59,6 +62,14 @@ export interface AgentRunUiState {
   readonly pollingPaused: boolean;
   /** Friendly text when a cancellation request failed (run state preserved). */
   readonly cancelError: string | null;
+  /** Recorded tool activity of the current/last run, in backend order. */
+  readonly toolResults: readonly ToolResultView[];
+  /** The run's pending human confirmation, when the backend reports one. */
+  readonly pendingConfirmation: PendingConfirmationView | null;
+  /** True while an approve/reject decision is being sent to the server. */
+  readonly confirmationSubmitting: boolean;
+  /** Friendly text when a confirmation decision failed (run state preserved). */
+  readonly confirmationError: string | null;
 }
 
 interface ActiveRun {
@@ -70,6 +81,13 @@ interface ActiveRun {
 const POLL_INTERVAL_MS = 900;
 const MAX_POLL_ATTEMPTS = 40;
 const MAX_CONSECUTIVE_POLL_FAILURES = 3;
+/**
+ * A run paused on a confirmation cannot progress on its own, but its
+ * confirmation EXPIRES server-side after its TTL - so the workspace keeps
+ * following it on a slower cadence to report the authoritative state.
+ */
+const PAUSED_POLL_INTERVAL_MS = 5000;
+const PAUSED_MAX_POLL_ATTEMPTS = 70;
 
 function friendlyRunFailure(run: AgentRunView): string {
   if (run.status === 'limit_reached') {
@@ -114,6 +132,10 @@ const IDLE_STATE: AgentRunUiState = {
   retryable: false,
   pollingPaused: false,
   cancelError: null,
+  toolResults: [],
+  pendingConfirmation: null,
+  confirmationSubmitting: false,
+  confirmationError: null,
 };
 
 export interface UseAgentRunOptions {
@@ -133,6 +155,14 @@ export interface UseAgentRunResult {
   retry(): void;
   /** One-shot status refresh; resumes bounded polling if still active. */
   refresh(): void;
+  /**
+   * Submits the human approve/reject decision for the run's pending
+   * confirmation. The server is the sole authority: it validates expiry,
+   * input binding, and permissions, executes (or skips) the tool, and the
+   * workspace then shows the run state the server confirmed. No-op unless
+   * the backend is currently reporting a decidable confirmation.
+   */
+  submitConfirmation(decision: 'approve' | 'reject'): void;
 }
 
 export function useAgentRun({ agentId, projectId }: UseAgentRunOptions): UseAgentRunResult {
@@ -171,64 +201,105 @@ export function useAgentRun({ agentId, projectId }: UseAgentRunOptions): UseAgen
         cancellable: !terminal,
         retryable: phase === 'failed' || phase === 'limit-reached' || phase === 'cancelled',
         pollingPaused: false,
-        // A confirmed terminal state clears the note; while the run is
-        // still live the user must keep seeing that their cancel failed.
+        toolResults: run.toolResults,
+        pendingConfirmation: run.pendingConfirmation,
+        // An in-flight decision flag is owned by submitConfirmation and
+        // survives run-state updates (they do not imply a decision result).
+        confirmationSubmitting: previous.confirmationSubmitting,
+        // A confirmation note clears once the server confirms the decision
+        // landed (the run left the pause or the confirmation resolved);
+        // otherwise it stays visible on the still-pending request.
         cancelError: terminal ? null : previous.cancelError,
+        confirmationError:
+          phase !== 'paused' || run.pendingConfirmation === null
+            ? null
+            : previous.confirmationError,
       }));
     },
     [clearTimer],
   );
 
-  /** Bounded, self-serializing poll loop. Only one timer is ever pending. */
+  /**
+   * Bounded, self-serializing poll loop. Only one timer is ever pending.
+   * Active runs are followed at the fast cadence; runs paused on a
+   * confirmation are followed on the slow cadence so the UI keeps
+   * reporting the SERVER's authoritative confirmation state (including
+   * expiry) while the user decides.
+   */
   const schedulePoll = useCallback(
-    (generation: number, runId: string, attempt: number, failures: number) => {
+    (generation: number, runId: string, attempt: number, failures: number, paused: boolean) => {
       clearTimer();
       if (generationRef.current !== generation) return;
-      timerRef.current = setTimeout(async () => {
-        if (generationRef.current !== generation) return;
-        try {
-          const run = await getAgentRun(runId);
+      timerRef.current = setTimeout(
+        async () => {
           if (generationRef.current !== generation) return;
-          if (run.runId !== runId) {
-            // The response does not belong to the polled run. Discard it;
-            // keep following the run we know about, bounded as usual.
-            schedulePoll(generation, runId, attempt + 1, failures + 1);
-            return;
-          }
-          const prompt = activeRef.current?.prompt ?? '';
-          if (isTerminalRunStatus(run.status) || run.status === 'awaiting_confirmation') {
+          try {
+            const run = await getAgentRun(runId);
+            if (generationRef.current !== generation) return;
+            if (run.runId !== runId) {
+              // The response does not belong to the polled run. Discard it;
+              // keep following the run we know about, bounded as usual.
+              schedulePoll(generation, runId, attempt + 1, failures + 1, paused);
+              return;
+            }
+            const prompt = activeRef.current?.prompt ?? '';
             applyRun(run, prompt, generation);
-            // applyRun clears the timer for terminal runs; a paused run
-            // stops polling too (it cannot progress on its own).
-            if (run.status === 'awaiting_confirmation') clearTimer();
-            return;
+            if (isTerminalRunStatus(run.status)) {
+              return; // applyRun cleared the timer for terminal runs.
+            }
+            if (run.status === 'awaiting_confirmation') {
+              // An expired confirmation is the server's final word for the
+              // pause: keep it on screen, stop following (nothing more can
+              // happen on its own).
+              if (run.pendingConfirmation?.state === 'expired') return;
+              const limit = paused ? PAUSED_MAX_POLL_ATTEMPTS : MAX_POLL_ATTEMPTS;
+              if (attempt + 1 >= limit) {
+                setState((previous) => ({ ...previous, pollingPaused: true }));
+                return;
+              }
+              schedulePoll(generation, run.runId, attempt + 1, 0, true);
+              return;
+            }
+            if (attempt + 1 >= MAX_POLL_ATTEMPTS) {
+              // Bounded: stop following, keep the run live and cancellable.
+              setState((previous) => ({ ...previous, pollingPaused: true }));
+              return;
+            }
+            schedulePoll(generation, run.runId, attempt + 1, 0, false);
+          } catch {
+            if (generationRef.current !== generation) return;
+            if (failures + 1 >= MAX_CONSECUTIVE_POLL_FAILURES) {
+              clearTimer();
+              setState((previous) => ({
+                ...previous,
+                phase: 'error',
+                cancellable: false,
+                pollingPaused: false,
+                failureMessage:
+                  'Lost contact with this run. Its latest known state is shown; nothing further was claimed.',
+              }));
+              return;
+            }
+            schedulePoll(generation, runId, attempt + 1, failures + 1, paused);
           }
-          applyRun(run, prompt, generation);
-          if (attempt + 1 >= MAX_POLL_ATTEMPTS) {
-            // Bounded: stop following, keep the run live and cancellable.
-            setState((previous) => ({ ...previous, pollingPaused: true }));
-            return;
-          }
-          schedulePoll(generation, run.runId, attempt + 1, 0);
-        } catch {
-          if (generationRef.current !== generation) return;
-          if (failures + 1 >= MAX_CONSECUTIVE_POLL_FAILURES) {
-            clearTimer();
-            setState((previous) => ({
-              ...previous,
-              phase: 'error',
-              cancellable: false,
-              pollingPaused: false,
-              failureMessage:
-                'Lost contact with this run. Its latest known state is shown; nothing further was claimed.',
-            }));
-            return;
-          }
-          schedulePoll(generation, runId, attempt + 1, failures + 1);
-        }
-      }, POLL_INTERVAL_MS);
+        },
+        paused ? PAUSED_POLL_INTERVAL_MS : POLL_INTERVAL_MS,
+      );
     },
     [applyRun, clearTimer],
+  );
+
+  /**
+   * Resumes following one authoritative run snapshot: fast polling for
+   * active runs, slow polling for confirmations pauses, nothing for
+   * terminal runs.
+   */
+  const followRun = useCallback(
+    (run: AgentRunView, generation: number) => {
+      if (isTerminalRunStatus(run.status)) return;
+      schedulePoll(generation, run.runId, 0, 0, run.status === 'awaiting_confirmation');
+    },
+    [schedulePoll],
   );
 
   const launch = useCallback(
@@ -254,9 +325,7 @@ export function useAgentRun({ agentId, projectId }: UseAgentRunOptions): UseAgen
           if (generationRef.current !== generation) return;
           const prompt_ = activeRef.current?.prompt ?? prompt;
           applyRun(run, prompt_, generation);
-          if (!isTerminalRunStatus(run.status) && run.status !== 'awaiting_confirmation') {
-            schedulePoll(generation, run.runId, 0, 0);
-          }
+          followRun(run, generation);
         } catch (error: unknown) {
           if (generationRef.current !== generation) return;
           clearTimer();
@@ -307,9 +376,7 @@ export function useAgentRun({ agentId, projectId }: UseAgentRunOptions): UseAgen
         }
         const prompt = activeRef.current?.prompt ?? '';
         applyRun(run, prompt, generation);
-        if (!isTerminalRunStatus(run.status) && run.status !== 'awaiting_confirmation') {
-          schedulePoll(generation, run.runId, 0, 0);
-        }
+        followRun(run, generation);
       } catch {
         if (generationRef.current !== generation) return;
         // Cancellation failed. Preserve the actual run state; surface a
@@ -325,9 +392,7 @@ export function useAgentRun({ agentId, projectId }: UseAgentRunOptions): UseAgen
             if (generationRef.current !== generation) return;
             const prompt = activeRef.current?.prompt ?? '';
             applyRun(run, prompt, generation);
-            if (!isTerminalRunStatus(run.status) && run.status !== 'awaiting_confirmation') {
-              schedulePoll(generation, run.runId, 0, 0);
-            }
+            followRun(run, generation);
           } catch {
             // Resync also failed: the state stays as-is. Honest, no claims.
           }
@@ -354,14 +419,67 @@ export function useAgentRun({ agentId, projectId }: UseAgentRunOptions): UseAgen
         if (generationRef.current !== generation) return;
         const prompt = activeRef.current?.prompt ?? '';
         applyRun(run, prompt, generation);
-        if (!isTerminalRunStatus(run.status) && run.status !== 'awaiting_confirmation') {
-          schedulePoll(generation, run.runId, 0, 0);
-        }
+        followRun(run, generation);
       } catch {
         // One-shot refresh failed; state stays as-is. Honest, no claims.
       }
     })();
   }, [applyRun, clearTimer, schedulePoll, state.phase]);
 
-  return { state, start, cancel, retry, refresh };
+  const submitConfirmation = useCallback(
+    (decision: 'approve' | 'reject') => {
+      const current = activeRef.current;
+      if (current === null || current.runId === null) return;
+      const { phase, pendingConfirmation, confirmationSubmitting } = state;
+      // Only a live, server-reported, still-decidable confirmation can be
+      // decided - and only one decision may be in flight at a time.
+      if (phase !== 'paused' || pendingConfirmation === null) return;
+      if (pendingConfirmation.state !== 'required') return;
+      if (confirmationSubmitting) return;
+      const generation = current.generation;
+      const runId = current.runId;
+      setState((previous) => ({
+        ...previous,
+        confirmationSubmitting: true,
+        confirmationError: null,
+      }));
+      void (async () => {
+        try {
+          const run = await submitAgentConfirmation(runId, decision);
+          if (generationRef.current !== generation) return;
+          if (run.runId !== runId) {
+            throw new Error('confirmation response did not match the run');
+          }
+          const prompt = activeRef.current?.prompt ?? '';
+          setState((previous) => ({ ...previous, confirmationSubmitting: false }));
+          applyRun(run, prompt, generation);
+          followRun(run, generation);
+        } catch {
+          if (generationRef.current !== generation) return;
+          setState((previous) => ({
+            ...previous,
+            confirmationSubmitting: false,
+            confirmationError:
+              'The decision did not go through. The request keeps its latest server-confirmed state.',
+          }));
+          // Resync once from the server: the authoritative state may have
+          // changed (e.g. the confirmation expired) and must be shown.
+          void (async () => {
+            try {
+              const run = await getAgentRun(runId);
+              if (generationRef.current !== generation) return;
+              const prompt = activeRef.current?.prompt ?? '';
+              applyRun(run, prompt, generation);
+              followRun(run, generation);
+            } catch {
+              // Resync also failed: the state stays as-is. Honest, no claims.
+            }
+          })();
+        }
+      })();
+    },
+    [applyRun, followRun, state],
+  );
+
+  return { state, start, cancel, retry, refresh, submitConfirmation };
 }

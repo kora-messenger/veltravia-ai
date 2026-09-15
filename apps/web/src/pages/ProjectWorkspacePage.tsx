@@ -4,7 +4,7 @@ import { getProject, type ProjectView } from '../api/projects';
 import { listWorkspaces, type WorkspaceView } from '../api/workspaces';
 import { listAgents, type AgentSummaryView } from '../api/agents';
 import { useAsyncResource } from '../api/use-async-resource';
-import { ErrorState, Spinner, useToast } from '../components/ui';
+import { ErrorState, Select, Spinner, useToast } from '../components/ui';
 import { navigateToHash } from '../shell/useHashRoute';
 import { ProjectContextPanel } from './workspace/ProjectContextPanel';
 import { ConversationArea } from './workspace/ConversationArea';
@@ -14,6 +14,8 @@ import { WorkspaceDrawer } from './workspace/WorkspaceDrawer';
 import { WorkspaceHeader } from './workspace/WorkspaceHeader';
 import { RunStatus } from './workspace/RunStatus';
 import { useAgentRun } from './workspace/use-agent-run';
+import { runActivityEntries, toolActivityEntries } from './workspace/tool-activity';
+import { ConfirmationCard } from './workspace/ConfirmationCard';
 import type { WorkspaceMessageView } from './workspace/message-model';
 
 interface WorkspaceDetail {
@@ -59,13 +61,12 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
   const agentsResource = useAsyncResource(async () => listAgents(), []);
   const { toast } = useToast();
   const [messages, setMessages] = useState<readonly WorkspaceMessageView[]>([]);
+  const [chosenAgentId, setChosenAgentId] = useState<string | null>(null);
   const [contextDrawerOpen, setContextDrawerOpen] = useState(false);
   const [activityDrawerOpen, setActivityDrawerOpen] = useState(false);
 
-  const agentId =
-    agentsResource.state === 'ready' && agentsResource.data !== null
-      ? selectAgent(agentsResource.data)
-      : null;
+  const agents = agentsResource.state === 'ready' ? agentsResource.data : null;
+  const agentId = chosenAgentId ?? (agents !== null ? selectAgent(agents) : null);
   const run = useAgentRun({ agentId, projectId });
 
   // Appends the run's real outcome to the conversation exactly once per
@@ -162,6 +163,8 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
   const runBusy =
     run.state.phase === 'creating' || run.state.phase === 'running' || run.state.phase === 'paused';
   const composerDisabled = project.status === 'archived' || agentId === null;
+  const agentEntries = runActivityEntries(run.state);
+  const toolEntries = toolActivityEntries(run.state.toolResults, run.state.pendingConfirmation);
 
   return (
     <div className="v-workspace">
@@ -182,11 +185,33 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
               onCancel={run.cancel}
               onRefresh={run.refresh}
             />
+            {run.state.pendingConfirmation !== null && run.state.phase === 'paused' && (
+              <ConfirmationCard
+                pendingConfirmation={run.state.pendingConfirmation}
+                submitting={run.state.confirmationSubmitting}
+                error={run.state.confirmationError}
+                onDecision={run.submitConfirmation}
+              />
+            )}
           </ConversationArea>
+          {agents !== null && agents.length > 0 && (
+            <Select
+              className="v-workspace__agent-picker"
+              label="Agent"
+              hint="Which registered agent answers this conversation."
+              value={agentId ?? undefined}
+              disabled={runBusy}
+              options={agents.map((agent) => ({
+                value: agent.id,
+                label: agent.displayName,
+              }))}
+              onChange={(event) => setChosenAgentId(event.target.value)}
+            />
+          )}
           <MessageComposer onSend={onSend} busy={runBusy} disabled={composerDisabled} />
         </div>
 
-        <ActivityPanel agentEntries={[]} toolEntries={[]} />
+        <ActivityPanel agentEntries={agentEntries} toolEntries={toolEntries} />
       </div>
 
       <WorkspaceDrawer
@@ -198,7 +223,7 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
       </WorkspaceDrawer>
 
       <WorkspaceDrawer open={activityDrawerOpen} onClose={closeActivityDrawer} label="Activity">
-        <ActivityPanel agentEntries={[]} toolEntries={[]} />
+        <ActivityPanel agentEntries={agentEntries} toolEntries={toolEntries} />
       </WorkspaceDrawer>
     </div>
   );

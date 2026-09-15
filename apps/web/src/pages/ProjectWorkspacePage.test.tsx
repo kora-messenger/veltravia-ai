@@ -8,7 +8,13 @@ import { ProjectWorkspacePage } from './ProjectWorkspacePage';
 import { getProject, type ProjectView } from '../api/projects';
 import { listWorkspaces, type WorkspaceView } from '../api/workspaces';
 import { ApiError } from '../api/client';
-import { cancelAgentRun, createAgentRun, listAgents, type AgentRunView } from '../api/agents';
+import {
+  cancelAgentRun,
+  createAgentRun,
+  listAgents,
+  submitAgentConfirmation,
+  type AgentRunView,
+} from '../api/agents';
 
 vi.mock('../api/projects', () => ({
   getProject: vi.fn(),
@@ -29,6 +35,7 @@ vi.mock('../api/agents', async (importOriginal) => {
     createAgentRun: vi.fn(),
     getAgentRun: vi.fn(),
     cancelAgentRun: vi.fn(),
+    submitAgentConfirmation: vi.fn(),
   };
 });
 
@@ -37,6 +44,7 @@ const mockedListWorkspaces = vi.mocked(listWorkspaces);
 const mockedListAgents = vi.mocked(listAgents);
 const mockedCreateRun = vi.mocked(createAgentRun);
 const mockedCancelRun = vi.mocked(cancelAgentRun);
+const mockedSubmitConfirmation = vi.mocked(submitAgentConfirmation);
 
 function agentRun(overrides: Partial<AgentRunView> = {}): AgentRunView {
   return {
@@ -44,6 +52,8 @@ function agentRun(overrides: Partial<AgentRunView> = {}): AgentRunView {
     agentId: 'agent.demo.answer',
     status: 'completed',
     finalOutput: 'Veltravia AI is a platform for building software with AI.',
+    toolResults: [],
+    pendingConfirmation: null,
     error: null,
     limitReason: null,
     createdAt: '2026-09-15T07:00:00.000Z',
@@ -95,6 +105,7 @@ beforeEach(() => {
   mockedListWorkspaces.mockResolvedValue([workspace()]);
   mockedListAgents.mockResolvedValue([
     { id: 'agent.demo.answer', displayName: 'Demo Answer Agent', description: 'd' },
+    { id: 'agent.demo.confirm', displayName: 'Demo Confirmation Agent', description: 'd' },
   ]);
   mockedCreateRun.mockResolvedValue(agentRun());
 });
@@ -196,6 +207,77 @@ describe('ProjectWorkspacePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     fireEvent.click(screen.getByRole('button', { name: 'Activity' }));
     expect(await screen.findByRole('dialog', { name: 'Activity' })).toBeDefined();
+  });
+
+  it('lets the user choose which registered agent answers, and locks the choice mid-run', async () => {
+    renderWorkspace();
+    const input = await screen.findByRole('textbox', { name: 'Message Veltravia AI' });
+    expect(input).toBeDefined();
+    const picker = screen.getByRole('combobox', { name: /agent/i });
+    expect(picker).toBeDefined();
+    // The registered demo agents are listed honestly, one option each.
+    expect(screen.getByRole('option', { name: 'Demo Answer Agent' })).toBeDefined();
+    expect(screen.getByRole('option', { name: 'Demo Confirmation Agent' })).toBeDefined();
+    // Sending after choosing routes the prompt to the chosen agent.
+    fireEvent.change(picker, { target: { value: 'agent.demo.confirm' } });
+    fireEvent.change(input, { target: { value: 'Use the confirmation agent.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    expect(mockedCreateRun).toHaveBeenCalledWith({
+      agentId: 'agent.demo.confirm',
+      task: 'Use the confirmation agent.',
+      projectId: 'prj-1',
+    });
+  });
+
+  it('collects the human confirmation and shows the server-confirmed outcome', async () => {
+    const pendingConfirmation = {
+      confirmationId: 'conf-1',
+      toolId: 'mock.purge',
+      invocationId: 'inv-9',
+      riskLevel: 'critical',
+      state: 'required',
+      requestedAt: '2026-09-15T07:00:05.000Z',
+      expiresAt: '2026-09-15T07:05:05.000Z',
+    };
+    mockedCreateRun.mockResolvedValue(
+      agentRun({ status: 'awaiting_confirmation', finalOutput: null, pendingConfirmation }),
+    );
+    mockedSubmitConfirmation.mockResolvedValue(
+      agentRun({
+        finalOutput: 'The demo tool finished. Its recorded result is in the activity panel.',
+        toolResults: [
+          {
+            invocationId: 'inv-9',
+            toolId: 'mock.purge',
+            status: 'success',
+            output: { purged: true },
+            error: null,
+            requestedAt: '2026-09-15T07:00:06.000Z',
+            completedAt: '2026-09-15T07:00:07.000Z',
+          },
+        ],
+      }),
+    );
+    renderWorkspace();
+    const input = await screen.findByRole('textbox', { name: 'Message Veltravia AI' });
+    fireEvent.change(input, { target: { value: 'Purge the demo data.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    // The server pauses the run: the card asks the human, with the risk level.
+    expect(await screen.findByTestId('confirmation-card')).toBeDefined();
+    expect(screen.getAllByText('Critical risk').length).toBeGreaterThan(0);
+    expect(screen.getByText('Awaiting your decision')).toBeDefined();
+
+    // Approve: the decision goes to the server, the card is replaced by the
+    // answer the server confirmed, and the tool activity is visible.
+    fireEvent.click(screen.getByTestId('confirmation-approve'));
+    expect(mockedSubmitConfirmation).toHaveBeenCalledWith('run-1', 'approve');
+    expect(
+      await screen.findByText(
+        'The demo tool finished. Its recorded result is in the activity panel.',
+      ),
+    ).toBeDefined();
+    expect(screen.queryByTestId('confirmation-card')).toBeNull();
   });
 
   it('shows an honest running state and cancels only on server confirmation', async () => {
