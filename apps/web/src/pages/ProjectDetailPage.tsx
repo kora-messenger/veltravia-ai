@@ -113,24 +113,29 @@ export function ProjectDetailPage({ projectId }: { projectId: string | null }) {
                 </span>
               </div>
             </div>
-            <Menu
-              triggerLabel={`Actions for ${project.name}`}
-              trigger={<span aria-hidden="true">⋯</span>}
-              items={[
-                { id: 'edit', label: 'Edit details', onSelect: () => setEditOpen(true) },
-                project.status === 'active'
-                  ? {
-                      id: 'archive',
-                      label: 'Archive project',
-                      onSelect: () => setStatusChange({ project, action: 'archive' }),
-                    }
-                  : {
-                      id: 'restore',
-                      label: 'Restore project',
-                      onSelect: () => setStatusChange({ project, action: 'restore' }),
-                    },
-              ]}
-            />
+            <div className="v-detail-header__actions">
+              <Button onClick={() => navigateToHash(`#/projects/${project.id}/workspace`)}>
+                Open workspace
+              </Button>
+              <Menu
+                triggerLabel={`Actions for ${project.name}`}
+                trigger={<span aria-hidden="true">⋯</span>}
+                items={[
+                  { id: 'edit', label: 'Edit details', onSelect: () => setEditOpen(true) },
+                  project.status === 'active'
+                    ? {
+                        id: 'archive',
+                        label: 'Archive project',
+                        onSelect: () => setStatusChange({ project, action: 'archive' }),
+                      }
+                    : {
+                        id: 'restore',
+                        label: 'Restore project',
+                        onSelect: () => setStatusChange({ project, action: 'restore' }),
+                      },
+                ]}
+              />
+            </div>
           </header>
 
           <section aria-label="Workspaces" className="v-page-section">

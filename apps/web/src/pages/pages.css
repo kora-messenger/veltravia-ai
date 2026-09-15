@@ -249,6 +249,13 @@
   flex-wrap: wrap;
 }
 
+.v-detail-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  flex: none;
+}
+
 .v-detail-header__meta {
   display: flex;
   align-items: center;

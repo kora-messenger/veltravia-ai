@@ -176,7 +176,7 @@ The tool layer enforces these principles — all of them tested:
 8. The API's demo mode (offline fake transport when env vars are absent) is a documented development-only limitation; gates are real, the remote end is a fixture. Real mode is enabled ONLY by `GITHUB_API_TOKEN` + `GITHUB_REPOSITORIES` env.
 9. The live harness (`tests/live/github.live.test.ts`) is strictly read-only and off unless explicitly enabled locally (`RUN_GITHUB_INTEGRATION_TESTS=true` + env); CI never sets it.
 
-## 5h. Web UI security boundary rules (Steps 11A–11B, `apps/web`)
+## 5h. Web UI security boundary rules (Steps 11A–11C-1, `apps/web`)
 
 1. The web app is a rendering surface only: no credential material (tokens, API keys, database credentials, OAuth access tokens, secrets, private keys) may enter React state, localStorage, sessionStorage, frontend source, HTML, URL parameters, or browser-visible API responses.
 2. The only client-persisted value today is the theme preference (`veltravia.theme-preference`) — UI state, never credential material.
@@ -188,6 +188,10 @@ The tool layer enforces these principles — all of them tested:
 8. The frontend NEVER hardcodes a user identity: project creation sends no `ownerRef`; the API assigns one server-side (`VELTRAVIA_DEFAULT_OWNER_REF`, development default `veltravia-dev-user`) until authentication exists. `ownerRef` is identity metadata, never a credential.
 9. Mutating writes are revision-safe in the UI: project edits send `expectedRevision`; a 409 `REVISION_CONFLICT` is surfaced to the user and the latest server state is reloaded — the UI never silently overwrites.
 10. Consequential actions (archive/restore) require an explicit confirmation dialog and report server rejections honestly; the UI never fakes success or retries destructively.
+11. The AI workspace (Step 11C-1) is a visual shell only: it calls no AI, agent, coding-agent, tool, sandbox, or connector API. Submitted text stays in local React state and is never transmitted; the UI says so explicitly rather than implying delivery.
+12. Workspace messages render as plain React text nodes. Untrusted origins (AI output, tool output, project file content, sandbox output) are never interpreted as HTML (`dangerouslySetInnerHTML` is not used for them) and never executed.
+13. Every conversation message carries an explicit origin (user / assistant / system / tool output); the trust presentation makes data provenance visible without exposing internal security mechanics.
+14. The workspace file tree is a labeled illustration, not fabricated live data; no fake filesystem API exists. Activity panels render honest empty states and never fabricate tool calls, runs, or results.
 
 ## 7. Incident response
 

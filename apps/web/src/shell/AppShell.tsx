@@ -27,8 +27,16 @@ export function AppShell({ renderPage }: AppShellProps) {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [mobileOpen]);
 
-  // The project-detail route highlights the Projects navigation item.
-  const activeNavId = route.id === 'project-detail' ? 'projects' : route.id;
+  // The project routes highlight the Projects navigation item.
+  const activeNavId =
+    route.id === 'project-detail' || route.id === 'project-workspace' ? 'projects' : route.id;
+
+  // The workspace is a full-bleed, three-panel surface: it manages its own
+  // padding and scrolling, so the shell content area steps aside.
+  const contentClassName =
+    route.id === 'project-workspace'
+      ? 'v-shell__content v-shell__content--flush'
+      : 'v-shell__content';
 
   return (
     <div className="v-shell">
@@ -42,7 +50,7 @@ export function AppShell({ renderPage }: AppShellProps) {
       />
       <div className="v-shell__main">
         <TopBar route={route} onOpenMobileNav={() => setMobileOpen(true)} />
-        <main className="v-shell__content" id="main-content">
+        <main className={contentClassName} id="main-content">
           {renderPage(route)}
         </main>
       </div>

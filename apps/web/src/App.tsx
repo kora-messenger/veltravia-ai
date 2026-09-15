@@ -1,7 +1,13 @@
 import { AppShell } from './shell/AppShell';
 import { ThemeProvider } from './theme/ThemeProvider';
 import { ToastProvider } from './components/ui';
-import { DashboardPage, ProjectDetailPage, ProjectsPage, SettingsPage } from './pages';
+import {
+  DashboardPage,
+  ProjectDetailPage,
+  ProjectWorkspacePage,
+  ProjectsPage,
+  SettingsPage,
+} from './pages';
 
 export function App() {
   return (
@@ -16,6 +22,8 @@ export function App() {
                 return <ProjectsPage />;
               case 'project-detail':
                 return <ProjectDetailPage projectId={route.projectId} />;
+              case 'project-workspace':
+                return <ProjectWorkspacePage projectId={route.projectId} />;
               case 'settings':
                 return <SettingsPage />;
               default:

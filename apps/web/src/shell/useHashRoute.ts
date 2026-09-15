@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 
 /**
- * Minimal hash routing (#/dashboard, #/projects, #/projects/<id>, #/settings).
- * Future steps can replace this with a fuller router without touching the
- * shell contract: (route, navigate).
+ * Minimal hash routing (#/dashboard, #/projects, #/projects/<id>,
+ * #/projects/<id>/workspace, #/settings). Future steps can replace this
+ * with a fuller router without touching the shell contract:
+ * (route, navigate).
  */
 
 export interface RouteDef {
@@ -18,7 +19,8 @@ export const ROUTES: readonly RouteDef[] = [
   { id: 'settings', hash: '#/settings', title: 'Settings' },
 ] as const;
 
-export type RouteId = 'dashboard' | 'projects' | 'project-detail' | 'settings';
+export type RouteId =
+  'dashboard' | 'projects' | 'project-detail' | 'project-workspace' | 'settings';
 
 /** The currently active route, with route parameters when present. */
 export interface RouteState {
@@ -28,6 +30,7 @@ export interface RouteState {
 }
 
 const PROJECT_ID_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)$/;
+const WORKSPACE_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/workspace$/;
 
 function routeForHash(hash: string): RouteState {
   if (hash === '' || hash === '#' || hash === '#/dashboard') {
@@ -38,6 +41,14 @@ function routeForHash(hash: string): RouteState {
   }
   if (hash === '#/settings') {
     return { id: 'settings', title: 'Settings', projectId: null };
+  }
+  const workspaceMatch = WORKSPACE_PATTERN.exec(hash);
+  if (workspaceMatch !== null) {
+    return {
+      id: 'project-workspace',
+      title: 'Workspace',
+      projectId: workspaceMatch[1] ?? null,
+    };
   }
   const projectMatch = PROJECT_ID_PATTERN.exec(hash);
   if (projectMatch !== null) {

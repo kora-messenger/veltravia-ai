@@ -202,3 +202,14 @@
     padding: var(--v-space-4);
   }
 }
+
+/* ---------------------- Full-bleed content area ---------------------- */
+/* Used by immersive surfaces (the project workspace) that manage their own
+ * padding, scrolling, and internal responsive layout. */
+
+.v-shell__content--flush {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}

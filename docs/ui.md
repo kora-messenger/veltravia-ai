@@ -1,4 +1,4 @@
-# Web UI (Step 11A foundation + Step 11B project surface)
+# Web UI (Step 11A foundation + Step 11B project surface + Step 11C-1 workspace shell)
 
 The `apps/web` package hosts the Veltravia AI product UI. Step 11A
 establishes the design system, the reusable component library, the
@@ -148,3 +148,69 @@ disabled while a request is in flight.
 
 Settings remains an honest placeholder until its dedicated roadmap step;
 no future feature is presented as functional.
+
+## AI Workspace shell (Step 11C-1)
+
+`#/projects/<id>/workspace` — the visual shell for working with one
+project through Veltravia AI. **This checkpoint is UI/UX only**: the
+layout, conversation surface, composer, and activity panels exist and are
+architecturally ready, but no live AI interaction happens yet. Nothing in
+the workspace simulates a response, a tool call, a run, or a file
+operation. Live agent, tool, and file-tree wiring arrive in later
+checkpoints.
+
+### Structure
+
+Three regions on desktop (grid, from `pages/workspace/workspace.css`):
+
+1. **Project context** (left) — the project's identity/status, the
+   workspace identity where one exists, and a file-tree illustration that
+   is explicitly labeled as not-live until the Project Engine file tree is
+   wired in.
+2. **AI workspace** (center) — the conversation area (Veltravia
+   introduction when empty) above the message composer. The composer is
+   multiline, keyboard-driven (Enter sends, Shift+Enter breaks the line),
+   and transmits nothing: submitted text is only echoed locally with an
+   honest note that AI replies arrive in a later release.
+3. **Activity** (right) — agent activity and tool activity sections.
+   Both render honest empty states; the visual vocabulary for future
+   statuses (queued, running, awaiting confirmation, completed, failed,
+   cancelled), risk levels, and confirmation requirements exists but is
+   only ever driven by real data.
+
+The workspace has its own header bar (project name, status, a way back
+to the project page, and — on small screens — drawer triggers); global
+branding and account controls remain in the Step 11A shell top bar.
+
+### Responsive strategy
+
+- Desktop (>1200px): three persistent regions.
+- Tablet (900–1200px): three narrower regions.
+- Mobile (<900px): a single deliberate column (conversation + composer).
+  The side panels move into accessible drawers (`WorkspaceDrawer`):
+  backdrop + Escape close, focus moves into the drawer and returns to the
+  trigger on close.
+
+### Trust visual language
+
+Every conversation message carries an explicit origin so users can tell
+who produced what: user content (brand-tinted), assistant content
+(raised surface, "Veltravia AI" label), system status (quiet centered
+line), and tool output (bordered data card with a "Tool output" label
+and source caption). Tool output is always rendered as data — plain
+React text nodes, never HTML, never executed.
+
+### Component organization
+
+`apps/web/src/pages/workspace/`:
+
+- `message-model.ts` — safe view models (`WorkspaceMessageView`,
+  `ActivityEntryView`) that future checkpoints will map live API
+  responses into.
+- `ProjectContextPanel`, `ConversationArea`, `MessageComposer`,
+  `ActivityPanel`, `WorkspaceDrawer`, `WorkspaceHeader` — composed by
+  `pages/ProjectWorkspacePage.tsx`.
+
+Only the existing API client surface is used: the project and workspace
+reads that identify the current project. No AI, agent, coding-agent,
+tool, sandbox, or GitHub API is called from the workspace.

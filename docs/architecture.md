@@ -16,18 +16,35 @@ Veltravia AI is an advanced AI software-development platform. The end state is a
 
 The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
 
-## Current state: Step 11B — Web UI: Dashboard, Projects, Project detail
+## Current state: Step 11C-1 — Web UI: AI Workspace shell
 
 `apps/web` now carries the product UI foundation (Step 11A: token-based
 design system in `src/design/`, accessible component library in
 `src/components/ui/`, light/dark/system theme architecture in `src/theme/`,
-responsive application shell in `src/shell/`) plus the first real feature
-surface (Step 11B): a typed fetch client (`src/api/`) that validates and
-maps API responses to safe view models (engine-internal fields never reach
-React state), and the Dashboard / Projects / Project detail pages with
-create, edit (revision-safe), archive/restore (confirmation-gated), and
-workspace creation — all backed by the real Project Engine API. Settings
-remains an explicit placeholder. Details: `docs/ui.md`.
+responsive application shell in `src/shell/`), the first real feature
+surface (Step 11B: typed fetch client with safe view models, Dashboard /
+Projects / Project detail with revision-safe editing, confirmation-gated
+archive/restore, and workspace creation), and the **AI Workspace shell**
+(Step 11C-1): a three-region per-project workspace at
+`#/projects/<id>/workspace` — project context, AI conversation surface +
+composer, and agent/tool activity panels, with a responsive strategy that
+turns the side panels into accessible drawers on small screens and an
+explicit trust visual language for message origins (user / assistant /
+system / tool output). The workspace is a VISUAL SHELL ONLY: no AI,
+agent, coding-agent, tool, sandbox, or connector call is made; submitted
+text stays in local state; the file tree is a labeled illustration; the
+activity panels render honest empty states. Live wiring arrives with
+later checkpoints. Settings remains an explicit placeholder.
+Details: `docs/ui.md`.
+
+## Prior state: Step 11B — Web UI: Dashboard, Projects, Project detail
+
+Step 11B adds the typed fetch client (`apps/web/src/api/`) that validates
+and maps API responses to safe view models (engine-internal fields never
+reach React state), and the Dashboard / Projects / Project detail pages
+with create, edit (revision-safe), archive/restore
+(confirmation-gated), and workspace creation — all backed by the real
+Project Engine API.
 
 ## Prior state: Step 10 — Real connectors: GitHub + `invoke_tool`
 

@@ -83,6 +83,28 @@ describe('AppShell', () => {
     expect(screen.getByTestId('page-projects')).toBeDefined();
   });
 
+  it('routes to a project workspace and highlights the Projects nav item', () => {
+    renderShell();
+    window.location.hash = '#/projects/prj-42/workspace';
+    fireEvent(window, new HashChangeEvent('hashchange'));
+    expect(screen.getByTestId('page-project-workspace')).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Workspace' })).toBeDefined();
+    expect(screen.getByRole('link', { name: /Projects/ }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+
+    window.location.hash = '#/projects/prj-42';
+    fireEvent(window, new HashChangeEvent('hashchange'));
+    expect(screen.getByTestId('page-project-detail')).toBeDefined();
+  });
+
+  it('falls back to the dashboard for non-workspace project subpaths', () => {
+    renderShell();
+    window.location.hash = '#/projects/prj-42/not-a-route';
+    fireEvent(window, new HashChangeEvent('hashchange'));
+    expect(screen.getByTestId('page-dashboard')).toBeDefined();
+  });
+
   it('falls back to the dashboard for unknown hashes', () => {
     renderShell();
     window.location.hash = '#/nonsense';
