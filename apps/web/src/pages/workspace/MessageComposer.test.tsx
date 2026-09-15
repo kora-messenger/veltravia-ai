@@ -33,13 +33,19 @@ describe('MessageComposer', () => {
     );
   });
 
-  it('keeps a placeholder that does not promise AI execution', () => {
+  it('states honestly where the message goes (the agent API)', () => {
     renderComposer();
     expect(
       screen.getByPlaceholderText(/ask veltravia to build, modify, explain or analyze/i),
     ).toBeDefined();
-    // Honesty note is part of the production surface.
-    expect(screen.getByText(/not sent anywhere yet/i)).toBeDefined();
+    // The hint names the real destination - no fake or withheld promises.
+    expect(screen.getByText(/goes to the veltravia ai agent for this project/i)).toBeDefined();
+  });
+
+  it('caps input at the backend task limit (4000 characters)', () => {
+    renderComposer();
+    const input = screen.getByRole('textbox', { name: 'Message Veltravia AI' });
+    expect(input.getAttribute('maxlength')).toBe('4000');
   });
 
   it('focuses the input (visible focus surface)', () => {
@@ -85,7 +91,7 @@ describe('MessageComposer', () => {
     expect(busy.getByRole('button', { name: 'Send message' }).hasAttribute('disabled')).toBe(true);
   });
 
-  it('makes no network requests of any kind', () => {
+  it('makes no direct network requests (the parent owns submission)', () => {
     const fetchSpy = vi.fn();
     window.fetch = fetchSpy as unknown as typeof window.fetch;
     renderComposer();

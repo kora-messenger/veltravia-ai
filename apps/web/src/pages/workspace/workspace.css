@@ -687,6 +687,53 @@
   }
 }
 
+/* Live run-status strip (Step 11C-2). Restrained: one row, honest states. */
+.v-run-status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--v-space-2);
+  max-width: 46rem;
+  margin-left: auto;
+  margin-right: var(--v-space-3);
+  margin-top: var(--v-space-3);
+  padding: var(--v-space-2) var(--v-space-3);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-sm);
+  background: var(--v-surface-muted);
+  font-size: var(--v-text-sm);
+  color: var(--v-text);
+}
+
+.v-run-status--failed {
+  border-color: var(--v-danger);
+}
+
+.v-run-status--stopped {
+  border-style: dashed;
+}
+
+.v-run-status--paused {
+  background: var(--v-surface-muted);
+}
+
+.v-run-status__label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-1);
+  min-width: 0;
+  flex: 1;
+}
+
+.v-run-status__hint {
+  font-size: var(--v-text-xs);
+  color: var(--v-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.v-run-status__hint--error {
+  color: var(--v-danger);
+}
+
 /* Respect users who prefer reduced motion. */
 @media (prefers-reduced-motion: reduce) {
   .v-wdrawer__panel,

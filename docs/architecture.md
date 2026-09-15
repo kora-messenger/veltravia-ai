@@ -16,7 +16,26 @@ Veltravia AI is an advanced AI software-development platform. The end state is a
 
 The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
 
-## Current state: Step 11C-1 — Web UI: AI Workspace shell
+## Current state: Step 11C-2 — Web UI: live AI workspace
+
+The 11C-1 workspace shell is now wired to the existing Agent API (Step 6):
+submitting the composer creates a REAL agent run (`POST /api/agents/run`
+with `{ agentId, task, projectId }`), the backend's statuses map to explicit
+UI phases (creating / running / paused-for-confirmation / completed /
+failed / cancelled / limit-reached), non-terminal states are followed with
+bounded polling, cancellation goes through the real cancel endpoint and is
+only claimed after the server confirms it, and a completed run's
+`finalOutput` is appended as the assistant message — never a fabricated
+response. Failed/cancelled/limit-reached runs surface honest notes with a
+"Try again" that starts a NEW run. One active run per workspace conversation
+(generation-token guarded against stale responses). The browser remains a
+pure presentation client: it talks only to the Veltravia API; no provider
+SDK, provider endpoint, credential, or environment read exists in `apps/web`
+source (test-enforced). Activity panels, the file tree, and confirmation
+controls are unchanged and honest (later checkpoints). Settings remains an
+explicit placeholder. Details: `docs/ui.md`.
+
+## Prior state: Step 11C-1 — Web UI: AI Workspace shell
 
 `apps/web` now carries the product UI foundation (Step 11A: token-based
 design system in `src/design/`, accessible component library in
@@ -30,12 +49,13 @@ archive/restore, and workspace creation), and the **AI Workspace shell**
 composer, and agent/tool activity panels, with a responsive strategy that
 turns the side panels into accessible drawers on small screens and an
 explicit trust visual language for message origins (user / assistant /
-system / tool output). The workspace is a VISUAL SHELL ONLY: no AI,
-agent, coding-agent, tool, sandbox, or connector call is made; submitted
-text stays in local state; the file tree is a labeled illustration; the
-activity panels render honest empty states. Live wiring arrives with
-later checkpoints. Settings remains an explicit placeholder.
-Details: `docs/ui.md`.
+system / tool output). At 11C-1 the workspace was a VISUAL SHELL ONLY: no
+AI, agent, coding-agent, tool, sandbox, or connector call was made;
+submitted text stayed in local state; the file tree is a labeled
+illustration; the
+activity panels render honest empty states. Step 11C-2 then wired the
+composer to the real Agent API (see above). Settings remains an explicit
+placeholder. Details: `docs/ui.md`.
 
 ## Prior state: Step 11B — Web UI: Dashboard, Projects, Project detail
 

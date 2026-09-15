@@ -2,8 +2,10 @@ import type { ReactNode } from 'react';
 import { ORIGIN_LABELS, type WorkspaceMessageView } from './message-model';
 
 export interface ConversationAreaProps {
-  /** Messages to render. Empty until Step 11C-2 wires the agent API. */
+  /** Messages to render. */
   messages: readonly WorkspaceMessageView[];
+  /** The live run-status strip (rendered inside the conversation region). */
+  children?: ReactNode;
 }
 
 /**
@@ -15,7 +17,7 @@ export interface ConversationAreaProps {
  * All message text renders as plain React text nodes. It is never
  * interpreted as HTML or executed.
  */
-export function ConversationArea({ messages }: ConversationAreaProps) {
+export function ConversationArea({ messages, children }: ConversationAreaProps) {
   if (messages.length === 0) {
     return (
       <div className="v-conversation v-conversation--empty" aria-label="Conversation">
@@ -46,6 +48,7 @@ export function ConversationArea({ messages }: ConversationAreaProps) {
           <MessageRow key={message.id} message={message} />
         ))}
       </ol>
+      {children}
     </div>
   );
 }

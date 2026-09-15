@@ -1,4 +1,4 @@
-# Web UI (Step 11A foundation + Step 11B project surface + Step 11C-1 workspace shell)
+# Web UI (Steps 11A + 11B + 11C-1 + 11C-2: live AI workspace)
 
 The `apps/web` package hosts the Veltravia AI product UI. Step 11A
 establishes the design system, the reusable component library, the
@@ -214,3 +214,58 @@ React text nodes, never HTML, never executed.
 Only the existing API client surface is used: the project and workspace
 reads that identify the current project. No AI, agent, coding-agent,
 tool, sandbox, or GitHub API is called from the workspace.
+
+## AI Workspace live interaction (Step 11C-2)
+
+The workspace at `#/projects/<id>/workspace` is now a real client for the
+existing Agent API (Step 6). The 11C-1 shell is unchanged structurally; the
+composer is wired to real runs.
+
+### Workspace → Agent API flow
+
+1. The page loads the project, its workspaces, and the agent list
+   (`GET /api/agents`). It selects the direct-answer agent when present,
+   otherwise the first agent the API offers (a documented development
+   limitation: the available agents are scripted demo agents until a real
+   model is wired in).
+2. Submitting the composer appends the user's message and calls
+   `POST /api/agents/run` with `{ agentId, task, projectId }` — no user
+   identity is invented or sent.
+3. The backend executes the run within the request, so the response usually
+   already carries the terminal state. `awaiting_tool` responses are followed
+   with bounded polling (`GET /api/agents/runs/:runId`, ~0.9s interval,
+   hard attempt ceiling, consecutive-failure ceiling). Polling never
+   overlaps itself, always stops on terminal/paused states, and its timer is
+   cleared on unmount.
+4. Cancellation is a single `POST /api/agents/runs/:runId/cancel` per run,
+   shown only while a run is live, and the UI claims "cancelled" only after
+   the server's response says so. A failed cancel keeps the run's real state
+   and shows a recoverable note.
+5. On `completed`, the run's `finalOutput` is appended as the assistant
+   message. Failed, cancelled, and limit-reached runs append an honest system
+   note; nothing is ever fabricated. "Try again" starts a NEW run with the
+   same prompt (never a replay).
+
+### Run lifecycle mapping
+
+Backend statuses map to explicit UI phases: `creating` (run request in
+flight) → `running` (incl. `awaiting_tool`) → `paused`
+(`awaiting_confirmation` — honest notice, no confirmation controls yet) →
+`completed` / `failed` / `cancelled` / `limit-reached`. The UI never shows
+"completed" unless the backend reported it.
+
+### Multiple-run protection
+
+One active run per workspace conversation: the composer is disabled while a
+run is active, double submission is rejected, and every in-flight operation
+carries a generation token — responses from a superseded run (including a
+mismatched run id) are discarded and can never overwrite a newer run.
+
+### Frontend credential boundary
+
+The browser talks ONLY to the Veltravia API. No provider SDK, provider
+endpoint, or credential literal exists anywhere in `apps/web` source, the web
+app reads no environment variables, model output is rendered as plain React
+text nodes (never HTML, never executed), and the only persisted local value
+is the theme preference. These rules are enforced by tests
+(`apps/web/src/security/workspace-boundary.test.ts`).

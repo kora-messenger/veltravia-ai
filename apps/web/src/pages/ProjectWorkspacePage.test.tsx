@@ -1,13 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { ToastProvider } from '../components/ui';
 import { ProjectWorkspacePage } from './ProjectWorkspacePage';
 import { getProject, type ProjectView } from '../api/projects';
 import { listWorkspaces, type WorkspaceView } from '../api/workspaces';
 import { ApiError } from '../api/client';
+import { cancelAgentRun, createAgentRun, listAgents, type AgentRunView } from '../api/agents';
 
 vi.mock('../api/projects', () => ({
   getProject: vi.fn(),
@@ -20,8 +21,36 @@ vi.mock('../api/workspaces', () => ({
   createWorkspace: vi.fn(),
 }));
 
+vi.mock('../api/agents', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/agents')>();
+  return {
+    ...actual,
+    listAgents: vi.fn(),
+    createAgentRun: vi.fn(),
+    getAgentRun: vi.fn(),
+    cancelAgentRun: vi.fn(),
+  };
+});
+
 const mockedGetProject = vi.mocked(getProject);
 const mockedListWorkspaces = vi.mocked(listWorkspaces);
+const mockedListAgents = vi.mocked(listAgents);
+const mockedCreateRun = vi.mocked(createAgentRun);
+const mockedCancelRun = vi.mocked(cancelAgentRun);
+
+function agentRun(overrides: Partial<AgentRunView> = {}): AgentRunView {
+  return {
+    runId: 'run-1',
+    agentId: 'agent.demo.answer',
+    status: 'completed',
+    finalOutput: 'Veltravia AI is a platform for building software with AI.',
+    error: null,
+    limitReason: null,
+    createdAt: '2026-09-15T07:00:00.000Z',
+    updatedAt: '2026-09-15T07:00:01.000Z',
+    ...overrides,
+  };
+}
 
 function project(overrides: Partial<ProjectView> = {}): ProjectView {
   return {
@@ -64,6 +93,10 @@ beforeEach(() => {
   window.fetch = vi.fn();
   mockedGetProject.mockResolvedValue(project());
   mockedListWorkspaces.mockResolvedValue([workspace()]);
+  mockedListAgents.mockResolvedValue([
+    { id: 'agent.demo.answer', displayName: 'Demo Answer Agent', description: 'd' },
+  ]);
+  mockedCreateRun.mockResolvedValue(agentRun());
 });
 
 afterEach(() => {
@@ -122,18 +155,27 @@ describe('ProjectWorkspacePage', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
   });
 
-  it('never transmits anything: typing and sending makes no network request', async () => {
+  it('submits the prompt to the Agent API and shows the real assistant answer', async () => {
     renderWorkspace();
     const input = await screen.findByRole('textbox', { name: 'Message Veltravia AI' });
-    fireEvent.change(input, { target: { value: 'Add a dark mode toggle' } });
+    fireEvent.change(input, { target: { value: 'Explain this project' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
     // The user's own words render in the conversation…
-    expect(await screen.findByText('Add a dark mode toggle')).toBeDefined();
-    // …but nothing was sent: only the two permitted project reads happened,
-    // and the global fetch was never touched.
-    expect(window.fetch).not.toHaveBeenCalled();
-    expect(mockedGetProject).toHaveBeenCalledTimes(1);
-    expect(mockedListWorkspaces).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('Explain this project')).toBeDefined();
+    // …and the run went through the Agent API with the routed project id.
+    expect(mockedCreateRun).toHaveBeenCalledTimes(1);
+    expect(mockedCreateRun).toHaveBeenCalledWith({
+      agentId: 'agent.demo.answer',
+      task: 'Explain this project',
+      projectId: 'prj-1',
+    });
+    // The backend's actual answer appears, labeled as assistant output.
+    expect(
+      await screen.findByText('Veltravia AI is a platform for building software with AI.'),
+    ).toBeDefined();
+    expect(screen.getByText('Veltravia AI')).toBeDefined();
+    // No run status strip remains after completion.
+    expect(screen.queryByText(/working…/i)).toBeNull();
   });
 
   it('marks the composer read-only for archived projects', async () => {
@@ -154,6 +196,101 @@ describe('ProjectWorkspacePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     fireEvent.click(screen.getByRole('button', { name: 'Activity' }));
     expect(await screen.findByRole('dialog', { name: 'Activity' })).toBeDefined();
+  });
+
+  it('shows an honest running state and cancels only on server confirmation', async () => {
+    let resolveCancel: (value: AgentRunView) => void = () => {};
+    mockedCreateRun.mockResolvedValue(agentRun({ status: 'awaiting_tool', finalOutput: null }));
+    mockedCancelRun.mockImplementation(
+      () =>
+        new Promise<AgentRunView>((resolve) => {
+          resolveCancel = resolve;
+        }),
+    );
+    renderWorkspace();
+    const input = await screen.findByRole('textbox', { name: 'Message Veltravia AI' });
+    fireEvent.change(input, { target: { value: 'Plan a refactor' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    expect(await screen.findByText(/working…/i)).toBeDefined();
+    // The composer is disabled while the run is active (one run at a time).
+    expect(
+      (screen.getByRole('textbox', { name: 'Message Veltravia AI' }) as HTMLTextAreaElement)
+        .disabled,
+    ).toBe(true);
+    const cancel = screen.getByRole('button', { name: /cancel run/i });
+    fireEvent.click(cancel);
+    fireEvent.click(cancel);
+    expect(mockedCancelRun).toHaveBeenCalledTimes(1);
+    // Nothing is claimed before the server responds.
+    expect(screen.getByText(/working…/i)).toBeDefined();
+    await act(async () => {
+      resolveCancel(agentRun({ status: 'cancelled', finalOutput: null }));
+    });
+    expect(await screen.findByText(/cancelled — this run stopped at your request/i)).toBeDefined();
+    // The user's submitted message survives cancellation.
+    expect(screen.getByText('Plan a refactor')).toBeDefined();
+    // No assistant answer was invented for the cancelled run.
+    expect(
+      screen.queryByText('Veltravia AI is a platform for building software with AI.'),
+    ).toBeNull();
+  });
+
+  it('renders a failed run honestly, with retry creating a NEW run', async () => {
+    mockedCreateRun.mockResolvedValueOnce(
+      agentRun({
+        runId: 'run-1',
+        status: 'failed',
+        finalOutput: null,
+        error: { code: 'AGENT_MODEL_ERROR', message: 'The model could not be reached.' },
+      }),
+    );
+    mockedCreateRun.mockResolvedValueOnce(agentRun({ runId: 'run-2' }));
+    renderWorkspace();
+    const input = await screen.findByRole('textbox', { name: 'Message Veltravia AI' });
+    fireEvent.change(input, { target: { value: 'Summarize the architecture' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    expect(await screen.findByRole('alert')).toBeDefined();
+    // The failure is reported both as a conversation note and in the status
+    // strip - it must never be shown as an assistant answer.
+    expect(screen.getAllByText(/the model could not be reached/i).length).toBeGreaterThanOrEqual(1);
+    // No assistant answer appears for a failed run.
+    expect(
+      screen.queryByText('Veltravia AI is a platform for building software with AI.'),
+    ).toBeNull();
+    // The user's message stays; retry restarts the SAME prompt as a new run.
+    expect(screen.getByText('Summarize the architecture')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+    expect(await screen.findByText(/working…|veltravia ai is a platform/i)).toBeDefined();
+    expect(mockedCreateRun).toHaveBeenCalledTimes(2);
+    expect(mockedCreateRun).toHaveBeenLastCalledWith({
+      agentId: 'agent.demo.answer',
+      task: 'Summarize the architecture',
+      projectId: 'prj-1',
+    });
+  });
+
+  it('shows an honest error when the run cannot be created (no fake answer)', async () => {
+    mockedCreateRun.mockRejectedValue(new ApiError(0, 'NETWORK', 'Cannot reach the service.'));
+    renderWorkspace();
+    const input = await screen.findByRole('textbox', { name: 'Message Veltravia AI' });
+    fireEvent.change(input, { target: { value: 'Anything' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    expect(await screen.findByRole('alert')).toBeDefined();
+    expect(screen.getByText(/was not answered/i)).toBeDefined();
+    expect(
+      screen.queryByText('Veltravia AI is a platform for building software with AI.'),
+    ).toBeNull();
+  });
+
+  it('keeps the composer read-only when no agent is available', async () => {
+    mockedListAgents.mockResolvedValue([]);
+    renderWorkspace();
+    const input = await screen.findByRole('textbox', { name: 'Message Veltravia AI' });
+    expect((input as HTMLTextAreaElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Send message' }).hasAttribute('disabled')).toBe(
+      true,
+    );
+    expect(mockedCreateRun).not.toHaveBeenCalled();
   });
 
   it('contains no credential-shaped values anywhere in the rendered surface', async () => {

@@ -14,7 +14,7 @@ export interface MessageComposerProps {
   disabled?: boolean;
 }
 
-const MAX_LENGTH = 8000;
+const MAX_LENGTH = 4000;
 
 /**
  * The workspace message composer: a multiline input with send affordance.
@@ -86,8 +86,8 @@ export function MessageComposer({ onSend, busy = false, disabled = false }: Mess
         </Button>
       </div>
       <p className="v-composer__hint" id={sendHintId}>
-        Enter to send, Shift+Enter for a new line. AI responses arrive in a later release — your
-        messages are not sent anywhere yet.
+        Enter to send, Shift+Enter for a new line. Your message goes to the Veltravia AI agent for
+        this project.
       </p>
     </form>
   );
