@@ -371,7 +371,9 @@ describe('ProjectWorkspacePage', () => {
     fireEvent.change(input, { target: { value: 'Anything' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
     expect(await screen.findByRole('alert')).toBeDefined();
-    expect(screen.getByText(/was not answered/i)).toBeDefined();
+    // The failure text legitimately appears in BOTH the status strip and
+    // the honest system note - match all occurrences, not just one.
+    expect((await screen.findAllByText(/was not answered/i)).length).toBeGreaterThan(0);
     // The failure is also recorded in the conversation as a system note,
     // so the record survives after the status strip is replaced.
     expect(await screen.findByText(/System/)).toBeDefined();
@@ -388,11 +390,11 @@ describe('ProjectWorkspacePage', () => {
     const input = await screen.findByRole('textbox', { name: 'Message Veltravia AI' });
     fireEvent.change(input, { target: { value: 'Try me' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
-    expect(await screen.findByText(/first failure/i)).toBeDefined();
+    expect((await screen.findAllByText(/first failure/i)).length).toBeGreaterThan(0);
     // Retry the same prompt: the second create failure records its own
     // note with a unique id — no duplicate keys, no lost records.
     fireEvent.click(screen.getByRole('button', { name: /try again/i }));
-    expect(await screen.findByText(/second failure/i)).toBeDefined();
+    expect((await screen.findAllByText(/second failure/i)).length).toBeGreaterThan(0);
     expect(screen.getByText('Try me')).toBeDefined();
   });
 
