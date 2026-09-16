@@ -1,9 +1,10 @@
 /**
  * Workspace conversation models.
  *
- * These types define the SAFE view models the workspace renders. Step 11C-2
- * will map live agent/AI API responses into them; until then the workspace
- * renders only real user input and never fabricates AI output.
+ * These types define the SAFE view models the workspace renders. Live
+ * agent/AI responses are mapped into them by the API layer; the workspace
+ * renders only real user input and backend-confirmed output, and never
+ * fabricates AI content.
  *
  * Trust language: every message carries an explicit ORIGIN. The workspace
  * distinguishes user content, assistant (AI) content, system status, and

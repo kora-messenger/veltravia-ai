@@ -16,24 +16,27 @@ Veltravia AI is an advanced AI software-development platform. The end state is a
 
 The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
 
-## Current state: Step 11C-2 — Web UI: live AI workspace
+## Current state: Step 11C-5 — Web UI: AI workspace phase complete
 
-The 11C-1 workspace shell is now wired to the existing Agent API (Step 6):
-submitting the composer creates a REAL agent run (`POST /api/agents/run`
-with `{ agentId, task, projectId }`), the backend's statuses map to explicit
-UI phases (creating / running / paused-for-confirmation / completed /
-failed / cancelled / limit-reached), non-terminal states are followed with
-bounded polling, cancellation goes through the real cancel endpoint and is
-only claimed after the server confirms it, and a completed run's
-`finalOutput` is appended as the assistant message — never a fabricated
-response. Failed/cancelled/limit-reached runs surface honest notes with a
-"Try again" that starts a NEW run. One active run per workspace conversation
+The per-project AI workspace (11C-1 shell → 11C-2 live runs → 11C-3
+confirmations + tool activity → 11C-4 real project/workspace context →
+11C-5 polish + regression hardening) is complete. Submitting the composer
+creates a REAL agent run (`POST /api/agents/run` with
+`{ agentId, task, projectId, workspaceId }` — association validated
+server-side), the backend's statuses map to explicit UI phases, non-terminal
+states are followed with bounded polling, cancellation goes through the real
+cancel endpoint and is only claimed after the server confirms it, human
+tool confirmations are decided through the confirmation endpoint with the
+Tool System as the sole authority, and a completed run's `finalOutput` is
+appended as the assistant message — never a fabricated response. The
+context panel shows live project/workspace metadata plus the workspace's
+structure-only file tree; tool activity renders backend-confirmed records
+as untrusted data. One active run per workspace conversation
 (generation-token guarded against stale responses). The browser remains a
 pure presentation client: it talks only to the Veltravia API; no provider
 SDK, provider endpoint, credential, or environment read exists in `apps/web`
-source (test-enforced). Activity panels, the file tree, and confirmation
-controls are unchanged and honest (later checkpoints). Settings remains an
-explicit placeholder. Details: `docs/ui.md`.
+source (test-enforced). Settings remains an explicit placeholder. Details:
+`docs/ui.md`.
 
 ## Prior state: Step 11C-1 — Web UI: AI Workspace shell
 

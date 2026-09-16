@@ -65,6 +65,7 @@
 }
 
 .v-workspace-header__name {
+  margin: 0;
   font-size: var(--v-text-sm);
   font-weight: var(--v-weight-semibold);
   color: var(--v-text);
@@ -211,15 +212,12 @@
   font-size: var(--v-text-xs);
   color: var(--v-text-faint);
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 .v-context-files__entry--folder {
   color: var(--v-text-muted);
   font-weight: var(--v-weight-semibold);
 }
-.v-context-files__entry--depth1 {
-  padding-left: var(--v-space-4);
-}
-
 .v-context-files__note {
   font-size: var(--v-text-2xs);
   color: var(--v-text-faint);
@@ -345,7 +343,7 @@
   justify-content: center;
   border-radius: var(--v-radius-md);
   background: linear-gradient(135deg, var(--v-brand-600), var(--v-brand-400));
-  color: #ffffff;
+  color: var(--v-primary-fg);
   font-size: var(--v-text-xl);
   font-weight: var(--v-weight-bold);
 }
@@ -598,6 +596,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
+  right: 0;
   max-width: 85vw;
   width: 20rem;
   background: var(--v-surface);
@@ -605,11 +604,6 @@
   display: flex;
   flex-direction: column;
   animation: v-slide-in var(--v-dur-base) var(--v-ease-out);
-}
-
-.v-wdrawer__panel {
-  right: 0;
-  transform: translateX(0);
 }
 
 .v-wdrawer__header {
@@ -655,6 +649,14 @@
   padding: var(--v-space-3);
 }
 
+/* Reused desktop panels sit flat inside the drawer body (no double
+ * padding/background). */
+.v-wdrawer__body .v-context-panel,
+.v-wdrawer__body .v-activity-panel {
+  padding: 0;
+  background: transparent;
+}
+
 @keyframes v-slide-in {
   from {
     transform: translateX(100%);
@@ -679,8 +681,10 @@
   .v-workspace__body {
     grid-template-columns: minmax(0, 1fr);
   }
-  .v-context-panel,
-  .v-activity-panel {
+  /* Hide only the desktop grid regions - the drawers render their own
+   * copies of these panels, which must stay visible. */
+  .v-workspace__body > .v-context-panel,
+  .v-workspace__body > .v-activity-panel {
     display: none;
   }
   .v-workspace__center {
@@ -711,7 +715,7 @@
   gap: var(--v-space-2);
   max-width: 46rem;
   margin-left: auto;
-  margin-right: var(--v-space-3);
+  margin-right: auto;
   margin-top: var(--v-space-3);
   padding: var(--v-space-2) var(--v-space-3);
   border: 1px solid var(--v-border);
@@ -774,7 +778,7 @@
 .v-confirm-card__eyebrow {
   margin: 0;
   font-size: var(--v-text-2xs);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--v-weight-semibold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--v-warning);
@@ -783,7 +787,7 @@
 .v-confirm-card__title {
   margin: 0;
   font-size: var(--v-text-md);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--v-weight-semibold);
   color: var(--v-text);
 }
 
@@ -812,7 +816,7 @@
 
 .v-confirm-card__risk {
   font-size: var(--v-text-2xs);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--v-weight-semibold);
   padding: 0.15rem 0.5rem;
   border-radius: var(--v-radius-full);
   background: var(--v-surface-muted);
@@ -840,6 +844,7 @@
 .v-confirm-card__actions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: var(--v-space-2);
 }
 

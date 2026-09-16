@@ -1,4 +1,4 @@
-# Web UI (Steps 11A + 11B + 11C-1 … 11C-4: live AI workspace with real project context)
+# Web UI (Steps 11A + 11B + 11C-1 … 11C-5: live AI workspace with real project context)
 
 The `apps/web` package hosts the Veltravia AI product UI. Step 11A
 establishes the design system, the reusable component library, the
@@ -334,3 +334,50 @@ through the Agent API:
   `apps/web/src/security/workspace-boundary.test.ts`). The browser
   displays structure the server already validated; it never constructs,
   normalizes, or re-sends paths of its own.
+
+## Workspace polish + regression hardening (Step 11C-5)
+
+The final sub-step of the AI Workspace UI phase. No new capability was
+introduced — this pass audited the complete 11C-1…11C-4 surface and fixed
+correctness, consistency, accessibility, and responsive issues found
+during the audit:
+
+- **Broken token references.** Three `font-weight: var(--weight-semibold)`
+  rules in `workspace.css` pointed at a token that does not exist
+  (`--v-weight-semibold` is the real one) and silently did nothing —
+  fixed. The intro logo's hardcoded `#ffffff` now uses the semantic
+  `--v-primary-fg` (correct in dark mode). Dead CSS (an unused
+  file-tree depth class, a duplicated drawer rule) was removed.
+- **Stale copy.** The paused-run strip claimed "Confirmation controls
+  are not part of this workspace release yet" — false since 11C-3. It
+  now points at the real approval card below it. Stale Step 11C-1/2
+  "structure only / not wired yet" comments were updated to match the
+  live workspace.
+- **Announcements.** The conversation list is a `role="log"` polite
+  live region: appended user/assistant/system messages are announced
+  to assistive tech WITHOUT stealing focus from the composer. The
+  center column carries `aria-busy` while a run is active.
+- **Honest error records.** When a run cannot even be created (network
+  failure), the conversation now keeps a SYSTEM note with the safe
+  failure text (unique per retry, monotonic ids), so the record
+  survives after the status strip is replaced. As everywhere, the text
+  is safe client-side copy; nothing is fabricated.
+- **Layout & responsive.** The run-status strip is centered with the
+  conversation column (it previously hugged the right edge). Long file
+  paths in the structure-only tree and long tool results wrap
+  (`overflow-wrap: anywhere`) instead of overflowing. Confirmation
+  action buttons wrap on narrow viewports. The workspace header's
+  project name is a real `<h2>` (heading hierarchy: shell `<h1>` →
+  workspace `<h2>` → panel `<h3>`s), with UA margins reset.
+- **Empty mobile drawers (real bug).** The ≤900px media query hid
+  `.v-context-panel` / `.v-activity-panel` unconditionally — including
+  the DRAWERS' copies of those panels, so the mobile context/activity
+  drawers opened empty. The hide is now scoped to the desktop grid
+  children (`.v-workspace__body > …`), and the drawer copies sit flat
+  (no double padding/background).
+- **No regression in the trust boundaries.** No data flow changed: the
+  same endpoints, the same server-authoritative states, the same
+  untrusted-data treatment (see `docs/security.md` §5h rules 18–22).
+
+Real-time streaming updates may be introduced in a later infrastructure
+phase; the current implementation remains bounded polling.

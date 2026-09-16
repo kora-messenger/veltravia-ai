@@ -3,9 +3,9 @@ import { Button } from '../../components/ui';
 
 export interface MessageComposerProps {
   /**
-   * Called with the trimmed message when the user submits. NOT wired to any
-   * API in this checkpoint — the parent decides what happens (Step 11C-2
-   * will connect this to the agent API).
+   * Called with the trimmed message when the user submits. The composer is
+   * purely local: the parent page owns what happens (it starts the real
+   * agent run through the Agent API).
    */
   onSend(text: string): void;
   /** Disables input while a future operation is in flight. */

@@ -81,12 +81,10 @@ describe('RunStatus', () => {
     expect(screen.getByRole('button', { name: /cancel run/i })).toBeDefined();
   });
 
-  it('shows the paused state honestly (no fake confirmation controls)', () => {
+  it('shows the paused state honestly and points at the approval card', () => {
     renderStatus({ phase: 'paused' });
     expect(screen.getByText(/waiting for a required confirmation/i)).toBeDefined();
-    expect(
-      screen.getByText(/confirmation controls are not part of this workspace release/i),
-    ).toBeDefined();
+    expect(screen.getByText(/approve or reject the request below/i)).toBeDefined();
     expect(screen.getByRole('button', { name: /cancel run/i })).toBeDefined();
   });
 

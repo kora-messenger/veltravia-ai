@@ -43,7 +43,12 @@ export function ConversationArea({ messages, children }: ConversationAreaProps) 
 
   return (
     <div className="v-conversation" aria-label="Conversation">
-      <ol className="v-conversation__list" role="list">
+      {/*
+       * role="log" makes the conversation a polite live region: appended
+       * user/assistant/system messages are announced to assistive tech as
+       * they arrive, without stealing focus from the composer.
+       */}
+      <ol className="v-conversation__list" role="log" aria-label="Conversation messages">
         {messages.map((message) => (
           <MessageRow key={message.id} message={message} />
         ))}

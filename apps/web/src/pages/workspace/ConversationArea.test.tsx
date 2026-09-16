@@ -38,9 +38,11 @@ describe('ConversationArea', () => {
     expect(screen.getByText(/veltravia plans the work/i)).toBeDefined();
   });
 
-  it('renders messages as a list with accessible roles', () => {
+  it('renders messages as a polite log region with accessible rows', () => {
     render(<ConversationArea messages={FIXTURE_MESSAGES} />);
-    expect(screen.getByRole('list')).toBeDefined();
+    // role="log" is a polite live region: appended messages are announced
+    // to assistive tech without stealing focus.
+    expect(screen.getByRole('log', { name: 'Conversation messages' })).toBeDefined();
     expect(screen.getAllByRole('listitem').length).toBe(4);
   });
 

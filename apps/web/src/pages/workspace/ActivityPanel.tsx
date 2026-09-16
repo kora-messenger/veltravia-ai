@@ -77,8 +77,8 @@ function ActivityList({ entries }: { entries: readonly ActivityEntryView[] }) {
 
 /**
  * Right workspace panel: the live record of what the agent and its tools
- * are doing. In this checkpoint it is an honest empty state — no fake
- * activity is ever rendered.
+ * are doing. Entries come only from backend-confirmed run state — no
+ * fake activity is ever rendered, and tool output stays untrusted data.
  */
 export function ActivityPanel({ agentEntries, toolEntries }: ActivityPanelProps) {
   return (

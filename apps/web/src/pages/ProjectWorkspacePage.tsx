@@ -48,13 +48,13 @@ async function loadWorkspaceDetail(projectId: string): Promise<WorkspaceDetail> 
 }
 
 /**
- * The AI Workspace shell for one project (Step 11C-1).
+ * The AI Workspace page for one project (Steps 11C-1 … 11C-5).
  *
- * STRUCTURE ONLY: the three-panel layout, conversation surface, composer,
- * and activity panels exist; live AI interaction, the file tree, tools,
- * and the coding agent arrive in later checkpoints and are never
- * simulated here. The only backend calls are the existing safe
- * project/workspace reads needed to identify this project.
+ * Three live regions: project/workspace context (structure only, never
+ * file contents), the conversation + composer (real agent runs through
+ * the Agent API, human confirmations), and agent/tool activity (backend-
+ * confirmed records rendered as untrusted data). Nothing here simulates
+ * backend behavior: every state comes from the server.
  */
 export function ProjectWorkspacePage({ projectId }: { projectId: string | null }) {
   const resource = useAsyncResource(async () => loadWorkspaceDetail(projectId ?? ''), [projectId]);
@@ -83,9 +83,12 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
 
   // Appends the run's real outcome to the conversation exactly once per
   // run: the assistant answer on completion, an honest system note on
-  // cancelled/failed/limit-reached. Nothing is invented here — the text
+  // cancelled/failed/limit-reached, and a system note when the run could
+  // not be created at all (there is no run id for those, so a per-attempt
+  // counter keeps the record unique). Nothing is invented here — the text
   // comes from the backend-confirmed run state.
   const settledRunIdRef = useRef<string | null>(null);
+  const errorNoteCountRef = useRef(0);
   useEffect(() => {
     const { phase, runId, finalOutput, failureMessage } = run.state;
     if (phase === 'completed' && runId !== null && finalOutput !== null) {
@@ -94,6 +97,23 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
       setMessages((previous) => [
         ...previous,
         { id: `run-${runId}`, origin: 'assistant', text: finalOutput, timestamp: null },
+      ]);
+      return;
+    }
+    if (phase === 'error' && runId === null) {
+      // The run could not be created: record an honest system note. The
+      // monotonic counter guarantees unique ids across retries (the
+      // error phase is stable per attempt, so this records once).
+      errorNoteCountRef.current += 1;
+      const attempt = errorNoteCountRef.current;
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: `error-${attempt}`,
+          origin: 'system',
+          text: failureMessage ?? 'Your message could not be sent.',
+          timestamp: null,
+        },
       ]);
       return;
     }
@@ -198,7 +218,7 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
           onSelectWorkspace={onSelectWorkspace}
         />
 
-        <div className="v-workspace__center">
+        <div className="v-workspace__center" aria-busy={runBusy}>
           <ConversationArea messages={messages}>
             <RunStatus
               state={run.state}

@@ -372,9 +372,40 @@ describe('ProjectWorkspacePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
     expect(await screen.findByRole('alert')).toBeDefined();
     expect(screen.getByText(/was not answered/i)).toBeDefined();
+    // The failure is also recorded in the conversation as a system note,
+    // so the record survives after the status strip is replaced.
+    expect(await screen.findByText(/System/)).toBeDefined();
     expect(
       screen.queryByText('Veltravia AI is a platform for building software with AI.'),
     ).toBeNull();
+  });
+
+  it('keeps a unique system note per failed create, across retries', async () => {
+    mockedCreateRun
+      .mockRejectedValueOnce(new ApiError(0, 'NETWORK', 'First failure.'))
+      .mockRejectedValueOnce(new ApiError(0, 'NETWORK', 'Second failure.'));
+    renderWorkspace();
+    const input = await screen.findByRole('textbox', { name: 'Message Veltravia AI' });
+    fireEvent.change(input, { target: { value: 'Try me' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    expect(await screen.findByText(/first failure/i)).toBeDefined();
+    // Retry the same prompt: the second create failure records its own
+    // note with a unique id — no duplicate keys, no lost records.
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+    expect(await screen.findByText(/second failure/i)).toBeDefined();
+    expect(screen.getByText('Try me')).toBeDefined();
+  });
+
+  it('announces conversation additions without stealing focus (role=log)', async () => {
+    renderWorkspace();
+    const input = await screen.findByRole('textbox', { name: 'Message Veltravia AI' });
+    fireEvent.change(input, { target: { value: 'Explain the log region' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    expect(await screen.findByRole('log', { name: 'Conversation messages' })).toBeDefined();
+    // The composer keeps focus while the assistant answer arrives.
+    expect(
+      await screen.findByText('Veltravia AI is a platform for building software with AI.'),
+    ).toBeDefined();
   });
 
   it('keeps the composer read-only when no agent is available', async () => {

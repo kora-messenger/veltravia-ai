@@ -51,7 +51,7 @@ export function RunStatus({ state, onRetry, onCancel, onRefresh }: RunStatusProp
         <span className="v-run-status__label">
           {'Paused — this run is waiting for a required confirmation.'}
           <span className="v-run-status__hint">
-            Confirmation controls are not part of this workspace release yet.
+            Approve or reject the request below. The run stays paused until you decide.
           </span>
         </span>
         <Button variant="secondary" size="sm" onClick={onCancel}>

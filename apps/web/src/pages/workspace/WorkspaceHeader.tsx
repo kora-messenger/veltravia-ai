@@ -26,7 +26,8 @@ export function WorkspaceHeader({ project, onOpenContext, onOpenActivity }: Work
         >
           ← Project
         </button>
-        <span className="v-workspace-header__name">{project.name}</span>
+        {/* The workspace's page-level heading; panel sections are h3s. */}
+        <h2 className="v-workspace-header__name">{project.name}</h2>
         <ProjectStatusBadge status={project.status} />
       </div>
       <div className="v-workspace-header__panel-actions">
