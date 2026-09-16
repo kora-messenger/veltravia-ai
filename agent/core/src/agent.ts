@@ -51,6 +51,8 @@ export interface AgentRequest {
   readonly task: string;
   readonly sessionId?: string;
   readonly projectId?: string;
+  /** The workspace the run is associated with (validated by the API layer). */
+  readonly workspaceId?: string;
   readonly userId?: string;
   /** Restricts the tool ids the agent may see and request (Tool System still decides execution). */
   readonly toolFilter?: readonly string[];
@@ -58,6 +60,13 @@ export interface AgentRequest {
   readonly limits?: AgentExecutionLimitsInput;
   /** Plain, size-capped metadata. Secret-shaped values are rejected. */
   readonly metadata?: Readonly<Record<string, unknown>>;
+  /**
+   * Server-derived project/workspace context (safe metadata only, never
+   * file contents). Enters the decision context as UNTRUSTED PROJECT DATA -
+   * project text never gains instruction authority. Size-capped and
+   * secret-scanned like metadata.
+   */
+  readonly projectContext?: Readonly<Record<string, unknown>>;
 }
 
 /** Safe agent response: normalized information only, never chain-of-thought. */
@@ -133,6 +142,9 @@ export interface AgentRunContext {
   readonly now: () => Date;
 }
 
+/** Maximum serialized size of the server-derived project context. */
+export const AGENT_PROJECT_CONTEXT_MAX_SERIALIZED = 8000;
+
 /** Validates an AgentRequest. Rejects empty tasks, oversized fields, and secret-shaped metadata. */
 export function validateAgentRequest(request: AgentRequest): void {
   const reasons: string[] = [];
@@ -144,6 +156,7 @@ export function validateAgentRequest(request: AgentRequest): void {
   for (const [field, value] of [
     ['sessionId', request.sessionId],
     ['projectId', request.projectId],
+    ['workspaceId', request.workspaceId],
     ['userId', request.userId],
   ] as const) {
     if (value !== undefined && (typeof value !== 'string' || value.length > 128)) {
@@ -165,6 +178,26 @@ export function validateAgentRequest(request: AgentRequest): void {
       reasons.push('metadata exceeds the maximum serialized size');
     } else if (serialized !== undefined && scrubAgentSecrets(serialized) !== serialized) {
       reasons.push('metadata must not contain secret-shaped values');
+    }
+  }
+  if (request.projectContext !== undefined) {
+    const serializedContext = JSON.stringify(request.projectContext);
+    if (
+      request.projectContext === null ||
+      Array.isArray(request.projectContext) ||
+      typeof request.projectContext !== 'object'
+    ) {
+      reasons.push('projectContext must be a plain object');
+    } else if (
+      serializedContext !== undefined &&
+      serializedContext.length > AGENT_PROJECT_CONTEXT_MAX_SERIALIZED
+    ) {
+      reasons.push('projectContext exceeds the maximum serialized size');
+    } else if (
+      serializedContext !== undefined &&
+      scrubAgentSecrets(serializedContext) !== serializedContext
+    ) {
+      reasons.push('projectContext must not contain secret-shaped values');
     }
   }
   if (reasons.length > 0) {
@@ -458,6 +491,9 @@ export class DefaultAgent implements Agent {
       .filter((tool) => request.toolFilter === undefined || request.toolFilter.includes(tool.id))
       .map((tool) => toAgentToolMetadata(tool, this.tools.getAvailability(tool.id)));
     return buildAgentContext({
+      ...(request.projectContext !== undefined
+        ? { projectContext: JSON.stringify(request.projectContext) }
+        : {}),
       systemInstructions: buildSystemInstructions({
         availableToolCount: tools.length,
         remainingIterations: Math.max(0, context.limits.maxIterations - snapshot.iteration),

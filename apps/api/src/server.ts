@@ -83,7 +83,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Agent execution endpoints: bounded runs, confirmation flow, cancellation.
   // Responses carry safe normalized state only - never chain-of-thought.
   const agents = options.agents ?? createAgentManager();
-  registerAgentRoutes(app, agents);
+  // The agent routes get the Project Engine so every run's project/workspace
+  // association is resolved and validated server-side (Step 11C-4): the
+  // browser's identifiers are never trusted, and the derived context is
+  // bounded safe metadata + tree structure - never file contents.
+  registerAgentRoutes(app, agents, projectEngine);
 
   // Project & Workspace Engine: safe project/workspace/file management over
   // in-memory repositories. No filesystem, execution, connector, or GitHub

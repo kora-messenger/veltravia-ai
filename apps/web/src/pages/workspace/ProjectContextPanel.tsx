@@ -1,13 +1,17 @@
-import { Badge } from '../../components/ui';
+import { Badge, Select } from '../../components/ui';
 import { formatTimestamp } from '../../api/projects';
 import type { ProjectView } from '../../api/projects';
 import type { WorkspaceView } from '../../api/workspaces';
 import { ProjectStatusBadge } from '../projects/ProjectStatusBadge';
+import { WorkspaceFileTree } from './WorkspaceFileTree';
 
 export interface ProjectContextPanelProps {
   project: ProjectView;
-  /** The project's workspaces; the workspace surface uses the first active one. */
+  /** The project's workspaces (already scoped to this project by the API). */
   workspaces: readonly WorkspaceView[];
+  /** The selected workspace id - the context the AI runs against. */
+  selectedWorkspaceId: string | null;
+  onSelectWorkspace: (workspaceId: string) => void;
 }
 
 const WORKSPACE_STATUS_TONE: Record<WorkspaceView['status'], 'success' | 'warning' | 'neutral'> = {
@@ -23,34 +27,22 @@ const WORKSPACE_STATUS_LABEL: Record<WorkspaceView['status'], string> = {
 };
 
 /**
- * File-tree illustration. This is deliberately NOT live data — the real
- * Project Engine file tree is wired in a later checkpoint. The caption says
- * so, and the tree is static markup (no fake API behind it).
+ * Left workspace panel: the real identity and context of the project
+ * being worked on (Step 11C-4) — live project metadata, the selected
+ * workspace, and the workspace's actual file tree. Everything here is
+ * read-only context; nothing in this panel mutates the project.
  */
-function FileTreePreview() {
-  return (
-    <div className="v-context-files">
-      <div className="v-context-files__tree" aria-hidden="true">
-        <span className="v-context-files__entry v-context-files__entry--folder">src/</span>
-        <span className="v-context-files__entry v-context-files__entry--depth1">components/</span>
-        <span className="v-context-files__entry v-context-files__entry--depth1">index.ts</span>
-        <span className="v-context-files__entry">package.json</span>
-        <span className="v-context-files__entry">README.md</span>
-      </div>
-      <p className="v-context-files__note">
-        Illustration only — your project&rsquo;s real files appear here once the file engine is
-        connected in a later release.
-      </p>
-    </div>
-  );
-}
-
-/**
- * Left workspace panel: the identity and context of the project being
- * worked on — project, workspace, and (later) its file tree.
- */
-export function ProjectContextPanel({ project, workspaces }: ProjectContextPanelProps) {
-  const workspace = workspaces.find((item) => item.status === 'active') ?? workspaces[0] ?? null;
+export function ProjectContextPanel({
+  project,
+  workspaces,
+  selectedWorkspaceId,
+  onSelectWorkspace,
+}: ProjectContextPanelProps) {
+  const workspace =
+    workspaces.find((item) => item.id === selectedWorkspaceId) ??
+    workspaces.find((item) => item.status === 'active') ??
+    workspaces[0] ??
+    null;
 
   return (
     <nav className="v-context-panel" aria-label="Project context">
@@ -82,14 +74,32 @@ export function ProjectContextPanel({ project, workspaces }: ProjectContextPanel
         </h3>
         <div className="v-context-section__body">
           {workspace === null ? (
-            <p className="v-context-empty">No workspace yet. Create one from the project page.</p>
+            <p className="v-context-empty">
+              No workspace yet. AI runs in this project work without workspace context until one is
+              created from the project page.
+            </p>
           ) : (
             <>
+              {workspaces.length > 1 && (
+                <Select
+                  className="v-context-workspace-picker"
+                  label="Workspace"
+                  hint="Which workspace's context the AI runs against."
+                  value={workspace.id}
+                  options={workspaces.map((item) => ({ value: item.id, label: item.name }))}
+                  onChange={(event) => onSelectWorkspace(event.target.value)}
+                />
+              )}
               <p className="v-context-project__name">{workspace.name}</p>
               <Badge tone={WORKSPACE_STATUS_TONE[workspace.status]}>
                 {WORKSPACE_STATUS_LABEL[workspace.status]}
               </Badge>
               <p className="v-context-meta__item">Created {formatTimestamp(workspace.createdAt)}</p>
+              <p className="v-context-meta__item">
+                {workspaces.length > 1
+                  ? 'New conversations use the selected workspace.'
+                  : 'This workspace is the context for AI runs.'}
+              </p>
             </>
           )}
         </div>
@@ -99,7 +109,7 @@ export function ProjectContextPanel({ project, workspaces }: ProjectContextPanel
         <h3 className="v-context-section__title" id="v-context-files-heading">
           Files
         </h3>
-        <FileTreePreview />
+        <WorkspaceFileTree workspaceId={workspace === null ? null : workspace.id} />
       </section>
     </nav>
   );

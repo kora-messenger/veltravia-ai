@@ -139,6 +139,30 @@ This is deliberately an architectural boundary, not a complete prompt-injection 
 15. Hidden chain-of-thought is never exposed or persisted (decisions carry concise summaries only).
 16. Secrets never enter agent state or audit logs (scrubbed; secret-shaped request metadata is rejected outright).
 
+## Project/workspace run context (Step 11C-4)
+
+A run may carry `projectId` and `workspaceId` identifiers. They are
+resolved SERVER-SIDE against the Project Engine: unknown ids are 404s, a
+workspace belonging to another project is a 400, and a `workspaceId`
+without a `projectId` is rejected (no unchecked association). The browser
+is never trusted to supply association data.
+
+From the validated pair the API derives a bounded, safe context and
+delivers it as an explicit `project_context` block inside the run
+request:
+
+- project identity (id, name, description (length-capped), status,
+  project type) and workspace identity (id, name, status, revision)
+- the workspace's file tree as STRUCTURE ONLY (relative path + node
+  type, capped node count with honest `total`/`included`/`truncated`
+  flags, and shrunk further to fit the request's serialized-size ceiling)
+- NO file contents, NO owner refs, NO root URIs, NO credentials.
+
+The block is trust-tagged UNTRUSTED DATA and framed as "not an
+instruction": hostile project text reaches the model as inert data and
+can never change the system prompt or grant authority. Like every agent
+input it is secret-scanned and size-capped before the loop begins.
+
 ## API (development-only)
 
 | Endpoint                                    | Purpose                                          |

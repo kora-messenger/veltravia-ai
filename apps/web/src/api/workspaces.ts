@@ -68,3 +68,51 @@ export async function createWorkspace(
   );
   return toWorkspaceView(payload, 'workspace create');
 }
+
+// -----------------------------------------------------------------
+// Step 11C-4: project/workspace context (read-only).
+// -----------------------------------------------------------------
+
+export type TreeNodeType = 'file' | 'directory';
+
+/**
+ * Safe file-tree node: relative path + node type (+ revision for display).
+ * Contents are NEVER fetched by this surface - the workspace context is
+ * structural metadata only.
+ */
+export interface FileTreeView {
+  readonly path: string;
+  readonly name: string;
+  readonly type: TreeNodeType;
+}
+
+const NODE_TYPES: readonly TreeNodeType[] = ['file', 'directory'];
+
+function toFileTreeView(raw: unknown, source: string): FileTreeView {
+  if (typeof raw !== 'object' || raw === null) {
+    throw new Error(`Invalid file tree payload from ${source}`);
+  }
+  const record = raw as Record<string, unknown>;
+  const { path, name, type } = record;
+  if (typeof path !== 'string' || path.length === 0 || typeof name !== 'string') {
+    throw new Error(`Invalid file tree payload from ${source}`);
+  }
+  if (!NODE_TYPES.includes(type as TreeNodeType)) {
+    throw new Error(`Invalid file tree payload from ${source}`);
+  }
+  return { path, name, type: type as TreeNodeType };
+}
+
+/** The workspace's file tree (structural metadata only, never contents). */
+export async function getWorkspaceTree(workspaceId: string): Promise<readonly FileTreeView[]> {
+  const payload = await apiRequest<unknown>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/tree`,
+  );
+  const body = (typeof payload === 'object' && payload !== null ? payload : {}) as {
+    readonly nodes?: unknown;
+  };
+  if (!Array.isArray(body.nodes)) {
+    throw new Error('Invalid file tree payload from workspace tree');
+  }
+  return body.nodes.map((node) => toFileTreeView(node, 'workspace tree'));
+}

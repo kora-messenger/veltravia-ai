@@ -1,10 +1,15 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { ProjectContextPanel } from './ProjectContextPanel';
+import { getWorkspaceTree } from '../../api/workspaces';
 import type { ProjectView } from '../../api/projects';
 import type { WorkspaceView } from '../../api/workspaces';
+
+vi.mock('../../api/workspaces', () => ({
+  getWorkspaceTree: vi.fn(),
+}));
 
 afterEach(() => cleanup());
 
@@ -35,8 +40,17 @@ function workspace(overrides: Partial<WorkspaceView> = {}): WorkspaceView {
 }
 
 describe('ProjectContextPanel', () => {
-  it('shows project identity, status, and workspace identity', () => {
-    render(<ProjectContextPanel project={project()} workspaces={[workspace()]} />);
+  it('shows project identity, status, and workspace identity', async () => {
+    vi.mocked(getWorkspaceTree).mockResolvedValue([]);
+    render(
+      <ProjectContextPanel
+        project={project()}
+        workspaces={[workspace()]}
+        selectedWorkspaceId="ws-1"
+        onSelectWorkspace={() => {}}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText(/No files yet/i)).toBeDefined());
     expect(screen.getAllByText('Alpha').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Main').length).toBeGreaterThan(0);
     expect(screen.getByRole('heading', { name: 'Project' })).toBeDefined();
@@ -44,9 +58,49 @@ describe('ProjectContextPanel', () => {
     expect(screen.getByRole('heading', { name: 'Files' })).toBeDefined();
   });
 
-  it('clearly marks the file tree as an illustration, not live files', () => {
-    render(<ProjectContextPanel project={project()} workspaces={[workspace()]} />);
-    expect(screen.getByText(/illustration only/i)).toBeDefined();
+  it('renders the real file tree from the workspace API', async () => {
+    vi.mocked(getWorkspaceTree).mockResolvedValue([
+      { path: 'README.md', name: 'README.md', type: 'file' },
+      { path: 'src', name: 'src', type: 'directory' },
+      { path: 'src/index.ts', name: 'index.ts', type: 'file' },
+    ]);
+    render(
+      <ProjectContextPanel
+        project={project()}
+        workspaces={[workspace()]}
+        selectedWorkspaceId="ws-1"
+        onSelectWorkspace={() => {}}
+      />,
+    );
+    expect(await screen.findByText('README.md')).toBeDefined();
+    expect(screen.getByText('src/')).toBeDefined();
+    expect(screen.getByText('index.ts')).toBeDefined();
+  });
+
+  it('shows an honest tree error state with retry', async () => {
+    vi.mocked(getWorkspaceTree).mockRejectedValue(new Error('offline'));
+    render(
+      <ProjectContextPanel
+        project={project()}
+        workspaces={[workspace()]}
+        selectedWorkspaceId="ws-1"
+        onSelectWorkspace={() => {}}
+      />,
+    );
+    expect(await screen.findByText(/Files unavailable/i)).toBeDefined();
+  });
+
+  it('offers a workspace picker when the project has several workspaces', () => {
+    vi.mocked(getWorkspaceTree).mockResolvedValue([]);
+    render(
+      <ProjectContextPanel
+        project={project()}
+        workspaces={[workspace(), workspace({ id: 'ws-2', name: 'Second' })]}
+        selectedWorkspaceId="ws-1"
+        onSelectWorkspace={() => {}}
+      />,
+    );
+    expect(screen.getByRole('combobox', { name: /workspace/i })).toBeDefined();
   });
 
   it('explains when the project has no workspace yet', () => {

@@ -60,7 +60,7 @@ function pending(overrides: Partial<PendingConfirmationView> = {}): PendingConfi
 }
 
 function useHook(agentId: string | null = 'agent.demo.answer') {
-  return renderHook(() => useAgentRun({ agentId, projectId: 'prj-1' }));
+  return renderHook(() => useAgentRun({ agentId, projectId: 'prj-1', workspaceId: 'ws-1' }));
 }
 
 const FLUSH = () => act(async () => {});
@@ -107,6 +107,7 @@ describe('useAgentRun', () => {
       agentId: 'agent.demo.answer',
       task: 'Explain the project',
       projectId: 'prj-1',
+      workspaceId: 'ws-1',
     });
     expect(result.current.state.phase).toBe('completed');
     expect(result.current.state.finalOutput).toBe('The answer.');
@@ -538,6 +539,7 @@ describe('useAgentRun', () => {
         agentId: 'agent.demo.answer',
         task: 'Same prompt',
         projectId: 'prj-1',
+        workspaceId: 'ws-1',
       });
       expect(result.current.state.runId).toBe('run-2');
       expect(result.current.state.phase).toBe('completed');
@@ -743,5 +745,45 @@ describe('useAgentRun', () => {
     });
     expect(mockedGet).not.toHaveBeenCalled();
     expect(result.current.state.phase).toBe('failed');
+  });
+});
+
+describe('useAgentRun - project/workspace association (11C-4)', () => {
+  it('sends both the project and workspace ids with the run request', async () => {
+    const hook = useHook();
+    act(() => hook.result.current.start('hello'));
+    await FLUSH();
+    expect(mockedCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: 'prj-1', workspaceId: 'ws-1' }),
+    );
+  });
+
+  it('omits the workspace id when none is selected', async () => {
+    const hook = renderHook(() =>
+      useAgentRun({ agentId: 'agent.demo.answer', projectId: 'prj-1', workspaceId: null }),
+    );
+    act(() => hook.result.current.start('hello'));
+    await FLUSH();
+    const request = mockedCreate.mock.calls[0]?.[0];
+    expect(request?.projectId).toBe('prj-1');
+    expect('workspaceId' in (request ?? {})).toBe(false);
+  });
+
+  it('a run started before a workspace switch keeps its original ids', async () => {
+    const hook = renderHook(
+      ({ workspaceId }: { workspaceId: string | null }) =>
+        useAgentRun({ agentId: 'agent.demo.answer', projectId: 'prj-1', workspaceId }),
+      { initialProps: { workspaceId: 'ws-1' as string | null } },
+    );
+    act(() => hook.result.current.start('hello'));
+    await FLUSH();
+    expect(mockedCreate).toHaveBeenLastCalledWith(expect.objectContaining({ workspaceId: 'ws-1' }));
+    // User switches the workspace AFTER the run started: the in-flight run
+    // is untouched; only the NEXT run uses the new workspace.
+    act(() => hook.rerender({ workspaceId: 'ws-2' }));
+    act(() => hook.result.current.start('second'));
+    await FLUSH();
+    expect(mockedCreate).toHaveBeenLastCalledWith(expect.objectContaining({ workspaceId: 'ws-2' }));
+    expect(mockedCreate).toHaveBeenCalledTimes(2);
   });
 });

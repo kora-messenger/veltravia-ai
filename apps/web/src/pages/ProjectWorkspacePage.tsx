@@ -62,12 +62,24 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
   const { toast } = useToast();
   const [messages, setMessages] = useState<readonly WorkspaceMessageView[]>([]);
   const [chosenAgentId, setChosenAgentId] = useState<string | null>(null);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [contextDrawerOpen, setContextDrawerOpen] = useState(false);
   const [activityDrawerOpen, setActivityDrawerOpen] = useState(false);
 
   const agents = agentsResource.state === 'ready' ? agentsResource.data : null;
   const agentId = chosenAgentId ?? (agents !== null ? selectAgent(agents) : null);
-  const run = useAgentRun({ agentId, projectId });
+
+  // Default to the first active workspace once the workspaces are known.
+  // Runs started BEFORE a switch keep their original association (each run
+  // pins its ids server-side); only NEW runs use the new selection.
+  useEffect(() => {
+    if (selectedWorkspaceId !== null || resource.state !== 'ready') return;
+    const workspaces = resource.data?.workspaces ?? [];
+    const preferred = workspaces.find((item) => item.status === 'active') ?? workspaces[0];
+    if (preferred !== undefined) setSelectedWorkspaceId(preferred.id);
+  }, [resource.state, resource.data, selectedWorkspaceId]);
+
+  const run = useAgentRun({ agentId, projectId, workspaceId: selectedWorkspaceId });
 
   // Appends the run's real outcome to the conversation exactly once per
   // run: the assistant answer on completion, an honest system note on
@@ -116,6 +128,10 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
     },
     [agentId, run, toast],
   );
+
+  const onSelectWorkspace = useCallback((workspaceId: string) => {
+    setSelectedWorkspaceId(workspaceId);
+  }, []);
 
   const closeContextDrawer = useCallback(() => setContextDrawerOpen(false), []);
   const closeActivityDrawer = useCallback(() => setActivityDrawerOpen(false), []);
@@ -175,7 +191,12 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
       />
 
       <div className="v-workspace__body">
-        <ProjectContextPanel project={project} workspaces={workspaces} />
+        <ProjectContextPanel
+          project={project}
+          workspaces={workspaces}
+          selectedWorkspaceId={selectedWorkspaceId}
+          onSelectWorkspace={onSelectWorkspace}
+        />
 
         <div className="v-workspace__center">
           <ConversationArea messages={messages}>
@@ -219,7 +240,12 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
         onClose={closeContextDrawer}
         label={`${project.name} context`}
       >
-        <ProjectContextPanel project={project} workspaces={workspaces} />
+        <ProjectContextPanel
+          project={project}
+          workspaces={workspaces}
+          selectedWorkspaceId={selectedWorkspaceId}
+          onSelectWorkspace={onSelectWorkspace}
+        />
       </WorkspaceDrawer>
 
       <WorkspaceDrawer open={activityDrawerOpen} onClose={closeActivityDrawer} label="Activity">

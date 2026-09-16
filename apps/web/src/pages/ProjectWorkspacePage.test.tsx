@@ -6,7 +6,7 @@ import { ThemeProvider } from '../theme/ThemeProvider';
 import { ToastProvider } from '../components/ui';
 import { ProjectWorkspacePage } from './ProjectWorkspacePage';
 import { getProject, type ProjectView } from '../api/projects';
-import { listWorkspaces, type WorkspaceView } from '../api/workspaces';
+import { getWorkspaceTree, listWorkspaces, type WorkspaceView } from '../api/workspaces';
 import { ApiError } from '../api/client';
 import {
   cancelAgentRun,
@@ -25,6 +25,7 @@ vi.mock('../api/projects', () => ({
 vi.mock('../api/workspaces', () => ({
   listWorkspaces: vi.fn(),
   createWorkspace: vi.fn(),
+  getWorkspaceTree: vi.fn(),
 }));
 
 vi.mock('../api/agents', async (importOriginal) => {
@@ -41,6 +42,7 @@ vi.mock('../api/agents', async (importOriginal) => {
 
 const mockedGetProject = vi.mocked(getProject);
 const mockedListWorkspaces = vi.mocked(listWorkspaces);
+const mockedGetTree = vi.mocked(getWorkspaceTree);
 const mockedListAgents = vi.mocked(listAgents);
 const mockedCreateRun = vi.mocked(createAgentRun);
 const mockedCancelRun = vi.mocked(cancelAgentRun);
@@ -103,6 +105,10 @@ beforeEach(() => {
   window.fetch = vi.fn();
   mockedGetProject.mockResolvedValue(project());
   mockedListWorkspaces.mockResolvedValue([workspace()]);
+  mockedGetTree.mockResolvedValue([
+    { path: 'README.md', name: 'README.md', type: 'file' },
+    { path: 'src', name: 'src', type: 'directory' },
+  ]);
   mockedListAgents.mockResolvedValue([
     { id: 'agent.demo.answer', displayName: 'Demo Answer Agent', description: 'd' },
     { id: 'agent.demo.confirm', displayName: 'Demo Confirmation Agent', description: 'd' },
@@ -133,9 +139,13 @@ describe('ProjectWorkspacePage', () => {
     expect(screen.getAllByText('Main').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('labels the file tree as an illustration, not live files', async () => {
+  it('renders the real file tree for the selected workspace (11C-4)', async () => {
     renderWorkspace();
-    expect(await screen.findByText(/illustration only/i)).toBeDefined();
+    // Live structural metadata from the workspace API - no illustration
+    // caption, never file contents.
+    expect(await screen.findByText('README.md')).toBeDefined();
+    expect(screen.getByText('src/')).toBeDefined();
+    expect(screen.queryByText(/illustration only/i)).toBeNull();
   });
 
   it('shows a loading state while the project loads', () => {
@@ -179,6 +189,7 @@ describe('ProjectWorkspacePage', () => {
       agentId: 'agent.demo.answer',
       task: 'Explain this project',
       projectId: 'prj-1',
+      workspaceId: 'ws-1',
     });
     // The backend's actual answer appears, labeled as assistant output.
     expect(
@@ -226,6 +237,7 @@ describe('ProjectWorkspacePage', () => {
       agentId: 'agent.demo.confirm',
       task: 'Use the confirmation agent.',
       projectId: 'prj-1',
+      workspaceId: 'ws-1',
     });
   });
 
@@ -348,6 +360,7 @@ describe('ProjectWorkspacePage', () => {
       agentId: 'agent.demo.answer',
       task: 'Summarize the architecture',
       projectId: 'prj-1',
+      workspaceId: 'ws-1',
     });
   });
 
@@ -382,5 +395,56 @@ describe('ProjectWorkspacePage', () => {
     expect(html).not.toMatch(/sk-[A-Za-z0-9]{10,}/);
     expect(html).not.toMatch(/ghp_[A-Za-z0-9]+/);
     expect(html).not.toMatch(/api[_-]?key\s*=/i);
+  });
+});
+
+describe('ProjectWorkspacePage - workspace selection (11C-4)', () => {
+  it('defaults to the first active workspace and uses it for runs', async () => {
+    mockedListWorkspaces.mockResolvedValue([
+      workspace({ id: 'ws-archived', name: 'Old', status: 'archived' }),
+      workspace({ id: 'ws-2', name: 'Active Two' }),
+    ]);
+    renderWorkspace();
+    fireEvent.change(await screen.findByRole('textbox'), {
+      target: { value: 'Hello workspace' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    await screen.findByText('Hello workspace');
+    expect(mockedCreateRun).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: 'prj-1', workspaceId: 'ws-2' }),
+    );
+  });
+
+  it('switches workspaces: new runs use the new selection, the page keeps context', async () => {
+    mockedListWorkspaces.mockResolvedValue([
+      workspace({ id: 'ws-1', name: 'Main' }),
+      workspace({ id: 'ws-2', name: 'Research' }),
+    ]);
+    renderWorkspace();
+    const picker = await screen.findByRole('combobox', { name: /workspace/i });
+    expect(picker).toBeDefined();
+    fireEvent.change(picker, { target: { value: 'ws-2' } });
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Use the research workspace.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    await screen.findByText('Use the research workspace.');
+    expect(mockedCreateRun).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: 'ws-2' }));
+    // The new selection drives the file tree too.
+    expect(mockedGetTree).toHaveBeenLastCalledWith('ws-2');
+  });
+
+  it('runs without a workspace when the project has none', async () => {
+    mockedListWorkspaces.mockResolvedValue([]);
+    renderWorkspace();
+    fireEvent.change(await screen.findByRole('textbox'), {
+      target: { value: 'No workspace prompt' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    await screen.findByText('No workspace prompt');
+    const request = mockedCreateRun.mock.calls[0]?.[0];
+    expect(request?.projectId).toBe('prj-1');
+    expect('workspaceId' in (request ?? {})).toBe(false);
+    expect(screen.getByText(/no workspace yet/i)).toBeDefined();
   });
 });

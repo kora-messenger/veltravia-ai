@@ -240,3 +240,38 @@ describe('DuplicateAgentError', () => {
     expect(new DuplicateAgentError('a').code).toBe('AGENT_DUPLICATE');
   });
 });
+
+describe('project context validation (request boundary)', () => {
+  it('accepts a bounded, plain project context object', () => {
+    expect(() =>
+      validateAgentRequest({
+        task: 'hello',
+        projectContext: { project: { id: 'p1', name: 'demo', status: 'active' } },
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects a non-object project context', () => {
+    expect(() =>
+      validateAgentRequest({ task: 'hello', projectContext: 'not-an-object' as never }),
+    ).toThrow(/projectContext must be a plain object/);
+  });
+
+  it('rejects an oversized project context', () => {
+    expect(() =>
+      validateAgentRequest({
+        task: 'hello',
+        projectContext: { blob: 'x'.repeat(9000) },
+      }),
+    ).toThrow(/projectContext exceeds the maximum serialized size/);
+  });
+
+  it('rejects secret-shaped values inside project context', () => {
+    expect(() =>
+      validateAgentRequest({
+        task: 'hello',
+        projectContext: { apiKey: 'sk-1234567890abcdef1234' },
+      }),
+    ).toThrow(/secret-shaped/);
+  });
+});

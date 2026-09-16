@@ -190,8 +190,20 @@
   flex-direction: column;
   gap: var(--v-space-05);
   padding: var(--v-space-2);
+  margin: 0;
+  list-style: none;
   border: 1px dashed var(--v-border-strong);
   border-radius: var(--v-radius-sm);
+}
+
+.v-context-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--v-space-3) 0;
+}
+
+.v-context-workspace-picker {
+  margin-top: var(--v-space-2);
 }
 
 .v-context-files__entry {

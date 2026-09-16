@@ -1,4 +1,4 @@
-# Web UI (Steps 11A + 11B + 11C-1 + 11C-2 + 11C-3: live AI workspace)
+# Web UI (Steps 11A + 11B + 11C-1 … 11C-4: live AI workspace with real project context)
 
 The `apps/web` package hosts the Veltravia AI product UI. Step 11A
 establishes the design system, the reusable component library, the
@@ -302,3 +302,35 @@ The browser remains a pure presentation client: no decision logic, no
 provider/tool/sandbox calls, no credentials, and the requested tool input
 never leaves the server (test-enforced in
 `apps/web/src/security/workspace-boundary.test.ts`).
+
+## Real project/workspace context (Step 11C-4)
+
+The workspace's context panel is now LIVE, backed by the Project Engine
+through the Agent API:
+
+- **Run association.** Every run request carries the routed `projectId`
+  and the selected `workspaceId`. The association is validated
+  SERVER-SIDE: an unknown project or workspace is a 404, and a workspace
+  from another project is rejected (400) — the browser's identifiers are
+  never trusted. A run started before a workspace switch keeps its
+  original ids; only new runs use the new selection.
+- **Derived context.** The API derives a bounded, safe context for each
+  run: project/workspace metadata (no owner ref, no root) plus structural
+  file-tree information (relative path + node type). File CONTENTS are
+  never part of the context. Large trees are truncated with honest
+  `total`/`included`/`truncated` flags, and the whole context always fits
+  the agent request's serialized-size budget. The context travels as an
+  explicit `project_context` UNTRUSTED DATA block — project text is never
+  concatenated into the trusted system prompt and never gains authority
+  (prompt-injection defense, test-enforced).
+- **Context panel.** Live project metadata, the selected workspace, and
+  the workspace's real file tree (from `GET /api/workspaces/:id/tree` —
+  structural metadata only, read-only: no editing, renaming, adding,
+  deleting, uploading, or drag/drop). Projects with several workspaces
+  get a picker; switching changes the context for NEW runs and the
+  displayed tree. Loading, empty, and error states are all honest.
+- **Boundary.** The web source never calls file-content endpoints or
+  mutates the file tree (test-enforced in
+  `apps/web/src/security/workspace-boundary.test.ts`). The browser
+  displays structure the server already validated; it never constructs,
+  normalizes, or re-sends paths of its own.

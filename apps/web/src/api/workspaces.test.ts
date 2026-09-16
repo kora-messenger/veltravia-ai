@@ -1,7 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
 // @vitest-environment jsdom
-import { createWorkspace, listWorkspaces } from './workspaces';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createWorkspace, getWorkspaceTree, listWorkspaces } from './workspaces';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -41,6 +40,26 @@ describe('workspaces api', () => {
   it('rejects malformed workspace payloads', async () => {
     stubFetch({ workspaces: [{ id: 'ws-1', status: 'active' }] });
     await expect(listWorkspaces('prj-1')).rejects.toThrow(/invalid workspace payload/i);
+  });
+
+  it('fetches the workspace file tree as safe node metadata (11C-4)', async () => {
+    stubFetch({
+      nodes: [
+        { path: 'README.md', name: 'README.md', type: 'file' },
+        { path: 'src', name: 'src', type: 'directory' },
+      ],
+    });
+    const tree = await getWorkspaceTree('ws-1');
+    expect(tree).toHaveLength(2);
+    expect(tree[0]).toEqual({ path: 'README.md', name: 'README.md', type: 'file' });
+    expect(tree[1]).toEqual({ path: 'src', name: 'src', type: 'directory' });
+  });
+
+  it('rejects malformed tree nodes (contents never reach the view)', async () => {
+    stubFetch({ nodes: [{ path: 'a.md', name: 'a.md', type: 'symlink' }] });
+    await expect(getWorkspaceTree('ws-1')).rejects.toThrow(/invalid file tree payload/i);
+    stubFetch({ nodes: 'nope' });
+    await expect(getWorkspaceTree('ws-1')).rejects.toThrow(/invalid file tree payload/i);
   });
 
   it('creates a workspace with a name only', async () => {

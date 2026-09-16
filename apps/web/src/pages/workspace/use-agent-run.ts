@@ -143,6 +143,8 @@ export interface UseAgentRunOptions {
   readonly agentId: string | null;
   /** The routed project id, passed through to the run request. */
   readonly projectId: string | null;
+  /** The selected workspace id; the server validates the association. */
+  readonly workspaceId: string | null;
 }
 
 export interface UseAgentRunResult {
@@ -165,7 +167,11 @@ export interface UseAgentRunResult {
   submitConfirmation(decision: 'approve' | 'reject'): void;
 }
 
-export function useAgentRun({ agentId, projectId }: UseAgentRunOptions): UseAgentRunResult {
+export function useAgentRun({
+  agentId,
+  projectId,
+  workspaceId,
+}: UseAgentRunOptions): UseAgentRunResult {
   const [state, setState] = useState<AgentRunUiState>(IDLE_STATE);
   const generationRef = useRef(0);
   const activeRef = useRef<ActiveRun | null>(null);
@@ -321,6 +327,7 @@ export function useAgentRun({ agentId, projectId }: UseAgentRunOptions): UseAgen
             agentId,
             task: prompt,
             ...(projectId !== null ? { projectId } : {}),
+            ...(workspaceId !== null ? { workspaceId } : {}),
           });
           if (generationRef.current !== generation) return;
           const prompt_ = activeRef.current?.prompt ?? prompt;
@@ -339,7 +346,7 @@ export function useAgentRun({ agentId, projectId }: UseAgentRunOptions): UseAgen
         }
       })();
     },
-    [agentId, applyRun, clearTimer, projectId, schedulePoll],
+    [agentId, applyRun, clearTimer, projectId, schedulePoll, workspaceId],
   );
 
   const start = useCallback(

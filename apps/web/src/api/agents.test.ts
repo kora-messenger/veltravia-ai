@@ -99,6 +99,24 @@ describe('agents api', () => {
       expect(body).toEqual({ agentId: 'a', task: 't' });
     });
 
+    it('sends workspaceId alongside projectId when a workspace is selected', async () => {
+      const fetchImpl = vi.fn(async () => jsonResponse(200, RUN));
+      vi.stubGlobal('fetch', fetchImpl);
+      await createAgentRun({
+        agentId: 'agent.demo.answer',
+        task: 'Explain the project',
+        projectId: 'prj-1',
+        workspaceId: 'ws-1',
+      });
+      const body = JSON.parse((fetchImpl.mock.calls[0]?.[1] as RequestInit).body as string);
+      expect(body).toEqual({
+        agentId: 'agent.demo.answer',
+        task: 'Explain the project',
+        projectId: 'prj-1',
+        workspaceId: 'ws-1',
+      });
+    });
+
     it('normalizes API errors to ApiError', async () => {
       vi.stubGlobal(
         'fetch',

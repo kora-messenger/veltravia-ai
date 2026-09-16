@@ -288,6 +288,7 @@ export async function createAgentRun(request: {
   readonly agentId: string;
   readonly task: string;
   readonly projectId?: string;
+  readonly workspaceId?: string;
 }): Promise<AgentRunView> {
   const raw = await apiRequest<unknown>('/api/agents/run', {
     method: 'POST',
@@ -295,6 +296,7 @@ export async function createAgentRun(request: {
       agentId: request.agentId,
       task: request.task,
       ...(request.projectId !== undefined ? { projectId: request.projectId } : {}),
+      ...(request.workspaceId !== undefined ? { workspaceId: request.workspaceId } : {}),
     },
   });
   return toAgentRunView(raw, 'POST /api/agents/run');

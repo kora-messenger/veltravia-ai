@@ -1,5 +1,5 @@
 /**
- * Frontend credential/trust boundary (Step 11C-2).
+ * Frontend credential/trust boundary (Steps 11C-2 + 11C-4).
  *
  * Static scans that keep the browser a pure presentation client:
  * - no provider SDK imports, provider endpoints, or credential literals in
@@ -7,6 +7,8 @@
  * - no environment reads (credentials must not enter frontend env vars)
  * - no unsafe HTML rendering of model/user output
  * - no browser persistence of credential-shaped keys
+ * - the workspace context is read-only structural metadata: the web
+ *   source never calls file-content endpoints or mutates the file tree
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -90,6 +92,20 @@ describe('frontend credential boundary', () => {
       }
       // Tokens must not be stashed anywhere else either.
       expect(source, `${file} stores a token`).not.toMatch(/\.setItem\(\s*['"][^'"]*token/i);
+    }
+  });
+
+  it('never fetches file contents from the workspace context (11C-4)', () => {
+    // The workspace tree is the ONLY files surface the browser touches, and
+    // it is metadata-only. File CONTENT endpoints and file mutations are
+    // server-side surfaces (coding agent tools) - never web-source calls.
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8');
+      expect(source, `${file} fetches file contents`).not.toMatch(/\/files\/[^'"`]*\/contents?/);
+      expect(source, `${file} calls file content endpoints`).not.toMatch(
+        /['"`]\/api\/workspaces\/[^'"`]*\/files\/[^'"`]+['"`]/,
+      );
+      expect(source, `${file} mutates workspace files`).not.toMatch(/\/files['"`]/);
     }
   });
 
