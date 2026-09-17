@@ -1,4 +1,5 @@
-import { ConnectorManager } from '@veltravia/connector-core';
+import { ConnectorManager, type Connector } from '@veltravia/connector-core';
+import type { ConnectorOperationExecutor } from '@veltravia/tool-core';
 import { createMockConnector } from '@veltravia/connector-mock';
 import type { SandboxManager } from '@veltravia/sandbox-core';
 import { ToolManager } from '@veltravia/tool-core';
@@ -22,11 +23,20 @@ import { createSandboxTools } from './sandboxes.js';
  * permission set, and the read-only API can neither execute tools nor
  * grant anything.
  */
+/** Optional extra wiring for the agent-side Tool System (Step 12). */
+export interface ExtraToolWiring {
+  /** Connectors to register (operator grants ALL their declared permissions). */
+  readonly connectors?: readonly Connector[];
+  /** Step 10 connector execution seam (already-authorized tools only). */
+  readonly connectorExecutor?: ConnectorOperationExecutor;
+}
+
 export function createToolManager(
   now: () => Date = () => new Date(),
   sandboxes?: SandboxManager,
   /** Existing ConnectorManager to share (e.g. the coding manager's own). */
   existingConnectors?: ConnectorManager,
+  extra?: ExtraToolWiring,
 ): ToolManager {
   const connectors = existingConnectors ?? new ConnectorManager({ now });
   if (existingConnectors === undefined) {
@@ -34,7 +44,27 @@ export function createToolManager(
     connectors.configure('mock');
   }
 
-  const manager = new ToolManager({ now, connectors });
+  const manager = new ToolManager({
+    now,
+    connectors,
+    ...(extra?.connectorExecutor !== undefined
+      ? { connectorExecutor: extra.connectorExecutor }
+      : {}),
+  });
+  // Step 12: extra connectors (integration-backed). The Tool System's
+  // authorization gate checks the ConnectorManager's granted permissions -
+  // the API wiring acts as the operator and grants them explicitly, then
+  // connects through the real lifecycle. Execution itself routes through
+  // the connectorExecutor seam (the integration runtime), never locally.
+  if (extra?.connectors !== undefined) {
+    for (const connector of extra.connectors) {
+      connectors.register(connector);
+      for (const permission of connector.permissions) {
+        connectors.grantPermission(connector.metadata.id, permission.id);
+      }
+      void connectors.connect(connector.metadata.id).catch(() => undefined);
+    }
+  }
   const summarize = createMockSummarizeTool();
   manager.register(summarize.definition);
   manager.registerImplementation(summarize.implementation);

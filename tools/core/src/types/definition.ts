@@ -48,6 +48,13 @@ export interface ToolDefinition {
   readonly requiredPermissions: readonly string[];
   /** Optional connector operation this tool routes through (never executed directly). */
   readonly connector?: ConnectorOperationReference;
+  /**
+   * Optional id of the integration (plugin catalog entry) this tool belongs
+   * to (e.g. "github-demo"). Pure metadata for agent context and discovery:
+   * it never grants anything and never changes execution routing - tools
+   * still execute only through the Tool System pipeline.
+   */
+  readonly integrationId?: string;
   /** How dangerous invoking this tool is. */
   readonly riskLevel: PermissionRiskLevel;
   /**
@@ -125,6 +132,16 @@ export function defineTool(input: ToolDefinition): ToolDefinition {
       reasons.push('connector reference must provide connectorId and operationId');
     }
   }
+  if (input.integrationId !== undefined) {
+    if (
+      typeof input.integrationId !== 'string' ||
+      input.integrationId.length === 0 ||
+      input.integrationId.length > 64 ||
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.integrationId)
+    ) {
+      reasons.push('integrationId must be kebab-case (max 64 chars)');
+    }
+  }
   if (reasons.length > 0) {
     throw new Error(`Invalid tool definition: ${reasons.join('; ')}.`);
   }
@@ -138,6 +155,7 @@ export function defineTool(input: ToolDefinition): ToolDefinition {
     outputSchema: input.outputSchema,
     requiredPermissions: [...input.requiredPermissions],
     ...(input.connector !== undefined ? { connector: { ...input.connector } } : {}),
+    ...(input.integrationId !== undefined ? { integrationId: input.integrationId } : {}),
     riskLevel: input.riskLevel,
     requiresConfirmation: input.requiresConfirmation,
   };

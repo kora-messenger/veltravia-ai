@@ -16,7 +16,26 @@ Veltravia AI is an advanced AI software-development platform. The end state is a
 
 The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
 
-## Current state: Step 11C-5 — Web UI: AI workspace phase complete
+## Current state: Step 12 — Integrations & connections
+
+The integration layer is live: declarative integration manifests
+(`integrations/core`, `@veltravia/integration-core`) with strict registry
+validation; an owner-boundary connection manager (explicit scope grants,
+validated lifecycle, terminal disconnect); a secret boundary that resolves
+credentials inside the runtime only — never stored, logged, or returned;
+and a 13-step fail-closed execution pipeline whose ONLY caller is the Tool
+System's `connectorExecutor` seam (high-risk operations must arrive
+Tool-System-confirmed; this layer is a bypass-proof gate, never a second
+approval path). `connectors/integration-mocks` provides deterministic
+offline Storage/Database integrations, and the GitHub connector is now an
+explicit hand-written integration definition. The API exposes the catalog +
+connection lifecycle (`/api/integrations…`) and the web Integrations page
+(`#/integrations`) renders safe views only — scopes with risk levels, tool
+confirmation requirements, and connection status; no credential material
+anywhere in web source (test-enforced). Details: `docs/integrations.md`,
+`docs/security.md` §5i.
+
+## Prior state: Step 11C-5 — Web UI: AI workspace phase complete
 
 The per-project AI workspace (11C-1 shell → 11C-2 live runs → 11C-3
 confirmations + tool activity → 11C-4 real project/workspace context →
@@ -207,6 +226,13 @@ Streaming will be added WITHOUT replacing the provider interface:
 - `streaming` is already a capability in the registry, so the router can filter for it; `AICore` will gain a `generateStream()` facade that reuses the same routing and error paths and aggregates chunks into the same `AIResponse` shape.
 
 Because responses are normalized and capability-driven, nothing built in Step 2 has to be rewritten when streaming lands.
+
+### `integrations/` — the user-facing integration layer (Step 12)
+
+| Directory                       | Responsibility                                                                                                                                                                     | Status                    |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `integrations/core/`            | The integration layer: manifest types, strict registry validation, owner-boundary connection manager, secret boundary, 13-step fail-closed runtime, scrubbed errors, bounded audit | **Implemented (Step 12)** |
+| `connectors/integration-mocks/` | Deterministic offline Storage + Database integrations (`@veltravia/integration-mocks`) — tests and development API only                                                            | **Implemented (Step 12)** |
 
 ### `connectors/` — external-service integration (Step 4: core + mock implemented)
 

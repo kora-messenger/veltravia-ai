@@ -30,7 +30,9 @@
     "@veltravia/types": "*",
     "fastify": "^5.2.0",
     "@veltravia/coding-agent-core": "*",
-    "@veltravia/coding-agent-mock": "*"
+    "@veltravia/coding-agent-mock": "*",
+    "@veltravia/integration-core": "*",
+    "@veltravia/integration-mocks": "*"
   },
   "devDependencies": {
     "tsx": "^4.19.2"

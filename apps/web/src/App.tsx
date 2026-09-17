@@ -3,6 +3,7 @@ import { ThemeProvider } from './theme/ThemeProvider';
 import { ToastProvider } from './components/ui';
 import {
   DashboardPage,
+  IntegrationsPage,
   ProjectDetailPage,
   ProjectWorkspacePage,
   ProjectsPage,
@@ -20,6 +21,8 @@ export function App() {
                 return <DashboardPage />;
               case 'projects':
                 return <ProjectsPage />;
+              case 'integrations':
+                return <IntegrationsPage />;
               case 'project-detail':
                 return <ProjectDetailPage projectId={route.projectId} />;
               case 'project-workspace':

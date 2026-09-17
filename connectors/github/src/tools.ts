@@ -98,7 +98,11 @@ export function createGitHubToolDefinitions(connectorId: string): readonly ToolD
     partial: Omit<ToolDefinition, 'connector'> & { operationId: string },
   ): ToolDefinition => {
     const { operationId, ...rest } = partial;
-    return defineTool({ ...rest, connector: { connectorId, operationId } });
+    return defineTool({
+      ...rest,
+      connector: { connectorId, operationId },
+      integrationId: connectorId,
+    });
   };
 
   const repositoriesList = bound({

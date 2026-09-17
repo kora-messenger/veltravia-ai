@@ -46,6 +46,8 @@ export interface AgentToolMetadata {
   readonly availabilityDetail?: string;
   readonly confirmationRequired: boolean;
   readonly connector?: { readonly connectorId: string; readonly operationId: string };
+  /** Catalog integration this tool belongs to (when connector-backed). */
+  readonly integrationId?: string;
 }
 
 /** Maximum tool results replayed verbatim; older results become a count line. */
@@ -150,5 +152,6 @@ export function toAgentToolMetadata(
           },
         }
       : {}),
+    ...(tool.integrationId !== undefined ? { integrationId: tool.integrationId } : {}),
   };
 }

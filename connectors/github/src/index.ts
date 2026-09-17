@@ -6,5 +6,6 @@ export * from './client.js';
 export * from './mapping.js';
 export * from './audit.js';
 export * from './connector.js';
+export * from './integration.js';
 export * from './tools.js';
 export * from './testing.js';

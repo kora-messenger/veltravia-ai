@@ -16,11 +16,12 @@ export interface RouteDef {
 export const ROUTES: readonly RouteDef[] = [
   { id: 'dashboard', hash: '#/dashboard', title: 'Dashboard' },
   { id: 'projects', hash: '#/projects', title: 'Projects' },
+  { id: 'integrations', hash: '#/integrations', title: 'Integrations' },
   { id: 'settings', hash: '#/settings', title: 'Settings' },
 ] as const;
 
 export type RouteId =
-  'dashboard' | 'projects' | 'project-detail' | 'project-workspace' | 'settings';
+  'dashboard' | 'projects' | 'integrations' | 'project-detail' | 'project-workspace' | 'settings';
 
 /** The currently active route, with route parameters when present. */
 export interface RouteState {
@@ -38,6 +39,9 @@ function routeForHash(hash: string): RouteState {
   }
   if (hash === '#/projects') {
     return { id: 'projects', title: 'Projects', projectId: null };
+  }
+  if (hash === '#/integrations') {
+    return { id: 'integrations', title: 'Integrations', projectId: null };
   }
   if (hash === '#/settings') {
     return { id: 'settings', title: 'Settings', projectId: null };

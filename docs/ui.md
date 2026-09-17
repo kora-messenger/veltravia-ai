@@ -381,3 +381,31 @@ during the audit:
 
 Real-time streaming updates may be introduced in a later infrastructure
 phase; the current implementation remains bounded polling.
+
+## Integrations page (Step 12)
+
+`#/integrations` — the user-facing integration catalog, backed by
+`GET /api/integrations` and rendered from strict view models
+(`src/api/integrations.ts`).
+
+- **Catalog cards**: each integration renders its name, description,
+  category/version/enabled badges, its declared scope catalog (with risk
+  levels, as text — never color-only), its tool catalog (with confirmation
+  requirements), and the owner's connections.
+- **Connections**: status, account ref, granted scopes, and last status
+  check render as metadata only. Actions — disable/enable, status check,
+  disconnect — go through the real API endpoints; server rejections surface
+  as inline typed errors, never fabricated success, and the list reloads
+  from the server after any change.
+- **Connect dialog**: scope checkboxes are generated ONLY from the
+  integration's declared catalog; at least one explicit grant is required,
+  and an optional account-ref label is offered. No credential field exists
+  — credential material never enters the browser (test-enforced via the
+  existing boundary scans).
+- **Honest states**: loading, empty, and error states follow the shared
+  patterns (`v-loading`, `v-empty-wide`, `ErrorState` with retry); a
+  disabled integration renders a disabled Connect button rather than a
+  fabricated action.
+
+No new persistence: the page stores nothing beyond the theme preference
+rule that applies app-wide.

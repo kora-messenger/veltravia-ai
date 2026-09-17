@@ -381,3 +381,146 @@
     transition: none;
   }
 }
+
+/* --------------------------------------------------------------- */
+/* Integrations (Step 12)                                           */
+/* --------------------------------------------------------------- */
+
+.v-integration-list {
+  display: grid;
+  gap: var(--v-space-4);
+  grid-template-columns: 1fr;
+}
+
+.v-integration {
+  background: var(--v-surface-raised);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-lg);
+  padding: var(--v-space-5);
+  display: grid;
+  gap: var(--v-space-4);
+}
+
+.v-integration__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--v-space-3);
+}
+
+.v-integration__name {
+  font-size: var(--v-font-size-lg);
+  font-weight: var(--v-weight-semibold);
+  color: var(--v-text-primary);
+  margin: 0;
+}
+
+.v-integration__description {
+  margin: var(--v-space-1) 0 0;
+  color: var(--v-text-secondary);
+}
+
+.v-integration__meta {
+  display: flex;
+  gap: var(--v-space-2);
+  flex-wrap: wrap;
+}
+
+.v-integration__section {
+  display: grid;
+  gap: var(--v-space-2);
+}
+
+.v-integration__section-title {
+  font-size: var(--v-font-size-sm);
+  font-weight: var(--v-weight-semibold);
+  color: var(--v-text-secondary);
+  margin: 0;
+}
+
+.v-integration__scopes,
+.v-integration__tools,
+.v-integration__connections {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--v-space-1);
+}
+
+.v-integration__scope,
+.v-integration__tool {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.v-integration__scope-id,
+.v-integration__tool-id {
+  font-family: var(--v-font-mono);
+  font-size: var(--v-font-size-sm);
+  color: var(--v-text-primary);
+}
+
+.v-integration__scope-detail,
+.v-integration__tool-detail,
+.v-integration__hint {
+  font-size: var(--v-font-size-sm);
+  color: var(--v-text-secondary);
+  margin: 0;
+}
+
+.v-connection {
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  padding: var(--v-space-3);
+  display: grid;
+  gap: var(--v-space-2);
+}
+
+.v-connection__main {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.v-connection__ref {
+  font-weight: var(--v-weight-semibold);
+  color: var(--v-text-primary);
+}
+
+.v-connection__status,
+.v-connection__scopes {
+  font-size: var(--v-font-size-sm);
+  color: var(--v-text-secondary);
+}
+
+.v-connection__actions {
+  display: flex;
+  gap: var(--v-space-2);
+  flex-wrap: wrap;
+}
+
+.v-connection__failure,
+.v-connect-form__failure {
+  margin: 0;
+  font-size: var(--v-font-size-sm);
+  color: var(--v-danger);
+}
+
+.v-connect-form {
+  display: grid;
+  gap: var(--v-space-3);
+}
+
+.v-connect-form__hint {
+  margin: 0;
+  color: var(--v-text-secondary);
+}
+
+.v-connect-form__scopes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--v-space-2);
+}

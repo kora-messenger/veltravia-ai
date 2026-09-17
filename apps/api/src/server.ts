@@ -22,6 +22,9 @@ import { registerCodingRoutes } from './routes/coding.js';
 import { createCodingManager } from './coding.js';
 import { registerToolRoutes } from './routes/tools.js';
 import { registerProjectRoutes } from './routes/projects.js';
+import { registerIntegrationRoutes } from './routes/integrations.js';
+import { createIntegrationSystem, type ApiIntegrationSystem } from './integrations.js';
+import { createGitHubApiConnector } from './github.js';
 
 export interface BuildAppOptions {
   /** Pre-built AICore (tests inject one); defaults to the mock-backed core. */
@@ -38,6 +41,8 @@ export interface BuildAppOptions {
   readonly sandboxes?: SandboxManager;
   /** Pre-built CodingAgentManager (tests inject one); defaults to the demo coding agent. */
   readonly coding?: CodingAgentManager;
+  /** Pre-built integration system (tests inject one); defaults to the demo system. */
+  readonly integrations?: ApiIntegrationSystem;
 }
 
 /**
@@ -80,9 +85,20 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const tools = options.tools ?? createToolManager(() => new Date(), sandboxes);
   registerToolRoutes(app, tools);
 
+  // Integration / plugin system (Step 12): catalog + owner-scoped
+  // connections over the multi-connector foundation. Read-only for the
+  // catalog; connections are metadata only - no endpoint here executes
+  // anything or can touch a secret.
+  const integrations =
+    options.integrations ?? createIntegrationSystem({ github: createGitHubApiConnector({}) });
+  registerIntegrationRoutes(app, integrations);
+
   // Agent execution endpoints: bounded runs, confirmation flow, cancellation.
   // Responses carry safe normalized state only - never chain-of-thought.
-  const agents = options.agents ?? createAgentManager();
+  // The integration tools (mock storage/database) ride the same pipeline,
+  // so the demo storage agent proves agent->tool->connector discovery
+  // with no connector-specific agent code.
+  const agents = options.agents ?? createAgentManager(() => new Date(), integrations);
   // The agent routes get the Project Engine so every run's project/workspace
   // association is resolved and validated server-side (Step 11C-4): the
   // browser's identifiers are never trusted, and the derived context is
