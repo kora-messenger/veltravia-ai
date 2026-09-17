@@ -1,0 +1,24 @@
+{
+  "name": "@veltravia/generation-mock",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline, deterministic App Generation mocks: a planner that turns an idea into a validated specification + plan using the built-in templates, and a scripted repair source. No host code, no network, no credentials; production does NOT depend on this package.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/generation-core": "*"
+  }
+}

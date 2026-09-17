@@ -299,6 +299,45 @@ export function createProjectTools(projectEngine: ProjectEngine): {
     },
   );
 
+  // ---- project.create-directory (MEDIUM) ---------------------------------------
+
+  wrap(
+    defineTool({
+      id: 'project.create-directory',
+      name: 'Create Directory',
+      description:
+        'Creates one directory (and its parents implicitly via chained calls) in the workspace tree through Project Engine rules.',
+      version: '1.0.0',
+      category: 'filesystem',
+      inputSchema: defineObjectSchema({
+        properties: {
+          workspaceId: workspaceIdSchema,
+          path: pathSchema,
+        },
+        required: ['workspaceId', 'path'],
+        additionalProperties: false,
+      }),
+      outputSchema: defineObjectSchema({
+        properties: {
+          path: { type: 'string', description: 'Created directory path.' },
+          revision: { type: 'number', description: 'Node revision after creation.' },
+        },
+        required: ['path', 'revision'],
+        additionalProperties: false,
+      }),
+      requiredPermissions: ['project.write'],
+      riskLevel: 'medium',
+      requiresConfirmation: false,
+    }),
+    async (input) => {
+      const node = await projectEngine.files.createDirectory(
+        input.workspaceId as string,
+        input.path as string,
+      );
+      return { path: node.path, revision: node.revision };
+    },
+  );
+
   // ---- project.update-file (MEDIUM) --------------------------------------------
 
   wrap(

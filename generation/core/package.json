@@ -1,0 +1,32 @@
+{
+  "name": "@veltravia/generation-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia AI App Generation Engine: turns a structured app idea into a real project through a bounded pipeline (specification, plan, human approval, Tool-System-gated generation, sandbox validation, bounded repair). Every mutation flows through the existing Tool System; never a hidden filesystem writer, never raw shell, never credentials.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/project-core": "*",
+    "@veltravia/tool-core": "*"
+  },
+  "devDependencies": {
+    "@veltravia/coding-agent-core": "*",
+    "@veltravia/coding-agent-mock": "*",
+    "@veltravia/project-mock": "*",
+    "@veltravia/sandbox-core": "*",
+    "@veltravia/sandbox-mock": "*"
+  }
+}

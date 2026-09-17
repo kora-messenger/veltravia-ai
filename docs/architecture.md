@@ -16,7 +16,7 @@ Veltravia AI is an advanced AI software-development platform. The end state is a
 
 The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
 
-## Current state: Step 12 — Integrations & connections
+## Current state: Step 13 — App Generation Engine
 
 The integration layer is live: declarative integration manifests
 (`integrations/core`, `@veltravia/integration-core`) with strict registry
@@ -229,10 +229,12 @@ Because responses are normalized and capability-driven, nothing built in Step 2 
 
 ### `integrations/` — the user-facing integration layer (Step 12)
 
-| Directory                       | Responsibility                                                                                                                                                                     | Status                    |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| `integrations/core/`            | The integration layer: manifest types, strict registry validation, owner-boundary connection manager, secret boundary, 13-step fail-closed runtime, scrubbed errors, bounded audit | **Implemented (Step 12)** |
-| `connectors/integration-mocks/` | Deterministic offline Storage + Database integrations (`@veltravia/integration-mocks`) — tests and development API only                                                            | **Implemented (Step 12)** |
+| Directory                       | Responsibility                                                                                                                                                                                                                            | Status                    |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `integrations/core/`            | The integration layer: manifest types, strict registry validation, owner-boundary connection manager, secret boundary, 13-step fail-closed runtime, scrubbed errors, bounded audit                                                        | **Implemented (Step 12)** |
+| `connectors/integration-mocks/` | Deterministic offline Storage + Database integrations (`@veltravia/integration-mocks`) — tests and development API only                                                                                                                   | **Implemented (Step 12)** |
+| `generation/core/`              | The App Generation Engine (`@veltravia/generation-core`): validated specs/plans, human plan approval, Tool System-gated generation + sandbox commands, bounded repair loop, hard limits, one-way cancellation, scrubbed audit, safe views | **Implemented (Step 13)** |
+| `generation/mock/`              | Deterministic offline planner (`@veltravia/generation-mock`), declining repair source, and built-in server-side templates (`web-react`, `fullstack-react-fastify`)                                                                        | **Implemented (Step 13)** |
 
 ### `connectors/` — external-service integration (Step 4: core + mock implemented)
 

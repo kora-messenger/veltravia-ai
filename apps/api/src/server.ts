@@ -3,6 +3,7 @@ import type { AICore } from '@veltravia/ai-core';
 import type { ConnectorManager } from '@veltravia/connector-core';
 import type { AgentManager } from '@veltravia/agent-core';
 import type { CodingAgentManager } from '@veltravia/coding-agent-core';
+import type { AppGenerationManager } from '@veltravia/generation-core';
 import type { ToolManager } from '@veltravia/tool-core';
 import type { ProjectEngine } from '@veltravia/project-core';
 import type { SandboxManager } from '@veltravia/sandbox-core';
@@ -19,7 +20,9 @@ import { registerAIRoutes } from './routes/ai-generate.js';
 import { registerConnectorRoutes } from './routes/connectors.js';
 import { registerAgentRoutes } from './routes/agents.js';
 import { registerCodingRoutes } from './routes/coding.js';
+import { registerGenerationRoutes } from './routes/generation.js';
 import { createCodingManager } from './coding.js';
+import { createGenerationManager } from './generation.js';
 import { registerToolRoutes } from './routes/tools.js';
 import { registerProjectRoutes } from './routes/projects.js';
 import { registerIntegrationRoutes } from './routes/integrations.js';
@@ -41,6 +44,8 @@ export interface BuildAppOptions {
   readonly sandboxes?: SandboxManager;
   /** Pre-built CodingAgentManager (tests inject one); defaults to the demo coding agent. */
   readonly coding?: CodingAgentManager;
+  /** Pre-built AppGenerationManager (tests inject one); defaults to the demo generation engine. */
+  readonly generation?: AppGenerationManager;
   /** Pre-built integration system (tests inject one); defaults to the demo system. */
   readonly integrations?: ApiIntegrationSystem;
 }
@@ -128,6 +133,21 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       now: () => new Date(),
     });
   registerCodingRoutes(app, coding);
+
+  // App Generation endpoints: bounded, state-machine-driven idea-to-app
+  // runs. The engine gets its OWN Tool System instance (project file tools
+  // + sandbox tools, explicit minimal grants); plans and high-risk tool
+  // calls pause for HUMAN decisions through these routes. Responses carry
+  // safe normalized state only - the plan view exposes paths and sizes,
+  // never file content.
+  const generation =
+    options.generation ??
+    createGenerationManager({
+      projectEngine,
+      sandboxes,
+      now: () => new Date(),
+    });
+  registerGenerationRoutes(app, generation);
 
   return app;
 }

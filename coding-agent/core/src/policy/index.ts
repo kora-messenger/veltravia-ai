@@ -27,6 +27,7 @@ export const CODING_TOOL_IDS = {
   listFiles: 'project.list-files',
   readFile: 'project.read-file',
   createFile: 'project.create-file',
+  createDirectory: 'project.create-directory',
   updateFile: 'project.update-file',
   deleteFile: 'project.delete-file',
   moveFile: 'project.move-file',

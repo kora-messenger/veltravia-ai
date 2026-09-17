@@ -27,7 +27,9 @@
     "security/sandbox",
     "security/sandbox-mock",
     "coding-agent/core",
-    "coding-agent/mock"
+    "coding-agent/mock",
+    "generation/core",
+    "generation/mock"
   ],
   "scripts": {
     "lint": "eslint . && prettier --check .",
@@ -35,7 +37,7 @@
     "test": "vitest run",
     "build:packages": "npm run build --workspace @veltravia/types && npm run build --workspace @veltravia/shared && npm run build --workspace @veltravia/config",
     "build:ai": "npm run build --workspace @veltravia/ai-core && npm run build --workspace @veltravia/ai-provider-mock && npm run build --workspace @veltravia/ai-provider-gemini",
-    "build": "npm run build:packages && npm run build:ai && npm run build:connectors && npm run build:integration-core && npm run build:tools && npm run build:integration-mocks && npm run build:connector-github && npm run build:agent && npm run build:project && npm run build:sandbox && npm run build:coding && npm run build --workspace @veltravia/api && npm run build --workspace @veltravia/web",
+    "build": "npm run build:packages && npm run build:ai && npm run build:connectors && npm run build:integration-core && npm run build:tools && npm run build:integration-mocks && npm run build:connector-github && npm run build:agent && npm run build:project && npm run build:sandbox && npm run build:coding && npm run build:generation && npm run build --workspace @veltravia/api && npm run build --workspace @veltravia/web",
     "dev:api": "npm run build:packages && npm run build:ai && npm run dev --workspace @veltravia/api",
     "dev:web": "npm run build:packages && npm run dev --workspace @veltravia/web",
     "check": "bash scripts/check.sh",
@@ -45,6 +47,7 @@
     "build:project": "npm run build --workspace @veltravia/project-core && npm run build --workspace @veltravia/project-mock",
     "build:sandbox": "npm run build --workspace @veltravia/sandbox-core && npm run build --workspace @veltravia/sandbox-mock",
     "build:coding": "tsc -p coding-agent/core/tsconfig.json && tsc -p coding-agent/mock/tsconfig.json",
+    "build:generation": "npm run build --workspace @veltravia/generation-core && npm run build --workspace @veltravia/generation-mock",
     "build:connector-github": "npm run build --workspace @veltravia/connector-github",
     "build:integrations": "npm run build --workspace @veltravia/integration-core && npm run build --workspace @veltravia/integration-mocks",
     "build:integration-core": "npm run build --workspace @veltravia/integration-core",

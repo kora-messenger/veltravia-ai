@@ -32,7 +32,9 @@
     "@veltravia/coding-agent-core": "*",
     "@veltravia/coding-agent-mock": "*",
     "@veltravia/integration-core": "*",
-    "@veltravia/integration-mocks": "*"
+    "@veltravia/integration-mocks": "*",
+    "@veltravia/generation-core": "*",
+    "@veltravia/generation-mock": "*"
   },
   "devDependencies": {
     "tsx": "^4.19.2"

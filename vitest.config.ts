@@ -31,6 +31,8 @@ export default defineConfig({
       '@veltravia/integration-mocks': r('./connectors/integration-mocks/src/index.ts'),
       '@veltravia/coding-agent-core': r('./coding-agent/core/src/index.ts'),
       '@veltravia/coding-agent-mock': r('./coding-agent/mock/src/index.ts'),
+      '@veltravia/generation-core': r('./generation/core/src/index.ts'),
+      '@veltravia/generation-mock': r('./generation/mock/src/index.ts'),
       '@veltravia/api': r('./apps/api/src/server.ts'),
     },
   },
@@ -38,6 +40,7 @@ export default defineConfig({
     environment: 'node',
     include: [
       'coding-agent/*/src/**/*.test.ts',
+      'generation/*/src/**/*.test.ts',
       'packages/*/src/**/*.test.ts',
       'apps/*/src/**/*.test.ts',
       'apps/*/src/**/*.test.tsx',

@@ -216,6 +216,19 @@ The tool layer enforces these principles — all of them tested:
 11. The web Integrations page renders safe views only: scopes with risk levels, tool confirmation requirements, and connection status as text (never color-only). Connect flows offer only DECLARED scopes, actions are honest (server rejections surface as typed errors, never fabricated success), and no credential material exists anywhere in web source (test-enforced).
 12. `connectors/integration-mocks` is deterministic and offline: no host code, no network, and no isolation claims. Real vendor integrations (GitHub today) register explicit hand-written definitions — never generic derivations from connector metadata — and keep their own transport rules (Step 10 §5g unchanged).
 
+## 5j. App generation rules (Step 13, `generation/core`)
+
+1. Planner and repair-source output is UNTRUSTED DATA: every spec and plan is re-validated server-side with strict bounded schemas (safe relative paths, known app types, server-side templates only); malformed, oversized, or secret-shaped input fails closed (`GENERATION_SECRET_REJECTED`, `GENERATION_INVALID_SPEC`, `GENERATION_INVALID_PLAN`) and is never executed, interpreted, or concatenated into prompts.
+2. The plan approval and the forced high-risk `sandbox.execute` confirmation are human decisions through the API — the engine never approves itself; a resumed run re-submits the STORED pending input so no client can swap it (Tool System single-use input-bound confirmations, §5 rule set).
+3. Every mutation and command flows only through the Tool System (`project.create-directory`, `project.create-file`, `project.update-file`, `project.read-file`, `sandbox.create`, `sandbox.execute`) with explicit minimal server-side grants granted at wiring time — the engine can never grant itself permissions, and registration grants nothing (§5).
+4. The run's sandbox id is pinned server-side; sandbox commands follow the full Step 8 sandbox policy (allowlist, no shells, env isolation, resource ceilings), and command output is bounded and secret-scrubbed before entering run state or audit.
+5. Hard limits with ceilings (files, commands, repair attempts, duration) terminate runs with typed errors — no unlimited loops, no hangs; cancellation is one-way and terminal.
+6. Nested files create parent directories through the Tool System idempotently; a `PATH_CONFLICT` means "already exists" and is reused, never an error, and never a bypass around the file-tree rules (§5e unchanged).
+7. Validation is structural (template-required files present and non-empty) and test-command outcomes come from the sandbox — the engine never fabricates success; validation/test failures route through the bounded repair loop and fail honestly with remaining issues listed.
+8. Audit events carry phases, tool ids, and typed outcomes — never file content, raw inputs, credentials, or command stdout dumps.
+9. API views (`/api/app-generations…`) expose normalized run/plan/result views only: paths and byte sizes, states, bounded warnings. No file-content dumps, no host paths, no chain-of-thought, no secrets; unknown runs 404, terminal-run mutations 409.
+10. The shipped planner is the deterministic offline mock (`generation/mock`) — no model credentials in this layer, and wiring an AI-routed planner must reuse the same validation and Tool System gates with zero bypasses.
+
 ## 7. Incident response
 
 - Suspected secret leak → rotate first, investigate second.
