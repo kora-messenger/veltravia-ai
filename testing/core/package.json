@@ -1,0 +1,33 @@
+{
+  "name": "@veltravia/testing-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia AI Testing & Debugging Agent core: detects a project's test surface, builds a structured TestPlan, runs validation/test commands ONLY through the existing Tool System + Secure Sandbox, classifies failures deterministically, diagnoses them with an explicit FACT/INFERENCE/RECOMMENDATION vocabulary, proposes bounded repairs that a human approves and the existing Coding Agent applies, and retests within a hard repair limit. Never a second execution pathway: no child processes, no host filesystem, no credentials, no permission or confirmation bypass.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/coding-agent-core": "*",
+    "@veltravia/project-core": "*",
+    "@veltravia/tool-core": "*"
+  },
+  "devDependencies": {
+    "@veltravia/coding-agent-mock": "*",
+    "@veltravia/project-mock": "*",
+    "@veltravia/sandbox-core": "*",
+    "@veltravia/sandbox-mock": "*",
+    "@veltravia/testing-mock": "*"
+  }
+}

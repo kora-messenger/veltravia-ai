@@ -1,0 +1,27 @@
+{
+  "name": "@veltravia/testing-mock",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic, fully offline DebugAgent for the Veltravia Testing & Debugging Agent. It never executes anything on the host: it inspects untrusted project content read through the Tool System and proposes scripted, pattern-based diagnoses and repairs for the documented mock scenarios. No AI provider, no network, no credentials.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/testing-core": "*"
+  },
+  "devDependencies": {
+    "@veltravia/coding-agent-mock": "*"
+  }
+}

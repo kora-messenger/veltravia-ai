@@ -3,6 +3,7 @@ import type { AICore } from '@veltravia/ai-core';
 import type { ConnectorManager } from '@veltravia/connector-core';
 import type { AgentManager } from '@veltravia/agent-core';
 import type { CodingAgentManager } from '@veltravia/coding-agent-core';
+import type { TestingManager } from '@veltravia/testing-core';
 import type { AppGenerationManager } from '@veltravia/generation-core';
 import type { ToolManager } from '@veltravia/tool-core';
 import type { ProjectEngine } from '@veltravia/project-core';
@@ -20,8 +21,10 @@ import { registerAIRoutes } from './routes/ai-generate.js';
 import { registerConnectorRoutes } from './routes/connectors.js';
 import { registerAgentRoutes } from './routes/agents.js';
 import { registerCodingRoutes } from './routes/coding.js';
+import { registerTestingRoutes } from './routes/testing.js';
 import { registerGenerationRoutes } from './routes/generation.js';
 import { createCodingManager } from './coding.js';
+import { createTestingManager } from './testing.js';
 import { createGenerationManager } from './generation.js';
 import { registerToolRoutes } from './routes/tools.js';
 import { registerProjectRoutes } from './routes/projects.js';
@@ -48,6 +51,8 @@ export interface BuildAppOptions {
   readonly generation?: AppGenerationManager;
   /** Pre-built integration system (tests inject one); defaults to the demo system. */
   readonly integrations?: ApiIntegrationSystem;
+  /** Pre-built TestingManager (tests inject one); defaults to the demo testing engine. */
+  readonly testing?: TestingManager;
 }
 
 /**
@@ -148,6 +153,20 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       now: () => new Date(),
     });
   registerGenerationRoutes(app, generation);
+
+  // Testing Engine endpoints: bounded, state-machine-driven test runs over
+  // the SAME project engine and sandbox layer - every read and command flows
+  // through a dedicated Tool System instance with explicit minimal grants.
+  // Plans, repairs, and high-risk tool calls pause for HUMAN decisions
+  // through these routes; responses carry safe normalized state only.
+  const testing =
+    options.testing ??
+    createTestingManager({
+      projectEngine,
+      sandboxes,
+      now: () => new Date(),
+    });
+  registerTestingRoutes(app, testing);
 
   return app;
 }

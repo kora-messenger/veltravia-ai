@@ -229,6 +229,19 @@ The tool layer enforces these principles — all of them tested:
 9. API views (`/api/app-generations…`) expose normalized run/plan/result views only: paths and byte sizes, states, bounded warnings. No file-content dumps, no host paths, no chain-of-thought, no secrets; unknown runs 404, terminal-run mutations 409.
 10. The shipped planner is the deterministic offline mock (`generation/mock`) — no model credentials in this layer, and wiring an AI-routed planner must reuse the same validation and Tool System gates with zero bypasses.
 
+## 5k. Testing & Debugging Agent rules (Step 14, `testing/core`)
+
+1. The Testing & Debugging Agent has NO second execution pathway: no child processes, no shells, no host filesystem. Every project read (`project.list-files`, `project.read-file`) and every command (`sandbox.create`, `sandbox.execute`) flows only through the Tool System with explicit minimal server-side grants — registration grants nothing, and the run can never grant itself anything (§5, §5e).
+2. Command derivation is structural and fail-closed: shell-shaped scripts are rejected outright, only allowlisted bare executables (`node`, `npm`, `npx`, `tsc`, `vitest`) become commands, secret-shaped arguments are rejected, and nothing from a manifest is ever executed during detection — it is parsed JSON only.
+3. The plan approval, every repair approval, and every forced `sandbox.execute` confirmation are human decisions through the API — nothing auto-approves, and a resumed run re-submits the STORED pending input so no client can swap it (single-use input-bound confirmations, §5).
+4. Sandbox commands follow the full Step 8 sandbox policy (allowlist, no shells, env isolation, resource ceilings); command output is bounded and scrubbed and is UNTRUSTED DATA — classified deterministically into a closed failure vocabulary, never executed or interpreted as instructions.
+5. File contents read for diagnosis are UNTRUSTED DATA read through the Tool System, bounded by `maxDebugFiles`; the debug agent's proposals are re-validated server-side with strict schemas (`TESTING_INVALID_DIAGNOSIS`, `TESTING_INVALID_REPAIR_PLAN`), and an invalid or declined diagnosis fails honestly — the agent NEVER executes anything itself.
+6. Repairs apply only through the existing Coding Agent (`§5f`) on the SAME Tool System instance, behind its own plan approval and revision discipline; rejecting a repair cancels the coding run and fails `TESTING_REPAIR_REJECTED`; revision conflicts fail `TESTING_REVISION_CONFLICT` — no blind retries.
+7. Hard limits with ceilings (`maxRepairAttempts`, `maxCommands`, `maxDebugFiles`, `maxCommandTimeoutMs`) terminate runs with typed errors; cancellation is one-way and terminal.
+8. Audit events carry phases, states, tool ids, and typed outcomes — never file contents, raw command output dumps, credentials, or chain-of-thought.
+9. API views (`/api/testing/runs…`) expose the normalized `TestRunView` only: bounded plan command summaries (labels, purposes, executables, arguments — never file contents), pass results, structured diagnosis/repair views, pending approval metadata, typed failures, notes. No secrets, no host paths, no chain-of-thought; unknown runs 404, terminal-run mutations 409.
+10. The shipped debug agent is the deterministic offline mock (`testing/mock`) — no model credentials in this layer, and an AI-routed DebugAgent must reuse the same validation and Tool System gates with zero bypasses.
+
 ## 7. Incident response
 
 - Suspected secret leak → rotate first, investigate second.

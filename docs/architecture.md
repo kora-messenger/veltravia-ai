@@ -16,7 +16,41 @@ Veltravia AI is an advanced AI software-development platform. The end state is a
 
 The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
 
-## Current state: Step 13 — App Generation Engine
+## Current state: Step 14 — Testing & Debugging Agent
+
+The Testing & Debugging Agent is live: `testing/core`
+(`@veltravia/testing-core`) turns a real project into a structured test run.
+Detection reads the workspace structure and manifest THROUGH the Tool System
+(JSON parsed, never executed; only allowlisted bare executables — `node`,
+`npm`, `npx`, `tsc`, `vitest` — become commands, shell-shaped scripts are
+rejected outright) and builds a bounded `TestPlan` a HUMAN approves. Commands
+execute ONLY in the Secure Sandbox with forced confirmations; failures are
+classified deterministically into a closed vocabulary and diagnosed by a
+provider-neutral `DebugAgent` under an explicit FACT/INFERENCE/RECOMMENDATION
+discipline — every proposal re-validated server-side, file contents always
+UNTRUSTED DATA. Repairs apply only through the existing Coding Agent behind
+its own plan approval, within a hard repair limit; revision conflicts fail
+typed instead of retried blindly. Hard limits with ceilings, one-way
+cancellation, scrubbed audit, and safe normalized run views
+(`/api/testing/runs…`) — never file contents, secrets, host paths, or
+chain-of-thought. The deterministic offline mock debug agent ships today
+(`testing/mock`); an AI-routed one is a one-argument swap. Details:
+`docs/testing.md`, `docs/security.md` §5k.
+
+## Prior state: Step 13 — App Generation Engine
+
+The App Generation Engine (`generation/core`, `@veltravia/generation-core`)
+is live: idea → validated spec → bounded plan → HUMAN plan approval →
+Tool-System-gated generation (project file tools + sandbox, minimal
+server-side grants) → structural validation + sandbox-tested outcomes →
+bounded repair loop → honest completion or typed failure. The deterministic
+offline `GenerationPlanner` ships today; every planner output is re-validated
+with strict bounded schemas, and an AI-routed planner is a one-line change.
+Safe run/plan/result views only (`/api/app-generations…` — paths and byte
+sizes, never file content). Details: `docs/generation.md`,
+`docs/security.md` §5j.
+
+## Prior state: Step 12 — Integration layer
 
 The integration layer is live: declarative integration manifests
 (`integrations/core`, `@veltravia/integration-core`) with strict registry
@@ -229,12 +263,14 @@ Because responses are normalized and capability-driven, nothing built in Step 2 
 
 ### `integrations/` — the user-facing integration layer (Step 12)
 
-| Directory                       | Responsibility                                                                                                                                                                                                                            | Status                    |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| `integrations/core/`            | The integration layer: manifest types, strict registry validation, owner-boundary connection manager, secret boundary, 13-step fail-closed runtime, scrubbed errors, bounded audit                                                        | **Implemented (Step 12)** |
-| `connectors/integration-mocks/` | Deterministic offline Storage + Database integrations (`@veltravia/integration-mocks`) — tests and development API only                                                                                                                   | **Implemented (Step 12)** |
-| `generation/core/`              | The App Generation Engine (`@veltravia/generation-core`): validated specs/plans, human plan approval, Tool System-gated generation + sandbox commands, bounded repair loop, hard limits, one-way cancellation, scrubbed audit, safe views | **Implemented (Step 13)** |
-| `generation/mock/`              | Deterministic offline planner (`@veltravia/generation-mock`), declining repair source, and built-in server-side templates (`web-react`, `fullstack-react-fastify`)                                                                        | **Implemented (Step 13)** |
+| Directory                       | Responsibility                                                                                                                                                                                                                                                                                                                                   | Status                    |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------- |
+| `integrations/core/`            | The integration layer: manifest types, strict registry validation, owner-boundary connection manager, secret boundary, 13-step fail-closed runtime, scrubbed errors, bounded audit                                                                                                                                                               | **Implemented (Step 12)** |
+| `connectors/integration-mocks/` | Deterministic offline Storage + Database integrations (`@veltravia/integration-mocks`) — tests and development API only                                                                                                                                                                                                                          | **Implemented (Step 12)** |
+| `generation/core/`              | The App Generation Engine (`@veltravia/generation-core`): validated specs/plans, human plan approval, Tool System-gated generation + sandbox commands, bounded repair loop, hard limits, one-way cancellation, scrubbed audit, safe views                                                                                                        | **Implemented (Step 13)** |
+| `generation/mock/`              | Deterministic offline planner (`@veltravia/generation-mock`), declining repair source, and built-in server-side templates (`web-react`, `fullstack-react-fastify`)                                                                                                                                                                               | **Implemented (Step 13)** |
+| `testing/core/`                 | The Testing & Debugging Agent (`@veltravia/testing-core`): structural test-surface detection, bounded human-approved `TestPlan`s, sandbox-only command execution through the Tool System, deterministic failure classification, validated FACT/INFERENCE/RECOMMENDATION diagnoses, Coding-Agent-mediated repairs within a hard limit, safe views | **Implemented (Step 14)** |
+| `testing/mock/`                 | Deterministic offline debug agent (`@veltravia/testing-mock`): marker-failure repair proposals + honest declines — tests and development API only                                                                                                                                                                                                | **Implemented (Step 14)** |
 
 ### `connectors/` — external-service integration (Step 4: core + mock implemented)
 
