@@ -8,6 +8,7 @@ import { ErrorState, Select, Spinner, useToast } from '../components/ui';
 import { navigateToHash } from '../shell/useHashRoute';
 import { ProjectContextPanel } from './workspace/ProjectContextPanel';
 import { MemoryPanel } from './workspace/MemoryPanel';
+import { CodebasePanel } from './workspace/CodebasePanel';
 import { ConversationArea } from './workspace/ConversationArea';
 import { MessageComposer } from './workspace/MessageComposer';
 import { ActivityPanel } from './workspace/ActivityPanel';
@@ -66,6 +67,7 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [contextDrawerOpen, setContextDrawerOpen] = useState(false);
   const [memoryDrawerOpen, setMemoryDrawerOpen] = useState(false);
+  const [codebaseDrawerOpen, setCodebaseDrawerOpen] = useState(false);
   const [activityDrawerOpen, setActivityDrawerOpen] = useState(false);
 
   const agents = agentsResource.state === 'ready' ? agentsResource.data : null;
@@ -157,6 +159,7 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
 
   const closeContextDrawer = useCallback(() => setContextDrawerOpen(false), []);
   const closeMemoryDrawer = useCallback(() => setMemoryDrawerOpen(false), []);
+  const closeCodebaseDrawer = useCallback(() => setCodebaseDrawerOpen(false), []);
   const closeActivityDrawer = useCallback(() => setActivityDrawerOpen(false), []);
 
   const notFound =
@@ -211,6 +214,7 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
         project={project}
         onOpenContext={() => setContextDrawerOpen(true)}
         onOpenMemory={() => setMemoryDrawerOpen(true)}
+        onOpenCodebase={() => setCodebaseDrawerOpen(true)}
         onOpenActivity={() => setActivityDrawerOpen(true)}
       />
 
@@ -226,6 +230,12 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
            * Candidates are reviewed here; approved memory enters agent
            * runs as bounded UNTRUSTED reference data, never instructions. */}
           <MemoryPanel projectId={project.id} />
+          {/* Codebase analysis (Step 16): read-only structural insight into
+           * the selected workspace - languages, frameworks, symbol search,
+           * feature traces, and memory candidate extraction. */}
+          {selectedWorkspaceId !== null && (
+            <CodebasePanel projectId={project.id} workspaceId={selectedWorkspaceId} />
+          )}
         </div>
 
         <div className="v-workspace__center" aria-busy={runBusy}>
@@ -284,6 +294,16 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
         label={`${project.name} memory`}
       >
         <MemoryPanel projectId={project.id} />
+      </WorkspaceDrawer>
+
+      <WorkspaceDrawer
+        open={codebaseDrawerOpen}
+        onClose={closeCodebaseDrawer}
+        label={`${project.name} codebase`}
+      >
+        {selectedWorkspaceId !== null && (
+          <CodebasePanel projectId={project.id} workspaceId={selectedWorkspaceId} />
+        )}
       </WorkspaceDrawer>
 
       <WorkspaceDrawer open={activityDrawerOpen} onClose={closeActivityDrawer} label="Activity">

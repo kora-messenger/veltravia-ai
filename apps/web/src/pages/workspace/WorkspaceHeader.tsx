@@ -7,6 +7,7 @@ export interface WorkspaceHeaderProps {
   /** Whether the side panels are toggled (used by mobile panel buttons). */
   onOpenContext(): void;
   onOpenMemory(): void;
+  onOpenCodebase(): void;
   onOpenActivity(): void;
 }
 
@@ -20,6 +21,7 @@ export function WorkspaceHeader({
   project,
   onOpenContext,
   onOpenMemory,
+  onOpenCodebase,
   onOpenActivity,
 }: WorkspaceHeaderProps) {
   return (
@@ -42,6 +44,9 @@ export function WorkspaceHeader({
         </button>
         <button type="button" className="v-workspace-header__panel-btn" onClick={onOpenMemory}>
           Memory
+        </button>
+        <button type="button" className="v-workspace-header__panel-btn" onClick={onOpenCodebase}>
+          Codebase
         </button>
         <button type="button" className="v-workspace-header__panel-btn" onClick={onOpenActivity}>
           Activity

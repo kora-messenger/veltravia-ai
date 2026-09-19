@@ -66,8 +66,10 @@ export {
   type MemoryContextResult,
 } from './context/index.js';
 export {
+  extractCandidatesFromCodebaseAnalysis,
   extractCandidatesFromGenerationRun,
   extractCandidatesFromTestingRun,
+  type CodebaseAnalysisFacts,
   type GenerationRunFacts,
   type TestingRunFacts,
 } from './extraction/index.js';

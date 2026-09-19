@@ -1,4 +1,5 @@
 import { AgentManager } from '@veltravia/agent-core';
+import type { CodebaseIntelligenceManager } from '@veltravia/codebase-core';
 import { createMockAgent, DEMO_SCRIPTS } from '@veltravia/agent-mock';
 
 import { createToolManager } from './tools.js';
@@ -21,6 +22,7 @@ import { mockDatabaseConnector, mockStorageConnector } from '@veltravia/integrat
 export function createAgentManager(
   now: () => Date = () => new Date(),
   integrations?: ApiIntegrationSystem,
+  codebase?: CodebaseIntelligenceManager,
 ): AgentManager {
   // Step 12: the multi-connector integration connectors + execution seam
   // ride the SAME Tool System pipeline. The ConnectorManager authorizes,
@@ -33,7 +35,7 @@ export function createAgentManager(
           connectorExecutor: integrations.connectorExecutor(),
         }
       : undefined;
-  const tools = createToolManager(now, undefined, undefined, integrationWiring);
+  const tools = createToolManager(now, undefined, undefined, integrationWiring, codebase);
   // The demo tool agents may actually execute the (harmless, offline) mock tools.
   tools.grantPermission('mock.summarize', 'mock.read');
   tools.grantPermission('mock.purge', 'mock.admin');

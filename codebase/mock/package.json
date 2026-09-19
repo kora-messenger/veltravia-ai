@@ -1,0 +1,24 @@
+{
+  "name": "@veltravia/codebase-mock",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic OFFLINE implementation of the Codebase Intelligence persistence and source-provider ports (Step 16): an in-memory CodebaseIndexRepository plus a fixture SourceProvider over a plain in-memory file map. No host code, no host filesystem access, no OS isolation claimed - it exists so the core analysis engine, the API, and the web UI can be exercised end to end deterministically.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/codebase-core": "0.1.0"
+  }
+}

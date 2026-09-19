@@ -16,7 +16,31 @@ Veltravia AI is an advanced AI software-development platform. The end state is a
 
 The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
 
-## Current state: Step 15 — Project Memory
+## Current state: Step 16 — Codebase Intelligence
+
+Codebase intelligence is live: `codebase/core` (`@veltravia/codebase-core`)
+gives the platform a structural understanding of a workspace's source —
+languages and frameworks (evidence-backed, confidence-scored), symbols,
+import/reference/caller/callee relationships, entry points, routes, and
+components. Indexes are METADATA, never content: source is read ONLY through
+the `CodebaseSourceProvider` port (a read of already-authorized project
+files), file contents and values are never retained, secret-shaped files
+are flagged by path with the values never entering the index, and evidence
+text is scrubbed. Hard limits with ceilings bound every operation and
+truncated responses say so honestly. Eight read-only tools
+(`codebase.search`, `find_symbol`, `find_references`, `find_callers`,
+`find_callees`, `trace_feature`, `get_summary`, `get_file_symbols`) ride the
+Tool System (permission `codebase.read`) — agents have no other path to the
+index. Completed indexes contribute bounded structural facts to project
+memory as NON-AUTHORITATIVE candidates under the Step 15 human-approval
+rules. `codebase/mock` (`@veltravia/codebase-mock`) is the deterministic
+in-memory repositories; the API exposes `/api/projects/:id/codebase…`
+(index, build, search, trace, summary, per-file symbols, memory-candidate
+extraction) with safe normalized views, and the web workspace gained a
+Codebase analysis panel (desktop side panel + mobile drawer) that never
+shows source content. Details: `docs/codebase.md`, `docs/security.md` §5m.
+
+## Prior state: Step 15 — Project Memory
 
 Project memory is live: `memory/core` (`@veltravia/memory-core`) gives every
 project a durable, human-owned fact store — validated lifecycle
@@ -279,16 +303,18 @@ Because responses are normalized and capability-driven, nothing built in Step 2 
 
 ### `integrations/` — the user-facing integration layer (Step 12)
 
-| Directory                       | Responsibility                                                                                                                                                                                                                                                                                                                                   | Status                    |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------- |
-| `integrations/core/`            | The integration layer: manifest types, strict registry validation, owner-boundary connection manager, secret boundary, 13-step fail-closed runtime, scrubbed errors, bounded audit                                                                                                                                                               | **Implemented (Step 12)** |
-| `connectors/integration-mocks/` | Deterministic offline Storage + Database integrations (`@veltravia/integration-mocks`) — tests and development API only                                                                                                                                                                                                                          | **Implemented (Step 12)** |
-| `generation/core/`              | The App Generation Engine (`@veltravia/generation-core`): validated specs/plans, human plan approval, Tool System-gated generation + sandbox commands, bounded repair loop, hard limits, one-way cancellation, scrubbed audit, safe views                                                                                                        | **Implemented (Step 13)** |
-| `generation/mock/`              | Deterministic offline planner (`@veltravia/generation-mock`), declining repair source, and built-in server-side templates (`web-react`, `fullstack-react-fastify`)                                                                                                                                                                               | **Implemented (Step 13)** |
-| `testing/core/`                 | The Testing & Debugging Agent (`@veltravia/testing-core`): structural test-surface detection, bounded human-approved `TestPlan`s, sandbox-only command execution through the Tool System, deterministic failure classification, validated FACT/INFERENCE/RECOMMENDATION diagnoses, Coding-Agent-mediated repairs within a hard limit, safe views | **Implemented (Step 14)** |
-| `memory/core/`                  | Project memory (`@veltravia/memory-core`): human-owned per-project facts, validated lifecycle + revisions, secret rejection, capacity limits, Memory Context Builder delivering UNTRUSTED reference data, candidate extraction from completed runs                                                                                               | **Implemented (Step 15)** |
-| `memory/mock/`                  | Deterministic in-memory memory repository (`@veltravia/memory-mock`)                                                                                                                                                                                                                                                                             | **Implemented (Step 15)** |
-| `testing/mock/`                 | Deterministic offline debug agent (`@veltravia/testing-mock`): marker-failure repair proposals + honest declines — tests and development API only                                                                                                                                                                                                | **Implemented (Step 14)** |
+| Directory                       | Responsibility                                                                                                                                                                                                                                                                                                                                                    | Status                    |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `integrations/core/`            | The integration layer: manifest types, strict registry validation, owner-boundary connection manager, secret boundary, 13-step fail-closed runtime, scrubbed errors, bounded audit                                                                                                                                                                                | **Implemented (Step 12)** |
+| `connectors/integration-mocks/` | Deterministic offline Storage + Database integrations (`@veltravia/integration-mocks`) — tests and development API only                                                                                                                                                                                                                                           | **Implemented (Step 12)** |
+| `generation/core/`              | The App Generation Engine (`@veltravia/generation-core`): validated specs/plans, human plan approval, Tool System-gated generation + sandbox commands, bounded repair loop, hard limits, one-way cancellation, scrubbed audit, safe views                                                                                                                         | **Implemented (Step 13)** |
+| `generation/mock/`              | Deterministic offline planner (`@veltravia/generation-mock`), declining repair source, and built-in server-side templates (`web-react`, `fullstack-react-fastify`)                                                                                                                                                                                                | **Implemented (Step 13)** |
+| `testing/core/`                 | The Testing & Debugging Agent (`@veltravia/testing-core`): structural test-surface detection, bounded human-approved `TestPlan`s, sandbox-only command execution through the Tool System, deterministic failure classification, validated FACT/INFERENCE/RECOMMENDATION diagnoses, Coding-Agent-mediated repairs within a hard limit, safe views                  | **Implemented (Step 14)** |
+| `memory/core/`                  | Project memory (`@veltravia/memory-core`): human-owned per-project facts, validated lifecycle + revisions, secret rejection, capacity limits, Memory Context Builder delivering UNTRUSTED reference data, candidate extraction from completed runs                                                                                                                | **Implemented (Step 15)** |
+| `memory/mock/`                  | Deterministic in-memory memory repository (`@veltravia/memory-mock`)                                                                                                                                                                                                                                                                                              | **Implemented (Step 15)** |
+| `codebase/core/`                | Codebase intelligence (`@veltravia/codebase-core`): source read only through the `CodebaseSourceProvider` port, evidence-backed languages/frameworks/symbols/relationships, secret-shaped files flagged by path (values never stored), hard limits with ceilings, scrubbed evidence, eight read-only Tool System tools (`codebase.*`, permission `codebase.read`) | **Implemented (Step 16)** |
+| `codebase/mock/`                | Deterministic in-memory index repositories (`@veltravia/codebase-mock`) — tests and development API only                                                                                                                                                                                                                                                          | **Implemented (Step 16)** |
+| `testing/mock/`                 | Deterministic offline debug agent (`@veltravia/testing-mock`): marker-failure repair proposals + honest declines — tests and development API only                                                                                                                                                                                                                 | **Implemented (Step 14)** |
 
 ### `connectors/` — external-service integration (Step 4: core + mock implemented)
 

@@ -156,6 +156,95 @@ export function extractCandidatesFromTestingRun(facts: TestingRunFacts): CreateM
   return candidates.slice(0, MEMORY_LIMITS.maxCandidatesPerWorkflow);
 }
 
+/**
+ * Structural facts from one COMPLETED codebase index build (Step 16).
+ * Only evidence-derived summary facts - never symbol lists, never source
+ * content, never the whole index. Provenance is `system_derived` with the
+ * index id as the reference so a human can trace the origin.
+ */
+export interface CodebaseAnalysisFacts {
+  readonly indexId: string;
+  readonly projectId: string;
+  readonly workspaceId?: string;
+  readonly languages: readonly string[];
+  readonly frameworks: readonly { readonly id: string; readonly name: string }[];
+  readonly entryPointPaths: readonly string[];
+  readonly testFilePaths: readonly string[];
+  readonly routeCount: number;
+  readonly componentCount: number;
+  readonly flaggedSecretFileCount: number;
+}
+
+/**
+ * Extracts durable facts from a completed codebase analysis. The full
+ * code index is deliberately NOT duplicated into memory - only a few
+ * stable, structural conclusions, each pending human approval.
+ */
+export function extractCandidatesFromCodebaseAnalysis(
+  facts: CodebaseAnalysisFacts,
+): CreateMemoryInput[] {
+  const candidates: CreateMemoryInput[] = [];
+  const provenance = {
+    kind: 'system_derived' as const,
+    referenceId: facts.indexId,
+  };
+
+  if (facts.frameworks.length > 0 || facts.languages.length > 0) {
+    const parts = [
+      facts.frameworks.length > 0
+        ? `Framework evidence: ${facts.frameworks
+            .slice(0, 5)
+            .map((framework) => framework.name)
+            .join(', ')}`
+        : null,
+      facts.languages.length > 0
+        ? `Languages present: ${facts.languages.slice(0, 6).join(', ')}`
+        : null,
+    ]
+      .filter((line): line is string => line !== null)
+      .join('. ');
+    push(candidates, facts.projectId, facts.workspaceId, {
+      type: 'technology',
+      title: `Codebase technology profile (from index)`,
+      content: `${parts}.`,
+      source: provenance,
+      confidence: 'medium',
+    });
+  }
+
+  if (facts.entryPointPaths.length > 0) {
+    push(candidates, facts.projectId, facts.workspaceId, {
+      type: 'project_summary',
+      title: `Likely application entry points (from index)`,
+      content: `The index identified likely entry points: ${facts.entryPointPaths.slice(0, 5).join(', ')}.`,
+      source: provenance,
+      confidence: 'low',
+    });
+  }
+
+  if (facts.testFilePaths.length > 0) {
+    push(candidates, facts.projectId, facts.workspaceId, {
+      type: 'testing_rule',
+      title: `Test locations (from index)`,
+      content: `Tests live in: ${facts.testFilePaths.slice(0, 6).join(', ')}.`,
+      source: provenance,
+      confidence: 'medium',
+    });
+  }
+
+  if (facts.flaggedSecretFileCount > 0) {
+    push(candidates, facts.projectId, facts.workspaceId, {
+      type: 'known_issue',
+      title: `Secret-shaped content detected (from index)`,
+      content: `${facts.flaggedSecretFileCount} indexed file(s) contain secret-shaped content. Values were never stored; the files should be reviewed.`,
+      source: provenance,
+      confidence: 'medium',
+    });
+  }
+
+  return candidates.slice(0, MEMORY_LIMITS.maxCandidatesPerWorkflow);
+}
+
 function push(
   candidates: CreateMemoryInput[],
   projectId: string,

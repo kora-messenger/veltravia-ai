@@ -38,7 +38,9 @@
     "@veltravia/types": "*",
     "fastify": "^5.2.0",
     "@veltravia/memory-core": "0.1.0",
-    "@veltravia/memory-mock": "0.1.0"
+    "@veltravia/memory-mock": "0.1.0",
+    "@veltravia/codebase-core": "0.1.0",
+    "@veltravia/codebase-mock": "0.1.0"
   },
   "devDependencies": {
     "tsx": "^4.19.2"

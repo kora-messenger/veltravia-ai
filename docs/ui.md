@@ -434,3 +434,28 @@ drawer (`WorkspaceDrawer`, header button "Memory") below 900px.
   `src/api/memories.ts` (safe views); it never sends memory content
   the server did not produce, and candidate content arrives from the
   server's own extraction pipeline.
+
+## Codebase analysis panel (Step 16)
+
+The AI workspace gains a fourth side surface: `CodebasePanel`
+(`src/pages/workspace/CodebasePanel.tsx`), rendered below the memory panel
+in the left region on desktop and inside its own accessible drawer
+(`WorkspaceDrawer`, header button "Codebase") below 900px.
+
+- **What it shows**: index status (Current / Stale badge), the derived
+  stats (files, symbols, routes, components), the language/framework
+  profile, and an honest count of files flagged for secret-shaped content
+  — values are never shown, only the count and the flag. A collapsible
+  file list shows each file's parse status (`parsed` / `failed` /
+  `unsupported`), never the source.
+- **What the user can do**: build or refresh the index (incremental
+  re-analysis), search symbols (bounded results with path evidence), trace
+  a feature (bounded, evidence-backed nodes), and extract memory
+  candidates — which land in the memory panel as CANDIDATES for human
+  review, never as active memory.
+- **Honest states**: a never-analyzed workspace offers a single "Analyze
+  workspace" action; load failures render an inline error with retry;
+  empty searches and traces say so plainly; truncated traces say so.
+- **Trust boundary**: the panel talks only to `src/api/codebase.ts` (safe
+  views: paths, counts, statuses, bounded evidence). Source content is
+  never rendered here — the file tree remains the content pathway.

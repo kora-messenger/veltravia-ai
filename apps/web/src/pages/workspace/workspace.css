@@ -661,6 +661,7 @@
  * padding/background). */
 .v-wdrawer__body .v-context-panel,
 .v-wdrawer__body .v-memory-panel,
+.v-wdrawer__body .v-codebase-panel,
 .v-wdrawer__body .v-activity-panel {
   padding: 0;
   background: transparent;
@@ -978,4 +979,113 @@
   margin: 0;
   font-size: var(--v-text-xs);
   color: var(--v-danger);
+}
+
+/* Codebase analysis panel (Step 16) - mirrors the memory panel rhythm. */
+.v-codebase-panel {
+  min-width: 0;
+  background: var(--v-surface);
+  padding: var(--v-space-3);
+  border-top: 1px solid var(--v-border-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+}
+
+.v-codebase-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--v-space-2);
+}
+
+.v-codebase-panel__empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  align-items: flex-start;
+}
+
+.v-codebase-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+}
+
+.v-codebase-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+}
+
+.v-codebase-panel__stats {
+  margin: 0;
+  color: var(--v-foreground-muted);
+  font-size: var(--v-font-size-sm);
+}
+
+.v-codebase-panel__meta {
+  margin: 0;
+  color: var(--v-foreground-muted);
+  font-size: var(--v-font-size-sm);
+}
+
+.v-codebase-panel__warning {
+  margin: 0;
+  color: var(--v-warning-strong, #8a6d00);
+  font-size: var(--v-font-size-sm);
+}
+
+.v-codebase-panel__error {
+  margin: 0;
+  color: var(--v-danger-strong, #b3261e);
+  font-size: var(--v-font-size-sm);
+}
+
+.v-codebase-panel__search,
+.v-codebase-panel__trace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+}
+
+.v-codebase-panel__results,
+.v-codebase-panel__trace-result ul,
+.v-codebase-panel__files ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-1);
+}
+
+.v-codebase-panel__results li,
+.v-codebase-panel__trace-result li,
+.v-codebase-panel__files li {
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+  font-size: var(--v-font-size-sm);
+}
+
+.v-codebase-panel__result-title,
+.v-codebase-panel__file-path {
+  font-weight: var(--v-weight-semibold, 600);
+}
+
+.v-codebase-panel__result-detail {
+  color: var(--v-foreground-muted);
+}
+
+.v-codebase-panel__files summary {
+  cursor: pointer;
+  color: var(--v-foreground-muted);
+  font-size: var(--v-font-size-sm);
+}
+
+.v-codebase-panel__files li {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--v-space-2);
 }

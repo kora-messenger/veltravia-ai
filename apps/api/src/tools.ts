@@ -3,6 +3,7 @@ import type { ConnectorOperationExecutor } from '@veltravia/tool-core';
 import { createMockConnector } from '@veltravia/connector-mock';
 import type { SandboxManager } from '@veltravia/sandbox-core';
 import { ToolManager } from '@veltravia/tool-core';
+import { createCodebaseTools, type CodebaseIntelligenceManager } from '@veltravia/codebase-core';
 import {
   createConnectorBackedMockTool,
   createMockPurgeTool,
@@ -37,6 +38,8 @@ export function createToolManager(
   /** Existing ConnectorManager to share (e.g. the coding manager's own). */
   existingConnectors?: ConnectorManager,
   extra?: ExtraToolWiring,
+  /** Codebase intelligence manager (Step 16): enables the read-only analysis tools. */
+  codebase?: CodebaseIntelligenceManager,
 ): ToolManager {
   const connectors = existingConnectors ?? new ConnectorManager({ now });
   if (existingConnectors === undefined) {
@@ -86,6 +89,22 @@ export function createToolManager(
     }
     for (const implementation of sandboxTools.implementations) {
       manager.registerImplementation(implementation);
+    }
+  }
+  // Step 16: codebase analysis tools - read-only, low-risk, permission-
+  // gated (codebase.read). Registration grants NOTHING by itself; grants
+  // are explicit below so agents can request analysis evidence. Analysis
+  // can never become mutation: no codebase tool writes anything.
+  if (codebase !== undefined) {
+    const codebaseTools = createCodebaseTools(codebase);
+    for (const definition of codebaseTools.definitions) {
+      manager.register(definition);
+    }
+    for (const implementation of codebaseTools.implementations) {
+      manager.registerImplementation(implementation);
+    }
+    for (const definition of codebaseTools.definitions) {
+      manager.grantPermission(definition.id, 'codebase.read');
     }
   }
   return manager;

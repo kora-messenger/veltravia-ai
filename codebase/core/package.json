@@ -1,0 +1,27 @@
+{
+  "name": "@veltravia/codebase-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia AI Codebase Intelligence core (Step 16): a typed, provider-independent analysis and indexing layer over project workspaces. It indexes source files through a SourceProvider port (the Project Engine in production - the core NEVER touches the host filesystem), parses TypeScript/JavaScript with the real TypeScript AST (no regex-only parsing), extracts symbols, imports, exports, relationships, routes, components, entry points and dependency graphs, and answers bounded evidence-backed searches and feature traces. It is an ANALYSIS layer only: it never mutates project files, never executes code, never bypasses the Tool System, never stores secrets, and treats all source content as UNTRUSTED project data that can never act as an instruction.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/connector-core": "0.1.0",
+    "@veltravia/project-core": "0.1.0",
+    "@veltravia/tool-core": "0.1.0",
+    "typescript": "^5.7.3"
+  }
+}

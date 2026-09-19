@@ -10,6 +10,7 @@ import type { ProjectEngine } from '@veltravia/project-core';
 import type { SandboxManager } from '@veltravia/sandbox-core';
 import { MemoryManager } from '@veltravia/memory-core';
 import { InMemoryMemoryRepository } from '@veltravia/memory-mock';
+import type { CodebaseIntelligenceManager } from '@veltravia/codebase-core';
 import { formatTimestamp } from '@veltravia/shared';
 import { VELTRAVIA_NAME, VELTRAVIA_VERSION, type HealthCheckResponse } from '@veltravia/types';
 import { createAICore } from './ai.js';
@@ -25,6 +26,8 @@ import { registerAgentRoutes } from './routes/agents.js';
 import { registerCodingRoutes } from './routes/coding.js';
 import { registerTestingRoutes } from './routes/testing.js';
 import { registerMemoryRoutes } from './routes/memories.js';
+import { registerCodebaseRoutes } from './routes/codebase.js';
+import { createCodebaseManager } from './codebase-service.js';
 import { registerGenerationRoutes } from './routes/generation.js';
 import { createCodingManager } from './coding.js';
 import { createTestingManager } from './testing.js';
@@ -58,6 +61,8 @@ export interface BuildAppOptions {
   readonly testing?: TestingManager;
   /** Project memory (Step 15). Defaults to an in-process manager. */
   readonly memory?: MemoryManager;
+  /** Codebase intelligence (Step 16). Defaults to an in-process manager. */
+  readonly codebase?: CodebaseIntelligenceManager;
 }
 
 /**
@@ -113,7 +118,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // The integration tools (mock storage/database) ride the same pipeline,
   // so the demo storage agent proves agent->tool->connector discovery
   // with no connector-specific agent code.
-  const agents = options.agents ?? createAgentManager(() => new Date(), integrations);
+  const agents =
+    options.agents ?? createAgentManager(() => new Date(), integrations, options.codebase);
   // The agent routes get the Project Engine so every run's project/workspace
   // association is resolved and validated server-side (Step 11C-4): the
   // browser's identifiers are never trusted, and the derived context is
@@ -183,6 +189,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // route validates the project against the Project Engine; extraction
   // products are always NON-AUTHORITATIVE candidates pending approval.
   registerMemoryRoutes(app, { memory, projectEngine, generation, testing });
+
+  // Codebase intelligence (Step 16): read-only analysis over the SAME
+  // Project Engine data - indexes, bounded search, feature traces, and
+  // memory candidates from COMPLETED indexes. Never mutates project
+  // files and never returns raw source content.
+  const codebase = options.codebase ?? createCodebaseManager(projectEngine);
+  registerCodebaseRoutes(app, { codebase, projectEngine, memory });
 
   return app;
 }

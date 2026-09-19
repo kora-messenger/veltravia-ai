@@ -252,6 +252,16 @@ The tool layer enforces these principles — all of them tested:
 6. Context injection is server-derived only: the API searches ACTIVE memories of the validated project association and passes one bounded string; the browser never supplies or shapes memory content. Memory is an enhancement, never a gate — a memory failure can never fail an otherwise valid run.
 7. API responses are safe normalized views (id, fields, provenance, statuses, revision, timestamps); typed scrubbed errors map to exact HTTP codes; the audit trail records lifecycle events WITHOUT memory content.
 
+## 5m. Codebase intelligence rules (Step 16, `codebase/core` + `apps/api`)
+
+1. Indexes are METADATA, never content: a build reads source through the `CodebaseSourceProvider` port (a read of already-authorized project files), keeps only symbols, relationships, statuses, and bounded evidence, and retains no file contents, symbol bodies, or values — the same reference-data boundary as memory (§5l) and tool results (§5c).
+2. Secret-shaped values are never read into the index, never stored, never shown: suspicious files are flagged by path only (`parseStatus` + `flaggedSecrets`), and evidence text is scrubbed so credential-shaped characters cannot ride along in search or trace output.
+3. All limits are enforced server-side with hard ceilings (indexed files, symbols per file and total, relationships, per-file bytes, build duration, search results, trace depth/nodes); every truncated response says so honestly.
+4. Analysis is evidence-backed: search results, references, and feature traces carry file paths and short scrubbed evidence lines; parse failures surface as honest per-file `failed`/`unsupported` statuses, never silent skips.
+5. Agents reach codebase knowledge ONLY through the eight read-only Tool System tools (`codebase.*`, permission `codebase.read`); there is no direct path around the Tool System and no analysis tool mutates anything.
+6. Memory candidates from a completed index are NON-AUTHORITATIVE `candidate` records under the Step 15 human-approval rules (§5l): only bounded structural facts are extracted, provenance is `system_derived` with the index id, and nothing auto-promotes.
+7. API responses are safe normalized views (paths, counts, statuses, bounded evidence — never content); typed scrubbed errors map to exact HTTP codes; unknown projects/workspaces 404 before any source read.
+
 ## 7. Incident response
 
 - Suspected secret leak → rotate first, investigate second.
