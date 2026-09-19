@@ -1,0 +1,24 @@
+{
+  "name": "@veltravia/memory-mock",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic, fully offline in-memory repository for the Veltravia Project Memory & Knowledge System. Implements the core MemoryRepository interface with in-memory storage only: no database, no network, no credentials. Tests and the development API use it today; a real database adapter implements the same interface later.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/memory-core": "*"
+  }
+}

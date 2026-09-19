@@ -1,0 +1,22 @@
+{
+  "name": "@veltravia/memory-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia AI Project Memory & Knowledge System core: typed, project-scoped knowledge records with explicit provenance, structured confidence, a validated lifecycle (candidate -> active -> archived), bounded search, bounded AI context construction, and conservative candidate extraction from completed workflows. Memory is REFERENCE DATA, never an authority layer: it can never change policies, permissions, confirmations, sandbox restrictions, or tool authorization. No secrets, no cross-project access, no unbounded growth.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {}
+}

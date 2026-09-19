@@ -16,7 +16,23 @@ Veltravia AI is an advanced AI software-development platform. The end state is a
 
 The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
 
-## Current state: Step 14 — Testing & Debugging Agent
+## Current state: Step 15 — Project Memory
+
+Project memory is live: `memory/core` (`@veltravia/memory-core`) gives every
+project a durable, human-owned fact store — validated lifecycle
+(active/archived/candidate/rejected), optimistic revisions, secret rejection
+at every write surface, hard capacity limits, and provenance on every record.
+Approved facts reach agent runs ONLY through the Memory Context Builder as a
+labeled UNTRUSTED-reference-data block; AI-extracted candidates from COMPLETED
+generation/testing runs are NON-AUTHORITATIVE and enter context only after an
+explicit human approve. Memory is server-derived only (the browser never
+supplies it) and an enhancement, never a gate. `memory/mock`
+(`@veltravia/memory-mock`) is the deterministic in-memory repository; the API
+exposes `/api/projects/:id/memories…` (CRUD, search, lifecycle, candidate
+review, stats, extraction) with safe normalized views. Details:
+`docs/memory.md`, `docs/security.md` §5l.
+
+## Prior state: Step 14 — Testing & Debugging Agent
 
 The Testing & Debugging Agent is live: `testing/core`
 (`@veltravia/testing-core`) turns a real project into a structured test run.
@@ -270,6 +286,8 @@ Because responses are normalized and capability-driven, nothing built in Step 2 
 | `generation/core/`              | The App Generation Engine (`@veltravia/generation-core`): validated specs/plans, human plan approval, Tool System-gated generation + sandbox commands, bounded repair loop, hard limits, one-way cancellation, scrubbed audit, safe views                                                                                                        | **Implemented (Step 13)** |
 | `generation/mock/`              | Deterministic offline planner (`@veltravia/generation-mock`), declining repair source, and built-in server-side templates (`web-react`, `fullstack-react-fastify`)                                                                                                                                                                               | **Implemented (Step 13)** |
 | `testing/core/`                 | The Testing & Debugging Agent (`@veltravia/testing-core`): structural test-surface detection, bounded human-approved `TestPlan`s, sandbox-only command execution through the Tool System, deterministic failure classification, validated FACT/INFERENCE/RECOMMENDATION diagnoses, Coding-Agent-mediated repairs within a hard limit, safe views | **Implemented (Step 14)** |
+| `memory/core/`                  | Project memory (`@veltravia/memory-core`): human-owned per-project facts, validated lifecycle + revisions, secret rejection, capacity limits, Memory Context Builder delivering UNTRUSTED reference data, candidate extraction from completed runs                                                                                               | **Implemented (Step 15)** |
+| `memory/mock/`                  | Deterministic in-memory memory repository (`@veltravia/memory-mock`)                                                                                                                                                                                                                                                                             | **Implemented (Step 15)** |
 | `testing/mock/`                 | Deterministic offline debug agent (`@veltravia/testing-mock`): marker-failure repair proposals + honest declines — tests and development API only                                                                                                                                                                                                | **Implemented (Step 14)** |
 
 ### `connectors/` — external-service integration (Step 4: core + mock implemented)

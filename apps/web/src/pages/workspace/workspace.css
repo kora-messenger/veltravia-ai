@@ -123,6 +123,14 @@
   background: var(--v-bg);
 }
 
+/* Left region: project context + project memory (Step 15). */
+.v-workspace__side-left {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
 /* ------------------------ Project context -------------------------- */
 
 .v-context-panel {
@@ -652,9 +660,120 @@
 /* Reused desktop panels sit flat inside the drawer body (no double
  * padding/background). */
 .v-wdrawer__body .v-context-panel,
+.v-wdrawer__body .v-memory-panel,
 .v-wdrawer__body .v-activity-panel {
   padding: 0;
   background: transparent;
+}
+
+/* ------------------------ Memory panel (Step 15) -------------------- */
+
+.v-memory-panel {
+  min-width: 0;
+  background: var(--v-surface);
+  padding: var(--v-space-3);
+  border-top: 1px solid var(--v-border-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+}
+
+.v-memory-panel__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-1);
+}
+
+.v-memory-panel__stats {
+  margin: 0;
+  color: var(--v-text-muted);
+  font-size: var(--v-font-size-sm);
+}
+
+.v-memory-panel__filters {
+  display: flex;
+  gap: var(--v-space-1);
+}
+
+.v-memory-panel__tab {
+  border: 1px solid var(--v-border);
+  background: transparent;
+  color: var(--v-text-muted);
+  font-size: var(--v-font-size-sm);
+  padding: calc(var(--v-space-1) + 0.125rem) var(--v-space-2);
+  border-radius: var(--v-radius-sm);
+  cursor: pointer;
+}
+
+.v-memory-panel__tab--active,
+.v-memory-panel__tab[aria-pressed='true'] {
+  background: var(--v-primary);
+  border-color: var(--v-primary);
+  color: var(--v-text-on-primary, #fff);
+}
+
+.v-memory-panel__search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+}
+
+.v-memory-panel__create {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  padding: var(--v-space-3);
+  border: 1px solid var(--v-border-muted);
+  border-radius: var(--v-radius-md);
+}
+
+.v-memory-panel__error {
+  margin: 0;
+  color: var(--v-danger, #b3261e);
+  font-size: var(--v-font-size-sm);
+}
+
+.v-memory-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+}
+
+.v-memory-panel__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-1);
+  padding: var(--v-space-3);
+  border: 1px solid var(--v-border-muted);
+  border-radius: var(--v-radius-md);
+}
+
+.v-memory-panel__item-title {
+  margin: 0;
+  font-weight: var(--v-weight-semibold, 600);
+}
+
+.v-memory-panel__item-content {
+  margin: 0;
+  color: var(--v-text-muted);
+  font-size: var(--v-font-size-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.v-memory-panel__item-source {
+  margin: 0;
+  color: var(--v-text-muted);
+  font-size: var(--v-font-size-xs, 0.75rem);
+}
+
+.v-memory-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-1);
 }
 
 @keyframes v-slide-in {
@@ -683,6 +802,7 @@
   }
   /* Hide only the desktop grid regions - the drawers render their own
    * copies of these panels, which must stay visible. */
+  .v-workspace__body > .v-workspace__side-left,
   .v-workspace__body > .v-context-panel,
   .v-workspace__body > .v-activity-panel {
     display: none;

@@ -67,6 +67,12 @@ export interface AgentRequest {
    * secret-scanned like metadata.
    */
   readonly projectContext?: Readonly<Record<string, unknown>>;
+  /**
+   * Server-derived project memory context (bounded, built by the Memory
+   * Context Builder). Enters the decision context as UNTRUSTED REFERENCE
+   * DATA - memory text never gains instruction authority.
+   */
+  readonly memoryContext?: string;
 }
 
 /** Safe agent response: normalized information only, never chain-of-thought. */
@@ -145,6 +151,13 @@ export interface AgentRunContext {
 /** Maximum serialized size of the server-derived project context. */
 export const AGENT_PROJECT_CONTEXT_MAX_SERIALIZED = 8000;
 
+/**
+ * Maximum characters of project memory context one run may carry. The
+ * Memory Context Builder already bounds its output to a smaller budget;
+ * this ceiling is the run-request-side defense in depth.
+ */
+export const AGENT_MEMORY_CONTEXT_MAX_CHARS = 8000;
+
 /** Validates an AgentRequest. Rejects empty tasks, oversized fields, and secret-shaped metadata. */
 export function validateAgentRequest(request: AgentRequest): void {
   const reasons: string[] = [];
@@ -178,6 +191,15 @@ export function validateAgentRequest(request: AgentRequest): void {
       reasons.push('metadata exceeds the maximum serialized size');
     } else if (serialized !== undefined && scrubAgentSecrets(serialized) !== serialized) {
       reasons.push('metadata must not contain secret-shaped values');
+    }
+  }
+  if (request.memoryContext !== undefined) {
+    if (typeof request.memoryContext !== 'string' || request.memoryContext.length === 0) {
+      reasons.push('memoryContext must be a non-empty string');
+    } else if (request.memoryContext.length > AGENT_MEMORY_CONTEXT_MAX_CHARS) {
+      reasons.push('memoryContext exceeds the maximum size');
+    } else if (scrubAgentSecrets(request.memoryContext) !== request.memoryContext) {
+      reasons.push('memoryContext must not contain secret-shaped values');
     }
   }
   if (request.projectContext !== undefined) {
@@ -494,6 +516,7 @@ export class DefaultAgent implements Agent {
       ...(request.projectContext !== undefined
         ? { projectContext: JSON.stringify(request.projectContext) }
         : {}),
+      ...(request.memoryContext !== undefined ? { memoryContext: request.memoryContext } : {}),
       systemInstructions: buildSystemInstructions({
         availableToolCount: tools.length,
         remainingIterations: Math.max(0, context.limits.maxIterations - snapshot.iteration),

@@ -7,6 +7,7 @@ import { useAsyncResource } from '../api/use-async-resource';
 import { ErrorState, Select, Spinner, useToast } from '../components/ui';
 import { navigateToHash } from '../shell/useHashRoute';
 import { ProjectContextPanel } from './workspace/ProjectContextPanel';
+import { MemoryPanel } from './workspace/MemoryPanel';
 import { ConversationArea } from './workspace/ConversationArea';
 import { MessageComposer } from './workspace/MessageComposer';
 import { ActivityPanel } from './workspace/ActivityPanel';
@@ -64,6 +65,7 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
   const [chosenAgentId, setChosenAgentId] = useState<string | null>(null);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [contextDrawerOpen, setContextDrawerOpen] = useState(false);
+  const [memoryDrawerOpen, setMemoryDrawerOpen] = useState(false);
   const [activityDrawerOpen, setActivityDrawerOpen] = useState(false);
 
   const agents = agentsResource.state === 'ready' ? agentsResource.data : null;
@@ -154,6 +156,7 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
   }, []);
 
   const closeContextDrawer = useCallback(() => setContextDrawerOpen(false), []);
+  const closeMemoryDrawer = useCallback(() => setMemoryDrawerOpen(false), []);
   const closeActivityDrawer = useCallback(() => setActivityDrawerOpen(false), []);
 
   const notFound =
@@ -207,16 +210,23 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
       <WorkspaceHeader
         project={project}
         onOpenContext={() => setContextDrawerOpen(true)}
+        onOpenMemory={() => setMemoryDrawerOpen(true)}
         onOpenActivity={() => setActivityDrawerOpen(true)}
       />
 
       <div className="v-workspace__body">
-        <ProjectContextPanel
-          project={project}
-          workspaces={workspaces}
-          selectedWorkspaceId={selectedWorkspaceId}
-          onSelectWorkspace={onSelectWorkspace}
-        />
+        <div className="v-workspace__side-left">
+          <ProjectContextPanel
+            project={project}
+            workspaces={workspaces}
+            selectedWorkspaceId={selectedWorkspaceId}
+            onSelectWorkspace={onSelectWorkspace}
+          />
+          {/* Project memory (Step 15): user-owned durable project facts.
+           * Candidates are reviewed here; approved memory enters agent
+           * runs as bounded UNTRUSTED reference data, never instructions. */}
+          <MemoryPanel projectId={project.id} />
+        </div>
 
         <div className="v-workspace__center" aria-busy={runBusy}>
           <ConversationArea messages={messages}>
@@ -266,6 +276,14 @@ export function ProjectWorkspacePage({ projectId }: { projectId: string | null }
           selectedWorkspaceId={selectedWorkspaceId}
           onSelectWorkspace={onSelectWorkspace}
         />
+      </WorkspaceDrawer>
+
+      <WorkspaceDrawer
+        open={memoryDrawerOpen}
+        onClose={closeMemoryDrawer}
+        label={`${project.name} memory`}
+      >
+        <MemoryPanel projectId={project.id} />
       </WorkspaceDrawer>
 
       <WorkspaceDrawer open={activityDrawerOpen} onClose={closeActivityDrawer} label="Activity">

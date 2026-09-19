@@ -242,6 +242,16 @@ The tool layer enforces these principles — all of them tested:
 9. API views (`/api/testing/runs…`) expose the normalized `TestRunView` only: bounded plan command summaries (labels, purposes, executables, arguments — never file contents), pass results, structured diagnosis/repair views, pending approval metadata, typed failures, notes. No secrets, no host paths, no chain-of-thought; unknown runs 404, terminal-run mutations 409.
 10. The shipped debug agent is the deterministic offline mock (`testing/mock`) — no model credentials in this layer, and an AI-routed DebugAgent must reuse the same validation and Tool System gates with zero bypasses.
 
+## 5l. Project memory rules (Step 15, `memory/core` + `apps/api`)
+
+1. Memory is REFERENCE DATA, never instructions: the Memory Context Builder is the only path into an agent run, and it wraps entries in a labeled block that declares itself UNTRUSTED reference data — the same boundary as tool results (§5c).
+2. Humans own the store: user-typed memory is created `active`; every AI-extracted candidate lands as a NON-AUTHORITATIVE `candidate` and only an explicit human approve promotes it — nothing auto-promotes, and rejected candidates never re-enter context.
+3. Secret-shaped content is rejected at EVERY write surface (create, update, candidate, extraction products re-validated by the same manager rules); secret-shaped search text is rejected too.
+4. Hard limits are enforced server-side: capacity per project with a ceiling, bounded content and titles, bounded queries, bounded context entries and characters — nothing is negotiable at runtime.
+5. Extraction reads only the SAFE run views, maps only narrow structural facts (spec name/app type/template/test command; project type/framework/runtime plus FACT-only diagnosis statements), rejects non-completed runs, and rejects runs that belong to another project — raw command output, generated file content, inference, and recommendations never become memory.
+6. Context injection is server-derived only: the API searches ACTIVE memories of the validated project association and passes one bounded string; the browser never supplies or shapes memory content. Memory is an enhancement, never a gate — a memory failure can never fail an otherwise valid run.
+7. API responses are safe normalized views (id, fields, provenance, statuses, revision, timestamps); typed scrubbed errors map to exact HTTP codes; the audit trail records lifecycle events WITHOUT memory content.
+
 ## 7. Incident response
 
 - Suspected secret leak → rotate first, investigate second.

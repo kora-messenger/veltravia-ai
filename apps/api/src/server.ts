@@ -8,6 +8,8 @@ import type { AppGenerationManager } from '@veltravia/generation-core';
 import type { ToolManager } from '@veltravia/tool-core';
 import type { ProjectEngine } from '@veltravia/project-core';
 import type { SandboxManager } from '@veltravia/sandbox-core';
+import { MemoryManager } from '@veltravia/memory-core';
+import { InMemoryMemoryRepository } from '@veltravia/memory-mock';
 import { formatTimestamp } from '@veltravia/shared';
 import { VELTRAVIA_NAME, VELTRAVIA_VERSION, type HealthCheckResponse } from '@veltravia/types';
 import { createAICore } from './ai.js';
@@ -22,6 +24,7 @@ import { registerConnectorRoutes } from './routes/connectors.js';
 import { registerAgentRoutes } from './routes/agents.js';
 import { registerCodingRoutes } from './routes/coding.js';
 import { registerTestingRoutes } from './routes/testing.js';
+import { registerMemoryRoutes } from './routes/memories.js';
 import { registerGenerationRoutes } from './routes/generation.js';
 import { createCodingManager } from './coding.js';
 import { createTestingManager } from './testing.js';
@@ -53,6 +56,8 @@ export interface BuildAppOptions {
   readonly integrations?: ApiIntegrationSystem;
   /** Pre-built TestingManager (tests inject one); defaults to the demo testing engine. */
   readonly testing?: TestingManager;
+  /** Project memory (Step 15). Defaults to an in-process manager. */
+  readonly memory?: MemoryManager;
 }
 
 /**
@@ -113,7 +118,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // association is resolved and validated server-side (Step 11C-4): the
   // browser's identifiers are never trusted, and the derived context is
   // bounded safe metadata + tree structure - never file contents.
-  registerAgentRoutes(app, agents, projectEngine);
+  // Project memory (Step 15): durable, per-project facts with human
+  // review of every AI-extracted candidate. Memory enters agent runs as
+  // UNTRUSTED reference data only - never as instructions.
+  const memory =
+    options.memory ?? new MemoryManager({ repository: new InMemoryMemoryRepository() });
+  registerAgentRoutes(app, agents, projectEngine, memory);
 
   // Project & Workspace Engine: safe project/workspace/file management over
   // in-memory repositories. No filesystem, execution, connector, or GitHub
@@ -167,6 +177,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       now: () => new Date(),
     });
   registerTestingRoutes(app, testing);
+
+  // Memory routes: per-project memory CRUD, search, lifecycle, candidate
+  // review, stats, and candidate extraction from COMPLETED runs. Every
+  // route validates the project against the Project Engine; extraction
+  // products are always NON-AUTHORITATIVE candidates pending approval.
+  registerMemoryRoutes(app, { memory, projectEngine, generation, testing });
 
   return app;
 }

@@ -6,6 +6,7 @@ export interface WorkspaceHeaderProps {
   project: ProjectView;
   /** Whether the side panels are toggled (used by mobile panel buttons). */
   onOpenContext(): void;
+  onOpenMemory(): void;
   onOpenActivity(): void;
 }
 
@@ -15,7 +16,12 @@ export interface WorkspaceHeaderProps {
  * activity drawers. Global branding and account controls stay in the
  * application top bar (Step 11A shell).
  */
-export function WorkspaceHeader({ project, onOpenContext, onOpenActivity }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({
+  project,
+  onOpenContext,
+  onOpenMemory,
+  onOpenActivity,
+}: WorkspaceHeaderProps) {
   return (
     <header className="v-workspace-header">
       <div className="v-workspace-header__crumbs">
@@ -33,6 +39,9 @@ export function WorkspaceHeader({ project, onOpenContext, onOpenActivity }: Work
       <div className="v-workspace-header__panel-actions">
         <button type="button" className="v-workspace-header__panel-btn" onClick={onOpenContext}>
           Project context
+        </button>
+        <button type="button" className="v-workspace-header__panel-btn" onClick={onOpenMemory}>
+          Memory
         </button>
         <button type="button" className="v-workspace-header__panel-btn" onClick={onOpenActivity}>
           Activity

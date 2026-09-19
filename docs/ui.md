@@ -409,3 +409,28 @@ phase; the current implementation remains bounded polling.
 
 No new persistence: the page stores nothing beyond the theme preference
 rule that applies app-wide.
+
+## Project memory panel (Step 15)
+
+The AI workspace gains a third side surface: `MemoryPanel`
+(`src/pages/workspace/MemoryPanel.tsx`), rendered in the left region
+below the project context on desktop and inside its own accessible
+drawer (`WorkspaceDrawer`, header button "Memory") below 900px.
+
+- **What it shows**: the live memory stats (active / candidate /
+  archived counts), status-filtered lists (Active, Candidates,
+  Archived), and each record's safe normalized view — type, confidence,
+  verification state (Unverified / Verified / Stale), provenance
+  ("Added by you" vs "From generation run (…)"), and content.
+- **What the user can do**: search active memories, add a memory
+  (title/type/content; secrets are rejected server-side), verify or
+  stale a record, archive/restore, delete, and — for candidates —
+  explicit Approve/Reject. Approve is the ONLY way a candidate enters
+  AI context; candidates never expose lifecycle actions.
+- **Honest states**: loading, per-filter empty states, inline typed
+  errors with retry, and server-confirmed reloads after every action.
+  Failures never fabricate memory.
+- **Trust boundary**: the panel talks only to
+  `src/api/memories.ts` (safe views); it never sends memory content
+  the server did not produce, and candidate content arrives from the
+  server's own extraction pipeline.

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { isAgentError, type AgentManager } from '@veltravia/agent-core';
 import { isProjectError, type ProjectEngine } from '@veltravia/project-core';
+import { buildMemoryContext, type MemoryManager } from '@veltravia/memory-core';
 import { resolveAgentProjectContext } from '../agent-context.js';
 
 /** Maps normalized agent error codes to HTTP status codes. */
@@ -81,6 +82,7 @@ export function registerAgentRoutes(
   app: FastifyInstance,
   manager: AgentManager,
   projectEngine?: ProjectEngine,
+  memory?: MemoryManager,
 ): void {
   app.get('/api/agents', async () => ({
     agents: manager.listAgents().map((agent) => ({
@@ -114,6 +116,30 @@ export function registerAgentRoutes(
               ...(body.projectId !== undefined ? { projectId: body.projectId } : {}),
               ...(body.workspaceId !== undefined ? { workspaceId: body.workspaceId } : {}),
             });
+      // Project memory injection (Step 15): only APPROVED (active)
+      // memories of the resolved project enter the run, as UNTRUSTED
+      // REFERENCE DATA via the bounded Memory Context Builder. The
+      // browser cannot supply or shape memory content - it is derived
+      // server-side exclusively.
+      let memoryContext: string | undefined;
+      if (memory !== undefined && projectEngine !== undefined && body.projectId !== undefined) {
+        try {
+          const memories = await memory.search({
+            projectId: body.projectId,
+            status: 'active',
+          });
+          if (memories.length > 0) {
+            memoryContext = buildMemoryContext({
+              memories,
+              totalMatched: memories.length,
+            }).text;
+          }
+        } catch {
+          // Memory is an ENHANCEMENT, never a gate: a memory failure
+          // must not fail an otherwise valid run.
+          memoryContext = undefined;
+        }
+      }
       const response = await manager.createRun(body.agentId, {
         task: body.task,
         ...(body.sessionId !== undefined ? { sessionId: body.sessionId } : {}),
@@ -127,6 +153,7 @@ export function registerAgentRoutes(
         ...(projectContext !== undefined
           ? { projectContext: { ...projectContext } as Readonly<Record<string, unknown>> }
           : {}),
+        ...(memoryContext !== undefined ? { memoryContext } : {}),
         ...(body.limits !== undefined
           ? { limits: body.limits as { [K in keyof typeof body.limits]: number } }
           : {}),

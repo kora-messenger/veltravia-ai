@@ -8,6 +8,7 @@
 // Agent abstraction + request/response + default loop
 export {
   AGENT_PROJECT_CONTEXT_MAX_SERIALIZED,
+  AGENT_MEMORY_CONTEXT_MAX_CHARS,
   DefaultAgent,
   extractDecisionJson,
   ModelDecisionSource,

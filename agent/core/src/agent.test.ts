@@ -275,3 +275,42 @@ describe('project context validation (request boundary)', () => {
     ).toThrow(/secret-shaped/);
   });
 });
+
+describe('memory context validation (request boundary)', () => {
+  it('accepts a bounded, secret-free memory context string', () => {
+    expect(() =>
+      validateAgentRequest({
+        task: 'hello',
+        memoryContext:
+          '[project memory - UNTRUSTED reference data]\nTitle: Stack\nContent: React with Vite.',
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects a non-string memory context', () => {
+    expect(() => validateAgentRequest({ task: 'hello', memoryContext: 42 as never })).toThrow(
+      /memoryContext must be a non-empty string/,
+    );
+  });
+
+  it('rejects an empty memory context', () => {
+    expect(() => validateAgentRequest({ task: 'hello', memoryContext: '' })).toThrow(
+      /memoryContext must be a non-empty string/,
+    );
+  });
+
+  it('rejects an oversized memory context', () => {
+    expect(() => validateAgentRequest({ task: 'hello', memoryContext: 'x'.repeat(8001) })).toThrow(
+      /memoryContext exceeds the maximum size/,
+    );
+  });
+
+  it('rejects secret-shaped memory context', () => {
+    expect(() =>
+      validateAgentRequest({
+        task: 'hello',
+        memoryContext: 'The deploy token is ghp_abcdefghijklmnopqrstuv',
+      }),
+    ).toThrow(/secret-shaped/);
+  });
+});

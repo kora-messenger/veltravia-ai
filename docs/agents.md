@@ -183,3 +183,12 @@ input it is secret-scanned and size-capped before the loop begins.
 ## Future: the coding agent
 
 The Step 6 agent is a GENERAL ORCHESTRATOR. It does not create/edit files, run terminals, install packages, compile, debug, create repos/branches/commits, or deploy — those arrive later through the Project/Workspace Engine, Sandbox, Coding Agent, and GitHub Connector, all built on top of this layer's gates.
+
+## Project memory (Step 15)
+
+Runs associated with a project may carry a bounded `memoryContext`:
+derived server-side from the project's ACTIVE memories (never from the
+browser), built by the Memory Context Builder, and delivered to the model
+inside a labeled block that declares itself UNTRUSTED reference data.
+Validation matches every other request surface: non-empty string, hard
+size cap, secret-shaped content rejected. See [memory.md](memory.md).
