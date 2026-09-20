@@ -35,7 +35,9 @@
     "memory/core",
     "memory/mock",
     "codebase/core",
-    "codebase/mock"
+    "codebase/mock",
+    "runtime/core",
+    "runtime/mock"
   ],
   "scripts": {
     "lint": "eslint . && prettier --check .",
@@ -43,7 +45,7 @@
     "test": "vitest run",
     "build:packages": "npm run build --workspace @veltravia/types && npm run build --workspace @veltravia/shared && npm run build --workspace @veltravia/config",
     "build:ai": "npm run build --workspace @veltravia/ai-core && npm run build --workspace @veltravia/ai-provider-mock && npm run build --workspace @veltravia/ai-provider-gemini",
-    "build": "npm run build:packages && npm run build:ai && npm run build:connectors && npm run build:integration-core && npm run build:tools && npm run build:integration-mocks && npm run build:connector-github && npm run build:agent && npm run build:project && npm run build:sandbox && npm run build:coding && npm run build:generation && npm run build:testing && npm run build:memory && npm run build:codebase && npm run build --workspace @veltravia/api && npm run build --workspace @veltravia/web",
+    "build": "npm run build:packages && npm run build:ai && npm run build:connectors && npm run build:integration-core && npm run build:tools && npm run build:integration-mocks && npm run build:connector-github && npm run build:agent && npm run build:project && npm run build:sandbox && npm run build:coding && npm run build:generation && npm run build:testing && npm run build:memory && npm run build:codebase && npm run build:runtime && npm run build --workspace @veltravia/api && npm run build --workspace @veltravia/web",
     "dev:api": "npm run build:packages && npm run build:ai && npm run dev --workspace @veltravia/api",
     "dev:web": "npm run build:packages && npm run dev --workspace @veltravia/web",
     "check": "bash scripts/check.sh",
@@ -60,7 +62,8 @@
     "build:integration-mocks": "npm run build --workspace @veltravia/integration-mocks",
     "build:testing": "npm run build --workspace @veltravia/testing-core && npm run build --workspace @veltravia/testing-mock",
     "build:memory": "npm run build --workspace @veltravia/memory-core && npm run build --workspace @veltravia/memory-mock",
-    "build:codebase": "npm run build --workspace @veltravia/codebase-core && npm run build --workspace @veltravia/codebase-mock"
+    "build:codebase": "npm run build --workspace @veltravia/codebase-core && npm run build --workspace @veltravia/codebase-mock",
+    "build:runtime": "npm run build --workspace @veltravia/runtime-core && npm run build --workspace @veltravia/runtime-mock"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

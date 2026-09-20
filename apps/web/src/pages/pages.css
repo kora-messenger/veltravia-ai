@@ -524,3 +524,79 @@
   display: grid;
   gap: var(--v-space-2);
 }
+
+/* --- Preview panel (Step 17) -------------------------------------------- */
+
+.v-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+}
+
+.v-preview__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--v-space-2);
+}
+
+.v-preview__meta {
+  margin: 0;
+  font-size: var(--v-text-sm);
+}
+
+.v-preview__failure {
+  padding: var(--v-space-2) var(--v-space-3);
+  border: 1px solid var(--v-danger);
+  border-radius: var(--v-radius-md);
+}
+
+.v-preview__logs {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: var(--v-space-2) var(--v-space-3);
+  background: var(--v-surface-raised);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  font-family: var(--v-font-mono);
+  font-size: var(--v-text-sm);
+}
+
+.v-preview__log {
+  margin: 0 0 2px;
+  overflow-wrap: anywhere;
+}
+
+.v-preview__log-phase {
+  display: inline-block;
+  min-width: 5.5em;
+  color: var(--v-text-faint);
+}
+
+.v-preview__log--warning {
+  color: var(--v-warning-muted);
+}
+
+.v-preview__log--error {
+  color: var(--v-danger);
+}
+
+.v-preview__frame {
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  overflow: hidden;
+  min-height: 320px;
+}
+
+.v-preview__frame iframe {
+  width: 100%;
+  height: 320px;
+  border: 0;
+  display: block;
+  background: var(--v-surface-raised);
+}
+
+.v-preview__footnote {
+  margin: var(--v-space-2) 0 0;
+  font-size: var(--v-text-sm);
+}

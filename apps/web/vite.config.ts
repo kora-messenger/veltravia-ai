@@ -11,6 +11,11 @@ export default defineConfig({
         target: process.env.VELTRAVIA_API_PROXY_TARGET ?? 'http://localhost:3000',
         changeOrigin: false,
       },
+      // Preview frames are served by the API (platform-controlled URL).
+      '/preview': {
+        target: process.env.VELTRAVIA_API_PROXY_TARGET ?? 'http://localhost:3000',
+        changeOrigin: false,
+      },
     },
   },
 });

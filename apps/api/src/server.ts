@@ -11,6 +11,7 @@ import type { SandboxManager } from '@veltravia/sandbox-core';
 import { MemoryManager } from '@veltravia/memory-core';
 import { InMemoryMemoryRepository } from '@veltravia/memory-mock';
 import type { CodebaseIntelligenceManager } from '@veltravia/codebase-core';
+import type { RuntimeManager } from '@veltravia/runtime-core';
 import { formatTimestamp } from '@veltravia/shared';
 import { VELTRAVIA_NAME, VELTRAVIA_VERSION, type HealthCheckResponse } from '@veltravia/types';
 import { createAICore } from './ai.js';
@@ -27,6 +28,8 @@ import { registerCodingRoutes } from './routes/coding.js';
 import { registerTestingRoutes } from './routes/testing.js';
 import { registerMemoryRoutes } from './routes/memories.js';
 import { registerCodebaseRoutes } from './routes/codebase.js';
+import { registerRuntimeRoutes } from './routes/runtimes.js';
+import { createRuntimeManager } from './runtime-service.js';
 import { createCodebaseManager } from './codebase-service.js';
 import { registerGenerationRoutes } from './routes/generation.js';
 import { createCodingManager } from './coding.js';
@@ -63,6 +66,8 @@ export interface BuildAppOptions {
   readonly memory?: MemoryManager;
   /** Codebase intelligence (Step 16). Defaults to an in-process manager. */
   readonly codebase?: CodebaseIntelligenceManager;
+  /** Preview runtime manager (Step 17). Defaults to the mock-executor-backed manager. */
+  readonly runtimeManager?: RuntimeManager;
 }
 
 /**
@@ -196,6 +201,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // files and never returns raw source content.
   const codebase = options.codebase ?? createCodebaseManager(projectEngine);
   registerCodebaseRoutes(app, { codebase, projectEngine, memory });
+  const runtimeManager =
+    options.runtimeManager ?? createRuntimeManager({ projectEngine, codebase });
+  registerRuntimeRoutes(app, { runtimeManager, projectEngine });
 
   return app;
 }

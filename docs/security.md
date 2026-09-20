@@ -262,6 +262,19 @@ The tool layer enforces these principles — all of them tested:
 6. Memory candidates from a completed index are NON-AUTHORITATIVE `candidate` records under the Step 15 human-approval rules (§5l): only bounded structural facts are extracted, provenance is `system_derived` with the index id, and nothing auto-promotes.
 7. API responses are safe normalized views (paths, counts, statuses, bounded evidence — never content); typed scrubbed errors map to exact HTTP codes; unknown projects/workspaces 404 before any source read.
 
+## 5n. Preview / app runtime rules (Step 17, `runtime/core` + `apps/api`)
+
+1. The plan is DETECTED from workspace evidence (manifest scripts, frameworks, present files, codebase index) and validated server-side — the browser never supplies commands, ports, limits, or environment values, and the strict API schema rejects command-shaped payloads with a 400.
+2. The RuntimeExecutor seam is the ONLY execution path: `runtime/core` and `runtime/mock` contain no process spawning, shells, or host filesystem access, and the API server is NEVER the runtime — a production executor (container / microVM / dedicated worker) must implement the same interface with the same gates.
+3. The shipped executor is the deterministic simulated mock, honestly labeled everywhere (API views, UI copy, preview page, and a project-memory candidate); it claims NO OS-level isolation, and `enforcement` reports what is and is not enforced.
+4. Environment validation rejects secret-shaped keys AND secret-shaped values (`RUNTIME_ENV_REJECTED`); runtime records never carry credentials, host paths, or token-like material anywhere.
+5. Revision binding is strict: a runtime is pinned to the workspace revision it was created from; advancing the workspace marks it `stale` (honest, never silently rebased), starting a stale runtime fails `RUNTIME_REVISION_MISMATCH` (409), and restart always builds at the LATEST revision.
+6. Lifecycle discipline: validated state-machine transitions only (illegal transitions 409, terminal statuses never resume), cancellation is one-way, idle + lifetime deadlines expire runtimes through a sweep, and hard ceilings bound active runtimes globally and per workspace (429).
+7. Failures are structured reports (kind + phase + message) from a closed vocabulary — no silent 500s or "unknown error" placeholders; health checks are bounded (max checks, never a poll loop).
+8. Logs are bounded (byte budget + entry count) and scrubbed: control characters stripped, credential-shaped output redacted, oversized lines truncated with an honest marker; runtime logs are UNTRUSTED DISPLAY DATA, never executed.
+9. The preview page is served ONLY through the platform-controlled `/preview/:runtimeId` URL with sandboxing headers (`nosniff`, `no-store`); the executor decides what renders, project names are escaped, and the page never embeds host paths.
+10. Runtime memory candidates are NON-AUTHORITATIVE `candidate` records under the Step 15 human-approval rules (§5l), provenance-tagged `system_derived` with the runtime id — nothing auto-promotes, and the simulated-isolation limitation itself is recorded so it can never be forgotten.
+
 ## 7. Incident response
 
 - Suspected secret leak → rotate first, investigate second.

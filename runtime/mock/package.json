@@ -1,0 +1,24 @@
+{
+  "name": "@veltravia/runtime-mock",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia AI deterministic simulated Mock Runtime Executor: development/CI only. Reports isolationLevel 'simulated' honestly, builds nothing, starts no process, opens no port. Scenarios: ok, build-failure, missing-dependency, start-failure, port-conflict, health-failure, resource-limit, flaky-then-healthy. Preview content is an explicitly-labeled simulated page over bounded plan metadata.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/runtime-core": "*"
+  }
+}

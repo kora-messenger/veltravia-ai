@@ -1,0 +1,21 @@
+{
+  "name": "@veltravia/runtime-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia AI Preview/App Runtime core: typed runtime plans over structured commands (no shells), a validated lifecycle state machine, revision-bound runtime records, bounded scrubbed logs, typed failure reports, hard resource ceilings with honest enforcement reporting, a RuntimeExecutor isolation-boundary adapter interface, evidence-based plan detection from Project Engine + Codebase Intelligence facts, and runtime-derived project-memory candidates. Zero dependencies; builds and serves nothing itself - all execution flows through a RuntimeExecutor behind the isolation boundary.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
+}

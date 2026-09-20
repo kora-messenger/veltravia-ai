@@ -4,6 +4,7 @@ import { useAsyncResource } from '../api/use-async-resource';
 import { ApiError, errorMessage } from '../api/client';
 import { formatTimestamp, getProject, type ProjectView } from '../api/projects';
 import { createWorkspace, listWorkspaces, type WorkspaceView } from '../api/workspaces';
+import { PreviewPanel } from './projects/PreviewPanel';
 import {
   Badge,
   Button,
@@ -173,6 +174,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string | null }) {
               </ul>
             )}
           </section>
+
+          {projectId !== null && <PreviewPanel projectId={projectId} workspaces={workspaces} />}
 
           {editOpen && project !== null && (
             <EditProjectDialog
