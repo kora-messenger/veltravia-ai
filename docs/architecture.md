@@ -16,7 +16,49 @@ Veltravia AI is an advanced AI software-development platform. The end state is a
 
 The project is built **incrementally**. This document describes the target structure, the purpose of each part, and how the system is expected to evolve.
 
-## Current state: Step 16 — Codebase Intelligence
+## Current state: Step 18 — Version Control
+
+Version control is live: `version-control/core`
+(`@veltravia/version-core`) gives every workspace an append-only revision
+history. Revisions are immutable records with full lineage; each one is a
+content-addressed, integrity-verified snapshot of the whole tree, and a
+corrupt or tampered store fails closed (`VERSION_SNAPSHOT_CORRUPT`) —
+never silently degrades. Bounded line diffs (per-file kinds, hard
+ceilings) serve both parent diffs and explicit compares as safe
+normalized views. Named checkpoints are advisory markers: deleting one
+never deletes a revision, snapshot, or file, and retention evicts only
+the OLDEST markers beyond the cap, skipping markers pinned by open
+operations, refusing to break its guarantees. ROLLBACK is a two-phase
+operation: an optimistic-concurrency-guarded request
+(`expectedCurrentRevision`, typed 409 on conflict) pauses for a HUMAN
+confirmation, executes step by step through the normal file-tree
+operations, and APPENDS a new `rollback`-source revision — history is
+never rewritten. Rollback runs at critical risk through the Tool System
+with no bypass path; every event lands in the scrubbed audit trail.
+Coding, generation, and testing runs are now bracketed by BEST-EFFORT
+route-level captures (a capture failure never fails the run).
+`version-control/mock` (`@veltravia/version-mock`) is the deterministic
+in-memory store; the API exposes
+`/api/projects/:id/revisions|checkpoints|rollback…` and the Project
+Detail page gained a Version History panel (timeline, capture, diff
+dialog, checkpoints, restore with an explicit confirmation dialog).
+Details: `docs/version-control.md`, `docs/security.md` §5o.
+
+## Prior state: Step 17 — Preview & App Runtime
+
+`runtime/core` (`@veltravia/runtime-core`) added the preview/app runtime
+layer: evidence-based plan detection (the browser never supplies
+commands, ports, or limits), a validated lifecycle state machine,
+revision-bound runtimes (honest staleness, typed mismatch, restart at
+latest), expiry sweeps, bounded scrubbed logs, and the RuntimeExecutor
+seam as the ONLY execution path. `runtime/mock`
+(`@veltravia/runtime-mock`) is the deterministic SIMULATED executor —
+honestly labeled, no OS-isolation claims. The preview serves only
+through the platform-controlled `/preview/:runtimeId` URL with
+sandboxing headers, and the Project Detail page gained a Preview
+panel. Details: `docs/runtimes.md`, `docs/security.md` §5n.
+
+## Prior state: Step 16 — Codebase Intelligence
 
 Codebase intelligence is live: `codebase/core` (`@veltravia/codebase-core`)
 gives the platform a structural understanding of a workspace's source —
@@ -317,6 +359,8 @@ Because responses are normalized and capability-driven, nothing built in Step 2 
 | `testing/mock/`                 | Deterministic offline debug agent (`@veltravia/testing-mock`): marker-failure repair proposals + honest declines — tests and development API only                                                                                                                                                                                                                                                                                                            | **Implemented (Step 14)** |
 | `runtime/core/`                 | The preview / app runtime (`@veltravia/runtime-core`): evidence-based plan detection + validation (structured allowlisted commands, secret-shaped env rejection, bounded limits with hard ceilings), validated state machine, revision-bound manager (honest staleness, typed mismatch on start, restart at latest revision), idle + lifetime expiry, bounded scrubbed logs, structured failure reports, the RuntimeExecutor seam as the ONLY execution path | **Implemented (Step 17)** |
 | `runtime/mock/`                 | Deterministic SIMULATED executor (`@veltravia/runtime-mock`): full failure matrix, honestly labeled, NO OS-level isolation claims — a production container/microVM executor implements the same interface later                                                                                                                                                                                                                                              | **Implemented (Step 17)** |
+| `version-control/core/`         | Version control (`@veltravia/version-core`): append-only immutable revisions with full lineage, content-addressed integrity-verified snapshots (corruption fails closed), bounded line diffs, named advisory checkpoints, honest retention with hard ceilings + protected-revision counting, TWO-PHASE human-confirmed rollback (optimistic-concurrency guard, step machine, appends a new revision), scrubbed audit                                         | **Implemented (Step 18)** |
+| `version-control/mock/`         | Deterministic in-memory version store (`@veltravia/version-mock`) — tests and development API only; a production store implements the same `VersionStore` port                                                                                                                                                                                                                                                                                               | **Implemented (Step 18)** |
 
 ### `connectors/` — external-service integration (Step 4: core + mock implemented)
 

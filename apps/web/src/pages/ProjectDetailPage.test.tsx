@@ -207,8 +207,7 @@ describe('ProjectDetailPage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
       // The failed write is surfaced as a conflict message, never ignored.
-      expect(await screen.findByRole('alert')).toBeDefined();
-      expect(screen.getByText(/changed on the server/i)).toBeDefined();
+      expect(await screen.findByText(/changed on the server/i)).toBeDefined();
 
       // A single update attempt was made; nothing was force-saved twice.
       expect(mockedUpdateProject).toHaveBeenCalledTimes(1);

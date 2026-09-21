@@ -275,6 +275,19 @@ The tool layer enforces these principles — all of them tested:
 9. The preview page is served ONLY through the platform-controlled `/preview/:runtimeId` URL with sandboxing headers (`nosniff`, `no-store`); the executor decides what renders, project names are escaped, and the page never embeds host paths.
 10. Runtime memory candidates are NON-AUTHORITATIVE `candidate` records under the Step 15 human-approval rules (§5l), provenance-tagged `system_derived` with the runtime id — nothing auto-promotes, and the simulated-isolation limitation itself is recorded so it can never be forgotten.
 
+## 5o. Version control rules (Step 18, `version-control/core` + `apps/api`)
+
+1. Revisions are immutable and append-only: nothing rewrites, reorders, or deletes history; every record (including rollbacks) is a new revision with full lineage.
+2. A rollback is a two-phase operation that PAUSES for a human confirmation bound to the exact stored input; the restore itself executes only through the validated step machine (one step at a time, resumable, cancellable), writes the tree through the normal file-tree operations, and appends a `rollback`-source revision.
+3. Rollback runs at critical risk through the Tool System — forced human confirmation, no self-approval, no bypass path; the API can OPEN an operation but only the decision endpoint can execute it, and an expired or already-decided confirmation fails closed.
+4. Optimistic-concurrency guard: every restore carries `expectedCurrentRevision`; a tree that changed underneath fails `VERSION_REVISION_CONFLICT` (409) instead of racing.
+5. Snapshots are content-addressed and integrity-verified on read: a corrupt or tampered store fails closed (`VERSION_SNAPSHOT_CORRUPT`) — never silently degrades.
+6. Diffs are bounded (file ceilings, line ceilings, per-file kinds) and served as safe normalized views; the API never returns unbounded content dumps.
+7. Checkpoint markers are advisory references: deleting one never deletes a revision, snapshot, or file; retention evicts only the OLDEST markers beyond the cap, never markers pinned by open operations.
+8. The retention sweep refuses to violate its guarantees (`VERSION_RETENTION_VIOLATION`) instead of silently breaking them, and counts protected revisions before evicting.
+9. Route-level auto-captures (coding/generation/testing brackets) are BEST-EFFORT observability: a capture failure is audit-recorded and never fails the run it brackets.
+10. All capture/restore/checkpoint/retention events land in the scrubbed audit trail; errors are typed and scrubbed (`VERSION_*`), and API responses are safe normalized views only.
+
 ## 7. Incident response
 
 - Suspected secret leak → rotate first, investigate second.

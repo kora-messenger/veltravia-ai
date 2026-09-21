@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { captureRunEnd, captureRunStart, type RunCaptureHooks } from '../run-captures.js';
 import {
   isCodingError,
   type CodingAgentManager,
@@ -85,7 +86,11 @@ const confirmationBodySchema = {
  * these routes - never by the agent itself. Responses carry safe normalized
  * state only: no secrets, no chain-of-thought, no host paths.
  */
-export function registerCodingRoutes(app: FastifyInstance, manager: CodingAgentManager): void {
+export function registerCodingRoutes(
+  app: FastifyInstance,
+  manager: CodingAgentManager,
+  captures: RunCaptureHooks = {},
+): void {
   app.post('/api/coding/runs', { schema: { body: runBodySchema } }, async (request, reply) => {
     try {
       const body = request.body as {
@@ -97,6 +102,8 @@ export function registerCodingRoutes(app: FastifyInstance, manager: CodingAgentM
         constraints?: string[];
         acceptanceCriteria?: string[];
       };
+      // Step 18: bracket the run - capture BEFORE the run starts (best-effort).
+      await captureRunStart(captures, 'coding_before', body.projectId, body.workspaceId);
       const view = await manager.startRun({
         projectId: body.projectId,
         workspaceId: body.workspaceId,
@@ -132,8 +139,10 @@ export function registerCodingRoutes(app: FastifyInstance, manager: CodingAgentM
   app.post('/api/coding/runs/:runId/cancel', async (request, reply) => {
     const { runId } = request.params as { runId: string };
     try {
+      const view = manager.cancelRun(runId);
+      await captureRunEnd(captures, 'coding_after', view.projectId, view.workspaceId, view.state);
       reply.code(200);
-      return toRunPayload(manager.cancelRun(runId));
+      return toRunPayload(view);
     } catch (error) {
       const { status, body } = toHttpError(error);
       reply.code(status);
@@ -149,6 +158,7 @@ export function registerCodingRoutes(app: FastifyInstance, manager: CodingAgentM
       const { decision } = request.body as { decision: 'approve' | 'reject' };
       try {
         const view = await manager.submitApproval(runId, decision);
+        await captureRunEnd(captures, 'coding_after', view.projectId, view.workspaceId, view.state);
         reply.code(200);
         return toRunPayload(view);
       } catch (error) {

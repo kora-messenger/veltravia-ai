@@ -12,6 +12,7 @@ import { MemoryManager } from '@veltravia/memory-core';
 import { InMemoryMemoryRepository } from '@veltravia/memory-mock';
 import type { CodebaseIntelligenceManager } from '@veltravia/codebase-core';
 import type { RuntimeManager } from '@veltravia/runtime-core';
+import type { VersionControlManager } from '@veltravia/version-core';
 import { formatTimestamp } from '@veltravia/shared';
 import { VELTRAVIA_NAME, VELTRAVIA_VERSION, type HealthCheckResponse } from '@veltravia/types';
 import { createAICore } from './ai.js';
@@ -29,6 +30,8 @@ import { registerTestingRoutes } from './routes/testing.js';
 import { registerMemoryRoutes } from './routes/memories.js';
 import { registerCodebaseRoutes } from './routes/codebase.js';
 import { registerRuntimeRoutes } from './routes/runtimes.js';
+import { registerVersionRoutes } from './routes/versions.js';
+import { createVersionControlService } from './version-service.js';
 import { createRuntimeManager } from './runtime-service.js';
 import { createCodebaseManager } from './codebase-service.js';
 import { registerGenerationRoutes } from './routes/generation.js';
@@ -68,6 +71,8 @@ export interface BuildAppOptions {
   readonly codebase?: CodebaseIntelligenceManager;
   /** Preview runtime manager (Step 17). Defaults to the mock-executor-backed manager. */
   readonly runtimeManager?: RuntimeManager;
+  /** Version Control manager (Step 18). Defaults to an in-process manager. */
+  readonly versionManager?: VersionControlManager;
 }
 
 /**
@@ -107,7 +112,17 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Read-only tool surface: definitions, permissions, risk, availability.
   // Execution is deliberately NOT exposed - the agent layer owns invocation.
   // Sandbox tools ride the same controlled pipeline (Step 5 gates apply).
-  const tools = options.tools ?? createToolManager(() => new Date(), sandboxes);
+  // Version Control (Step 18): immutable revisions, checkpoints, diffs, and
+  // Tool-System-gated rollback over the SAME Project Engine. Created BEFORE
+  // the tool manager so its tools can ride the controlled pipeline.
+  const versionManager =
+    options.versionManager ??
+    createVersionControlService({
+      projectEngine,
+    }).manager;
+  const tools =
+    options.tools ??
+    createToolManager(() => new Date(), sandboxes, undefined, undefined, undefined, versionManager);
   registerToolRoutes(app, tools);
 
   // Integration / plugin system (Step 12): catalog + owner-scoped
@@ -158,7 +173,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       sandboxes,
       now: () => new Date(),
     });
-  registerCodingRoutes(app, coding);
+  registerCodingRoutes(app, coding, { version: versionManager });
 
   // App Generation endpoints: bounded, state-machine-driven idea-to-app
   // runs. The engine gets its OWN Tool System instance (project file tools
@@ -173,7 +188,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       sandboxes,
       now: () => new Date(),
     });
-  registerGenerationRoutes(app, generation);
+  registerGenerationRoutes(app, generation, { version: versionManager });
 
   // Testing Engine endpoints: bounded, state-machine-driven test runs over
   // the SAME project engine and sandbox layer - every read and command flows
@@ -187,7 +202,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       sandboxes,
       now: () => new Date(),
     });
-  registerTestingRoutes(app, testing);
+  registerTestingRoutes(app, testing, { version: versionManager });
 
   // Memory routes: per-project memory CRUD, search, lifecycle, candidate
   // review, stats, and candidate extraction from COMPLETED runs. Every
@@ -204,6 +219,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const runtimeManager =
     options.runtimeManager ?? createRuntimeManager({ projectEngine, codebase });
   registerRuntimeRoutes(app, { runtimeManager, projectEngine });
+
+  // Version Control routes (Step 18): revision timeline, diffs, checkpoints,
+  // and rollback. Rollback restores ONLY through the Tool System above
+  // (`version.rollback`, critical risk, human confirmation bound to the
+  // exact input); every response is metadata or a bounded diff view.
+  registerVersionRoutes(app, { version: versionManager, projectEngine, tools });
 
   return app;
 }

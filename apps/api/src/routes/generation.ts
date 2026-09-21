@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { captureRunEnd, captureRunStart, type RunCaptureHooks } from '../run-captures.js';
 import {
   isGenerationError,
   type AppGenerationManager,
@@ -121,6 +122,7 @@ const approvalBodySchema = {
 export function registerGenerationRoutes(
   app: FastifyInstance,
   manager: AppGenerationManager,
+  captures: RunCaptureHooks = {},
 ): void {
   app.post(
     '/api/app-generations',
@@ -177,7 +179,25 @@ export function registerGenerationRoutes(
       try {
         const { runId } = request.params as { runId: string };
         const body = request.body as { decision: 'approve' | 'reject' };
+        const before = manager.getRun(runId);
+        if (before.projectId !== null && before.workspaceId !== null) {
+          await captureRunStart(
+            captures,
+            'generation_before',
+            before.projectId,
+            before.workspaceId,
+          );
+        }
         const view = await manager.submitApproval(runId, body.decision);
+        if (view.projectId !== null && view.workspaceId !== null) {
+          await captureRunEnd(
+            captures,
+            'generation_after',
+            view.projectId,
+            view.workspaceId,
+            view.state,
+          );
+        }
         return reply.send(toRunPayload(view));
       } catch (error) {
         const { status, body } = toHttpError(error);
@@ -189,7 +209,17 @@ export function registerGenerationRoutes(
   app.post('/api/app-generations/:runId/cancel', async (request, reply) => {
     try {
       const { runId } = request.params as { runId: string };
-      return reply.send(toRunPayload(await manager.cancelRun(runId)));
+      const cancelled = await manager.cancelRun(runId);
+      if (cancelled.projectId !== null && cancelled.workspaceId !== null) {
+        await captureRunEnd(
+          captures,
+          'generation_after',
+          cancelled.projectId,
+          cancelled.workspaceId,
+          cancelled.state,
+        );
+      }
+      return reply.send(toRunPayload(cancelled));
     } catch (error) {
       const { status, body } = toHttpError(error);
       return reply.code(status).send(body);

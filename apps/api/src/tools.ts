@@ -4,6 +4,7 @@ import { createMockConnector } from '@veltravia/connector-mock';
 import type { SandboxManager } from '@veltravia/sandbox-core';
 import { ToolManager } from '@veltravia/tool-core';
 import { createCodebaseTools, type CodebaseIntelligenceManager } from '@veltravia/codebase-core';
+import { createVersionTools, type VersionControlManager } from '@veltravia/version-core';
 import {
   createConnectorBackedMockTool,
   createMockPurgeTool,
@@ -40,6 +41,8 @@ export function createToolManager(
   extra?: ExtraToolWiring,
   /** Codebase intelligence manager (Step 16): enables the read-only analysis tools. */
   codebase?: CodebaseIntelligenceManager,
+  /** Version Control manager (Step 18): enables the version tools. */
+  version?: VersionControlManager,
 ): ToolManager {
   const connectors = existingConnectors ?? new ConnectorManager({ now });
   if (existingConnectors === undefined) {
@@ -105,6 +108,26 @@ export function createToolManager(
     }
     for (const definition of codebaseTools.definitions) {
       manager.grantPermission(definition.id, 'codebase.read');
+    }
+  }
+  // Step 18: version-control tools. Registration grants NOTHING by itself;
+  // the API wiring acts as the operator and grants exactly the declared
+  // permissions so the API routes can invoke them. Agents never receive
+  // these unless an operator grants them explicitly. version.rollback is
+  // CRITICAL risk: the Tool System always demands a human confirmation
+  // bound to the exact input, and restores only through the manager.
+  if (version !== undefined) {
+    const versionTools = createVersionTools(version);
+    for (const definition of versionTools.definitions) {
+      manager.register(definition);
+    }
+    for (const implementation of versionTools.implementations) {
+      manager.registerImplementation(implementation);
+    }
+    for (const definition of versionTools.definitions) {
+      for (const permission of definition.requiredPermissions) {
+        manager.grantPermission(definition.id, permission);
+      }
     }
   }
   return manager;

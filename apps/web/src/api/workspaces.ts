@@ -12,6 +12,8 @@ export interface WorkspaceView {
   readonly name: string;
   readonly status: WorkspaceStatus;
   readonly createdAt: string;
+  /** Optimistic-concurrency counter (Step 18 rollback guards). */
+  readonly revision: number;
 }
 
 const STATUSES: readonly WorkspaceStatus[] = ['active', 'locked', 'archived'];
@@ -40,6 +42,7 @@ function toWorkspaceView(raw: unknown, source: string): WorkspaceView {
     name,
     status: status as WorkspaceStatus,
     createdAt: typeof createdAt === 'string' ? createdAt : '',
+    revision: typeof record.revision === 'number' ? record.revision : 0,
   };
 }
 

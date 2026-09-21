@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { captureRunEnd, captureRunStart, type RunCaptureHooks } from '../run-captures.js';
 import { isTestingError, type TestRunView, type TestingManager } from '@veltravia/testing-core';
 
 /** Maps normalized testing error codes to HTTP status codes. */
@@ -90,7 +91,11 @@ const approvalBodySchema = {
  * through these routes - never by the run itself. Responses carry safe
  * normalized state only: no secrets, no chain-of-thought, no host paths.
  */
-export function registerTestingRoutes(app: FastifyInstance, manager: TestingManager): void {
+export function registerTestingRoutes(
+  app: FastifyInstance,
+  manager: TestingManager,
+  captures: RunCaptureHooks = {},
+): void {
   app.post('/api/testing/runs', { schema: { body: runBodySchema } }, async (request, reply) => {
     try {
       const body = request.body as {
@@ -98,11 +103,14 @@ export function registerTestingRoutes(app: FastifyInstance, manager: TestingMana
         workspaceId: string;
         runId?: string;
       };
+      // Step 18: bracket the testing run (best-effort).
+      await captureRunStart(captures, 'testing_before_repair', body.projectId, body.workspaceId);
       const view = await manager.startRun({
         projectId: body.projectId,
         workspaceId: body.workspaceId,
         ...(body.runId !== undefined ? { runId: body.runId } : {}),
       });
+      await captureRunEnd(captures, 'testing_after', view.projectId, view.workspaceId, view.state);
       reply.code(200);
       return toRunPayload(view);
     } catch (error) {
@@ -131,6 +139,13 @@ export function registerTestingRoutes(app: FastifyInstance, manager: TestingMana
       const { decision } = request.body as { decision: 'approve' | 'reject' };
       try {
         const view = await manager.submitApproval(runId, decision);
+        await captureRunEnd(
+          captures,
+          'testing_after',
+          view.projectId,
+          view.workspaceId,
+          view.state,
+        );
         reply.code(200);
         return toRunPayload(view);
       } catch (error) {
@@ -145,6 +160,7 @@ export function registerTestingRoutes(app: FastifyInstance, manager: TestingMana
     const { runId } = request.params as { runId: string };
     try {
       const view = manager.cancelRun(runId);
+      await captureRunEnd(captures, 'testing_after', view.projectId, view.workspaceId, view.state);
       reply.code(200);
       return toRunPayload(view);
     } catch (error) {

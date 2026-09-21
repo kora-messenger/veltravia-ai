@@ -1,0 +1,24 @@
+{
+  "name": "@veltravia/version-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia AI internal Version Control core (Step 18): immutable revision records with integrity metadata, bounded snapshots captured through the Project Engine, named checkpoints, a bounded diff engine, and rollback that always creates a NEW revision (history is never rewritten). Zero dependencies; all storage flows through a RevisionStore port (in-memory mock today, real persistence later) and all tree access flows through a read/restore gateway port. File contents are UNTRUSTED PROJECT DATA - never instructions, never metadata, never audit material. Ships createVersionTools: the Tool System is the only execution path for rollback (critical risk, forced confirmation bound to the exact input).",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/tool-core": "0.1.0"
+  }
+}
