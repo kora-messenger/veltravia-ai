@@ -147,3 +147,7 @@ Veltravia AI will evolve step by step (details in [docs/architecture.md](docs/ar
 10. **Web UI** _(done)_ — dashboard, projects, and the live AI workspace: runs, human confirmations, tool activity, real project context (Steps 11A–11C-5)
 11. **Integrations & connections** _(done)_ — the user-facing integration layer: manifest catalog, owner-scoped connections with explicit scope grants, Tool-System-gated runtime (`integrations/core`, `connectors/integration-mocks`, Step 12)
 12. **Self-development** — propose → test → review → deploy pipeline, behind approval gates (`security/`)
+
+### File Intelligence and Artifacts (Step 19)
+
+The [File Intelligence and Artifacts foundation](docs/file-intelligence.md) adds bounded upload/validation, safe extraction, file and artifact lineage, checksum-validated downloads, Tool System access, and a Files & Artifacts UI. Storage is an explicitly **in-memory development mock**; this is not production durability or authenticated multi-tenant hosting. Audio/video/image intelligence remains out of scope.

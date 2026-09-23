@@ -57,6 +57,18 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M6 8h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   ),
+  files: (
+    <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
+      <path d="M3 2.5h6l4 4v7H3Z" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path
+        d="M9 2.5v4h4M5.5 9h5M5.5 11.5h4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  ),
   settings: (
     <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
       <circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" strokeWidth="1.4" />

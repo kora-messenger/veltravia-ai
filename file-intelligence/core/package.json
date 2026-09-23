@@ -1,0 +1,28 @@
+{
+  "name": "@veltravia/file-intelligence-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Secure File Intelligence and Artifact foundation. Uploaded bytes are untrusted data, stored only behind ports, bounded on every read/extraction, and never executed.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/tool-core": "0.1.0",
+    "fast-xml-parser": "^5.2.5",
+    "file-type": "^21.0.0",
+    "pdfjs-dist": "5.4.149",
+    "yauzl": "^3.2.0"
+  }
+}

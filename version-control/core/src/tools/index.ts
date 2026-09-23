@@ -109,7 +109,7 @@ export function createVersionTools(manager: VersionControlManager): {
           source: {
             type: 'string',
             description:
-              'One of: manual, generation_before, generation_after, testing_before_repair, testing_after, coding_before, coding_after.',
+              'One of: manual, generation_before, generation_after, testing_before_repair, testing_after, coding_before, coding_after, artifact_publish.',
           },
         },
         required: ['projectId', 'workspaceId', 'source'],

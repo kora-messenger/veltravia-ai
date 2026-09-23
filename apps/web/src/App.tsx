@@ -4,6 +4,7 @@ import { ToastProvider } from './components/ui';
 import {
   DashboardPage,
   IntegrationsPage,
+  FilesPage,
   ProjectDetailPage,
   ProjectWorkspacePage,
   ProjectsPage,
@@ -23,6 +24,8 @@ export function App() {
                 return <ProjectsPage />;
               case 'integrations':
                 return <IntegrationsPage />;
+              case 'files':
+                return <FilesPage />;
               case 'project-detail':
                 return <ProjectDetailPage projectId={route.projectId} />;
               case 'project-workspace':

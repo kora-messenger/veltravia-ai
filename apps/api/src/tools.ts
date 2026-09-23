@@ -6,6 +6,10 @@ import { ToolManager } from '@veltravia/tool-core';
 import { createCodebaseTools, type CodebaseIntelligenceManager } from '@veltravia/codebase-core';
 import { createVersionTools, type VersionControlManager } from '@veltravia/version-core';
 import {
+  createFileIntelligenceTools,
+  type FileIntelligenceManager,
+} from '@veltravia/file-intelligence-core';
+import {
   createConnectorBackedMockTool,
   createMockPurgeTool,
   createMockSummarizeTool,
@@ -43,6 +47,8 @@ export function createToolManager(
   codebase?: CodebaseIntelligenceManager,
   /** Version Control manager (Step 18): enables the version tools. */
   version?: VersionControlManager,
+  /** File Intelligence (Step 19): bounded file metadata/extraction tools. */
+  files?: FileIntelligenceManager,
 ): ToolManager {
   const connectors = existingConnectors ?? new ConnectorManager({ now });
   if (existingConnectors === undefined) {
@@ -128,6 +134,22 @@ export function createToolManager(
       for (const permission of definition.requiredPermissions) {
         manager.grantPermission(definition.id, permission);
       }
+    }
+  }
+  // Step 19: File Intelligence tools. The principal is server-bound, never
+  // supplied by an agent. Read/extract are granted explicitly; destructive
+  // delete and project publish remain unavailable until an operator grants
+  // them and their forced human confirmation succeeds.
+  if (files !== undefined) {
+    const fileTools = createFileIntelligenceTools(files, { ownerRef: 'veltravia-dev-user' });
+    for (const definition of fileTools.definitions) manager.register(definition);
+    for (const implementation of fileTools.implementations)
+      manager.registerImplementation(implementation);
+    for (const id of ['file.get-metadata', 'file.read-preview', 'file.extract']) {
+      const definition = fileTools.definitions.find((item) => item.id === id);
+      if (definition)
+        for (const permission of definition.requiredPermissions)
+          manager.grantPermission(id, permission);
     }
   }
   return manager;

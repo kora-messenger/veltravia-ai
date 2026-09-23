@@ -13,6 +13,7 @@ import { InMemoryMemoryRepository } from '@veltravia/memory-mock';
 import type { CodebaseIntelligenceManager } from '@veltravia/codebase-core';
 import type { RuntimeManager } from '@veltravia/runtime-core';
 import type { VersionControlManager } from '@veltravia/version-core';
+import type { FileIntelligenceManager } from '@veltravia/file-intelligence-core';
 import { formatTimestamp } from '@veltravia/shared';
 import { VELTRAVIA_NAME, VELTRAVIA_VERSION, type HealthCheckResponse } from '@veltravia/types';
 import { createAICore } from './ai.js';
@@ -32,6 +33,8 @@ import { registerCodebaseRoutes } from './routes/codebase.js';
 import { registerRuntimeRoutes } from './routes/runtimes.js';
 import { registerVersionRoutes } from './routes/versions.js';
 import { createVersionControlService } from './version-service.js';
+import { createFileIntelligenceService } from './file-service.js';
+import { registerFileRoutes } from './routes/files.js';
 import { createRuntimeManager } from './runtime-service.js';
 import { createCodebaseManager } from './codebase-service.js';
 import { registerGenerationRoutes } from './routes/generation.js';
@@ -73,6 +76,8 @@ export interface BuildAppOptions {
   readonly runtimeManager?: RuntimeManager;
   /** Version Control manager (Step 18). Defaults to an in-process manager. */
   readonly versionManager?: VersionControlManager;
+  /** File Intelligence manager (Step 19). Defaults to process-local mock storage. */
+  readonly fileManager?: FileIntelligenceManager;
 }
 
 /**
@@ -120,9 +125,19 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     createVersionControlService({
       projectEngine,
     }).manager;
+  const fileManager =
+    options.fileManager ?? createFileIntelligenceService({ projectEngine, versionManager });
   const tools =
     options.tools ??
-    createToolManager(() => new Date(), sandboxes, undefined, undefined, undefined, versionManager);
+    createToolManager(
+      () => new Date(),
+      sandboxes,
+      undefined,
+      undefined,
+      undefined,
+      versionManager,
+      fileManager,
+    );
   registerToolRoutes(app, tools);
 
   // Integration / plugin system (Step 12): catalog + owner-scoped
@@ -139,7 +154,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // so the demo storage agent proves agent->tool->connector discovery
   // with no connector-specific agent code.
   const agents =
-    options.agents ?? createAgentManager(() => new Date(), integrations, options.codebase);
+    options.agents ??
+    createAgentManager(() => new Date(), integrations, options.codebase, fileManager);
   // The agent routes get the Project Engine so every run's project/workspace
   // association is resolved and validated server-side (Step 11C-4): the
   // browser's identifiers are never trusted, and the derived context is
@@ -225,6 +241,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // (`version.rollback`, critical risk, human confirmation bound to the
   // exact input); every response is metadata or a bounded diff view.
   registerVersionRoutes(app, { version: versionManager, projectEngine, tools });
+
+  // Step 19: upload, bounded extraction/preview, provenance-linked artifacts,
+  // controlled short-lived downloads. Raw storage references never cross API.
+  registerFileRoutes(app, fileManager);
 
   return app;
 }

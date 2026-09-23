@@ -39,7 +39,9 @@
     "runtime/core",
     "runtime/mock",
     "version-control/core",
-    "version-control/mock"
+    "version-control/mock",
+    "file-intelligence/core",
+    "file-intelligence/mock"
   ],
   "scripts": {
     "lint": "eslint . && prettier --check .",
@@ -47,7 +49,7 @@
     "test": "vitest run",
     "build:packages": "npm run build --workspace @veltravia/types && npm run build --workspace @veltravia/shared && npm run build --workspace @veltravia/config",
     "build:ai": "npm run build --workspace @veltravia/ai-core && npm run build --workspace @veltravia/ai-provider-mock && npm run build --workspace @veltravia/ai-provider-gemini",
-    "build": "npm run build:packages && npm run build:ai && npm run build:connectors && npm run build:integration-core && npm run build:tools && npm run build:integration-mocks && npm run build:connector-github && npm run build:agent && npm run build:project && npm run build:sandbox && npm run build:coding && npm run build:generation && npm run build:testing && npm run build:memory && npm run build:codebase && npm run build:runtime && npm run build:version && npm run build --workspace @veltravia/api && npm run build --workspace @veltravia/web",
+    "build": "npm run build:packages && npm run build:ai && npm run build:connectors && npm run build:integration-core && npm run build:tools && npm run build:integration-mocks && npm run build:connector-github && npm run build:agent && npm run build:project && npm run build:sandbox && npm run build:coding && npm run build:generation && npm run build:testing && npm run build:memory && npm run build:codebase && npm run build:runtime && npm run build:version && npm run build:file-intelligence && npm run build --workspace @veltravia/api && npm run build --workspace @veltravia/web",
     "dev:api": "npm run build:packages && npm run build:ai && npm run dev --workspace @veltravia/api",
     "dev:web": "npm run build:packages && npm run dev --workspace @veltravia/web",
     "check": "bash scripts/check.sh",
@@ -66,12 +68,15 @@
     "build:memory": "npm run build --workspace @veltravia/memory-core && npm run build --workspace @veltravia/memory-mock",
     "build:codebase": "npm run build --workspace @veltravia/codebase-core && npm run build --workspace @veltravia/codebase-mock",
     "build:runtime": "npm run build --workspace @veltravia/runtime-core && npm run build --workspace @veltravia/runtime-mock",
-    "build:version": "npm run build --workspace @veltravia/version-core && npm run build --workspace @veltravia/version-mock"
+    "build:version": "npm run build --workspace @veltravia/version-core && npm run build --workspace @veltravia/version-mock",
+    "build:file-intelligence": "npm run build --workspace @veltravia/file-intelligence-core && npm run build --workspace @veltravia/file-intelligence-mock"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
     "@types/node": "^20.17.0",
+    "@types/yauzl": "^2.10.3",
     "eslint": "^10.0.0",
+    "fflate": "^0.8.3",
     "prettier": "^3.4.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0",

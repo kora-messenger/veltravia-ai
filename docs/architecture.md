@@ -430,3 +430,7 @@ Later steps add their own dependencies only when they become necessary — this 
 3. **Everything through CI.** No code merges without lint, tests, and a passing build — including future AI-generated changes (the self-development pipeline targets this same CI).
 4. **Prompts and agent definitions are code.** They are versioned, reviewed, and tested like any other source file.
 5. **Security is structural, not procedural.** Sandboxing and credential isolation are enforced by module boundaries (`project-engine/execution`, `connectors/core`), not by convention.
+
+## Step 19: File Intelligence and Artifacts
+
+`file-intelligence/core` owns typed file/artifact lifecycles, storage ports, type detection, bounded extraction, ZIP validation, scope checks and opaque download references. `file-intelligence/mock` is a per-process byte store. `apps/api/src/file-service.ts` validates project/workspace scope through Project Engine and publishes text-compatible artifacts to Project Engine, then captures an `artifact_publish` revision in existing Version Control. Agent reads route through permission-gated file tools. Project Memory receives no automatic full-file content; Runtime receives no implicit uploaded files. See [file-intelligence.md](file-intelligence.md) for limits, API, trust boundaries and mock limitations.

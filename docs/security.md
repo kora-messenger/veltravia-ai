@@ -292,3 +292,7 @@ The tool layer enforces these principles — all of them tested:
 
 - Suspected secret leak → rotate first, investigate second.
 - Report security issues privately to the repository owner; do not open public issues for vulnerabilities.
+
+## Step 19: Untrusted file and artifact boundary
+
+File bytes are untrusted data, never instructions, permission grants, executable code, or runtime mounts. Magic-byte detection, path validation (including encoded/Unicode traversal), bounded ZIP inspection (ratio, size, entry count, depth, symlinks), secret-redacted previews, limited structured extraction, explicit Tool System grants and confirmations, and integrity-checked artifact downloads enforce this boundary. Server-side project/workspace validation prevents mismatched scope registration. The development identity is fixed server-side, but the monorepo does **not** yet have authenticated sessions: never claim or deploy this mock as production multi-tenant authorization. See [file-intelligence.md](file-intelligence.md).

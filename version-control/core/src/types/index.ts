@@ -17,6 +17,7 @@ export const REVISION_SOURCES = [
   'testing_after',
   'coding_before',
   'coding_after',
+  'artifact_publish',
   'rollback',
 ] as const;
 

@@ -96,16 +96,19 @@ describe('frontend credential boundary', () => {
   });
 
   it('never fetches file contents from the workspace context (11C-4)', () => {
-    // The workspace tree is the ONLY files surface the browser touches, and
+    // The workspace tree is the ONLY workspace file surface the browser touches, and
     // it is metadata-only. File CONTENT endpoints and file mutations are
     // server-side surfaces (coding agent tools) - never web-source calls.
+    // Step 19 /api/files is a separate, authorized File Intelligence surface.
     for (const file of files) {
       const source = readFileSync(file, 'utf8');
       expect(source, `${file} fetches file contents`).not.toMatch(/\/files\/[^'"`]*\/contents?/);
       expect(source, `${file} calls file content endpoints`).not.toMatch(
         /['"`]\/api\/workspaces\/[^'"`]*\/files\/[^'"`]+['"`]/,
       );
-      expect(source, `${file} mutates workspace files`).not.toMatch(/\/files['"`]/);
+      expect(source, `${file} mutates workspace files`).not.toMatch(
+        /\/api\/workspaces\/[^'"`]*\/files['"`]/,
+      );
     }
   });
 
