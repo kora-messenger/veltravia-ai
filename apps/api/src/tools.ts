@@ -10,6 +10,10 @@ import {
   type FileIntelligenceManager,
 } from '@veltravia/file-intelligence-core';
 import {
+  createAudioIntelligenceTools,
+  type AudioIntelligenceManager,
+} from '@veltravia/audio-intelligence-core';
+import {
   createConnectorBackedMockTool,
   createMockPurgeTool,
   createMockSummarizeTool,
@@ -49,6 +53,8 @@ export function createToolManager(
   version?: VersionControlManager,
   /** File Intelligence (Step 19): bounded file metadata/extraction tools. */
   files?: FileIntelligenceManager,
+  /** Audio Intelligence (Step 20): bounded audio understanding tools. */
+  audio?: AudioIntelligenceManager,
 ): ToolManager {
   const connectors = existingConnectors ?? new ConnectorManager({ now });
   if (existingConnectors === undefined) {
@@ -147,6 +153,21 @@ export function createToolManager(
       manager.registerImplementation(implementation);
     for (const id of ['file.get-metadata', 'file.read-preview', 'file.extract']) {
       const definition = fileTools.definitions.find((item) => item.id === id);
+      if (definition)
+        for (const permission of definition.requiredPermissions)
+          manager.grantPermission(id, permission);
+    }
+  }
+  // Step 20 audio tools: registration grants NOTHING. The read-only inspect
+  // and search tools are granted explicitly; transcription and reasoning
+  // tools stay ungranted until an operator enables them.
+  if (audio !== undefined) {
+    const audioTools = createAudioIntelligenceTools(audio, { ownerRef: 'veltravia-dev-user' });
+    for (const definition of audioTools.definitions) manager.register(definition);
+    for (const implementation of audioTools.implementations)
+      manager.registerImplementation(implementation);
+    for (const id of ['audio.inspect', 'audio.search']) {
+      const definition = audioTools.definitions.find((item) => item.id === id);
       if (definition)
         for (const permission of definition.requiredPermissions)
           manager.grantPermission(id, permission);

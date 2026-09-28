@@ -18,6 +18,7 @@ export const ROUTES: readonly RouteDef[] = [
   { id: 'projects', hash: '#/projects', title: 'Projects' },
   { id: 'integrations', hash: '#/integrations', title: 'Integrations' },
   { id: 'files', hash: '#/files', title: 'Files & artifacts' },
+  { id: 'audio', hash: '#/audio', title: 'Audio intelligence' },
   { id: 'settings', hash: '#/settings', title: 'Settings' },
 ] as const;
 
@@ -26,6 +27,7 @@ export type RouteId =
   | 'projects'
   | 'integrations'
   | 'files'
+  | 'audio'
   | 'project-detail'
   | 'project-workspace'
   | 'settings';
@@ -52,6 +54,9 @@ function routeForHash(hash: string): RouteState {
   }
   if (hash === '#/files') {
     return { id: 'files', title: 'Files & artifacts', projectId: null };
+  }
+  if (hash === '#/audio') {
+    return { id: 'audio', title: 'Audio intelligence', projectId: null };
   }
   if (hash === '#/settings') {
     return { id: 'settings', title: 'Settings', projectId: null };

@@ -150,4 +150,8 @@ Veltravia AI will evolve step by step (details in [docs/architecture.md](docs/ar
 
 ### File Intelligence and Artifacts (Step 19)
 
-The [File Intelligence and Artifacts foundation](docs/file-intelligence.md) adds bounded upload/validation, safe extraction, file and artifact lineage, checksum-validated downloads, Tool System access, and a Files & Artifacts UI. Storage is an explicitly **in-memory development mock**; this is not production durability or authenticated multi-tenant hosting. Audio/video/image intelligence remains out of scope.
+The [File Intelligence and Artifacts foundation](docs/file-intelligence.md) adds bounded upload/validation, safe extraction, file and artifact lineage, checksum-validated downloads, Tool System access, and a Files & Artifacts UI. Storage is an explicitly **in-memory development mock**; this is not production durability or authenticated multi-tenant hosting. Video/image intelligence remains out of scope; audio understanding arrived in Step 20 below.
+
+### Audio Intelligence (Step 20)
+
+The [Audio Intelligence foundation](docs/audio-intelligence.md) adds first-class audio understanding over Step 19 files: transcribe → search/ask/summarize/extract/translate → derived artifacts, with a fixed trust model (transcripts are untrusted data; reasoning output is ai-generated and never an action), bounded chunked jobs with cancellation, owner-scoped access, Tool System tools with explicit read-only grants, memory candidates under the Step 15 human-approval model, and an Audio intelligence page in the web app. The wired provider is the deterministic mock simulation - honestly disclosed in the UI and API; a real transcription provider is future work and is not faked.

@@ -35,6 +35,9 @@ import { registerVersionRoutes } from './routes/versions.js';
 import { createVersionControlService } from './version-service.js';
 import { createFileIntelligenceService } from './file-service.js';
 import { registerFileRoutes } from './routes/files.js';
+import { registerAudioRoutes } from './routes/audio.js';
+import { createAudioIntelligenceService } from './audio-service.js';
+import type { AudioIntelligenceManager } from '@veltravia/audio-intelligence-core';
 import { createRuntimeManager } from './runtime-service.js';
 import { createCodebaseManager } from './codebase-service.js';
 import { registerGenerationRoutes } from './routes/generation.js';
@@ -78,6 +81,8 @@ export interface BuildAppOptions {
   readonly versionManager?: VersionControlManager;
   /** File Intelligence manager (Step 19). Defaults to process-local mock storage. */
   readonly fileManager?: FileIntelligenceManager;
+  /** Audio Intelligence manager (Step 20). Defaults to the mock provider. */
+  readonly audioManager?: AudioIntelligenceManager;
 }
 
 /**
@@ -127,6 +132,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     }).manager;
   const fileManager =
     options.fileManager ?? createFileIntelligenceService({ projectEngine, versionManager });
+  const audioManager =
+    options.audioManager ?? createAudioIntelligenceService({ files: fileManager });
   const tools =
     options.tools ??
     createToolManager(
@@ -137,6 +144,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       undefined,
       versionManager,
       fileManager,
+      audioManager,
     );
   registerToolRoutes(app, tools);
 
@@ -245,6 +253,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Step 19: upload, bounded extraction/preview, provenance-linked artifacts,
   // controlled short-lived downloads. Raw storage references never cross API.
   registerFileRoutes(app, fileManager);
+
+  // Step 20: first-class audio understanding over Step 19 files. Transcripts
+  // are untrusted data, reasoning output is ai_generated, and spoken content
+  // never becomes authorization. Provider is the honest mock (see
+  // audio-service.ts); memory candidates ride the Step 15 approval model.
+  registerAudioRoutes(app, audioManager, { memory, projectEngine });
 
   return app;
 }

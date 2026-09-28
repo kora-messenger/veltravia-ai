@@ -69,6 +69,17 @@ const ICONS: Record<string, ReactNode> = {
       />
     </svg>
   ),
+  audio: (
+    <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
+      <path
+        d="M3 6.5v3M6 4v8M9 5.5v5M12 7v2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  ),
   settings: (
     <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
       <circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" strokeWidth="1.4" />
