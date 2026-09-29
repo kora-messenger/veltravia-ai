@@ -15,6 +15,7 @@ export type {
   AIMessageRole,
   AIModelInfo,
   AIRequest,
+  AIImageAttachment,
   AIResponse,
   AIStructuredOutput,
   AIFinishReason,

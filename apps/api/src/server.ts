@@ -36,8 +36,11 @@ import { createVersionControlService } from './version-service.js';
 import { createFileIntelligenceService } from './file-service.js';
 import { registerFileRoutes } from './routes/files.js';
 import { registerAudioRoutes } from './routes/audio.js';
+import { registerImageRoutes } from './routes/image.js';
 import { createAudioIntelligenceService } from './audio-service.js';
+import { createImageIntelligenceService } from './image-service.js';
 import type { AudioIntelligenceManager } from '@veltravia/audio-intelligence-core';
+import type { ImageIntelligenceManager } from '@veltravia/image-intelligence-core';
 import { createRuntimeManager } from './runtime-service.js';
 import { createCodebaseManager } from './codebase-service.js';
 import { registerGenerationRoutes } from './routes/generation.js';
@@ -83,6 +86,7 @@ export interface BuildAppOptions {
   readonly fileManager?: FileIntelligenceManager;
   /** Audio Intelligence manager (Step 20). Defaults to the mock provider. */
   readonly audioManager?: AudioIntelligenceManager;
+  readonly imageManager?: ImageIntelligenceManager;
 }
 
 /**
@@ -134,6 +138,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     options.fileManager ?? createFileIntelligenceService({ projectEngine, versionManager });
   const audioManager =
     options.audioManager ?? createAudioIntelligenceService({ files: fileManager });
+  const imageManager =
+    options.imageManager ?? createImageIntelligenceService({ files: fileManager });
   const tools =
     options.tools ??
     createToolManager(
@@ -145,6 +151,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       versionManager,
       fileManager,
       audioManager,
+      imageManager,
     );
   registerToolRoutes(app, tools);
 
@@ -259,6 +266,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // never becomes authorization. Provider is the honest mock (see
   // audio-service.ts); memory candidates ride the Step 15 approval model.
   registerAudioRoutes(app, audioManager, { memory, projectEngine });
+
+  // Step 21: first-class image and screenshot understanding over Step 19
+  // files. OCR text is UNTRUSTED DATA; reasoning output is ai_generated. The
+  // API wires the deterministic MOCK provider (see image-service.ts); no real
+  // vision provider is claimed in this step.
+  registerImageRoutes(app, imageManager);
 
   return app;
 }

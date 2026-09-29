@@ -80,6 +80,29 @@ const ICONS: Record<string, ReactNode> = {
       />
     </svg>
   ),
+
+  image: (
+    <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
+      <rect
+        x="3"
+        y="3"
+        width="10"
+        height="10"
+        rx="1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M3.5 10.5 6 8l2.5 2.5L10 9l2.5 2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+      <circle cx="6" cy="6" r="0.9" fill="currentColor" />
+    </svg>
+  ),
   settings: (
     <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
       <circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" strokeWidth="1.4" />

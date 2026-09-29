@@ -14,6 +14,10 @@ import {
   type AudioIntelligenceManager,
 } from '@veltravia/audio-intelligence-core';
 import {
+  createImageIntelligenceTools,
+  type ImageIntelligenceManager,
+} from '@veltravia/image-intelligence-core';
+import {
   createConnectorBackedMockTool,
   createMockPurgeTool,
   createMockSummarizeTool,
@@ -55,6 +59,8 @@ export function createToolManager(
   files?: FileIntelligenceManager,
   /** Audio Intelligence (Step 20): bounded audio understanding tools. */
   audio?: AudioIntelligenceManager,
+  /** Image Intelligence (Step 21): bounded image understanding tools. */
+  image?: ImageIntelligenceManager,
 ): ToolManager {
   const connectors = existingConnectors ?? new ConnectorManager({ now });
   if (existingConnectors === undefined) {
@@ -161,6 +167,21 @@ export function createToolManager(
   // Step 20 audio tools: registration grants NOTHING. The read-only inspect
   // and search tools are granted explicitly; transcription and reasoning
   // tools stay ungranted until an operator enables them.
+  // Step 21 image tools: registration grants NOTHING. Read-only inspect,
+  // search, describe, and ocr tools are granted explicitly; the processing
+  // and artifact tools stay ungranted until an operator enables them.
+  if (image !== undefined) {
+    const imageTools = createImageIntelligenceTools(image, { ownerRef: 'veltravia-dev-user' });
+    for (const definition of imageTools.definitions) manager.register(definition);
+    for (const implementation of imageTools.implementations)
+      manager.registerImplementation(implementation);
+    for (const id of ['image.inspect', 'image.search', 'image.describe', 'image.ocr']) {
+      const definition = imageTools.definitions.find((item) => item.id === id);
+      if (definition)
+        for (const permission of definition.requiredPermissions)
+          manager.grantPermission(id, permission);
+    }
+  }
   if (audio !== undefined) {
     const audioTools = createAudioIntelligenceTools(audio, { ownerRef: 'veltravia-dev-user' });
     for (const definition of audioTools.definitions) manager.register(definition);

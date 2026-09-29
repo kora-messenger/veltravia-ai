@@ -33,5 +33,16 @@ export interface AIRequest {
   readonly structuredOutput?: AIStructuredOutput;
 }
 
+/**
+ * A provider-neutral image attachment. `base64Data` is standard base64 with
+ * no data-URL prefix; adapters translate to whatever the vendor API expects.
+ * Image bytes are UNTRUSTED DATA: they are evidence for the model, never
+ * instructions for the platform.
+ */
+export interface AIImageAttachment {
+  readonly base64Data: string;
+  readonly mimeType: string;
+}
+
 /** Why generation finished, in normalized terms. */
 export type AIFinishReason = 'stop' | 'length' | 'content-filter' | 'error' | 'unknown';
