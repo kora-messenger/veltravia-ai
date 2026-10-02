@@ -348,7 +348,9 @@ describe('ProjectWorkspacePage', () => {
     expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
     // The failure is reported both as a conversation note and in the status
     // strip - it must never be shown as an assistant answer.
-    expect(screen.getAllByText(/the model could not be reached/i).length).toBeGreaterThanOrEqual(1);
+    expect(
+      (await screen.findAllByText(/the model could not be reached/i)).length,
+    ).toBeGreaterThanOrEqual(1);
     // No assistant answer appears for a failed run.
     expect(
       screen.queryByText('Veltravia AI is a platform for building software with AI.'),
