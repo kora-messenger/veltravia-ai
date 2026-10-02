@@ -1,3 +1,6 @@
+import { registerVideoRoutes } from './routes/video.js';
+import { createVideoIntelligenceService } from './video-service.js';
+import type { VideoIntelligenceManager } from '@veltravia/video-intelligence-core';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AICore } from '@veltravia/ai-core';
 import type { ConnectorManager } from '@veltravia/connector-core';
@@ -87,6 +90,7 @@ export interface BuildAppOptions {
   /** Audio Intelligence manager (Step 20). Defaults to the mock provider. */
   readonly audioManager?: AudioIntelligenceManager;
   readonly imageManager?: ImageIntelligenceManager;
+  readonly videoManager?: VideoIntelligenceManager;
 }
 
 /**
@@ -140,6 +144,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     options.audioManager ?? createAudioIntelligenceService({ files: fileManager });
   const imageManager =
     options.imageManager ?? createImageIntelligenceService({ files: fileManager });
+  const videoManager =
+    options.videoManager ?? createVideoIntelligenceService({ files: fileManager });
   const tools =
     options.tools ??
     createToolManager(
@@ -152,6 +158,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       fileManager,
       audioManager,
       imageManager,
+      videoManager,
     );
   registerToolRoutes(app, tools);
 
@@ -272,6 +279,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // API wires the deterministic MOCK provider (see image-service.ts); no real
   // vision provider is claimed in this step.
   registerImageRoutes(app, imageManager);
+  registerVideoRoutes(app, videoManager);
 
   return app;
 }

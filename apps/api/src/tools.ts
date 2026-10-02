@@ -1,3 +1,7 @@
+import {
+  createVideoIntelligenceTools,
+  type VideoIntelligenceManager,
+} from '@veltravia/video-intelligence-core';
 import { ConnectorManager, type Connector } from '@veltravia/connector-core';
 import type { ConnectorOperationExecutor } from '@veltravia/tool-core';
 import { createMockConnector } from '@veltravia/connector-mock';
@@ -61,6 +65,7 @@ export function createToolManager(
   audio?: AudioIntelligenceManager,
   /** Image Intelligence (Step 21): bounded image understanding tools. */
   image?: ImageIntelligenceManager,
+  video?: VideoIntelligenceManager,
 ): ToolManager {
   const connectors = existingConnectors ?? new ConnectorManager({ now });
   if (existingConnectors === undefined) {
@@ -192,6 +197,15 @@ export function createToolManager(
       if (definition)
         for (const permission of definition.requiredPermissions)
           manager.grantPermission(id, permission);
+    }
+  }
+  if (video) {
+    const t = createVideoIntelligenceTools(video, { ownerRef: 'veltravia-dev-user' });
+    for (const d of t.definitions) manager.register(d);
+    for (const i of t.implementations) manager.registerImplementation(i);
+    for (const id of ['video.inspect', 'video.analyze', 'video.search']) {
+      const d = t.definitions.find((v) => v.id === id);
+      if (d) for (const p of d.requiredPermissions) manager.grantPermission(id, p);
     }
   }
   return manager;

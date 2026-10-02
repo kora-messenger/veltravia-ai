@@ -81,6 +81,21 @@ const ICONS: Record<string, ReactNode> = {
     </svg>
   ),
 
+  video: (
+    <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
+      <rect
+        x="2"
+        y="3"
+        width="9"
+        height="10"
+        rx="1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <path d="M11 6L14 4V12L11 10" fill="none" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  ),
   image: (
     <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
       <rect

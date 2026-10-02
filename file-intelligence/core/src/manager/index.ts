@@ -455,6 +455,22 @@ export class FileIntelligenceManager {
       throw new FileIntelligenceError('FILE_INTEGRITY_FAILURE', 'Audio integrity check failed.');
     return { bytes, mimeType: asset.metadata.detectedMimeType };
   }
+  async videoBytes(
+    id: FileAssetId,
+    principal: FilePrincipal,
+  ): Promise<{ bytes: Uint8Array; mimeType: string }> {
+    const asset = await this.requireFile(id, principal);
+    if (asset.metadata.category !== 'video')
+      throw new FileIntelligenceError('FILE_TYPE_REJECTED', 'File is not a video.');
+    const bytes = await this.options.store.getFileBytes(id);
+    if (
+      !bytes ||
+      bytes.length !== asset.metadata.byteSize ||
+      sha256(bytes) !== asset.metadata.checksum
+    )
+      throw new FileIntelligenceError('FILE_INTEGRITY_FAILURE', 'Video integrity check failed.');
+    return { bytes, mimeType: asset.metadata.detectedMimeType };
+  }
   async deleteFile(id: FileAssetId, principal: FilePrincipal): Promise<void> {
     const asset = await this.requireFile(id, principal);
     await this.transition(asset, 'deleted');

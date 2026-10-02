@@ -42,7 +42,9 @@
     "@veltravia/codebase-core": "0.1.0",
     "@veltravia/codebase-mock": "0.1.0",
     "@veltravia/file-intelligence-core": "0.1.0",
-    "@veltravia/file-intelligence-mock": "0.1.0"
+    "@veltravia/file-intelligence-mock": "0.1.0",
+    "@veltravia/video-intelligence-core": "0.1.0",
+    "@veltravia/video-intelligence-mock": "0.1.0"
   },
   "devDependencies": {
     "tsx": "^4.19.2"

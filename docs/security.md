@@ -304,3 +304,12 @@ Spoken audio is untrusted data with one extra rule: reasoning about it is labele
 ## Step 21: Image intelligence boundary
 
 Image content is untrusted data, and text inside images is doubly so: OCR output is `untrusted_data` while descriptions, answers, screenshot findings, chart readings, diagrams, and extracted fields are `ai_generated` interpretations - never facts about the analyzed system. Providers cannot smuggle evidence: fabricated region IDs, element references, or node indexes are silently dropped; only references minted by the manager survive, and boxes/confidence outside their valid domain become `null`, never clamped. Format detection trusts magic bytes, never declared MIME types, and script-bearing SVG is refused outright. Extracted UI structure is labeled visual interpretation, not the original DOM. Prompt-injection images are processed as content; the manager surface has no execute/approve/confirm methods, image bytes and OCR text never enter system or developer instructions, and audit events carry identifiers and counts, never content. Capability declarations are a closed union enforced before any operation. Jobs are owner-scoped, bounded (size, dimensions, frames, concurrency, characters, wall-clock), cancelable one-way, and audited; artifacts ride the Step 19 integrity rules. The API's wired provider is the deterministic mock, honestly surfaced as a simulation. See [image-intelligence.md](image-intelligence.md).
+
+## 5s. Video Intelligence (Step 22)
+
+1. Video content is untrusted data in every modality (speech, subtitles, visible text, OCR); provider interpretation is ai-generated and never authorization or an action.
+2. Every read re-authorizes through the File Intelligence boundary; there is no second trust path.
+3. Formats are detected from magic bytes and container boxes; malformed containers fail closed.
+4. Timestamps outside the genuine duration are dropped; evidence references are index-mapped and forged refs are dropped; speaker identity is never inferred from voice.
+5. All operations are bounded: bytes, duration, dimensions, streams, frames, transcript/OCR size, concurrency, wall-clock. Frame budgets are reserved before provider calls.
+6. Playback media is served with nosniff and no-store; audit data contains identifiers and counts, never media text.

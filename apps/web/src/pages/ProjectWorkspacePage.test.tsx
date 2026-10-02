@@ -343,7 +343,9 @@ describe('ProjectWorkspacePage', () => {
     const input = await screen.findByRole('textbox', { name: 'Message Veltravia AI' });
     fireEvent.change(input, { target: { value: 'Summarize the architecture' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
-    expect(await screen.findByRole('alert')).toBeDefined();
+    // The failure legitimately renders BOTH a status-strip alert and (under
+    // load) a panel-level error - match all alerts, not exactly one.
+    expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
     // The failure is reported both as a conversation note and in the status
     // strip - it must never be shown as an assistant answer.
     expect(screen.getAllByText(/the model could not be reached/i).length).toBeGreaterThanOrEqual(1);
@@ -370,7 +372,9 @@ describe('ProjectWorkspacePage', () => {
     const input = await screen.findByRole('textbox', { name: 'Message Veltravia AI' });
     fireEvent.change(input, { target: { value: 'Anything' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
-    expect(await screen.findByRole('alert')).toBeDefined();
+    // The failure legitimately renders BOTH a status-strip alert and (under
+    // load) a panel-level error - match all alerts, not exactly one.
+    expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
     // The failure text legitimately appears in BOTH the status strip and
     // the honest system note - match all occurrences, not just one.
     expect((await screen.findAllByText(/was not answered/i)).length).toBeGreaterThan(0);
