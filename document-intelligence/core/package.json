@@ -1,0 +1,25 @@
+{
+  "name": "@veltravia/document-intelligence-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Bounded, auditable document understanding. Extracted text, tables and OCR output are UNTRUSTED DATA: providers declare explicit capabilities, embedded scripts and formulas are recorded but never executed, processing is bounded and auditable, and every derived result is provenance-tracked.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/file-intelligence-core": "0.1.0",
+    "@veltravia/tool-core": "0.1.0"
+  }
+}

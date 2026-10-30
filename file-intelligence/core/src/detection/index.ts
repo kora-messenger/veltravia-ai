@@ -18,6 +18,7 @@ const MAP: Record<string, FileType> = {
   pdf: 'pdf',
   docx: 'docx',
   xlsx: 'xlsx',
+  pptx: 'pptx',
   png: 'png',
   jpg: 'jpeg',
   jpeg: 'jpeg',
@@ -68,6 +69,7 @@ const MIME: Record<FileType, string> = {
   pdf: 'application/pdf',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   code: 'text/plain',
   png: 'image/png',
   jpeg: 'image/jpeg',
@@ -88,6 +90,7 @@ const CATEGORY: Record<FileType, FileCategory> = {
   pdf: 'document',
   docx: 'document',
   xlsx: 'spreadsheet',
+  pptx: 'document',
   code: 'code',
   png: 'image',
   jpeg: 'image',
@@ -121,6 +124,7 @@ const TYPE_FROM_MIME: Record<string, FileType> = {
   'video/webm': 'video',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
 };
 const ext = (filename: string) => filename.toLowerCase().split('.').pop() ?? '';
 function looksText(bytes: Uint8Array): boolean {
@@ -237,13 +241,13 @@ export async function detectFile(
     detected = extensionType !== 'unknown' ? extensionType : 'txt';
   if (
     !magic &&
-    ['pdf', 'docx', 'xlsx', 'png', 'jpeg', 'webp', 'gif', 'zip', 'audio', 'video'].includes(
+    ['pdf', 'docx', 'xlsx', 'pptx', 'png', 'jpeg', 'webp', 'gif', 'zip', 'audio', 'video'].includes(
       detected,
     )
   )
     detected = 'unknown';
   // OOXML containers share ZIP magic; refine by extension, validated structurally during extraction.
-  if (detected === 'zip' && (extensionType === 'docx' || extensionType === 'xlsx'))
+  if (detected === 'zip' && (extensionType === 'docx' || extensionType === 'xlsx' || extensionType === 'pptx'))
     detected = extensionType;
   const detectedMime =
     detected === 'audio' && magic?.mime

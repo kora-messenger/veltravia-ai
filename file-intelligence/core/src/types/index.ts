@@ -36,6 +36,7 @@ export const FILE_TYPES = [
   'pdf',
   'docx',
   'xlsx',
+  'pptx',
   'code',
   'png',
   'jpeg',

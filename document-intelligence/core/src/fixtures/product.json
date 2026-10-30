@@ -1,0 +1,9 @@
+{
+  "product": "Veltravia",
+  "version": 2,
+  "regions": ["Lagos", "Abuja"],
+  "pricing": {
+    "basic": 100,
+    "pro": 200
+  }
+}

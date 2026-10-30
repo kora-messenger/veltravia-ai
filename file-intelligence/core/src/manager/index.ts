@@ -471,6 +471,25 @@ export class FileIntelligenceManager {
       throw new FileIntelligenceError('FILE_INTEGRITY_FAILURE', 'Video integrity check failed.');
     return { bytes, mimeType: asset.metadata.detectedMimeType };
   }
+  /** Step 23: authorized, integrity-checked document bytes for parsing.
+   *  Document content is UNTRUSTED DATA; callers must never treat it as
+   *  instructions, and scripts inside documents are never executed. */
+  async documentBytes(
+    id: FileAssetId,
+    principal: FilePrincipal,
+  ): Promise<{ bytes: Uint8Array; mimeType: string }> {
+    const asset = await this.requireFile(id, principal);
+    if (asset.metadata.category !== 'document' && asset.metadata.category !== 'spreadsheet' && asset.metadata.category !== 'text')
+      throw new FileIntelligenceError('FILE_TYPE_REJECTED', 'File is not a document.');
+    const bytes = await this.options.store.getFileBytes(id);
+    if (
+      !bytes ||
+      bytes.length !== asset.metadata.byteSize ||
+      sha256(bytes) !== asset.metadata.checksum
+    )
+      throw new FileIntelligenceError('FILE_INTEGRITY_FAILURE', 'Document integrity check failed.');
+    return { bytes, mimeType: asset.metadata.detectedMimeType };
+  }
   async deleteFile(id: FileAssetId, principal: FilePrincipal): Promise<void> {
     const asset = await this.requireFile(id, principal);
     await this.transition(asset, 'deleted');
