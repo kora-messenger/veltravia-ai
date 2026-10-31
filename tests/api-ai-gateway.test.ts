@@ -100,6 +100,10 @@ describe('AI provider gateway: connection lifecycle', () => {
     });
     expect(validation.statusCode).toBe(200);
     expect(validation.json().valid).toBe(true);
+    // The browser reads this shape: a normalized category, never provider text,
+    // and the refreshed connection so the card can show the new status.
+    expect(validation.json().errorCategory).toBeNull();
+    expect(validation.json().connection.id).toBe(id);
 
     const models = await app.inject({
       method: 'GET',
@@ -338,5 +342,36 @@ describe('AI provider gateway: existing services opt in', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json().status).toBe('no_evidence');
     expect(response.json().claims).toEqual([]);
+  });
+});
+
+describe('AI provider gateway: verification failures', () => {
+  it('reports a normalized category and the updated status, never the key', async () => {
+    // Discovery succeeds on create, then the provider starts refusing the key.
+    let refuse = false;
+    const transport = new FixtureProviderTransport({
+      override: () => (refuse ? { status: 401, headers: {}, body: {}, text: '' } : undefined),
+    });
+    const { app } = appWithTransport(transport);
+    const created = await connect(app);
+    const id = created.json().connection.id as string;
+    const key = TEST_OPENAI_KEY;
+
+    refuse = true;
+
+    const validation = await app.inject({
+      method: 'POST',
+      url: `/api/ai/providers/connections/${id}/validate`,
+      headers: ownerA,
+      payload: {},
+    });
+
+    expect(validation.statusCode).toBe(200);
+    const body = validation.json();
+    expect(body.valid).toBe(false);
+    expect(body.errorCategory).toBeTypeOf('string');
+    expect(body.connection.status).not.toBe('active');
+    expect(body.connection.lastErrorCategory).toBe(body.errorCategory);
+    expect(JSON.stringify(body)).not.toContain(key);
   });
 });

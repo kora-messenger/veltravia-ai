@@ -13,6 +13,31 @@ import * as api from '../api/ai-providers';
  * - deleting a connection says plainly what stops working (nothing is silently
  *   rerouted to a shared key, because there is no shared key).
  */
+/**
+ * Plain-language reason for a failed verification. The API reports a normalized
+ * category (never provider text), so the same sentence is honest for every vendor.
+ */
+export function verifyFailureReason(category: string | null): string {
+  switch (category) {
+    case 'GATEWAY_AUTH_FAILED':
+      return 'the provider rejected the key.';
+    case 'GATEWAY_RATE_LIMITED':
+      return 'the provider is rate limiting this account.';
+    case 'GATEWAY_TIMEOUT':
+      return 'the provider did not answer in time.';
+    case 'GATEWAY_UNSAFE_ENDPOINT':
+      return 'the endpoint was refused by the security check.';
+    case 'GATEWAY_VAULT_DECRYPT_FAILED':
+      return 'the stored key could not be decrypted. Add it again.';
+    case 'GATEWAY_PROVIDER_UNAVAILABLE':
+      return 'the provider could not be reached.';
+    case 'GATEWAY_PROVIDER_ERROR':
+      return 'the provider returned an error.';
+    default:
+      return 'the provider did not confirm the key.';
+  }
+}
+
 export function AiProvidersPage() {
   const [overview, setOverview] = useState<api.ProvidersOverview | null>(null);
   const [usage, setUsage] = useState<readonly api.UsageRecordView[]>([]);
@@ -116,7 +141,7 @@ export function AiProvidersPage() {
           ? `${connection.displayName} responded. ${connection.models.length} model${
               connection.models.length === 1 ? '' : 's'
             } available.`
-          : `${connection.displayName} could not be verified: ${result.message}`,
+          : `${connection.displayName} could not be verified: ${verifyFailureReason(result.errorCategory)}`,
       );
       await load();
     } catch (e) {

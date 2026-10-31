@@ -205,14 +205,14 @@ export function registerAiGatewayRoutes(app: FastifyInstance, deps: AiGatewayRou
       const owner = ownerOf(request);
       const { id } = request.params as { id: string };
       const result = await gateway.validateConnection(owner, id);
-      const connection = await gateway.getConnection(owner, id);
+      // Re-read the connection so the caller sees the status this check produced.
+      const listed = (await gateway.listConnections(owner)).find(
+        (entry) => entry.connection.id === id,
+      );
       return reply.send({
         valid: result.valid,
         errorCategory: result.errorCategory ?? null,
-        connection: connection
-          ? ((await gateway.listConnections(owner)).find((entry) => entry.connection.id === id)
-              ?.connection ?? null)
-          : null,
+        connection: listed?.connection ?? null,
       });
     } catch (error) {
       const mapped = toError(error);

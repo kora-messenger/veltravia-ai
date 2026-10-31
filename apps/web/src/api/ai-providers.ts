@@ -96,7 +96,7 @@ export const createConnection = (input: CreateConnectionInput) =>
   });
 
 export const validateConnection = (id: string) =>
-  apiRequest<{ valid: boolean; message: string }>(
+  apiRequest<{ valid: boolean; errorCategory: string | null }>(
     `${base}/connections/${encodeURIComponent(id)}/validate`,
     { method: 'POST', body: {} },
   );

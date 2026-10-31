@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { AiProvidersPage } from './AiProvidersPage';
+import { AiProvidersPage, verifyFailureReason } from './AiProvidersPage';
 import * as api from '../api/ai-providers';
 
 vi.mock('../api/ai-providers', () => ({
@@ -73,7 +73,7 @@ beforeEach(() => {
   vi.mocked(api.getProviders).mockResolvedValue(readyOverview());
   vi.mocked(api.getUsage).mockResolvedValue({ usage: [], costAvailable: false });
   vi.mocked(api.createConnection).mockResolvedValue({ connection });
-  vi.mocked(api.validateConnection).mockResolvedValue({ valid: true, message: 'Responded.' });
+  vi.mocked(api.validateConnection).mockResolvedValue({ valid: true, errorCategory: null });
   vi.mocked(api.updateConnection).mockResolvedValue({ connection });
   vi.mocked(api.replaceCredential).mockResolvedValue({ connection });
   vi.mocked(api.deleteConnection).mockResolvedValue(undefined);
@@ -159,14 +159,15 @@ describe('AiProvidersPage', () => {
 
   it('reports a failed verification honestly', async () => {
     vi.mocked(api.getProviders).mockResolvedValue(readyOverview({ providers: [connection] }));
+    // The API reports a normalized category, not provider text.
     vi.mocked(api.validateConnection).mockResolvedValue({
       valid: false,
-      message: 'The provider rejected the key.',
+      errorCategory: 'GATEWAY_AUTH_FAILED',
     });
     render(<AiProvidersPage />);
     fireEvent.click(await screen.findByRole('button', { name: /^Verify$/ }));
     expect(
-      await screen.findByText(/could not be verified: The provider rejected the key\./i),
+      await screen.findByText(/could not be verified: the provider rejected the key\./i),
     ).toBeDefined();
   });
 
@@ -229,5 +230,16 @@ describe('AiProvidersPage', () => {
     vi.mocked(api.getProviders).mockRejectedValue(new Error('network down'));
     render(<AiProvidersPage />);
     expect(await screen.findByRole('alert')).toBeDefined();
+  });
+});
+
+describe('verifyFailureReason', () => {
+  it('names every normalized category in plain language', () => {
+    expect(verifyFailureReason('GATEWAY_AUTH_FAILED')).toContain('rejected the key');
+    expect(verifyFailureReason('GATEWAY_TIMEOUT')).toContain('did not answer in time');
+    expect(verifyFailureReason('GATEWAY_UNSAFE_ENDPOINT')).toContain('security check');
+    expect(verifyFailureReason(null)).toContain('did not confirm the key');
+    // An unknown category falls back instead of rendering a raw code.
+    expect(verifyFailureReason('SOMETHING_NEW')).not.toContain('SOMETHING_NEW');
   });
 });
