@@ -88,7 +88,9 @@ describe('FilesPage', () => {
     const file = await screen.findByRole('button', { name: /notes\.txt/ });
     fireEvent.click(file);
     expect(await screen.findByRole('dialog')).toBeDefined();
-    expect(screen.getByText('<script>untrusted</script>').tagName).toBe('PRE');
+    // await the async preview: a synchronous getByText races on slower runners
+    const preview = await screen.findByText('<script>untrusted</script>');
+    expect(preview.tagName).toBe('PRE');
     expect(document.querySelector('script[src="untrusted"]')).toBeNull();
   });
   it('shows provenance and a controlled artifact download action', async () => {
