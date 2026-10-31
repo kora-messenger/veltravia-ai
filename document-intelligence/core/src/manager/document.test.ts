@@ -139,7 +139,7 @@ describe('DocumentIntelligenceManager - process', () => {
     });
     const job = await h.documents.process(asFileAssetId(asset.id), owner);
     expect(job.status).toBe('failed');
-    expect(job.error).toContain('DOCUMENT_SECRET_REJECTED');
+    expect(job.error?.code).toBe('DOCUMENT_SECRET_REJECTED');
   });
 
   it('audits processing with scrubbed metadata and no content', async () => {
@@ -158,7 +158,7 @@ describe('DocumentIntelligenceManager - process', () => {
     const id = await register(h, 'report.docx', DOCX_MIME);
     const job = await h.documents.process(asFileAssetId(id), owner);
     expect(job.status).toBe('failed');
-    expect(job.error).toContain('DOCUMENT_LIMIT_EXCEEDED');
+    expect(job.error?.code).toBe('DOCUMENT_LIMIT_EXCEEDED');
   });
 });
 
@@ -374,6 +374,18 @@ describe('DocumentIntelligenceManager - jobs', () => {
       kind: 'document_tables_csv',
     });
     expect(tables.mimeType).toBe('text/csv');
+  });
+
+  it('exports spreadsheet cells as CSV from the bounded sheet rows', async () => {
+    const h = harness();
+    const id = await register(h, 'sales.xlsx', XLSX_MIME);
+    await h.documents.process(asFileAssetId(id), owner);
+    const view = await h.documents.spreadsheetView(asFileAssetId(id), owner);
+    expect(view.sheets[0]!.rows.length).toBeGreaterThan(0);
+    const csv = await h.documents.saveArtifact(asFileAssetId(id), owner, {
+      kind: 'document_tables_csv',
+    });
+    expect(csv.mimeType).toBe('text/csv');
   });
 
   it('refuses a tables export when the document has no tables', async () => {

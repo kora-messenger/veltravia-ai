@@ -65,6 +65,7 @@ import {
   type DocumentStructureView,
   type DocumentSummaryMode,
   type DocumentSummaryView,
+  type DocumentJobError,
   type DocumentJobStatus,
 } from '../types/index.js';
 
@@ -234,7 +235,7 @@ export class DocumentIntelligenceManager {
       this.audit('document_processing_failed', principal.ownerRef, {
         jobId,
         fileId,
-        error: failed,
+        error: failed.code,
       });
       return { ...record.job };
     }
@@ -459,6 +460,7 @@ export class DocumentIntelligenceManager {
       rowCount: number;
       columnCount: number;
       headers: readonly string[];
+      rows: readonly (readonly string[])[];
       formulaCells: number;
       stats: readonly {
         header: string;
@@ -493,6 +495,7 @@ export class DocumentIntelligenceManager {
             rowCount: rows,
             columnCount: headers.length,
             headers,
+            rows: table ? table.rows : [],
             formulaCells: 0,
             stats: [],
           },
@@ -750,14 +753,21 @@ export class DocumentIntelligenceManager {
         break;
       }
       case 'document_tables_csv': {
-        needs(structure.tables.length > 0, 'This document has no tables to export.');
         const escape = (cell: string): string => `"${cell.replace(/"/g, '""')}"`;
-        const parts = structure.tables.map((table) =>
-          [table.headers, ...table.rows].map((row) => row.map(escape).join(',')).join('\n'),
-        );
+        const csvOf = (headers: readonly string[], rows: readonly (readonly string[])[]): string =>
+          [headers, ...rows].map((row) => row.map(escape).join(',')).join('\n');
+        const chunks: string[] = structure.tables.map((table) => csvOf(table.headers, table.rows));
+        // Spreadsheets keep their cells in the workbook, not in structural
+        // tables, so rebuild their CSV from the bounded sheet rows.
+        if (chunks.length === 0 && (structure.format === 'xlsx' || structure.format === 'csv')) {
+          const view = await this.spreadsheetView(fileId, principal);
+          for (const sheet of view.sheets)
+            chunks.push(`# ${sheet.name}\n${csvOf(sheet.headers, sheet.rows)}`);
+        }
+        needs(chunks.length > 0, 'This document has no tables to export.');
         filename = `${base}-tables.csv`;
         mimeType = 'text/csv';
-        bytes = buffer(parts.join('\n\n'));
+        bytes = buffer(chunks.join('\n\n'));
         break;
       }
       case 'document_summary_md': {
@@ -834,10 +844,10 @@ function cancelError(): DocumentIntelligenceError {
   return new DocumentIntelligenceError('DOCUMENT_INVALID_REQUEST', 'Job was cancelled.');
 }
 
-function jobError(error: unknown): string {
-  if (isDocumentIntelligenceError(error)) return `${error.code}: ${error.message}`;
-  if (error instanceof Error && error.message) return truncate(error.message, 300);
-  return 'Unknown processing failure.';
+function jobError(error: unknown): DocumentJobError {
+  if (isDocumentIntelligenceError(error)) return { code: error.code, message: error.message };
+  // Unexpected failures never echo raw internals to callers.
+  return { code: 'DOCUMENT_FILE_ERROR', message: 'The document could not be processed.' };
 }
 
 function truncate(value: string, max: number): string {

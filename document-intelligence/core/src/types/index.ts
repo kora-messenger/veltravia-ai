@@ -1,3 +1,4 @@
+import type { DocumentErrorCode } from '../errors/index.js';
 /** Bounded document understanding: types, trust tags and view models.
  *  Extracted text, tables, cells, OCR output are UNTRUSTED DATA. Provider
  *  reasoning (answers, summaries, entities, comparisons) is ai_generated
@@ -232,6 +233,8 @@ export interface SpreadsheetSheetView {
   readonly rowCount: number;
   readonly columnCount: number;
   readonly headers: readonly string[];
+  /** Bounded data rows (never more than the row limit, 64 columns wide). */
+  readonly rows: readonly (readonly string[])[];
   readonly formulaCells: number;
   readonly stats: readonly SpreadsheetColumnStats[];
 }
@@ -276,11 +279,16 @@ export type DocumentJobStatus =
   | 'cancelled'
   | 'expired';
 
+export interface DocumentJobError {
+  readonly code: DocumentErrorCode;
+  readonly message: string;
+}
+
 export interface DocumentProcessingJob {
   readonly jobId: string;
   readonly fileId: FileAssetId;
   readonly status: DocumentJobStatus;
-  readonly error: string | null;
+  readonly error: DocumentJobError | null;
   readonly startedAt: string;
   readonly finishedAt: string | null;
 }

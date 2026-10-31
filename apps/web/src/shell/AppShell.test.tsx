@@ -133,4 +133,22 @@ describe('AppShell', () => {
     // Backdrop is gone after Escape.
     expect(screen.queryByRole('presentation')).toBeNull();
   });
+
+  it('routes to the documents page and marks it active', () => {
+    renderShell();
+    window.location.hash = '#/documents';
+    fireEvent(window, new HashChangeEvent('hashchange'));
+    // regression: the hash parser previously fell back to the dashboard here
+    expect(screen.getByTestId('page-documents')).toBeDefined();
+    expect(
+      screen.getByRole('link', { name: /Document intelligence/ }).getAttribute('aria-current'),
+    ).toBe('page');
+  });
+
+  it('navigates to the documents page from the sidebar', () => {
+    renderShell();
+    fireEvent.click(screen.getByRole('link', { name: /Document intelligence/ }));
+    expect(window.location.hash).toBe('#/documents');
+    expect(screen.getByTestId('page-documents')).toBeDefined();
+  });
 });

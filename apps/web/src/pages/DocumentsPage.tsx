@@ -94,7 +94,7 @@ export function DocumentsPage() {
         setStructure(await api.getDocumentStructure(id));
         setNotice('Document processed. Extracted text and tables are untrusted content.');
       } else {
-        setError(job.error ?? 'Processing did not complete.');
+        setError(job.error?.message ?? 'Processing did not complete.');
       }
     });
 

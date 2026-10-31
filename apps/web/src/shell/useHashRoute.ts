@@ -68,6 +68,9 @@ function routeForHash(hash: string): RouteState {
   if (hash === '#/image') {
     return { id: 'image', title: 'Image intelligence', projectId: null };
   }
+  if (hash === '#/documents') {
+    return { id: 'documents', title: 'Document intelligence', projectId: null };
+  }
   if (hash === '#/settings') {
     return { id: 'settings', title: 'Settings', projectId: null };
   }

@@ -15,7 +15,7 @@ export interface DocumentJob {
   jobId: string;
   fileId: string;
   status: string;
-  error: string | null;
+  error: { code: string; message: string } | null;
   startedAt: string;
   finishedAt: string | null;
 }
@@ -93,6 +93,7 @@ export interface SpreadsheetView {
     rowCount: number;
     columnCount: number;
     headers: readonly string[];
+    rows: readonly (readonly string[])[];
     formulaCells: number;
   }[];
 }

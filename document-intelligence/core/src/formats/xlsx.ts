@@ -126,11 +126,16 @@ function parseSheet(name: string, xml: string, limits: XlsxParseLimits): Spreads
     stats.push(statsFor);
     if (stats.length >= 64) break;
   }
+  const width = Math.min(headers.length, 64);
+  const rows = dataRows
+    .slice(0, limits.maxSheetRows)
+    .map((row) => Array.from({ length: width }, (_, c) => (row[c] ?? '').slice(0, 500)));
   return {
     name: name.slice(0, 200),
     rowCount: dataRows.length,
     columnCount: headers.length,
-    headers,
+    headers: headers.slice(0, 64),
+    rows,
     formulaCells,
     stats,
   };

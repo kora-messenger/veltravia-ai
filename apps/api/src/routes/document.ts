@@ -126,10 +126,23 @@ export function registerDocumentRoutes(
     run(reply, () => manager.inspect(file(request), principal(request))),
   );
 
-  // Processing is bounded and completes inline; the terminal job is returned.
-  app.post('/api/documents/:fileId/process', async (request, reply) =>
-    run(reply, () => manager.process(file(request), principal(request)).then(jobView)),
-  );
+  // Processing is bounded and completes inline. A job that failed is reported
+  // with the failure's own HTTP status, so a client can never read a rejected
+  // document as a success.
+  app.post('/api/documents/:fileId/process', async (request, reply) => {
+    try {
+      const job = await manager.process(file(request), principal(request));
+      if (job.status === 'failed' && job.error) {
+        return reply
+          .code(STATUS[job.error.code] ?? 500)
+          .send({ error: { code: job.error.code, message: job.error.message }, job: jobView(job) });
+      }
+      return reply.code(200).send(jobView(job));
+    } catch (error) {
+      const mapped = err(error);
+      return reply.code(mapped.status).send(mapped.body);
+    }
+  });
 
   app.get('/api/documents/:fileId/structure', async (request, reply) =>
     run(reply, () => manager.getStructure(file(request), principal(request))),
