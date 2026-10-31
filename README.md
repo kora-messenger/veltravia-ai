@@ -204,6 +204,9 @@ stored or streamed. Limits (iterations, tool calls, wall clock, retries, context
 enforced server-side against hard ceilings, and exhausting them reports `limit_reached`
 instead of a plausible-sounding answer. Answers state which provider and model produced them;
 the deterministic simulated provider is badged "Simulated" and says no model ran.
+A finished run is final: cancelling one that already completed, failed or hit its limit is
+refused with `REASONING_RUN_NOT_CANCELLABLE` rather than rewriting its recorded answer, and
+the stream's terminal event carries the run so the page renders the real outcome.
 `/api/reasoning` exposes capabilities, runs, cancel, decision, an SSE event stream and usage,
 and `#/reasoning` is the workspace that follows it.
 

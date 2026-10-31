@@ -149,7 +149,7 @@ export type ReasoningEvent =
       readonly toolId: string;
       readonly riskLevel?: string;
     }
-  | { readonly type: 'final'; readonly at: string; readonly run: ReasoningRunView }
+  | { readonly type: 'final'; readonly at: string; readonly run?: ReasoningRunView }
   | { readonly type: 'usage'; readonly at: string; readonly usage: ReasoningRunView['usage'] }
   | { readonly type: 'error'; readonly at: string; readonly message: string };
 

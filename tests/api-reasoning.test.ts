@@ -254,7 +254,7 @@ describe('reasoning API: runs', () => {
     expect(cancelForeign.statusCode).toBe(404);
   });
 
-  it('cancels a run and refuses to cancel an unknown one', async () => {
+  it('refuses to cancel a finished run, keeps its answer, and 404s an unknown run', async () => {
     const { app } = appWithSimulated();
     const started = await app.inject({
       method: 'POST',
@@ -263,13 +263,37 @@ describe('reasoning API: runs', () => {
       payload: { task: 'hello', mode: 'simulated' },
     });
     const runId = started.json().run.id as string;
-    const cancelled = await app.inject({
+
+    // Wait for the run to reach a terminal state before cancelling it.
+    let finished = started.json().run;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      if (String(finished.status) !== 'running') break;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      const polled = await app.inject({
+        method: 'GET',
+        url: `/api/reasoning/runs/${runId}`,
+        headers: ownerA,
+      });
+      finished = polled.json().run;
+    }
+    expect(finished.status).toBe('completed');
+
+    const refused = await app.inject({
       method: 'POST',
       url: `/api/reasoning/runs/${runId}/cancel`,
       headers: ownerA,
     });
-    expect(cancelled.statusCode).toBe(200);
-    expect(cancelled.json().run.status).toBe('cancelled');
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error.code).toBe('REASONING_RUN_NOT_CANCELLABLE');
+
+    // The completed run was not rewritten by the refused cancellation.
+    const after = await app.inject({
+      method: 'GET',
+      url: `/api/reasoning/runs/${runId}`,
+      headers: ownerA,
+    });
+    expect(after.json().run.status).toBe('completed');
+    expect(after.json().run.answer).toBe(finished.answer);
 
     const missing = await app.inject({
       method: 'POST',

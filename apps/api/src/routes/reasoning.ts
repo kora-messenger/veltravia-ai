@@ -3,6 +3,7 @@ import { readEnv } from '@veltravia/config';
 import {
   REASONING_PROFILES,
   isReasoningError,
+  reasoningHttpStatus,
   type ReasoningProfileId,
 } from '@veltravia/reasoning-core';
 import { isGatewayError } from '@veltravia/ai-gateway';
@@ -18,6 +19,10 @@ import type { ReasoningService } from '../reasoning-service.js';
  * guessing.
  */
 
+/**
+ * Route-level overrides only. Any code without an entry falls back to the
+ * engine's own mapping, so a new engine error can never silently become a 500.
+ */
 const STATUS: Record<string, number> = {
   REASONING_INVALID_REQUEST: 400,
   REASONING_UNKNOWN_PROFILE: 400,
@@ -41,7 +46,7 @@ const STATUS: Record<string, number> = {
 function toError(error: unknown): { status: number; body: unknown } {
   if (isReasoningError(error)) {
     return {
-      status: STATUS[error.code] ?? 500,
+      status: STATUS[error.code] ?? reasoningHttpStatus(error.code),
       body: { error: { code: error.code, message: error.message } },
     };
   }

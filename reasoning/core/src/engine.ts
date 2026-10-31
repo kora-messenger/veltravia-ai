@@ -191,7 +191,13 @@ export type ReasoningEvent =
       readonly toolId: string;
       readonly riskLevel?: string;
     }
-  | { readonly type: 'final'; readonly at: string; readonly answer: string }
+  | {
+      readonly type: 'final';
+      readonly at: string;
+      readonly answer: string;
+      /** The terminal run, so a streaming client can render the outcome directly. */
+      readonly run: ReasoningRun;
+    }
   | { readonly type: 'error'; readonly at: string; readonly code: string; readonly message: string }
   | { readonly type: 'usage'; readonly at: string; readonly usage: ReasoningUsage };
 
@@ -316,6 +322,15 @@ export class ReasoningEngine {
     const state = this.runs.get(runId);
     if (state === undefined) {
       throw new ReasoningError('REASONING_RUN_NOT_FOUND', 'That reasoning run does not exist.');
+    }
+    // A finished run keeps its outcome. Cancelling it after the fact would
+    // rewrite history and erase a real answer or a real failure.
+    if (state.run.status === 'cancelled') return state.run;
+    if (['completed', 'failed', 'limit_reached'].includes(state.run.status)) {
+      throw new ReasoningError(
+        'REASONING_RUN_NOT_CANCELLABLE',
+        'That reasoning run has already finished, so it cannot be cancelled.',
+      );
     }
     state.cancelled = true;
     state.controller.abort();
@@ -1205,6 +1220,7 @@ export class ReasoningEngine {
       type: 'final',
       at: this.now().toISOString(),
       answer: state.run.answer ?? '',
+      run: state.run,
     });
     this.emit(state, { type: 'usage', at: this.now().toISOString(), usage });
     return state.run;

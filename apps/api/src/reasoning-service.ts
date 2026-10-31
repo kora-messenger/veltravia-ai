@@ -210,7 +210,7 @@ export class ReasoningService {
     if (mode === 'simulated') {
       provider = this.options.simulatedFactory
         ? this.options.simulatedFactory()
-        : new SimulatedReasoningProvider({ echoStep: true });
+        : new SimulatedReasoningProvider({ respondToStep: true });
     } else {
       if (this.options.gateway === null) {
         throw new GatewayError(

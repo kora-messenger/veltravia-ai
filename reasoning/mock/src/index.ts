@@ -33,6 +33,12 @@ export interface SimulatedProviderOptions {
   readonly defaultContent?: string;
   /** Echo whatever step the system prompt names (useful for smoke runs). */
   readonly echoStep?: boolean;
+  /**
+   * Answer each pipeline step in the shape that step requires, so an unscripted
+   * provider can drive a complete run. The answer still says plainly that no
+   * model was called.
+   */
+  readonly respondToStep?: boolean;
   readonly onRequest?: (request: ProviderRequest) => void;
 }
 
@@ -44,6 +50,45 @@ function stepName(system: string): string {
   if (/step 4: write the final answer/i.test(system)) return 'final';
   if (/step 3: answer/i.test(system)) return 'answer';
   return 'unknown';
+}
+
+const SIMULATED_NOTICE = 'No AI model was called.';
+
+/** Extracts the task line from a step prompt so the echo quotes the real task. */
+function taskOf(user: string): string {
+  const match = /Task:\n([\s\S]*?)(?:\n\n|$)/.exec(user);
+  const raw = (match?.[1] ?? '').trim();
+  if (raw.length === 0) return 'the requested task';
+  return raw.length > 160 ? `${raw.slice(0, 157)}...` : raw;
+}
+
+/**
+ * A protocol-shaped reply for one pipeline step. Used when no scripted reply is
+ * queued: the run completes and proves the loop, and the answer states that it is
+ * a simulation rather than pretending to be model output.
+ */
+function stepReply(step: string, user: string, fallback: string): string {
+  switch (step) {
+    case 'classify':
+      return JSON.stringify({
+        taskType: 'question',
+        needsTools: false,
+        rationale: 'Simulated classification: answered without consulting platform data.',
+      });
+    case 'plan':
+      return JSON.stringify({ goal: 'Answer from the supplied context.', steps: [] });
+    case 'answer':
+      return JSON.stringify({
+        type: 'answer',
+        answer: `Simulated result for: ${taskOf(user)} This run demonstrates the reasoning loop; ${SIMULATED_NOTICE} Connect a provider for a real answer.`,
+        complete: true,
+        summary: 'Simulated run completed without a model.',
+      });
+    case 'final':
+      return `Simulated result for: ${taskOf(user)} This run demonstrates the reasoning loop; ${SIMULATED_NOTICE} Connect a provider for a real answer.`;
+    default:
+      return fallback;
+  }
 }
 
 /**
@@ -59,6 +104,7 @@ export class SimulatedReasoningProvider implements ReasoningProvider {
   private readonly modelId: string;
   private readonly defaultContent: string;
   private readonly echoStep: boolean;
+  private readonly respondToStep: boolean;
   private readonly onRequest?: (request: ProviderRequest) => void;
   /** Every request the engine made, for assertions. */
   readonly requests: ProviderRequest[] = [];
@@ -69,6 +115,7 @@ export class SimulatedReasoningProvider implements ReasoningProvider {
     this.queue = [...(options.replies ?? [])];
     this.defaultContent = options.defaultContent ?? 'Simulated answer. No AI model was called.';
     this.echoStep = options.echoStep ?? false;
+    this.respondToStep = options.respondToStep ?? false;
     if (options.onRequest !== undefined) this.onRequest = options.onRequest;
   }
 
@@ -86,7 +133,15 @@ export class SimulatedReasoningProvider implements ReasoningProvider {
     }
     const content =
       scripted?.content ??
-      (this.echoStep ? `Simulated ${stepName(request.system)} response.` : this.defaultContent);
+      (this.respondToStep
+        ? stepReply(
+            stepName(request.system),
+            request.messages.map((message) => message.content).join('\n'),
+            this.defaultContent,
+          )
+        : this.echoStep
+          ? `Simulated ${stepName(request.system)} response.`
+          : this.defaultContent);
     return {
       content,
       providerId: this.id,

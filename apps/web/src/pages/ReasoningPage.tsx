@@ -38,6 +38,14 @@ const PROFILE_FALLBACK: api.ReasoningProfileView[] = [
   },
 ];
 
+/**
+ * Renders a machine status as words. The value is defensive on purpose: a status
+ * that never arrived must not take the whole page down.
+ */
+function prettyStatus(status: string | undefined): string {
+  return typeof status === 'string' && status.length > 0 ? status.replace(/_/g, ' ') : 'unknown';
+}
+
 export function ReasoningPage() {
   const { toast } = useToast();
   const [capabilities, setCapabilities] = useState<api.ReasoningCapabilities | null>(null);
@@ -125,13 +133,32 @@ export function ReasoningPage() {
             break;
           case 'tool':
             break;
-          case 'final':
-            setRun(event.run);
-            if (event.run.answer !== undefined && event.run.answer !== '') {
-              answerRef.current = event.run.answer;
-              setStreamedAnswer(event.run.answer);
+          case 'final': {
+            // The stream may carry the terminal run, but a run is never assumed
+            // to be present: fetch it rather than rendering an empty screen.
+            const finished = event.run;
+            if (finished !== undefined) {
+              setRun(finished);
+              if (finished.answer !== undefined && finished.answer !== '') {
+                answerRef.current = finished.answer;
+                setStreamedAnswer(finished.answer);
+              }
+            } else {
+              void api
+                .getRun(runId)
+                .then((fresh) => {
+                  setRun(fresh);
+                  if (fresh.answer !== undefined && fresh.answer !== '') {
+                    answerRef.current = fresh.answer;
+                    setStreamedAnswer(fresh.answer);
+                  }
+                })
+                .catch(() => {
+                  setRunError('The run finished, but its result could not be loaded.');
+                });
             }
             break;
+          }
           case 'usage':
             setRun((previous) =>
               previous === null ? previous : { ...previous, usage: event.usage },
@@ -368,7 +395,7 @@ export function ReasoningPage() {
               ))}
             </div>
             <p className="v-reason__status">
-              Status: <strong>{run.status.replace(/_/g, ' ')}</strong>
+              Status: <strong>{prettyStatus(run.status)}</strong>
               {streaming && <span className="v-reason__live"> · streaming</span>}
             </p>
             {run.classification !== undefined && (
@@ -420,7 +447,7 @@ export function ReasoningPage() {
                               : 'error'
                         }
                       >
-                        {step.status.replace(/_/g, ' ')}
+                        {prettyStatus(step.status)}
                       </Badge>
                       <span className="v-reason__tool-name">{step.toolId}</span>
                       <span className="v-reason__muted">{step.intent}</span>

@@ -75,7 +75,11 @@ export function createCodebaseTools(manager: CodebaseIntelligenceManager): {
       outputSchema: {
         type: 'object',
         properties: {
-          results: { type: 'array', description: 'Bounded analysis results (safe views).' },
+          results: {
+            type: 'array',
+            description: 'Bounded analysis results (safe views).',
+            items: { type: 'object', additionalProperties: true },
+          },
         },
         required: ['results'],
         additionalProperties: false,

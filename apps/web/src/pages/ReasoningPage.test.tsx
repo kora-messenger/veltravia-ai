@@ -98,6 +98,80 @@ describe('ReasoningPage', () => {
     vi.clearAllMocks();
   });
 
+  it('renders a final event that carries the terminal run', async () => {
+    vi.mocked(api.startRun).mockResolvedValue(runFixture());
+    let emit: ((event: api.ReasoningEvent) => void) | null = null;
+    vi.mocked(api.followRun).mockImplementation((_runId, onEvent) => {
+      emit = onEvent;
+      return () => undefined;
+    });
+
+    renderPage();
+    await screen.findByText('Run reasoning');
+    fireEvent.change(screen.getByLabelText('Task'), {
+      target: { value: 'Summarise the project.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Run reasoning' }));
+    await waitFor(() => expect(api.startRun).toHaveBeenCalled());
+
+    emit?.({
+      type: 'final',
+      at: '2026-10-31T10:00:05.000Z',
+      run: runFixture({
+        status: 'completed',
+        answer: 'Simulated answer, no model was called.',
+        provider: {
+          providerId: 'simulated',
+          modelId: 'simulated-reasoner',
+          live: false,
+          simulated: true,
+        },
+      }),
+    });
+
+    // The terminal outcome is shown, and the page never falls back to "unknown".
+    expect(await screen.findByText('completed')).toBeDefined();
+    expect(screen.queryByText('unknown')).toBeNull();
+    expect(screen.getByText(/Simulated answer, no model was called\./)).toBeDefined();
+  });
+
+  it('loads the finished run when a final event arrives without one', async () => {
+    vi.mocked(api.startRun).mockResolvedValue(runFixture());
+    vi.mocked(api.getRun).mockResolvedValue(
+      runFixture({
+        status: 'completed',
+        answer: 'Fetched answer.',
+        provider: {
+          providerId: 'simulated',
+          modelId: 'simulated-reasoner',
+          live: false,
+          simulated: true,
+        },
+      }),
+    );
+    let emit: ((event: api.ReasoningEvent) => void) | null = null;
+    vi.mocked(api.followRun).mockImplementation((_runId, onEvent) => {
+      emit = onEvent;
+      return () => undefined;
+    });
+
+    renderPage();
+    await screen.findByText('Run reasoning');
+    fireEvent.change(screen.getByLabelText('Task'), {
+      target: { value: 'Summarise the project.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Run reasoning' }));
+    await waitFor(() => expect(api.startRun).toHaveBeenCalled());
+
+    emit?.({ type: 'final', at: '2026-10-31T10:00:05.000Z' });
+
+    await waitFor(() => expect(api.getRun).toHaveBeenCalled());
+    expect(await screen.findByText(/Fetched answer\./)).toBeDefined();
+    // The page is still mounted after the fallback fetch: no blank screen.
+    expect(screen.getByText('completed')).toBeDefined();
+    expect(screen.queryByText('unknown')).toBeNull();
+  });
+
   it('offers only the tools the selected profile may use', async () => {
     renderPage();
     expect(await screen.findByText('Read file')).toBeDefined();

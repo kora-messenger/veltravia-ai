@@ -101,13 +101,18 @@ stop when the run reaches a terminal status.
 | `GET /api/reasoning`                           | Profiles, limits, provider state, tools on offer                     |
 | `POST /api/reasoning/runs`                     | Start a run (`task`, `profile`, `mode`, `projectId`, `conversation`) |
 | `GET /api/reasoning/runs/:runId`               | One run                                                              |
-| `POST /api/reasoning/runs/:runId/cancel`       | Cancel (one-way)                                                     |
+| `POST /api/reasoning/runs/:runId/cancel`       | Cancel a live run (a finished run is refused with 409)               |
 | `POST /api/reasoning/runs/:runId/confirmation` | Record a decision, continue the run                                  |
 | `GET /api/reasoning/runs/:runId/events`        | Server-sent events                                                   |
 | `GET /api/reasoning/usage`                     | Recent usage records                                                 |
 
 `mode` is `gateway` (default; requires a connected provider, otherwise 409) or
 `simulated` (explicit opt-in, disclosed).
+
+Cancellation is one-way and only applies to a run that has not finished: a
+completed, failed or limit-reached run answers `REASONING_RUN_NOT_CANCELLABLE`
+(409) and keeps its recorded answer. The stream's `final` event carries the
+terminal run; the web client re-reads the run when it does not.
 
 ## Web page
 

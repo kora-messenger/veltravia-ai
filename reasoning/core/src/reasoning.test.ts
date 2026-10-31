@@ -245,6 +245,46 @@ describe('reasoning: engine pipeline', () => {
     expect(run.usage.modelCalls).toBe(3);
   });
 
+  it('refuses to cancel a finished run instead of rewriting its outcome', async () => {
+    const provider = new SimulatedReasoningProvider({
+      replies: [classify(false), answer('42'), { content: 'The answer is 42.' }],
+    });
+    const engine = new ReasoningEngine({ provider, now: NOW });
+    const run = await engine.run({ profile: 'workspace', task: 'What is the answer?' });
+    expect(run.status).toBe('completed');
+
+    let caught: unknown;
+    try {
+      engine.cancel(run.id);
+    } catch (error) {
+      caught = error;
+    }
+    expect((caught as { code?: string } | undefined)?.code).toBe('REASONING_RUN_NOT_CANCELLABLE');
+    // The completed outcome survives the refused cancellation.
+    expect(engine.getRun(run.id)?.status).toBe('completed');
+    expect(engine.getRun(run.id)?.answer).toBe('The answer is 42.');
+  });
+
+  it('completes an unscripted simulated run end to end and still discloses it', async () => {
+    // No queued replies: every step is answered in the shape that step requires.
+    // This is the path the API's simulated mode takes, so a run must actually
+    // finish instead of failing on an unparseable reply.
+    const provider = new SimulatedReasoningProvider({ respondToStep: true });
+    const engine = new ReasoningEngine({ provider, now: NOW });
+    const run = await engine.run({
+      profile: 'workspace',
+      task: 'Summarise what this platform does.',
+    });
+
+    expect(run.status).toBe('completed');
+    expect(run.error).toBeUndefined();
+    expect(run.answer ?? '').toContain('Summarise what this platform does.');
+    expect(run.answer ?? '').toMatch(/No AI model was called/);
+    expect(run.provider?.simulated).toBe(true);
+    expect(run.provider?.live).toBe(false);
+    expect(run.limitations.join(' ')).toMatch(/No AI model was called/);
+  });
+
   it('classifies an answer that arrived without a completion assessment', async () => {
     const provider = new SimulatedReasoningProvider({
       replies: [

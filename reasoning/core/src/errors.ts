@@ -17,6 +17,7 @@ export const REASONING_ERROR_CODES = [
   'REASONING_CANCELLED',
   'REASONING_RUN_NOT_FOUND',
   'REASONING_RUN_STATE',
+  'REASONING_RUN_NOT_CANCELLABLE',
   'REASONING_CONFIRMATION_INVALID',
   'REASONING_TOOL_UNAVAILABLE',
   'REASONING_TOOL_FAILED',
@@ -79,6 +80,7 @@ export function reasoningHttpStatus(code: ReasoningErrorCode): number {
   if (code === 'REASONING_PROVIDER_UNAVAILABLE') return 503;
   if (code === 'REASONING_LIMIT_EXCEEDED') return 429;
   if (code === 'REASONING_CANCELLED') return 409;
+  if (code === 'REASONING_RUN_NOT_CANCELLABLE') return 409;
   if (code === 'REASONING_INVALID_MODEL_OUTPUT') return 502;
   return 502;
 }

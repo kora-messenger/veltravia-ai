@@ -152,7 +152,7 @@ describe('reasoning: limits, cancellation and timeouts', () => {
     expect(run.error?.code).toBe('REASONING_CANCELLED');
   });
 
-  it('cancels on request and records an audit trail', async () => {
+  it('cancels a live run and records an audit trail', async () => {
     const audited: string[] = [];
     const provider = new SimulatedReasoningProvider({
       replies: [classify(false), answer('a'), { content: 'a' }],
@@ -162,11 +162,31 @@ describe('reasoning: limits, cancellation and timeouts', () => {
       now: NOW,
       onAudit: (event) => audited.push(event.type),
     });
-    const run = await engine.run({ profile: 'workspace', task: 'hi' });
-    const cancelled = engine.cancel(run.id);
-    expect(cancelled.status).toBe('cancelled');
+    // Cancel while the run is genuinely in flight: the provider is async, so the
+    // engine has yielded and the run has not finished yet.
+    const { run: started, completion } = engine.start({ profile: 'workspace', task: 'hi' });
+    expect(started.status).toBe('running');
+    const cancelled = engine.cancel(started.id);
+    const run = await completion;
+    expect(cancelled?.status).toBe('cancelled');
     expect(audited).toContain('run_cancelled');
+    expect(run.status).toBe('cancelled');
+    expect(run.answer).toBeUndefined();
     expect(() => engine.cancel('rsn_missing')).toThrow(ReasoningError);
+  });
+
+  it('refuses to cancel a finished run and keeps its answer', async () => {
+    const provider = new SimulatedReasoningProvider({
+      replies: [classify(false), answer('a'), { content: 'The finished answer.' }],
+    });
+    const engine = new ReasoningEngine({ provider, now: NOW });
+    const run = await engine.run({ profile: 'workspace', task: 'hi' });
+    expect(run.status).toBe('completed');
+
+    expect(() => engine.cancel(run.id)).toThrow(ReasoningError);
+    // History is not rewritten: the completed run keeps its answer.
+    expect(engine.getRun(run.id).status).toBe('completed');
+    expect(engine.getRun(run.id).answer).toBe('The finished answer.');
   });
 
   it('stops when the wall-clock budget is exhausted', async () => {

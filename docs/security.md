@@ -476,5 +476,14 @@ See [ai-providers.md](ai-providers.md).
 12. Streaming is delivery, not authority. The event stream carries the same events
     the run records, replays buffered ones on reconnect (`Last-Event-ID`) and never
     exposes anything the finished run would not.
+13. A finished run is final. Cancelling a run that already completed, failed or hit
+    its limit is refused with `REASONING_RUN_NOT_CANCELLABLE` (409) instead of
+    overwriting the recorded outcome, so a real answer or a real failure cannot be
+    rewritten into "cancelled". Only a live run, or one paused for confirmation,
+    can be cancelled.
+14. The terminal event carries the run. The `final` stream event includes the
+    finished run, and a client that receives an event without one re-reads the run
+    instead of rendering a guessed state. A missing field degrades the display, it
+    never blanks the page.
 
 See [reasoning.md](reasoning.md).
