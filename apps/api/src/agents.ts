@@ -1,4 +1,5 @@
-import { AgentManager } from '@veltravia/agent-core';
+import { AgentManager, DefaultAgent, ModelDecisionSource } from '@veltravia/agent-core';
+import type { AICore } from '@veltravia/ai-core';
 import type { CodebaseIntelligenceManager } from '@veltravia/codebase-core';
 import type { FileIntelligenceManager } from '@veltravia/file-intelligence-core';
 import { createMockAgent, DEMO_SCRIPTS } from '@veltravia/agent-mock';
@@ -135,6 +136,49 @@ export function createAgentManager(
           output: 'The demo tool finished. Its recorded result is in the activity panel.',
         },
       ],
+      tools,
+    }),
+  );
+  return manager;
+}
+
+/**
+ * A SECOND agent host whose decisions come from the owner's OWN model through
+ * the Step 26 gateway (BYOK), rather than a scripted source.
+ *
+ * Everything that makes the Agent Layer trustworthy is unchanged because it is
+ * the same machinery: the same Tool System, the same explicit grant model, the
+ * same human-confirmation gate, the same limits, cancellation and audit. Only
+ * the decision source differs - `ModelDecisionSource` calls the gateway-backed
+ * AICore (Agent -> AICore -> router -> provider), so no vendor SDK appears here
+ * and no credential is ever visible to the agent.
+ *
+ * One manager per owner keeps the credential scope fixed for a run: two owners
+ * running at once can never borrow each other's provider.
+ */
+export async function createGatewayAgentManager(options: {
+  readonly core: AICore;
+  readonly now?: () => Date;
+  readonly model?: string;
+}): Promise<AgentManager> {
+  const now = options.now ?? (() => new Date());
+  // Read-only grants only: a model-driven agent gets the harmless summarizer
+  // and read permission. Nothing destructive is granted by default - a caller
+  // that wants more must grant it explicitly, exactly as with scripted agents.
+  const tools = createToolManager(now);
+  tools.grantPermission('mock.summarize', 'mock.read');
+
+  const manager = new AgentManager({ tools, now });
+  manager.register(
+    new DefaultAgent({
+      id: 'agent.model',
+      displayName: 'Model Agent',
+      description:
+        'Answers with your connected AI provider. Tools are gated by the Tool System and risky actions still require human confirmation.',
+      decisions: new ModelDecisionSource(
+        options.core,
+        options.model ? { model: options.model } : {},
+      ),
       tools,
     }),
   );

@@ -503,3 +503,44 @@ reasoning provider without touching evidence, contradictions or citations.
 The engine never lets a provider widen what the owner can read. Every provider gets only
 the evidence the collector verified, and every claim it returns is re-checked against
 that evidence before it reaches an answer.
+
+## Step 26: AI Provider Gateway and BYOK
+
+`ai/gateway` (`@veltravia/ai-gateway`) is the single place where a caller's own model
+account is turned into a usable route. It is deliberately built ON the Step 2 AI Core
+contracts rather than beside them:
+
+```
+catalog (declarations)  →  adapter (HTTP shape)  →  vault (sealed credential)
+                                   ↑
+connections (owner-scoped) → route resolution → scoped AICore → usage record
+```
+
+- **Catalog vs adapter.** A catalog entry declares what a vendor offers: auth format,
+  whether the base URL may be overridden, whether model discovery exists, and which
+  capabilities its models may claim. An adapter implements one HTTP shape. Three real
+  shapes cover the ten vendors (OpenAI-compatible, Anthropic, Gemini); a vendor with no
+  adapter stays declared-but-unrunnable instead of pretending.
+- **Vault.** `sealCredential`/`openCredential` wrap AES-256-GCM with a per-record IV and
+  record the sealing key version. The master key comes from the environment and is never
+  in the database. `createVault()` returns a closed state when no key is configured, so
+  every write path fails with `GATEWAY_VAULT_UNAVAILABLE` rather than storing plaintext.
+  Credential references (id, provider, hint, version) are separate from the sealed value.
+- **Connections.** Each connection is owner-scoped, may carry its own base URL and model
+  list, and can be disabled without deleting it. Duplicate detection is per owner, per
+  provider, per base URL, so two accounts on one vendor are possible but an accidental
+  re-add is refused.
+- **Routing.** `resolveRoute` picks explicit model → project preference → owner default →
+  connection default → first usable connection, and reports which step won. Callers can
+  therefore state where the model choice came from instead of implying the user chose it.
+- **Bridges, not rewrites.** `ai/gateway/bridges` adapt the gateway to three existing
+  seams: an agent `DecisionSource`, the document reasoning provider, and the
+  intelligence synthesis provider. Each keeps its own validation, disclosure and trust
+  rules; the gateway only supplies the completion.
+- **Usage.** Every call records owner, project, provider, model, timestamp, status,
+  tokens when the provider reports them, latency and a cost that stays `null` unless the
+  catalog holds a reliable price. Prompts and completions are never recorded.
+
+`apps/api/src/routes/ai-providers.ts` exposes the surface and
+`apps/api/src/tests/api-ai-gateway.test.ts` drives it end to end against the fixture
+transport, proving owner isolation, key non-disclosure and the fail-closed vault.

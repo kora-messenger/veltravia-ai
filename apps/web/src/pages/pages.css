@@ -1412,3 +1412,320 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * Connected Apps (Step 24) + AI providers (Step 26)
+ * These two pages share the v-connections__* layout primitives; the AI
+ * provider page adds the v-ai__* pieces for its usage table and forms.
+ * ------------------------------------------------------------------ */
+.v-connections__providers,
+.v-ai__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: var(--v-space-4);
+  margin-block: var(--v-space-4);
+}
+
+.v-connections__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  padding: var(--v-space-4);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-lg);
+  background: var(--v-surface-raised);
+  box-shadow: var(--v-shadow-1);
+}
+
+.v-connections__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--v-space-3);
+}
+
+.v-connections__card-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--v-text);
+  overflow-wrap: anywhere;
+}
+
+.v-connections__card-text {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--v-text-muted);
+}
+
+.v-connections__status {
+  flex: none;
+  padding: var(--v-space-05) var(--v-space-2);
+  border-radius: var(--v-radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--v-surface-muted);
+  color: var(--v-text-muted);
+}
+
+.v-connections__status--connected {
+  background: var(--v-success-muted);
+  color: var(--v-success);
+}
+
+.v-connections__mode {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--v-text-faint);
+}
+
+.v-connections__mode a {
+  color: var(--v-primary);
+}
+
+.v-connections__facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--v-space-1) var(--v-space-3);
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.v-connections__facts dt {
+  color: var(--v-text-faint);
+}
+
+.v-connections__facts dd {
+  margin: 0;
+  color: var(--v-text);
+  overflow-wrap: anywhere;
+}
+
+.v-connections__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  margin-top: auto;
+}
+
+.v-connections__error,
+.v-connections__notice {
+  margin: var(--v-space-3) 0 0;
+  padding: var(--v-space-2) var(--v-space-3);
+  border-radius: var(--v-radius-md);
+  font-size: 0.875rem;
+}
+
+.v-connections__error {
+  background: var(--v-error-muted);
+  color: var(--v-error);
+}
+
+.v-connections__notice {
+  background: var(--v-info-muted);
+  color: var(--v-text);
+}
+
+.v-connections__empty {
+  margin: var(--v-space-2) 0;
+  font-size: 0.875rem;
+  color: var(--v-text-faint);
+}
+
+.v-connections__browser,
+.v-connections__detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  margin-top: var(--v-space-4);
+  padding: var(--v-space-4);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-lg);
+  background: var(--v-surface);
+}
+
+.v-connections__search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+}
+
+.v-connections__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.v-connections__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-05);
+  width: 100%;
+  padding: var(--v-space-2) var(--v-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--v-radius-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.v-connections__item:hover {
+  background: var(--v-surface-hover);
+}
+
+.v-connections__item:focus-visible {
+  outline: none;
+  box-shadow: var(--v-focus-ring);
+}
+
+.v-connections__item.is-selected {
+  border-color: var(--v-primary);
+  background: var(--v-primary-muted);
+}
+
+.v-connections__item-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.v-connections__item-meta {
+  font-size: 0.75rem;
+  color: var(--v-text-faint);
+  overflow-wrap: anywhere;
+}
+
+.v-connections__content {
+  margin: 0;
+  padding: var(--v-space-3);
+  max-height: 24rem;
+  overflow: auto;
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface-muted);
+  font-family: var(--v-font-mono, ui-monospace, monospace);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.v-connections__label,
+.v-connections__detail-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--v-text-muted);
+}
+
+.v-connections__scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.v-connections__scope {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  padding: var(--v-space-1) var(--v-space-2);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-full);
+  font-size: 0.75rem;
+}
+
+.v-connections__analysis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+}
+
+.v-ai__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--v-space-3);
+  margin-block: var(--v-space-4);
+}
+
+.v-ai__encryption {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--v-text-faint);
+}
+
+.v-ai__field {
+  max-width: 24rem;
+}
+
+.v-ai__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+}
+
+.v-ai__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.v-ai__caption {
+  caption-side: top;
+  padding-bottom: var(--v-space-2);
+  text-align: left;
+  font-size: 0.75rem;
+  color: var(--v-text-faint);
+}
+
+.v-ai__table th,
+.v-ai__table td {
+  padding: var(--v-space-2);
+  border-bottom: 1px solid var(--v-border-muted);
+  text-align: left;
+  vertical-align: top;
+}
+
+.v-ai__table th {
+  font-weight: 600;
+  color: var(--v-text-muted);
+  white-space: nowrap;
+}
+
+.v-ai__table td {
+  color: var(--v-text);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .v-ai__table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+.v-connections__dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+}
+
+.v-connections__headings {
+  margin: 0;
+  padding-left: var(--v-space-4);
+  font-size: 0.8125rem;
+  color: var(--v-text-muted);
+}

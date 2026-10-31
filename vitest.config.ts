@@ -16,6 +16,8 @@ export default defineConfig({
       '@veltravia/ai-core': r('./ai/core/src/index.ts'),
       '@veltravia/ai-provider-mock': r('./ai/providers/mock/src/index.ts'),
       '@veltravia/ai-provider-gemini': r('./ai/providers/gemini/src/index.ts'),
+      '@veltravia/ai-gateway': r('./ai/gateway/src/index.ts'),
+      '@veltravia/ai-gateway-mock': r('./ai/gateway/mock/src/index.ts'),
       '@veltravia/connector-core': r('./connectors/core/src/index.ts'),
       '@veltravia/connector-mock': r('./connectors/mock/src/index.ts'),
       '@veltravia/tool-core': r('./tools/core/src/index.ts'),

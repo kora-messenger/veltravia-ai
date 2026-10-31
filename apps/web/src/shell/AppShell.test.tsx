@@ -151,4 +151,21 @@ describe('AppShell', () => {
     expect(window.location.hash).toBe('#/documents');
     expect(screen.getByTestId('page-documents')).toBeDefined();
   });
+
+  it('routes to the AI provider settings page', () => {
+    renderShell();
+    window.location.hash = '#/settings/ai-providers';
+    fireEvent(window, new HashChangeEvent('hashchange'));
+    expect(screen.getByTestId('page-ai-providers')).toBeDefined();
+    expect(screen.getByRole('link', { name: /AI providers/ }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+  });
+
+  it('keeps the plain settings page reachable', () => {
+    renderShell();
+    window.location.hash = '#/settings';
+    fireEvent(window, new HashChangeEvent('hashchange'));
+    expect(screen.getByTestId('page-settings')).toBeDefined();
+  });
 });

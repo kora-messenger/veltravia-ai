@@ -1,0 +1,29 @@
+{
+  "name": "@veltravia/ai-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI provider gateway and bring-your-own-key support: a provider catalog with honest capability declarations, a server-side encrypted credential vault, model discovery, per-project preferences, usage metadata and owner-scoped routing for every reasoning service in Veltravia AI.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./mock": {
+      "types": "./dist/mock/index.d.ts",
+      "default": "./dist/mock/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/ai-core": "0.1.0",
+    "@veltravia/config": "0.1.0"
+  }
+}

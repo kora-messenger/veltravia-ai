@@ -165,3 +165,26 @@ The [Connected Apps foundation](docs/connected-apps.md) adds read-only intellige
 The [Cross-Source Intelligence foundation](docs/intelligence.md) answers a question across every source the owner may read - uploaded documents, connected-app resources and project workspace files - through one owner-scoped registry. Search ranks, deduplicates and paginates with provenance; evidence carries a locator, revision and retrieval time and is re-verified against the source before a claim can cite it; relationships and contradictions are derived by bounded deterministic rules that explain themselves. Conflicts are reported with both sides and never silently resolved, and explicit supersessions are the only case given a resolution. Reasoning is a replaceable provider with an honest disclosure: `mock_reasoning` (default) and `structural_extract` both report `simulated: true`, so nothing claims to be model-written when it is not. The engine rejects secret-shaped questions, flags instruction-shaped content without obeying it, and downgrades any claim citing evidence it cannot verify. Eight read-only tools, an `/api/intelligence` surface and the `#/intelligence` page expose search, synthesis, contradictions, relationships, comparison and a cross-source report.
 
 The [Image Intelligence foundation](docs/image-intelligence.md) adds first-class image and screenshot understanding over Step 19 files: describe, OCR (untrusted data), ask/search, screenshot analysis, UI-structure extraction, chart and diagram reading, field extraction, comparison, and derived artifacts, with a fixed trust model (provider-fabricated references are dropped; reasoning output is ai-generated and never an action), bounded cancelable jobs, owner-scoped access, Tool System tools with explicit read-only grants, and an Image intelligence page in the web app. The wired provider is the deterministic mock simulation - honestly disclosed in the UI and API; a real vision provider is future work and is not faked.
+
+### AI Provider Gateway and BYOK (Step 26)
+
+The [AI provider gateway](docs/ai-providers.md) lets the platform run on **your** model
+account instead of a bundled key. Ten providers are declared (OpenAI, Gemini, Anthropic,
+DeepSeek, xAI, OpenRouter, Mistral, Groq, Together, plus a custom OpenAI-compatible
+endpoint) behind one catalog; three adapter shapes are implemented for real — OpenAI-compatible,
+Anthropic and Gemini — with model discovery, normalized error categories and no silently
+advertised capabilities. Credentials are sealed with AES-256-GCM in an owner-scoped vault
+with recorded key versions, are decrypted only server-side immediately before an authorized
+call, and are never returned by any API, page, log or audit event. Missing encryption
+configuration fails closed: writes return 503 and the page shows the blocker rather than
+offering a form it cannot honour. Custom endpoints are https-only and SSRF-guarded against
+loopback, private, link-local, CGNAT and metadata addresses, re-resolved per request so DNS
+rebinding fails. Agents, document reasoning and cross-source synthesis can all run on a
+connected provider when a request asks for it (`reasoning: "gateway"`); everything else keeps
+its deterministic provider and keeps saying so. `#/settings/ai-providers` covers connect,
+verify, default model, replace key, remove, and a metadata-only usage table.
+
+Known limits, stated plainly: usage history is in-process, key rotation is manual (old
+versions stay readable), discovery can fail on providers that hide their model list (manual
+model ids cover that case), and only chat-shaped providers have adapters — image, audio,
+video and embedding providers are declared so the UI is honest, not to imply they run.

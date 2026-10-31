@@ -394,3 +394,44 @@ See [connected-apps.md](connected-apps.md).
     not have.
 
 See [intelligence.md](intelligence.md).
+
+## 5q. AI provider credentials / BYOK (Step 26)
+
+1. Keys never leave the server. No response, tool, log line, audit event or page
+   contains an API key. The only key-shaped value a caller can read is the masked
+   hint (`••••0000`), derived from the last four characters.
+2. Encryption is fail-closed. Credentials are sealed with AES-256-GCM (per-record
+   random IV, authenticated tag, key version recorded). Without
+   `VELTRAVIA_CREDENTIAL_KEY` the gateway reports `ready: false` and every write
+   returns `GATEWAY_VAULT_UNAVAILABLE` (503). Nothing is stored in plain text and
+   there is no fallback cipher.
+3. Key versioning is explicit. Each record names the key version that sealed it, so
+   a rotated key can still open old records until they are re-sealed. An unknown
+   version is a typed failure, never a silent skip.
+4. Connections are owner-scoped, not connection-id-scoped. Every read, edit,
+   validate, model list, credential replacement and delete resolves the caller's
+   `ownerRef` first; another owner's id returns
+   `GATEWAY_CONNECTION_NOT_FOUND` (404), identical to a missing one.
+5. The caller's identity comes from the request, never the body. `x-veltravia-owner-ref`
+   (then `x-veltravia-owner`) selects the scope for provider, agent, document and
+   intelligence routes, so a body field cannot point a run at someone else's key.
+6. Custom endpoints are SSRF-guarded. Only `https:` is accepted, and the host is
+   resolved and rejected when it lands on loopback, link-local, private,
+   carrier-grade-NAT, multicast or metadata addresses - re-checked at request time
+   so DNS rebinding fails. Blocked hosts return `GATEWAY_UNSAFE_ENDPOINT`.
+7. Provider text is untrusted. Upstream error bodies are mapped to normalized
+   categories (`auth`, `rate_limit`, `timeout`, `network`, `model`, `server`), are
+   scrubbed, and never reach the browser verbatim.
+8. Usage telemetry records metadata only: provider, model, token counts, latency,
+   status and a cost that is `null` unless the catalog has a reliable price. No
+   prompt or completion text is stored.
+9. Deleting a connection deletes its sealed credential. Nothing is retained and
+   nothing is silently rerouted to another key, because no shared key exists.
+10. The gateway never grants new tool permissions. Agent runs on a gateway provider
+    keep their existing grants, confirmations, limits, cancellation and audit; the
+    provider only replaces the decision source.
+11. Document and intelligence reasoning still disclose their provider. A gateway-backed
+    answer says it came from the owner's provider; the deterministic simulations keep
+    reporting `simulated: true` and are never presented as live model output.
+
+See [ai-providers.md](ai-providers.md).

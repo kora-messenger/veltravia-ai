@@ -3,6 +3,8 @@ import { isAgentError, type AgentManager } from '@veltravia/agent-core';
 import { isProjectError, type ProjectEngine } from '@veltravia/project-core';
 import { buildMemoryContext, type MemoryManager } from '@veltravia/memory-core';
 import { resolveAgentProjectContext } from '../agent-context.js';
+import { isGatewayError, type AIProviderGateway } from '@veltravia/ai-gateway';
+import { createGatewayAgentManager } from '../agents.js';
 
 /** Maps normalized agent error codes to HTTP status codes. */
 const AGENT_ERROR_STATUS: Record<string, number> = {
@@ -35,6 +37,16 @@ function toHttpError(error: unknown): { status: number; body: Record<string, unk
   return { status: 500, body: { error: { code: 'INTERNAL', message: 'unexpected failure' } } };
 }
 
+function gatewayStatus(code: string): number {
+  if (code === 'GATEWAY_NO_PROVIDER_CONFIGURED') return 409;
+  if (code === 'GATEWAY_RATE_LIMITED') return 429;
+  if (code === 'GATEWAY_MODEL_UNKNOWN') return 404;
+  if (code === 'GATEWAY_CAPABILITY_UNSUPPORTED' || code === 'GATEWAY_INVALID_REQUEST') return 400;
+  if (code === 'GATEWAY_TIMEOUT') return 504;
+  if (code === 'GATEWAY_AUTH_FAILED') return 401;
+  return 502;
+}
+
 const runBodySchema = {
   type: 'object',
   required: ['agentId', 'task'],
@@ -48,6 +60,12 @@ const runBodySchema = {
     userId: { type: 'string', maxLength: 128 },
     toolFilter: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 128 } },
     metadata: { type: 'object', additionalProperties: true },
+    /** 'gateway' runs the owner's own model instead of the scripted demo source. */
+    reasoning: { type: 'string', enum: ['scripted', 'gateway'] },
+    /** Explicit model id on the owner's connection (optional). */
+    modelId: { type: 'string', minLength: 1, maxLength: 128 },
+    /** Coming from the gateway owner scope; never trusted as identity. */
+    ownerRef: { type: 'string', minLength: 1, maxLength: 256 },
     limits: {
       type: 'object',
       additionalProperties: false,
@@ -78,12 +96,22 @@ const confirmationBodySchema = {
  * hard ceilings server-side). Confirmations flow to the Step 5 mechanism -
  * callers can never self-approve from inside a run.
  */
+export interface AgentRouteDeps {
+  /** Step 26 provider gateway; absent means gateway runs are refused honestly. */
+  readonly gateway?: {
+    readonly gateway: AIProviderGateway | null;
+    readonly blockedReason: string | null;
+  };
+}
+
 export function registerAgentRoutes(
   app: FastifyInstance,
   manager: AgentManager,
   projectEngine?: ProjectEngine,
   memory?: MemoryManager,
+  deps: AgentRouteDeps = {},
 ): void {
+  const gateway = deps.gateway;
   app.get('/api/agents', async () => ({
     agents: manager.listAgents().map((agent) => ({
       id: agent.id,
@@ -104,6 +132,9 @@ export function registerAgentRoutes(
         toolFilter?: string[];
         metadata?: Record<string, unknown>;
         limits?: Record<string, number>;
+        reasoning?: 'scripted' | 'gateway';
+        modelId?: string;
+        ownerRef?: string;
       };
       // Server-authoritative project/workspace association (Step 11C-4):
       // the engine validates existence and ownership, and derives a
@@ -140,7 +171,40 @@ export function registerAgentRoutes(
           memoryContext = undefined;
         }
       }
-      const response = await manager.createRun(body.agentId, {
+      // Step 26: when the caller asks for the gateway, the run executes on the
+      // owner's own provider through a per-owner agent host. The same gates,
+      // limits, confirmations and cancellation apply.
+      let effectiveManager = manager;
+      let agentId = body.agentId;
+      if (body.reasoning === 'gateway') {
+        if (!gateway || !gateway.gateway) {
+          return reply.code(409).send({
+            error: {
+              code: 'GATEWAY_NO_PROVIDER_CONFIGURED',
+              message:
+                gateway?.blockedReason ??
+                'No AI provider is connected yet. Connect one in Settings, then run the agent.',
+            },
+          });
+        }
+        // Owner scoping follows the SAME header convention as documents,
+        // files and intelligence, so one caller sees their own provider
+        // everywhere. The body cannot pick someone else's key.
+        const headerOwner =
+          (request.headers['x-veltravia-owner-ref'] as string | undefined) ??
+          (request.headers['x-veltravia-owner'] as string | undefined);
+        const ownerRef = headerOwner ?? body.ownerRef ?? body.userId ?? 'veltravia-dev-user';
+        const core = await gateway.gateway.createCore(
+          { ownerRef, ...(body.projectId ? { projectId: body.projectId } : {}) },
+          body.projectId,
+        );
+        effectiveManager = await createGatewayAgentManager({
+          core,
+          ...(body.modelId ? { model: body.modelId } : {}),
+        });
+        agentId = 'agent.model';
+      }
+      const response = await effectiveManager.createRun(agentId, {
         task: body.task,
         ...(body.sessionId !== undefined ? { sessionId: body.sessionId } : {}),
         ...(body.projectId !== undefined ? { projectId: body.projectId } : {}),
@@ -160,6 +224,11 @@ export function registerAgentRoutes(
       });
       return reply.send(response);
     } catch (error) {
+      if (isGatewayError(error)) {
+        return reply.code(gatewayStatus(error.code)).send({
+          error: { code: error.code, message: error.message },
+        });
+      }
       const { status, body } = toHttpError(error);
       return reply.code(status).send(body);
     }

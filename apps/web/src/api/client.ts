@@ -53,7 +53,7 @@ function parseErrorBody(raw: unknown): { code?: string; message?: string } {
 export async function apiRequest<T>(
   path: string,
   options: {
-    method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+    method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
     body?: unknown;
     baseUrl?: string;
     fetchImpl?: typeof fetch;

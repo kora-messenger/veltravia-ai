@@ -1,12 +1,17 @@
 import { registerVideoRoutes } from './routes/video.js';
 import { registerDocumentRoutes } from './routes/document.js';
 import { registerConnectionRoutes } from './routes/connections.js';
+import { registerAiGatewayRoutes } from './routes/ai-gateway.js';
+import { createGatewayService, type GatewayService } from './ai-gateway-service.js';
 import { registerIntelligenceRoutes } from './routes/intelligence.js';
 import { createIntelligenceService } from './intelligence-service.js';
 import { createVideoIntelligenceService } from './video-service.js';
 import type { VideoIntelligenceManager } from '@veltravia/video-intelligence-core';
 import type { DocumentIntelligenceManager } from '@veltravia/document-intelligence-core';
-import { createDocumentIntelligenceService } from './document-service.js';
+import {
+  createDocumentIntelligenceService,
+  createGatewayDocumentManager,
+} from './document-service.js';
 import { createConnectionService } from './connections-service.js';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AICore } from '@veltravia/ai-core';
@@ -99,6 +104,8 @@ export interface BuildAppOptions {
   readonly imageManager?: ImageIntelligenceManager;
   readonly videoManager?: VideoIntelligenceManager;
   readonly documentManager?: DocumentIntelligenceManager;
+  /** AI provider gateway (Step 26). Defaults to an env-keyed encrypted service. */
+  readonly aiGateway?: GatewayService;
 }
 
 /**
@@ -163,6 +170,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // reports which mode is active. All operations are read-only.
   const connections = createConnectionService({});
 
+  // Step 26: the AI provider gateway (BYOK). Credentials are encrypted with a
+  // versioned AES-256-GCM key from the environment; when no key is configured
+  // the service reports `ready: false` and refuses to store anything rather
+  // than falling back to plaintext.
+  const aiGateway = options.aiGateway ?? createGatewayService({});
+
   // Step 25: cross-source intelligence. Sources are the owner's uploaded
   // documents, connected-app resources and project workspace files. Reasoning
   // runs a deterministic provider (no model, no credentials) and says so.
@@ -170,6 +183,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     files: fileManager,
     connected: connections.manager,
     projectEngine,
+    ...(aiGateway.gateway ? { gateway: aiGateway.gateway } : {}),
   });
 
   const tools =
@@ -214,7 +228,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // UNTRUSTED reference data only - never as instructions.
   const memory =
     options.memory ?? new MemoryManager({ repository: new InMemoryMemoryRepository() });
-  registerAgentRoutes(app, agents, projectEngine, memory);
+  registerAgentRoutes(app, agents, projectEngine, memory, { gateway: aiGateway });
 
   // Project & Workspace Engine: safe project/workspace/file management over
   // in-memory repositories. No filesystem, execution, connector, or GitHub
@@ -312,9 +326,34 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // (DOCX/XLSX/PPTX/PDF/CSV/MD/HTML/JSON/XML/TXT); the reasoning provider is
   // the deterministic mock (see document-service.ts). Extracted text and
   // tables are UNTRUSTED DATA; reasoning output is ai_generated.
-  registerDocumentRoutes(app, documentManager);
+  // Step 26: documents can reason on the caller's own provider. The manager is
+  // cached PER OWNER so a job created in one request is visible in the next;
+  // each owner keeps their own stack and their own key scope.
+  const gatewayDocumentManagers = new Map<string, DocumentIntelligenceManager>();
+  registerDocumentRoutes(app, documentManager, {
+    gatewayManagerFor: (ownerRef) => {
+      const existing = gatewayDocumentManagers.get(ownerRef);
+      if (existing) return existing;
+      if (!aiGateway.gateway) {
+        throw new Error(
+          aiGateway.blockedReason ?? 'Credential encryption is not configured on this server.',
+        );
+      }
+      const created = createGatewayDocumentManager({
+        files: fileManager,
+        gateway: aiGateway.gateway,
+        ownerRef,
+      });
+      gatewayDocumentManagers.set(ownerRef, created);
+      return created;
+    },
+  });
 
   registerConnectionRoutes(app, connections);
+
+  // Owner-scoped provider connections, model discovery, preferences and usage.
+  // No endpoint returns a credential; only a masked hint ever crosses the API.
+  registerAiGatewayRoutes(app, { service: aiGateway });
 
   // Cross-source search, synthesis, contradictions, relationships and evidence.
   // Owner-scoped and read-only; the reasoning mode is disclosed in every answer.

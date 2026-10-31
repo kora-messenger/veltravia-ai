@@ -14,6 +14,7 @@ import {
   ProjectDetailPage,
   ProjectWorkspacePage,
   ProjectsPage,
+  AiProvidersPage,
   SettingsPage,
 } from './pages';
 
@@ -48,6 +49,8 @@ export function App() {
                 return <ProjectDetailPage projectId={route.projectId} />;
               case 'project-workspace':
                 return <ProjectWorkspacePage projectId={route.projectId} />;
+              case 'ai-providers':
+                return <AiProvidersPage />;
               case 'settings':
                 return <SettingsPage />;
               default:

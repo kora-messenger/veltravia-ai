@@ -75,10 +75,38 @@ function boundedString(value: unknown, max: number): string {
 
 const SUMMARY_MODES: readonly DocumentSummaryMode[] = ['brief', 'bullets', 'executive'];
 
+export interface DocumentRouteDeps {
+  /**
+   * Step 26: returns the OWNER'S gateway-backed managerFor(request). Requests opt in with
+   * `provider: 'gateway'` (body or `?provider=gateway`); the flag is part of the
+   * request so a caller never silently reasons on someone else's key, and job
+   * reads pass the same flag to find the job in the right stack.
+   */
+  readonly gatewayManagerFor?: (ownerRef: string) => DocumentIntelligenceManager;
+}
+
 export function registerDocumentRoutes(
   app: FastifyInstance,
   manager: DocumentIntelligenceManager,
+  deps: DocumentRouteDeps = {},
 ): void {
+  /** Resolves the manager for THIS request only. */
+  const managerFor = (request: FastifyRequest): DocumentIntelligenceManager => {
+    const wantsGateway =
+      (request.body as { provider?: unknown } | undefined)?.provider === 'gateway' ||
+      (request.query as { provider?: unknown } | undefined)?.provider === 'gateway';
+    if (!wantsGateway || !deps.gatewayManagerFor) return manager;
+    try {
+      return deps.gatewayManagerFor(principal(request).ownerRef);
+    } catch (error) {
+      // A MISSING encryption key or provider is a configuration outcome, not a
+      // crash: report it through the document error envelope.
+      throw new DocumentIntelligenceError(
+        'DOCUMENT_PROVIDER_ERROR',
+        error instanceof Error ? error.message : 'The gateway document provider is unavailable.',
+      );
+    }
+  };
   const file = (r: FastifyRequest) => asFileAssetId((r.params as { fileId: string }).fileId);
   const body = (r: FastifyRequest) => (r.body ?? {}) as Record<string, unknown>;
   const jobView = (job: DocumentProcessingJob) => ({ ...job });
@@ -99,18 +127,25 @@ export function registerDocumentRoutes(
 
   app.get('/api/documents/capabilities', async () => ({
     providerIsSimulation: manager.providerIsSimulation,
+    gatewayAvailable: Boolean(deps.gatewayManagerFor),
     capabilities: manager.capabilities(),
     artifactKinds: [...DOCUMENT_ARTIFACT_KINDS],
     summaryModes: [...SUMMARY_MODES],
   }));
 
   app.get('/api/documents/jobs', async (request, reply) =>
-    run(reply, () => manager.listJobs(principal(request)).then((jobs) => jobs.map(jobView))),
+    run(reply, () =>
+      managerFor(request)
+        .listJobs(principal(request))
+        .then((jobs) => jobs.map(jobView)),
+    ),
   );
 
   app.get('/api/documents/jobs/:jobId', async (request, reply) =>
     run(reply, () =>
-      manager.getJob((request.params as { jobId: string }).jobId, principal(request)).then(jobView),
+      managerFor(request)
+        .getJob((request.params as { jobId: string }).jobId, principal(request))
+        .then(jobView),
     ),
   );
 
@@ -123,7 +158,7 @@ export function registerDocumentRoutes(
   );
 
   app.get('/api/documents/:fileId/inspect', async (request, reply) =>
-    run(reply, () => manager.inspect(file(request), principal(request))),
+    run(reply, () => managerFor(request).inspect(file(request), principal(request))),
   );
 
   // Processing is bounded and completes inline. A job that failed is reported
@@ -131,7 +166,7 @@ export function registerDocumentRoutes(
   // document as a success.
   app.post('/api/documents/:fileId/process', async (request, reply) => {
     try {
-      const job = await manager.process(file(request), principal(request));
+      const job = await managerFor(request).process(file(request), principal(request));
       if (job.status === 'failed' && job.error) {
         return reply
           .code(STATUS[job.error.code] ?? 500)
@@ -145,7 +180,7 @@ export function registerDocumentRoutes(
   });
 
   app.get('/api/documents/:fileId/structure', async (request, reply) =>
-    run(reply, () => manager.getStructure(file(request), principal(request))),
+    run(reply, () => managerFor(request).getStructure(file(request), principal(request))),
   );
 
   app.post('/api/documents/:fileId/search', async (request, reply) =>
@@ -153,7 +188,7 @@ export function registerDocumentRoutes(
       const query = boundedString(body(request).query, 500).trim();
       if (!query)
         throw new DocumentIntelligenceError('DOCUMENT_INVALID_REQUEST', 'A query is required.');
-      return manager.searchExact(file(request), query, principal(request));
+      return managerFor(request).searchExact(file(request), query, principal(request));
     }),
   );
 
@@ -162,7 +197,7 @@ export function registerDocumentRoutes(
       const query = boundedString(body(request).query, 500).trim();
       if (!query)
         throw new DocumentIntelligenceError('DOCUMENT_INVALID_REQUEST', 'A query is required.');
-      return manager.semanticSearch(file(request), query, principal(request));
+      return managerFor(request).semanticSearch(file(request), query, principal(request));
     }),
   );
 
@@ -180,7 +215,11 @@ export function registerDocumentRoutes(
     },
     async (request, reply) =>
       run(reply, () =>
-        manager.ask(file(request), boundedString(body(request).question, 2000), principal(request)),
+        managerFor(request).ask(
+          file(request),
+          boundedString(body(request).question, 2000),
+          principal(request),
+        ),
       ),
   );
 
@@ -192,12 +231,12 @@ export function registerDocumentRoutes(
           'DOCUMENT_INVALID_REQUEST',
           'Summary mode must be brief, bullets or executive.',
         );
-      return manager.summarize(file(request), mode, principal(request));
+      return managerFor(request).summarize(file(request), mode, principal(request));
     }),
   );
 
   app.get('/api/documents/:fileId/entities', async (request, reply) =>
-    run(reply, () => manager.extractEntities(file(request), principal(request))),
+    run(reply, () => managerFor(request).extractEntities(file(request), principal(request))),
   );
 
   app.post('/api/documents/:fileId/compare', async (request, reply) =>
@@ -208,24 +247,24 @@ export function registerDocumentRoutes(
           'DOCUMENT_INVALID_REQUEST',
           'A second document id is required.',
         );
-      return manager.compare(file(request), asFileAssetId(other), principal(request));
+      return managerFor(request).compare(file(request), asFileAssetId(other), principal(request));
     }),
   );
 
   app.post('/api/documents/:fileId/ocr', async (request, reply) =>
-    run(reply, () => manager.ocr(file(request), principal(request))),
+    run(reply, () => managerFor(request).ocr(file(request), principal(request))),
   );
 
   app.get('/api/documents/:fileId/spreadsheet', async (request, reply) =>
-    run(reply, () => manager.spreadsheetView(file(request), principal(request))),
+    run(reply, () => managerFor(request).spreadsheetView(file(request), principal(request))),
   );
 
   app.get('/api/documents/:fileId/presentation', async (request, reply) =>
-    run(reply, () => manager.presentationView(file(request), principal(request))),
+    run(reply, () => managerFor(request).presentationView(file(request), principal(request))),
   );
 
   app.get('/api/documents/:fileId/memory-candidates', async (request, reply) =>
-    run(reply, () => manager.memoryCandidates(file(request), principal(request))),
+    run(reply, () => managerFor(request).memoryCandidates(file(request), principal(request))),
   );
 
   /** Publish a derived export through the Step 19 file system. */
@@ -243,7 +282,7 @@ export function registerDocumentRoutes(
             'DOCUMENT_INVALID_REQUEST',
             'Summary mode must be brief, bullets or executive.',
           );
-        return manager.saveArtifact(file(request), principal(request), {
+        return managerFor(request).saveArtifact(file(request), principal(request), {
           kind: kind as (typeof DOCUMENT_ARTIFACT_KINDS)[number],
           ...(mode ? { mode: mode as DocumentSummaryMode } : {}),
           ...(typeof payload.query === 'string' ? { query: payload.query.slice(0, 500) } : {}),

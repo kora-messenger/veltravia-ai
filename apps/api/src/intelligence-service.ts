@@ -16,6 +16,7 @@ import {
   parseDocument,
 } from '@veltravia/document-intelligence-core';
 import { asFileAssetId, type FileIntelligenceManager } from '@veltravia/file-intelligence-core';
+import { createGatewaySynthesisProvider, type AIProviderGateway } from '@veltravia/ai-gateway';
 import type { ConnectedAppManager } from '@veltravia/connected-apps-core';
 import type { ProjectEngine } from '@veltravia/project-core';
 
@@ -25,6 +26,13 @@ export interface IntelligenceService {
   readonly jobs: SynthesisJobManager;
   readonly reasoningMode: string;
   readonly reasoningSimulated: boolean;
+  /**
+   * Step 26 (BYOK): an engine whose synthesis runs on the OWNER'S provider
+   * through the AI gateway. Same registry, same evidence re-verification, same
+   * provenance and contradiction rules; only the reasoning provider changes and
+   * its disclosure says so. Absent when no gateway is configured.
+   */
+  readonly gatewayEngine?: (ownerRef: string, projectId?: string) => Promise<IntelligenceEngine>;
 }
 
 export interface IntelligenceServiceOptions {
@@ -32,6 +40,8 @@ export interface IntelligenceServiceOptions {
   readonly connected: ConnectedAppManager | null;
   readonly projectEngine: ProjectEngine;
   readonly now?: () => Date;
+  /** Step 26 provider gateway; enables owner-keyed reasoning. */
+  readonly gateway?: AIProviderGateway;
   readonly onAudit?: (event: {
     readonly type: string;
     readonly ownerRef: string;
@@ -335,12 +345,14 @@ export function createIntelligenceService(
     reasoningProviderName === 'structural'
       ? createStructuralSynthesisProvider()
       : createMockReasoningProvider();
-  const engine = new IntelligenceEngine({
-    registry,
-    reasoning,
-    ...(options.now ? { now: options.now } : {}),
-    ...(options.onAudit ? { audit: options.onAudit } : {}),
-  });
+  const buildEngine = (provider: typeof reasoning): IntelligenceEngine =>
+    new IntelligenceEngine({
+      registry,
+      reasoning: provider,
+      ...(options.now ? { now: options.now } : {}),
+      ...(options.onAudit ? { audit: options.onAudit } : {}),
+    });
+  const engine = buildEngine(reasoning);
   const jobs = new SynthesisJobManager({
     runner: async ({
       ownerRef,
@@ -354,11 +366,27 @@ export function createIntelligenceService(
     ...(options.now ? { now: options.now } : {}),
   });
   const disclosure = reasoning.disclosure();
+  const gateway = options.gateway;
   return {
     registry,
     engine,
     jobs,
     reasoningMode: disclosure.mode,
     reasoningSimulated: disclosure.simulated,
+    ...(gateway
+      ? {
+          gatewayEngine: async (
+            ownerRef: string,
+            projectId?: string,
+          ): Promise<IntelligenceEngine> => {
+            const provider = createGatewaySynthesisProvider({
+              gateway,
+              scope: { ownerRef, ...(projectId ? { projectId } : {}) },
+              ...(projectId ? { projectId } : {}),
+            });
+            return buildEngine(provider as unknown as typeof reasoning);
+          },
+        }
+      : {}),
   };
 }

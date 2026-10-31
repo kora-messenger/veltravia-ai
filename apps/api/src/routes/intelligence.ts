@@ -210,8 +210,30 @@ export function registerIntelligenceRoutes(
         projectId?: string;
         workspaceId?: string;
         sourceIds?: string[];
+        reasoning?: string;
       };
-      const answer = await service.engine.synthesize(ownerOf(request), body.question ?? '', {
+      // Step 26: the caller may ask for reasoning on their OWN provider. The
+      // evidence pipeline (search, re-verification, provenance, contradiction
+      // detection) is identical; only the synthesis provider differs, and every
+      // answer still carries its disclosure.
+      let engine = service.engine;
+      if (body.reasoning === 'gateway') {
+        if (!service.gatewayEngine) {
+          return reply.code(409).send({
+            error: {
+              code: 'GATEWAY_NO_PROVIDER_CONFIGURED',
+              message: 'No AI provider is connected yet, so reasoning cannot run on your account.',
+            },
+          });
+        }
+        try {
+          engine = await service.gatewayEngine(ownerOf(request).ownerRef, body.projectId);
+        } catch (error) {
+          const mapped = toError(error);
+          return reply.code(mapped.status).send(mapped.body);
+        }
+      }
+      const answer = await engine.synthesize(ownerOf(request), body.question ?? '', {
         providers: parseProviders(body.provider),
         sourceTypes: parseSourceTypes(body.sourceType),
         projectId: body.projectId ?? null,

@@ -4,6 +4,7 @@ import {
   type DocumentAuditEvent,
 } from '@veltravia/document-intelligence-core';
 import { createMockDocumentProvider } from '@veltravia/document-intelligence-mock';
+import { createGatewayDocumentProvider, type AIProviderGateway } from '@veltravia/ai-gateway';
 import type { FileIntelligenceManager } from '@veltravia/file-intelligence-core';
 
 export interface DocumentServiceOptions {
@@ -35,5 +36,41 @@ export function createDocumentIntelligenceService(
     providers: registry,
     now: options.now,
     audit: options.onAudit ? { record: options.onAudit } : undefined,
+  });
+}
+
+/**
+ * Step 26: a document manager whose REASONING runs on the owner's own provider
+ * through the AI gateway. Parsing is unchanged (it never used a model), the
+ * trust model is unchanged (extracted text stays UNTRUSTED DATA), and the
+ * provider is not a simulation, so job views report a real provider.
+ *
+ * This is a SEPARATE manager per owner on purpose: a job's artifacts, provider
+ * identity and disclosures must never be mixed between two people's keys.
+ */
+export function createGatewayDocumentManager(options: {
+  readonly files: FileIntelligenceManager;
+  readonly gateway: AIProviderGateway;
+  readonly ownerRef: string;
+  readonly projectId?: string;
+  readonly now?: () => Date;
+  readonly onAudit?: (event: DocumentAuditEvent) => void;
+}): DocumentIntelligenceManager {
+  const registry = new DocumentProviderRegistry();
+  registry.register(
+    createGatewayDocumentProvider({
+      gateway: options.gateway,
+      scope: {
+        ownerRef: options.ownerRef,
+        ...(options.projectId ? { projectId: options.projectId } : {}),
+      },
+      ...(options.projectId ? { projectId: options.projectId } : {}),
+    }) as unknown as Parameters<DocumentProviderRegistry['register']>[0],
+  );
+  return new DocumentIntelligenceManager({
+    files: options.files,
+    providers: registry,
+    ...(options.now ? { now: options.now } : {}),
+    ...(options.onAudit ? { audit: { record: options.onAudit } } : {}),
   });
 }
