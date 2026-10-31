@@ -1,4 +1,4 @@
-import { GatewayError } from '../errors/index.js';
+import { GatewayError, isGatewayError } from '../errors/index.js';
 import { assertSafeEndpoint } from '../ssrf/index.js';
 
 /**
@@ -32,11 +32,38 @@ export interface TransportResponse {
   readonly text: string;
 }
 
+/** A streamed request: same rules as a normal one, plus cancellation. */
+export interface TransportStreamRequest extends TransportRequest {
+  /** Aborted when the caller cancels (client disconnect, operator cancel). */
+  readonly signal?: AbortSignal;
+  /** Abort when no chunk arrives within this window. Never a total cap. */
+  readonly idleTimeoutMs?: number;
+}
+
+/**
+ * What an incremental transport yields: the status line first, then raw body
+ * fragments exactly as they arrived. Parsing is the adapter's job, so protocol
+ * shapes stay in one place per vendor.
+ */
+export type TransportStreamEvent =
+  | {
+      readonly type: 'head';
+      readonly status: number;
+      readonly headers: Readonly<Record<string, string>>;
+    }
+  | { readonly type: 'chunk'; readonly text: string };
+
 export interface ProviderTransport {
   request(request: TransportRequest): Promise<TransportResponse>;
+  /**
+   * Optional. When absent, adapters fall back to reading a buffered response as
+   * one piece - still correct, just not progressive. Reported honestly upward.
+   */
+  requestStream?(request: TransportStreamRequest): AsyncIterable<TransportStreamEvent>;
 }
 
 const MAX_BODY_BYTES = 2_000_000;
+const MAX_STREAM_BYTES = 4_000_000;
 
 export interface FetchTransportOptions {
   /** DNS resolver override for the SSRF guard (tests). */
@@ -106,6 +133,88 @@ export class FetchProviderTransport implements ProviderTransport {
       clearTimeout(timer);
     }
   }
+  /**
+   * Incremental read. The SSRF guard runs first, redirects are refused, and an
+   * idle timer aborts a socket that stops producing output - so a stalled
+   * provider cannot hold a run open forever.
+   */
+  async *requestStream(request: TransportStreamRequest): AsyncIterable<TransportStreamEvent> {
+    if (!request.trustedHost) {
+      await assertSafeEndpoint(request.url, {
+        ...(this.options.resolve ? { resolve: this.options.resolve } : {}),
+        ...(this.options.allowInsecure ? { allowInsecure: true } : {}),
+      });
+    }
+    const controller = new AbortController();
+    const abortFromCaller = () => controller.abort();
+    request.signal?.addEventListener('abort', abortFromCaller, { once: true });
+    const idleTimeoutMs = request.idleTimeoutMs ?? request.timeoutMs;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const armIdleTimer = () => {
+      if (timer !== undefined) clearTimeout(timer);
+      timer = setTimeout(() => controller.abort(), idleTimeoutMs);
+    };
+    armIdleTimer();
+    try {
+      const doFetch = this.options.fetchImpl ?? fetch;
+      const response = await doFetch(request.url, {
+        method: request.method,
+        headers: request.headers,
+        ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
+        signal: controller.signal,
+        redirect: 'manual',
+      });
+      const headers: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        headers[key.toLowerCase()] = value;
+      });
+      yield { type: 'head', status: response.status, headers };
+      if (request.signal?.aborted === true) {
+        throw new GatewayError('GATEWAY_ABORTED', 'The request was cancelled.');
+      }
+      if (response.body === null) return;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let total = 0;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          armIdleTimer();
+          if (value !== undefined) {
+            total += value.byteLength;
+            if (total > MAX_STREAM_BYTES) {
+              throw new GatewayError(
+                'GATEWAY_PROVIDER_ERROR',
+                'The provider stream exceeded the size limit.',
+              );
+            }
+            const text = decoder.decode(value, { stream: true });
+            if (text.length > 0) yield { type: 'chunk', text };
+          }
+        }
+      } finally {
+        // Releasing the reader is what actually frees the socket when the
+        // caller stops iterating early.
+        reader.releaseLock();
+      }
+    } catch (error) {
+      if (isGatewayError(error)) throw error;
+      if (request.signal?.aborted === true) {
+        throw new GatewayError('GATEWAY_ABORTED', 'The request was cancelled.');
+      }
+      if (
+        error instanceof Error &&
+        (error.name === 'AbortError' || error.name === 'TimeoutError')
+      ) {
+        throw new GatewayError('GATEWAY_TIMEOUT', 'The provider stopped responding.');
+      }
+      throw new GatewayError('GATEWAY_PROVIDER_UNAVAILABLE', 'The provider could not be reached.');
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+      request.signal?.removeEventListener('abort', abortFromCaller);
+    }
+  }
 }
 
 /** Deterministic transport for tests and offline CI. No sockets. */
@@ -124,5 +233,22 @@ export class ScriptedProviderTransport implements ProviderTransport {
   async request(request: TransportRequest): Promise<TransportResponse> {
     this.requests.push(request);
     return this.handler(request);
+  }
+
+  /** Optional: lets a test drive the incremental path too. */
+  readonly streamHandler?: (request: TransportStreamRequest) => AsyncIterable<TransportStreamEvent>;
+
+  withStreamHandler(
+    handler: (request: TransportStreamRequest) => AsyncIterable<TransportStreamEvent>,
+  ): this {
+    (this as { streamHandler?: typeof handler }).streamHandler = handler;
+    return this;
+  }
+
+  async *requestStream(request: TransportStreamRequest): AsyncIterable<TransportStreamEvent> {
+    if (!this.streamHandler) {
+      throw new GatewayError('GATEWAY_CAPABILITY_UNSUPPORTED', 'This transport cannot stream.');
+    }
+    yield* this.streamHandler(request);
   }
 }

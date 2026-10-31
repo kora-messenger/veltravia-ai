@@ -58,12 +58,19 @@ export const GEMINI_PROVIDER: ProviderDefinition = {
   authParameter: 'key',
   capabilities: [
     'text-generation',
+    'streaming',
     'structured-output',
     'vision',
     'model-discovery',
     'credential-validation',
   ],
-  modelCapabilities: ['text-generation', 'structured-output', 'vision', 'large-context'],
+  modelCapabilities: [
+    'text-generation',
+    'streaming',
+    'structured-output',
+    'vision',
+    'large-context',
+  ],
   allowsCustomBaseUrl: false,
   docsUrl: 'https://aistudio.google.com/app/apikey',
 };
@@ -78,8 +85,8 @@ export const ANTHROPIC_PROVIDER: ProviderDefinition = {
   modelsPath: '/models',
   auth: 'x-api-key',
   authParameter: 'x-api-key',
-  capabilities: ['text-generation', 'model-discovery', 'credential-validation'],
-  modelCapabilities: ['text-generation', 'large-context'],
+  capabilities: ['text-generation', 'streaming', 'model-discovery', 'credential-validation'],
+  modelCapabilities: ['text-generation', 'streaming', 'large-context'],
   allowsCustomBaseUrl: false,
   docsUrl: 'https://console.anthropic.com/settings/keys',
 };

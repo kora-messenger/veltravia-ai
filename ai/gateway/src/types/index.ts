@@ -67,6 +67,18 @@ export interface ProviderDefinition {
   readonly docsUrl?: string;
 }
 
+/**
+ * Declared price for one model, in USD per 1M tokens.
+ *
+ * Pricing is stated ONLY where the platform declares it up front. A model with
+ * no declared price produces no cost estimate - it is never interpolated from a
+ * sibling model or from a name.
+ */
+export interface ModelPricing {
+  readonly inputPer1MUsd: number;
+  readonly outputPer1MUsd: number;
+}
+
 /** A model the catalog knows about before discovery runs. */
 export interface ModelSeed {
   /** Exactly as the vendor expects it - never normalized or prettified. */
@@ -76,6 +88,8 @@ export interface ModelSeed {
   readonly maxOutputTokens?: number;
   /** Model-level capability overrides; defaults to the provider's. */
   readonly capabilities?: readonly AICapability[];
+  /** Declared list price, when the platform states one. */
+  readonly pricing?: ModelPricing;
 }
 
 /** A model entry returned to callers and the UI. */
@@ -160,25 +174,95 @@ export interface ResolvedRoute {
   readonly providerId: string;
   readonly modelId: string;
   /** Where the choice came from - used for honest reporting, never as auth. */
-  readonly source: 'project' | 'default' | 'explicit';
+  readonly source: 'project' | 'default' | 'explicit' | 'router';
+  /** Router decision id, when the Step 28 router chose this route. */
+  readonly decisionId?: string;
+  /** The router's own plain-language explanation, passed through verbatim. */
+  readonly summary?: string;
 }
+
+/**
+ * Where a token count came from.
+ *
+ * `provider-confirmed` means the vendor returned the numbers in its response.
+ * `unavailable` means it did not - the count stays null rather than becoming a
+ * character-count guess presented as fact.
+ */
+export type UsageSource = 'provider-confirmed' | 'unavailable';
+
+/** Where a cost figure came from. `unavailable` means no declared price exists. */
+export type CostSource = 'declared-pricing' | 'unavailable';
 
 /** Usage metadata. No prompts, no keys, no headers. */
 export interface UsageRecord {
   readonly id: string;
   readonly ownerRef: string;
   readonly projectId?: string;
+  /** Router task category that selected this model, when one was used. */
+  readonly taskType?: string;
   readonly providerId: string;
   readonly modelId: string;
+  readonly connectionId?: string;
+  /** Correlates all calls that belong to one run. */
+  readonly runId?: string;
   readonly requestedAt: string;
-  readonly status: 'success' | 'failure';
+  readonly status: 'success' | 'failure' | 'cancelled';
   readonly inputTokens: number | null;
   readonly outputTokens: number | null;
+  /** Present only when both token counts are provider-confirmed. */
+  readonly totalTokens: number | null;
+  readonly usageSource: UsageSource;
   /** Only when the catalog declares a reliable price for this exact model. */
   readonly estimatedCostUsd: number | null;
+  readonly costSource: CostSource;
   readonly latencyMs: number;
+  /** Attempts made, including the successful one. Bounded retries only. */
+  readonly attempts: number;
+  /** True when the answer was streamed rather than delivered in one piece. */
+  readonly streamed: boolean;
   /** Normalized error category, never provider text. */
   readonly errorCategory?: string;
   /** Whether the call reached a real provider over the network. */
   readonly live: boolean;
+}
+
+/**
+ * The model-selection port. The Step 28 router implements this shape; the
+ * gateway treats it as opaque and never chooses a model itself when one is
+ * present. This is what keeps "one place decides" true as features are added.
+ */
+export interface RouteSelectorRequest {
+  readonly ownerRef: string;
+  readonly projectId?: string;
+  readonly category: string;
+  readonly needsStreaming?: boolean;
+  readonly estimatedInputTokens?: number;
+  readonly expectedOutputTokens?: number;
+  readonly purpose?: string;
+}
+
+export type RouteSelectorResult =
+  | {
+      readonly outcome: 'routed';
+      readonly connectionId: string;
+      readonly providerId: string;
+      readonly modelId: string;
+      readonly decisionId?: string;
+      readonly summary: string;
+      readonly contextWindowTokens?: number | null;
+    }
+  | { readonly outcome: 'refused'; readonly summary: string; readonly decisionId?: string };
+
+export interface RouteSelector {
+  select(request: RouteSelectorRequest): Promise<RouteSelectorResult>;
+}
+
+/** One streamed piece of a gateway answer, including its terminal metadata. */
+export interface GatewayStreamChunk {
+  readonly delta: string;
+  readonly done: boolean;
+  /** Present on the terminal chunk only, and only when the provider reported it. */
+  readonly usage?: { readonly inputTokens: number | null; readonly outputTokens: number | null };
+  readonly finishReason?: string;
+  readonly latencyMs?: number;
 }

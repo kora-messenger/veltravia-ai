@@ -25,6 +25,7 @@ export const ROUTES: readonly RouteDef[] = [
   { id: 'connections', hash: '#/connections', title: 'Connected Apps' },
   { id: 'intelligence', hash: '#/intelligence', title: 'Knowledge synthesis' },
   { id: 'reasoning', hash: '#/reasoning', title: 'Reasoning workspace' },
+  { id: 'execute', hash: '#/execute', title: 'Model runs' },
   { id: 'ai-providers', hash: '#/settings/ai-providers', title: 'AI providers' },
   { id: 'model-routing', hash: '#/settings/models', title: 'Model routing' },
   { id: 'settings', hash: '#/settings', title: 'Settings' },
@@ -42,6 +43,7 @@ export type RouteId =
   | 'connections'
   | 'intelligence'
   | 'reasoning'
+  | 'execute'
   | 'project-detail'
   | 'project-workspace'
   | 'ai-providers'
@@ -89,6 +91,9 @@ function routeForHash(hash: string): RouteState {
   }
   if (hash === '#/reasoning') {
     return { id: 'reasoning', title: 'Reasoning workspace', projectId: null };
+  }
+  if (hash === '#/execute') {
+    return { id: 'execute', title: 'Model runs', projectId: null };
   }
   if (hash === '#/settings/ai-providers') {
     return { id: 'ai-providers', title: 'AI providers', projectId: null };

@@ -15,3 +15,4 @@ export { IntelligencePage } from './IntelligencePage';
 export { ReasoningPage } from './ReasoningPage';
 export { AiProvidersPage } from './AiProvidersPage';
 export { ModelRoutingPage } from './ModelRoutingPage';
+export { ExecutePage } from './ExecutePage';

@@ -23,6 +23,10 @@ export interface AdapterContext {
   readonly transport: ProviderTransport;
   /** Custom auth format override, for OpenAI-compatible endpoints. */
   readonly authFormatOverride?: 'bearer' | 'x-api-key' | 'query-key';
+  /** Aborted when the caller cancels; adapters pass it to the transport. */
+  readonly signal?: AbortSignal;
+  /** Abort an idle stream after this long. Defaults to the request timeout. */
+  readonly idleTimeoutMs?: number;
 }
 
 export interface AdapterRequest {
@@ -47,9 +51,15 @@ export interface AdapterResult {
   readonly usage: AdapterUsage;
 }
 
+/**
+ * One streamed fragment. `usage` and `finishReason` arrive on the terminal
+ * chunk when the vendor reports them; they are never synthesized upstream.
+ */
 export interface AdapterChunk {
   readonly delta: string;
   readonly done: boolean;
+  readonly usage?: AdapterUsage;
+  readonly finishReason?: AIFinishReason;
 }
 
 export interface CredentialValidationResult {

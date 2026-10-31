@@ -8,6 +8,18 @@
  */
 
 export { AIProviderGateway, GatewayScopedProvider } from './gateway/index.js';
+export { ModelPricingTable, parsePricingConfig } from './providers/pricing.js';
+export type {
+  RouteSelector,
+  RouteSelectorRequest,
+  RouteSelectorResult,
+  GatewayStreamChunk,
+  UsageSource,
+  CostSource,
+} from './types/index.js';
+export type { PricingEntry, PricingInput, CostEstimate } from './providers/pricing.js';
+export { prepareContext, estimateTokens, estimateMessagesTokens } from './context/index.js';
+export type { ContextBudget, ContextInput, ContextResult } from './context/index.js';
 export type {
   ConnectionListEntry,
   CreateConnectionInput,
@@ -60,6 +72,8 @@ export {
   type ProviderTransport,
   type TransportRequest,
   type TransportResponse,
+  type TransportStreamEvent,
+  type TransportStreamRequest,
 } from './providers/transport.js';
 
 export {

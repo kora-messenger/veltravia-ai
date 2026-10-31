@@ -17,6 +17,7 @@ import {
   ProjectsPage,
   AiProvidersPage,
   ModelRoutingPage,
+  ExecutePage,
   SettingsPage,
 } from './pages';
 
@@ -57,6 +58,8 @@ export function App() {
                 return <AiProvidersPage />;
               case 'model-routing':
                 return <ModelRoutingPage />;
+              case 'execute':
+                return <ExecutePage />;
               case 'settings':
                 return <SettingsPage />;
               default:

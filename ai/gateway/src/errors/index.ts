@@ -23,6 +23,16 @@ export const GATEWAY_ERROR_CODES = [
   'GATEWAY_PROVIDER_UNAVAILABLE',
   'GATEWAY_AUTH_FAILED',
   'GATEWAY_LIMIT_EXCEEDED',
+  /** The caller cancelled the request (client disconnect or explicit cancel). */
+  'GATEWAY_ABORTED',
+  /** The router refused to choose a model for this task. Never a substitute. */
+  'GATEWAY_ROUTE_UNAVAILABLE',
+  /** The prepared context cannot fit the model's window. */
+  'GATEWAY_CONTEXT_TOO_LARGE',
+  /** No such run, or it belongs to someone else (indistinguishable on purpose). */
+  'GATEWAY_RUN_NOT_FOUND',
+  /** The run already reached a terminal state and cannot be cancelled. */
+  'GATEWAY_RUN_NOT_CANCELLABLE',
 ] as const;
 
 export type GatewayErrorCode = (typeof GATEWAY_ERROR_CODES)[number];
@@ -88,6 +98,7 @@ export const PROVIDER_ERROR_CATEGORIES = [
   'unavailable',
   'bad_request',
   'unsupported',
+  'cancelled',
   'unknown',
 ] as const;
 
@@ -107,10 +118,15 @@ export function errorCategoryOf(error: unknown): ProviderErrorCategory {
       return 'unavailable';
     case 'GATEWAY_INVALID_REQUEST':
     case 'GATEWAY_MODEL_UNKNOWN':
+    case 'GATEWAY_CONTEXT_TOO_LARGE':
       return 'bad_request';
     case 'GATEWAY_CAPABILITY_UNSUPPORTED':
     case 'GATEWAY_UNSAFE_ENDPOINT':
+    case 'GATEWAY_ROUTE_UNAVAILABLE':
       return 'unsupported';
+    case 'GATEWAY_ABORTED':
+    case 'GATEWAY_RUN_NOT_CANCELLABLE':
+      return 'cancelled';
     default:
       return 'unknown';
   }

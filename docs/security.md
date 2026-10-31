@@ -522,3 +522,38 @@ See [reasoning.md](reasoning.md).
 12. The reason for a gap matches the real state. "No provider is connected" is emitted only
     when there are no connections at all; a connection that exists but cannot run reports
     the gateway's own reason, so a misconfiguration is never reported as missing setup.
+
+## 5v. Real-model execution rules (Step 29, `ai/gateway` + `apps/api`)
+
+1. **The router is the only chooser.** `gateway.generate`/`gateway.stream` honour the
+   selector's answer verbatim. A refusal fails the run; the platform never substitutes
+   a different model, provider or connection.
+2. **A selector answer is checked, not trusted.** A routed decision naming a
+   connection that does not belong to the caller is refused before any request is sent.
+3. **Streaming is incremental and cancellable.** Provider bytes are parsed as they
+   arrive. An abort throws `GATEWAY_ABORTED` even when the transport merely stops
+   producing, so a cancellation is never mistaken for a completed answer.
+4. **A dropped client cancels the run.** Closing the SSE connection stops generation;
+   no provider is left billing for a listener that left.
+5. **Retries are classified and bounded.** Only transient failures (429, 408, 5xx,
+   timeout, transport) retry, with backoff and a hard attempt ceiling. Auth failures
+   and bad requests never retry.
+6. **Usage is written once per run, never per attempt or per listener.** Streaming,
+   JSON mode and a reconnecting client all read the same single record.
+7. **Tokens are never invented.** `usageSource` is `provider-confirmed` or
+   `unavailable`; when unavailable the counts are `null`. Estimated counts may be
+   used for context fitting but are never reported as usage.
+8. **Costs come from declared prices only.** `costSource` is `declared-pricing` or
+   `unavailable`. No hardcoded price table ships in the code, and a missing price
+   yields `null`, never `0`.
+9. **Prompts are scrubbed before they leave.** Secret-shaped values are redacted by
+   `prepareContext`, and a prompt that cannot fit the window is refused
+   (`GATEWAY_CONTEXT_TOO_LARGE`) rather than silently truncated to nonsense.
+10. **Run ownership is checked on every read and cancel.** A run belonging to another
+    owner answers `404`, identical to a run that never existed; existence is private.
+11. **Usage records never carry keys, endpoints or prompt text.** They carry provider,
+    model, counts, provenance, latency, attempts and status.
+12. **Idempotency protects against double billing.** A repeated key returns the
+    existing run.
+13. **`GATEWAY_RUN_NOT_CANCELLABLE`** (409) is the only answer for a finished run, so a
+    completed answer can never be overwritten by a late cancel.

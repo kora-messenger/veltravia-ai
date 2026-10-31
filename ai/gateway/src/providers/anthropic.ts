@@ -4,12 +4,14 @@ import { GatewayError } from '../errors/index.js';
 import type { GatewayModel, ProviderDefinition } from '../types/index.js';
 import { joinEndpoint } from '../ssrf/index.js';
 import type {
+  AdapterChunk,
   AdapterContext,
   AdapterRequest,
   AdapterResult,
   CredentialValidationResult,
   ProviderAdapter,
 } from './adapter.js';
+import { parseJsonFrame, readSseEvents } from './sse.js';
 
 /**
  * Native Anthropic adapter (Messages API).
@@ -197,6 +199,132 @@ export class AnthropicAdapter implements ProviderAdapter {
         outputTokens:
           typeof payload?.usage?.output_tokens === 'number' ? payload.usage.output_tokens : null,
       },
+    };
+  }
+
+  /**
+   * Streams the Messages API event protocol.
+   *
+   * Anthropic is event-typed rather than a delta string per choice:
+   * message_start carries input tokens, content_block_delta carries text, and
+   * message_delta carries the stop reason plus output tokens.
+   */
+  async *stream(context: AdapterContext, request: AdapterRequest): AsyncIterable<AdapterChunk> {
+    if (!this.definition.capabilities.includes('streaming')) {
+      throw new GatewayError(
+        'GATEWAY_CAPABILITY_UNSUPPORTED',
+        `${this.definition.displayName} does not support streaming.`,
+      );
+    }
+    const messages = request.messages
+      .filter((message) => message.role !== 'system')
+      .map((message) => ({ role: message.role, content: message.content }));
+    if (messages.length === 0) {
+      throw new GatewayError('GATEWAY_INVALID_REQUEST', 'Anthropic requires a user message.');
+    }
+    const body: Record<string, unknown> = {
+      model: request.modelId,
+      messages,
+      max_tokens: request.maxOutputTokens ?? 1024,
+      stream: true,
+    };
+    const system = request.system ?? request.messages.find((m) => m.role === 'system')?.content;
+    if (system) body.system = system;
+    if (request.temperature !== undefined) body.temperature = request.temperature;
+
+    const url = this.url(context, this.definition.generationPath);
+    const headers = { ...this.headers(context), accept: 'text/event-stream' };
+    let inputTokens: number | null = null;
+    let outputTokens: number | null = null;
+    let finish: AIFinishReason | undefined;
+
+    if (context.transport.requestStream) {
+      const events = context.transport.requestStream({
+        url,
+        method: 'POST',
+        headers,
+        body,
+        timeoutMs: context.timeoutMs,
+        ...(context.idleTimeoutMs !== undefined ? { idleTimeoutMs: context.idleTimeoutMs } : {}),
+        ...(context.signal ? { signal: context.signal } : {}),
+      });
+      for await (const frame of readSseEvents(events, {
+        errorForStatus: (status: number) => statusError(status),
+        ...(context.signal ? { signal: context.signal } : {}),
+      })) {
+        const parsed = parseJsonFrame(frame.data) as
+          | {
+              type?: unknown;
+              message?: { usage?: { input_tokens?: unknown } };
+              delta?: { text?: unknown; stop_reason?: unknown };
+              usage?: { output_tokens?: unknown };
+            }
+          | undefined;
+        if (parsed === undefined) continue;
+        if (
+          parsed.type === 'message_start' &&
+          typeof parsed.message?.usage?.input_tokens === 'number'
+        ) {
+          inputTokens = parsed.message.usage.input_tokens;
+        }
+        if (parsed.type === 'content_block_delta' && typeof parsed.delta?.text === 'string') {
+          if (parsed.delta.text.length > 0) yield { delta: parsed.delta.text, done: false };
+        }
+        if (parsed.type === 'message_delta') {
+          if (typeof parsed.usage?.output_tokens === 'number')
+            outputTokens = parsed.usage.output_tokens;
+          if (parsed.delta?.stop_reason !== undefined && parsed.delta?.stop_reason !== null) {
+            finish = finishReasonOf(parsed.delta.stop_reason);
+          }
+        }
+        if (parsed.type === 'error') {
+          throw new GatewayError('GATEWAY_PROVIDER_ERROR', 'The provider reported a stream error.');
+        }
+      }
+    } else {
+      const response = await context.transport.request({
+        url,
+        method: 'POST',
+        headers,
+        body,
+        timeoutMs: context.timeoutMs,
+      });
+      if (response.status < 200 || response.status >= 300) throw statusError(response.status);
+      for (const line of response.text.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const parsed = parseJsonFrame(trimmed.slice(5).trim()) as
+          | {
+              type?: unknown;
+              message?: { usage?: { input_tokens?: unknown } };
+              delta?: { text?: unknown; stop_reason?: unknown };
+              usage?: { output_tokens?: unknown };
+            }
+          | undefined;
+        if (parsed === undefined) continue;
+        if (
+          parsed.type === 'message_start' &&
+          typeof parsed.message?.usage?.input_tokens === 'number'
+        ) {
+          inputTokens = parsed.message.usage.input_tokens;
+        }
+        if (parsed.type === 'content_block_delta' && typeof parsed.delta?.text === 'string') {
+          if (parsed.delta.text.length > 0) yield { delta: parsed.delta.text, done: false };
+        }
+        if (parsed.type === 'message_delta') {
+          if (typeof parsed.usage?.output_tokens === 'number')
+            outputTokens = parsed.usage.output_tokens;
+          if (parsed.delta?.stop_reason !== undefined && parsed.delta?.stop_reason !== null) {
+            finish = finishReasonOf(parsed.delta.stop_reason);
+          }
+        }
+      }
+    }
+    yield {
+      delta: '',
+      done: true,
+      usage: { inputTokens, outputTokens },
+      ...(finish ? { finishReason: finish } : {}),
     };
   }
 }

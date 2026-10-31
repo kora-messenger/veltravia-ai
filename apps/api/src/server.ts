@@ -10,6 +10,10 @@ import {
 } from './model-router-service.js';
 import { createGatewayService, type GatewayService } from './ai-gateway-service.js';
 import { registerIntelligenceRoutes } from './routes/intelligence.js';
+import { registerAiExecutionRoutes } from './routes/ai-execution.js';
+import type { RouteSelectorRequest } from '@veltravia/ai-gateway';
+import { createAiExecutionService } from './ai-execution-service.js';
+import type { AiExecutionService } from './ai-execution-service.js';
 import { registerReasoningRoutes } from './routes/reasoning.js';
 import { ReasoningService } from './reasoning-service.js';
 import { createIntelligenceService } from './intelligence-service.js';
@@ -95,6 +99,8 @@ export interface BuildAppOptions {
   readonly generation?: AppGenerationManager;
   /** Pre-built integration system (tests inject one); defaults to the demo system. */
   readonly integrations?: ApiIntegrationSystem;
+  /** Pre-built real-model execution service (tests inject one). */
+  readonly aiExecution?: AiExecutionService;
   /** Pre-built TestingManager (tests inject one); defaults to the demo testing engine. */
   readonly testing?: TestingManager;
   /** Project memory (Step 15). Defaults to an in-process manager. */
@@ -193,6 +199,38 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // decision can never name a provider or model the caller cannot use.
   const modelRouter =
     options.modelRouter ?? createModelRouterService({ gateway: aiGateway.gateway ?? null });
+
+  // One selection seam for every feature: the gateway asks the router whenever a
+  // caller has not named a model itself. A refusal is returned as a refusal.
+  aiGateway.gateway?.attachSelector({
+    select: async (request: RouteSelectorRequest) => {
+      const decision = await modelRouter.routeFor(request.ownerRef, {
+        category: request.category as never,
+        ...(request.projectId !== undefined ? { projectId: request.projectId } : {}),
+        ...(request.needsStreaming !== undefined ? { needsStreaming: request.needsStreaming } : {}),
+        ...(request.estimatedInputTokens !== undefined
+          ? { estimatedInputTokens: request.estimatedInputTokens }
+          : {}),
+        ...(request.purpose !== undefined ? { purpose: request.purpose } : {}),
+      });
+      if (decision.outcome !== 'routed' || decision.selected === null) {
+        return {
+          outcome: 'refused' as const,
+          summary: decision.summary,
+          decisionId: decision.id,
+        };
+      }
+      return {
+        outcome: 'routed' as const,
+        connectionId: decision.selected.connectionId,
+        providerId: decision.selected.providerId,
+        modelId: decision.selected.modelId,
+        decisionId: decision.id,
+        summary: decision.summary,
+        contextWindowTokens: decision.selected.contextWindowTokens,
+      };
+    },
+  });
 
   // Step 25: cross-source intelligence. Sources are the owner's uploaded
   // documents, connected-app resources and project workspace files. Reasoning
@@ -426,6 +464,18 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       },
     });
   registerReasoningRoutes(app, reasoning);
+
+  // Step 29: real-model execution. Router decides, the gateway executes, events
+  // stream over SSE, and usage is recorded once per run.
+  registerAiExecutionRoutes(app, {
+    service:
+      options.aiExecution ??
+      createAiExecutionService({
+        gateway: aiGateway.gateway ?? null,
+        router: modelRouter,
+        ...(aiGateway.blockedReason ? { blockedReason: aiGateway.blockedReason } : {}),
+      }),
+  });
 
   return app;
 }

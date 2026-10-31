@@ -238,3 +238,21 @@ model cannot do, an "Explain the choice" check that runs the real router, and pe
 overrides. That check is advisory and answers with the decision (including an honest refusal)
 instead of an error, and the screen distinguishes "nothing is connected" from "what is
 connected cannot run right now" so the two different fixes stay separate.
+
+### Real-model execution (Step 29)
+
+The [execution layer](docs/execution.md) is where a model actually answers. `POST /api/ai/execute`
+asks the router which model should run, fits the prompt to the model's window, streams the
+provider's own server-sent events back to the browser as `delta` events, and records one usage
+row per run: tokens with their provenance, latency, attempts, and a cost only when a price is
+declared. Cancelling stops generation on the server, and a closed connection cancels the run so
+no provider is left billing for a tab that left. A refusal from the router fails the run with the
+refusal; nothing is substituted. Repeating an idempotency key returns the same run instead of
+paying twice. `#/execute` ("Model runs") is the surface for it: readiness, the streamed answer,
+the route and its explanation, token and cost provenance, and a Stop button that really stops.
+
+Known limits, stated plainly: usage history is in-process and lost on restart, so nothing here is
+an invoice; no price table ships, so most models report "cost unknown" until
+`VELTRAVIA_MODEL_PRICING` declares one; live execution against a real provider needs a connected
+key and was not exercised in the automated suite (those tests use a fixture transport, and the
+live tests stay skipped without credentials).

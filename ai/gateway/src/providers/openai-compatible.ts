@@ -13,6 +13,7 @@ import type {
   ProviderAdapter,
 } from './adapter.js';
 import type { TransportResponse } from './transport.js';
+import { parseJsonFrame, readSseEvents } from './sse.js';
 
 /**
  * The reusable OpenAI-compatible adapter.
@@ -277,6 +278,13 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
     };
   }
 
+  /**
+   * Streams the answer as it arrives.
+   *
+   * Two paths, both honest: with an incremental transport the bytes are parsed
+   * frame by frame; with a buffered one the response is read in one piece and
+   * replayed as frames. Callers see the same chunk shape either way.
+   */
   async *stream(context: AdapterContext, request: AdapterRequest): AsyncIterable<AdapterChunk> {
     if (!this.definition.capabilities.includes('streaming')) {
       throw new GatewayError(
@@ -285,37 +293,100 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
       );
     }
     const body = { ...this.body(request), stream: true };
+    const url = this.url(context, this.definition.generationPath);
+    const headers = { ...this.headers(context), accept: 'text/event-stream' };
+
+    if (context.transport.requestStream) {
+      const events = context.transport.requestStream({
+        url,
+        method: 'POST',
+        headers,
+        body,
+        timeoutMs: context.timeoutMs,
+        ...(context.idleTimeoutMs !== undefined ? { idleTimeoutMs: context.idleTimeoutMs } : {}),
+        ...(context.signal ? { signal: context.signal } : {}),
+      });
+      let usage: { inputTokens: number | null; outputTokens: number | null } | undefined;
+      let finish: AIFinishReason | undefined;
+      for await (const frame of readSseEvents(events, {
+        errorForStatus: (status: number) => normalizedFor(status, ''),
+        ...(context.signal ? { signal: context.signal } : {}),
+      })) {
+        const parsed = parseJsonFrame(frame.data);
+        if (parsed === undefined) continue;
+        const reported = usageOf(parsed);
+        if (reported.inputTokens !== null || reported.outputTokens !== null) usage = reported;
+        const choice = Array.isArray((parsed as { choices?: unknown }).choices)
+          ? ((parsed as { choices: unknown[] }).choices[0] as
+              { delta?: { content?: unknown }; finish_reason?: unknown } | undefined)
+          : undefined;
+        const reason = finishReasonOf(choice?.finish_reason);
+        if (choice?.finish_reason !== null && choice?.finish_reason !== undefined) finish = reason;
+        const delta = deltaOf(choice?.delta?.content);
+        if (delta.length > 0) yield { delta, done: false };
+      }
+      yield {
+        delta: '',
+        done: true,
+        ...(usage ? { usage } : {}),
+        ...(finish ? { finishReason: finish } : {}),
+      };
+      return;
+    }
+
     const response = await context.transport.request({
-      url: this.url(context, this.definition.generationPath),
+      url,
       method: 'POST',
-      headers: { ...this.headers(context), accept: 'text/event-stream' },
+      headers,
       body,
       timeoutMs: context.timeoutMs,
     });
     if (response.status < 200 || response.status >= 300) {
       throw normalizedFor(response.status, providerMessage(response));
     }
+    let usage: { inputTokens: number | null; outputTokens: number | null } | undefined;
+    let finish: AIFinishReason | undefined;
     for (const line of response.text.split(/\r?\n/)) {
       const trimmed = line.trim();
       if (!trimmed.startsWith('data:')) continue;
       const payload = trimmed.slice(5).trim();
-      if (payload === '[DONE]') {
-        yield { delta: '', done: true };
-        return;
+      if (payload === '[DONE]') break;
+      const parsed = parseJsonFrame(payload);
+      if (parsed === undefined) continue;
+      const reported = usageOf(parsed);
+      if (reported.inputTokens !== null || reported.outputTokens !== null) usage = reported;
+      const choice = Array.isArray((parsed as { choices?: unknown }).choices)
+        ? ((parsed as { choices: unknown[] }).choices[0] as
+            { delta?: { content?: unknown }; finish_reason?: unknown } | undefined)
+        : undefined;
+      if (choice?.finish_reason !== null && choice?.finish_reason !== undefined) {
+        finish = finishReasonOf(choice?.finish_reason);
       }
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(payload);
-      } catch {
-        continue;
-      }
-      const choice = (parsed as { choices?: unknown }).choices;
-      if (!Array.isArray(choice) || choice.length === 0) continue;
-      const delta = (choice[0] as { delta?: { content?: unknown } }).delta?.content;
-      if (typeof delta === 'string' && delta.length > 0) yield { delta, done: false };
+      const delta = deltaOf(choice?.delta?.content);
+      if (delta.length > 0) yield { delta, done: false };
     }
-    yield { delta: '', done: true };
+    yield {
+      delta: '',
+      done: true,
+      ...(usage ? { usage } : {}),
+      ...(finish ? { finishReason: finish } : {}),
+    };
   }
+}
+
+/** Content may arrive as a string or as typed parts, depending on the vendor. */
+function deltaOf(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part) =>
+        part && typeof part === 'object' && typeof (part as { text?: unknown }).text === 'string'
+          ? String((part as { text: string }).text)
+          : '',
+      )
+      .join('');
+  }
+  return '';
 }
 
 /** Scrubs any provider text before it is attached to a diagnostic message. */

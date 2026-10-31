@@ -3,7 +3,9 @@ import type { AIFinishReason } from '@veltravia/ai-core';
 import { GatewayError } from '../errors/index.js';
 import type { GatewayModel, ProviderDefinition } from '../types/index.js';
 import { joinEndpoint } from '../ssrf/index.js';
+import { parseJsonFrame, readSseEvents } from './sse.js';
 import type {
+  AdapterChunk,
   AdapterContext,
   AdapterRequest,
   AdapterResult,
@@ -69,8 +71,12 @@ export class GeminiGatewayAdapter implements ProviderAdapter {
     return { 'content-type': 'application/json', 'x-goog-api-key': context.apiKey };
   }
 
-  private url(context: AdapterContext, path: string): string {
-    return joinEndpoint(new URL(context.baseUrl), path).toString();
+  private url(context: AdapterContext, path: string, query?: Record<string, string>): string {
+    const endpoint = joinEndpoint(new URL(context.baseUrl), path);
+    if (query) {
+      for (const [key, value] of Object.entries(query)) endpoint.searchParams.set(key, value);
+    }
+    return endpoint.toString();
   }
 
   async validateCredential(context: AdapterContext): Promise<CredentialValidationResult> {
@@ -210,6 +216,105 @@ export class GeminiGatewayAdapter implements ProviderAdapter {
             ? payload.usageMetadata.candidatesTokenCount
             : null,
       },
+    };
+  }
+
+  /** Streams `:streamGenerateContent?alt=sse` frames as they arrive. */
+  async *stream(context: AdapterContext, request: AdapterRequest): AsyncIterable<AdapterChunk> {
+    if (!this.definition.capabilities.includes('streaming')) {
+      throw new GatewayError(
+        'GATEWAY_CAPABILITY_UNSUPPORTED',
+        `${this.definition.displayName} does not support streaming.`,
+      );
+    }
+    const contents = request.messages
+      .filter((message) => message.role !== 'system')
+      .map((message) => ({
+        role: message.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: message.content }],
+      }));
+    if (contents.length === 0) {
+      throw new GatewayError('GATEWAY_INVALID_REQUEST', 'Gemini requires a user message.');
+    }
+    const body: Record<string, unknown> = { contents };
+    const system = request.system ?? request.messages.find((m) => m.role === 'system')?.content;
+    if (system) body.systemInstruction = { parts: [{ text: system }] };
+    const generationConfig: Record<string, unknown> = {};
+    if (request.temperature !== undefined) generationConfig.temperature = request.temperature;
+    if (request.maxOutputTokens !== undefined)
+      generationConfig.maxOutputTokens = request.maxOutputTokens;
+    if (Object.keys(generationConfig).length > 0) body.generationConfig = generationConfig;
+
+    const modelPath = `${this.definition.generationPath.replace(/\/$/, '')}/${encodeURIComponent(
+      request.modelId,
+    )}:streamGenerateContent`;
+    const url = this.url(context, modelPath, { alt: 'sse' });
+    const headers = { ...this.headers(context), accept: 'text/event-stream' };
+    let inputTokens: number | null = null;
+    let outputTokens: number | null = null;
+    let finish: AIFinishReason | undefined;
+
+    const consume = function* (payload: unknown): Generator<AdapterChunk> {
+      const record = payload as
+        | {
+            candidates?: unknown;
+            usageMetadata?: { promptTokenCount?: unknown; candidatesTokenCount?: unknown };
+          }
+        | undefined;
+      const meta = record?.usageMetadata;
+      if (typeof meta?.promptTokenCount === 'number') inputTokens = meta.promptTokenCount;
+      if (typeof meta?.candidatesTokenCount === 'number') outputTokens = meta.candidatesTokenCount;
+      const candidates = Array.isArray(record?.candidates) ? record?.candidates : [];
+      const first = candidates[0] as
+        { content?: { parts?: unknown }; finishReason?: unknown } | undefined;
+      if (first?.finishReason !== undefined && first?.finishReason !== null) {
+        finish = finishReasonOf(first.finishReason);
+      }
+      const parts = Array.isArray(first?.content?.parts) ? first.content.parts : [];
+      const text = parts
+        .map((part) =>
+          part && typeof part === 'object' ? String((part as { text?: unknown }).text ?? '') : '',
+        )
+        .join('');
+      if (text.length > 0) yield { delta: text, done: false };
+    };
+
+    if (context.transport.requestStream) {
+      const events = context.transport.requestStream({
+        url,
+        method: 'POST',
+        headers,
+        body,
+        timeoutMs: context.timeoutMs,
+        ...(context.idleTimeoutMs !== undefined ? { idleTimeoutMs: context.idleTimeoutMs } : {}),
+        ...(context.signal ? { signal: context.signal } : {}),
+      });
+      for await (const frame of readSseEvents(events, {
+        errorForStatus: (status: number) => statusError(status),
+        ...(context.signal ? { signal: context.signal } : {}),
+      })) {
+        yield* consume(parseJsonFrame(frame.data));
+      }
+    } else {
+      const response = await context.transport.request({
+        url,
+        method: 'POST',
+        headers,
+        body,
+        timeoutMs: context.timeoutMs,
+      });
+      if (response.status < 200 || response.status >= 300) throw statusError(response.status);
+      for (const line of response.text.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        yield* consume(parseJsonFrame(trimmed.slice(5).trim()));
+      }
+    }
+    yield {
+      delta: '',
+      done: true,
+      usage: { inputTokens, outputTokens },
+      ...(finish ? { finishReason: finish } : {}),
     };
   }
 }

@@ -14,6 +14,7 @@ import type { CredentialVault } from '../vault/index.js';
 import { bounded, credentialHint, looksSecretShaped } from '../security/index.js';
 import { assertSafeEndpoint } from '../ssrf/index.js';
 import type { ConnectionStore, PreferenceStore } from '../store/index.js';
+import { ModelPricingTable } from '../providers/pricing.js';
 import type { UsageStore } from '../usage/index.js';
 import { newUsageRecordId } from '../usage/index.js';
 import { RateLimiter, type RateLimitAction } from '../ratelimit/index.js';
@@ -27,12 +28,16 @@ import type {
 import type { ProviderTransport } from '../providers/transport.js';
 import type {
   ConnectionView,
+  CostSource,
   GatewayModel,
+  GatewayStreamChunk,
   ProjectPreference,
   ProviderConnection,
   ProviderPreferences,
   ResolvedRoute,
+  RouteSelector,
   UsageRecord,
+  UsageSource,
 } from '../types/index.js';
 
 /**
@@ -70,6 +75,45 @@ export interface GatewayOptions {
   readonly resolveHost?: (hostname: string) => Promise<readonly string[]>;
   readonly maxConnectionsPerOwner?: number;
   readonly maxModelsPerConnection?: number;
+  /**
+   * The model-selection port (Step 28 router). When present the gateway NEVER
+   * picks a model by itself: it asks once, uses exactly that answer, and
+   * refuses when the selector refuses.
+   */
+  readonly selector?: RouteSelector;
+  /** Operator-declared prices. Absent means no cost estimates are produced. */
+  readonly pricing?: ModelPricingTable;
+  /** Bounded retry policy for retryable provider failures. */
+  readonly retry?: RetryPolicy;
+  /** Injectable delay, so retry timing is testable without real waiting. */
+  readonly sleep?: (ms: number) => Promise<void>;
+}
+
+/**
+ * Retries apply only to failures that are safe to repeat BEFORE any answer was
+ * produced: rate limits, timeouts, 5xx and unreachable hosts. Auth errors,
+ * invalid requests and unsupported capabilities are never retried.
+ */
+export interface RetryPolicy {
+  readonly maxAttempts: number;
+  readonly baseDelayMs: number;
+  readonly maxDelayMs: number;
+}
+
+export const DEFAULT_RETRY_POLICY: RetryPolicy = {
+  maxAttempts: 3,
+  baseDelayMs: 250,
+  maxDelayMs: 2_000,
+};
+
+const RETRYABLE_CODES = new Set([
+  'GATEWAY_RATE_LIMITED',
+  'GATEWAY_TIMEOUT',
+  'GATEWAY_PROVIDER_UNAVAILABLE',
+]);
+
+function isRetryable(error: unknown): boolean {
+  return isGatewayError(error) && RETRYABLE_CODES.has(error.code);
 }
 
 export interface CreateConnectionInput {
@@ -105,6 +149,14 @@ export interface GenerationRequest {
   readonly connectionId?: string;
   readonly modelId?: string;
   readonly projectId?: string;
+  /** Router task category. Required when the caller wants router selection. */
+  readonly category?: string;
+  /** Cancellation for streaming and long non-streamed calls. */
+  readonly signal?: AbortSignal;
+  /** Correlates every call that belongs to one run. */
+  readonly runId?: string;
+  /** Estimated prompt size, passed to the selector for window checks. */
+  readonly estimatedInputTokens?: number;
 }
 
 export interface GenerationOutcome {
@@ -118,6 +170,9 @@ export interface GenerationOutcome {
   readonly live: boolean;
   readonly latencyMs: number;
   readonly requestedAt: string;
+  /** Router decision id, when the selector chose this model. */
+  readonly decisionId?: string;
+  readonly attempts: number;
 }
 
 export interface ConnectionListEntry {
@@ -167,6 +222,10 @@ export class AIProviderGateway {
   private readonly resolveHost?: (hostname: string) => Promise<readonly string[]>;
   private readonly maxConnectionsPerOwner: number;
   private readonly maxModelsPerConnection: number;
+  private selector?: RouteSelector;
+  private readonly pricing: ModelPricingTable;
+  private readonly retry: RetryPolicy;
+  private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: GatewayOptions) {
     this.vault = options.vault;
@@ -182,6 +241,21 @@ export class AIProviderGateway {
     if (options.resolveHost) this.resolveHost = options.resolveHost;
     this.maxConnectionsPerOwner = options.maxConnectionsPerOwner ?? 12;
     this.maxModelsPerConnection = options.maxModelsPerConnection ?? MAX_MODELS;
+    this.selector = options.selector;
+    this.pricing = options.pricing ?? new ModelPricingTable();
+    this.retry = options.retry ?? DEFAULT_RETRY_POLICY;
+    this.sleep = options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+  }
+
+  /**
+   * Attaches the model router after construction.
+   *
+   * The router reads its connection facts FROM this gateway, so the two cannot
+   * be built in one expression: the gateway is created first, then told who
+   * decides. Until then it falls back to the owner's own preferences.
+   */
+  attachSelector(selector: RouteSelector): void {
+    this.selector = selector;
   }
 
   /** Whether the vault can encrypt at all. The API reports this to the UI so a
@@ -612,6 +686,10 @@ export class AIProviderGateway {
       readonly projectId?: string;
       readonly connectionId?: string;
       readonly modelId?: string;
+      readonly category?: string;
+      readonly needsStreaming?: boolean;
+      readonly estimatedInputTokens?: number;
+      readonly purpose?: string;
     } = {},
   ): Promise<ResolvedRoute> {
     const ownerRef = requireOwner(scope);
@@ -625,6 +703,11 @@ export class AIProviderGateway {
         source: 'explicit',
       };
     }
+    // A model named without a connection still has to exist on the connection
+    // the owner's own preference selects; it is never moved to another one.
+    if (options.modelId === undefined && this.selector !== undefined && options.category) {
+      return this.resolveSelectorRoute(ownerRef, options);
+    }
     const route = await this.resolvePreferenceRoute(ownerRef, options);
     // An explicitly requested model is never silently swapped for another one.
     if (options.modelId && route.modelId !== options.modelId) {
@@ -635,6 +718,70 @@ export class AIProviderGateway {
       );
     }
     return route;
+  }
+
+  /**
+   * Asks the platform's model router, once, and uses its answer verbatim.
+   *
+   * There is no second choice here: if the router refuses, or names something
+   * this owner cannot use, the request fails with a readable reason. Falling
+   * back to "some other model" is exactly the behaviour this method refuses.
+   */
+  private async resolveSelectorRoute(
+    ownerRef: string,
+    options: {
+      readonly projectId?: string;
+      readonly category?: string;
+      readonly needsStreaming?: boolean;
+      readonly estimatedInputTokens?: number;
+      readonly purpose?: string;
+    },
+  ): Promise<ResolvedRoute> {
+    if (this.selector === undefined) {
+      throw new GatewayError('GATEWAY_ROUTE_UNAVAILABLE', 'No model router is configured.');
+    }
+    const selection = await this.selector.select({
+      ownerRef,
+      ...(options.projectId !== undefined ? { projectId: options.projectId } : {}),
+      category: options.category ?? 'general-conversation',
+      ...(options.needsStreaming !== undefined ? { needsStreaming: options.needsStreaming } : {}),
+      ...(options.estimatedInputTokens !== undefined
+        ? { estimatedInputTokens: options.estimatedInputTokens }
+        : {}),
+      ...(options.purpose !== undefined ? { purpose: options.purpose } : {}),
+    });
+    if (selection.outcome !== 'routed') {
+      throw new GatewayError('GATEWAY_ROUTE_UNAVAILABLE', selection.summary, {
+        details: selection.decisionId === undefined ? {} : { decisionId: selection.decisionId },
+      });
+    }
+    const connection = await this.connections.get(selection.connectionId);
+    if (!connection || connection.ownerRef !== ownerRef) {
+      throw new GatewayError(
+        'GATEWAY_ROUTE_UNAVAILABLE',
+        'The provider the router selected is no longer available to you. Nothing was sent.',
+      );
+    }
+    if (connection.status === 'disabled') {
+      throw new GatewayError(
+        'GATEWAY_ROUTE_UNAVAILABLE',
+        'The provider the router selected is disabled. Nothing was sent.',
+      );
+    }
+    if (!connection.modelIds.includes(selection.modelId)) {
+      throw new GatewayError(
+        'GATEWAY_ROUTE_UNAVAILABLE',
+        'The model the router selected is not offered by that connection. Nothing was sent.',
+      );
+    }
+    return {
+      connectionId: connection.id,
+      providerId: connection.providerId,
+      modelId: selection.modelId,
+      source: 'router',
+      ...(selection.decisionId !== undefined ? { decisionId: selection.decisionId } : {}),
+      summary: selection.summary,
+    };
   }
 
   private async resolvePreferenceRoute(
@@ -694,11 +841,17 @@ export class AIProviderGateway {
   async generate(scope: GatewayScope, request: GenerationRequest): Promise<GenerationOutcome> {
     const ownerRef = requireOwner(scope);
     const projectId = request.projectId ?? scope.projectId;
+    throwIfAborted(request.signal);
     const route = await this.resolveRoute(scope, {
       ...(request.projectId ? { projectId: request.projectId } : {}),
       ...(request.connectionId ? { connectionId: request.connectionId } : {}),
       ...(request.modelId ? { modelId: request.modelId } : {}),
-    });
+      ...(request.category ? { category: request.category } : {}),
+      ...(request.estimatedInputTokens !== undefined
+        ? { estimatedInputTokens: request.estimatedInputTokens }
+        : {}),
+      purpose: request.category === undefined ? undefined : 'generation',
+    } as Parameters<AIProviderGateway['resolveRoute']>[1]);
     this.limiter.consume(ownerRef, 'generate');
 
     const connection = await this.requireOwnedConnection(ownerRef, route.connectionId);
@@ -713,55 +866,87 @@ export class AIProviderGateway {
 
     const startedAt = Date.now();
     const requestedAt = nowIso(this.now);
-    let result: AdapterResult;
-    try {
-      const context = await this.adapterContext(ownerRef, connection);
-      result = await adapter.generate(context, {
-        modelId: route.modelId,
-        messages: request.messages,
-        ...(request.system !== undefined ? { system: request.system } : {}),
-        ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
-        ...(request.maxOutputTokens !== undefined
-          ? { maxOutputTokens: request.maxOutputTokens }
-          : {}),
-        ...(request.structuredOutput !== undefined
-          ? { structuredOutput: request.structuredOutput }
-          : {}),
-        ...(request.requiredCapabilities
-          ? { requiredCapabilities: request.requiredCapabilities }
-          : {}),
-      });
-    } catch (error) {
-      await this.recordUsage({
-        ownerRef,
-        ...(projectId ? { projectId } : {}),
-        providerId: connection.providerId,
-        modelId: route.modelId,
-        requestedAt,
-        status: 'failure',
-        inputTokens: null,
-        outputTokens: null,
-        estimatedCostUsd: null,
-        latencyMs: Date.now() - startedAt,
-        errorCategory: errorCategoryOf(error),
-        live: true,
-      });
-      throw error;
+    const maxAttempts = Math.max(1, Math.min(this.retry.maxAttempts, 5));
+    let attempts = 0;
+    let result: AdapterResult | undefined;
+    let failure: unknown;
+
+    // Bounded retries, applied ONLY to failures that are safe to repeat: nothing
+    // has been produced yet, so a retry cannot double-charge for an answer.
+    while (attempts < maxAttempts) {
+      attempts += 1;
+      throwIfAborted(request.signal);
+      try {
+        const context = await this.adapterContext(ownerRef, connection, request.signal);
+        result = await adapter.generate(context, {
+          modelId: route.modelId,
+          messages: request.messages,
+          ...(request.system !== undefined ? { system: request.system } : {}),
+          ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+          ...(request.maxOutputTokens !== undefined
+            ? { maxOutputTokens: request.maxOutputTokens }
+            : {}),
+          ...(request.structuredOutput !== undefined
+            ? { structuredOutput: request.structuredOutput }
+            : {}),
+          ...(request.requiredCapabilities
+            ? { requiredCapabilities: request.requiredCapabilities }
+            : {}),
+        });
+        failure = undefined;
+        break;
+      } catch (error) {
+        failure = error;
+        if (!isRetryable(error) || attempts >= maxAttempts) break;
+        const delay = Math.min(this.retry.baseDelayMs * 2 ** (attempts - 1), this.retry.maxDelayMs);
+        await this.sleep(delay);
+      }
     }
     const latencyMs = Date.now() - startedAt;
-    await this.recordUsage({
-      ownerRef,
-      ...(projectId ? { projectId } : {}),
-      providerId: connection.providerId,
-      modelId: route.modelId,
-      requestedAt,
-      status: 'success',
-      inputTokens: result.usage.inputTokens,
-      outputTokens: result.usage.outputTokens,
-      estimatedCostUsd: null,
-      latencyMs,
-      live: true,
-    });
+
+    if (result === undefined) {
+      const aborted = isGatewayError(failure) && failure.code === 'GATEWAY_ABORTED';
+      await this.recordUsage(
+        this.usageFor({
+          ownerRef,
+          ...(projectId ? { projectId } : {}),
+          ...(request.category ? { taskType: request.category } : {}),
+          providerId: connection.providerId,
+          modelId: route.modelId,
+          connectionId: connection.id,
+          ...(request.runId ? { runId: request.runId } : {}),
+          requestedAt,
+          status: aborted ? 'cancelled' : 'failure',
+          inputTokens: null,
+          outputTokens: null,
+          latencyMs,
+          attempts,
+          streamed: false,
+          errorCategory: errorCategoryOf(failure),
+        }),
+      );
+      if (isGatewayError(failure)) throw failure;
+      throw new GatewayError('GATEWAY_PROVIDER_ERROR', 'The provider failed to answer.');
+    }
+
+    await this.recordUsage(
+      this.usageFor({
+        ownerRef,
+        ...(projectId ? { projectId } : {}),
+        ...(request.category ? { taskType: request.category } : {}),
+        providerId: connection.providerId,
+        modelId: route.modelId,
+        connectionId: connection.id,
+        ...(request.runId ? { runId: request.runId } : {}),
+        requestedAt,
+        status: 'success',
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        latencyMs,
+        attempts,
+        streamed: false,
+      }),
+    );
     return {
       content: result.content,
       providerId: connection.providerId,
@@ -772,19 +957,38 @@ export class AIProviderGateway {
       live: true,
       latencyMs,
       requestedAt,
+      attempts,
+      ...(route.decisionId !== undefined ? { decisionId: route.decisionId } : {}),
     };
   }
 
+  /**
+   * Streams an answer through the same route resolution as `generate`.
+   *
+   * Usage is recorded exactly once, on whichever way the stream ends: completed,
+   * failed, or cancelled. A cancelled stream is reported as cancelled - never as
+   * a success, and never as a silent truncation.
+   */
   async *stream(
     scope: GatewayScope,
     request: GenerationRequest,
-  ): AsyncIterable<{ delta: string; done: boolean }> {
+  ): AsyncIterable<GatewayStreamChunk> {
     const ownerRef = requireOwner(scope);
+    const projectId = request.projectId ?? scope.projectId;
+    throwIfAborted(request.signal);
     const route = await this.resolveRoute(scope, {
       ...(request.projectId ? { projectId: request.projectId } : {}),
       ...(request.connectionId ? { connectionId: request.connectionId } : {}),
-    });
+      ...(request.modelId ? { modelId: request.modelId } : {}),
+      ...(request.category ? { category: request.category } : {}),
+      needsStreaming: true,
+      ...(request.estimatedInputTokens !== undefined
+        ? { estimatedInputTokens: request.estimatedInputTokens }
+        : {}),
+      purpose: request.category === undefined ? undefined : 'streamed generation',
+    } as Parameters<AIProviderGateway['resolveRoute']>[1]);
     this.limiter.consume(ownerRef, 'generate');
+
     const connection = await this.requireOwnedConnection(ownerRef, route.connectionId);
     const definition = this.registry.definition(connection.providerId);
     const adapter = this.registry.adapter(connection.providerId);
@@ -800,16 +1004,81 @@ export class AIProviderGateway {
       route.modelId,
       request.requiredCapabilities ?? [],
     );
-    const context = await this.adapterContext(ownerRef, connection);
-    yield* adapter.stream(context, {
-      modelId: route.modelId,
-      messages: request.messages,
-      ...(request.system !== undefined ? { system: request.system } : {}),
-      ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
-      ...(request.maxOutputTokens !== undefined
-        ? { maxOutputTokens: request.maxOutputTokens }
-        : {}),
-    });
+
+    const startedAt = Date.now();
+    const requestedAt = nowIso(this.now);
+    let usage: { inputTokens: number | null; outputTokens: number | null } | undefined;
+    let finishReason: string | undefined;
+
+    try {
+      const context = await this.adapterContext(ownerRef, connection, request.signal);
+      for await (const chunk of adapter.stream(context, {
+        modelId: route.modelId,
+        messages: request.messages,
+        ...(request.system !== undefined ? { system: request.system } : {}),
+        ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+        ...(request.maxOutputTokens !== undefined
+          ? { maxOutputTokens: request.maxOutputTokens }
+          : {}),
+      })) {
+        // An abort ends the stream as a cancellation, even when the transport
+        // merely stops producing fragments instead of throwing.
+        throwIfAborted(request.signal);
+        if (chunk.usage !== undefined) usage = chunk.usage;
+        if (chunk.finishReason !== undefined) finishReason = chunk.finishReason;
+        if (chunk.delta.length > 0) yield { delta: chunk.delta, done: false };
+        if (chunk.done) break;
+      }
+    } catch (error) {
+      const cancelled = isGatewayError(error) && error.code === 'GATEWAY_ABORTED';
+      await this.recordUsage(
+        this.usageFor({
+          ownerRef,
+          ...(projectId ? { projectId } : {}),
+          ...(request.category ? { taskType: request.category } : {}),
+          providerId: connection.providerId,
+          modelId: route.modelId,
+          connectionId: connection.id,
+          ...(request.runId ? { runId: request.runId } : {}),
+          requestedAt,
+          status: cancelled ? 'cancelled' : 'failure',
+          inputTokens: usage?.inputTokens ?? null,
+          outputTokens: usage?.outputTokens ?? null,
+          latencyMs: Date.now() - startedAt,
+          attempts: 1,
+          streamed: true,
+          errorCategory: errorCategoryOf(error),
+        }),
+      );
+      throw error;
+    }
+
+    const latencyMs = Date.now() - startedAt;
+    await this.recordUsage(
+      this.usageFor({
+        ownerRef,
+        ...(projectId ? { projectId } : {}),
+        ...(request.category ? { taskType: request.category } : {}),
+        providerId: connection.providerId,
+        modelId: route.modelId,
+        connectionId: connection.id,
+        ...(request.runId ? { runId: request.runId } : {}),
+        requestedAt,
+        status: 'success',
+        inputTokens: usage?.inputTokens ?? null,
+        outputTokens: usage?.outputTokens ?? null,
+        latencyMs,
+        attempts: 1,
+        streamed: true,
+      }),
+    );
+    yield {
+      delta: '',
+      done: true,
+      usage: usage ?? { inputTokens: null, outputTokens: null },
+      ...(finishReason !== undefined ? { finishReason } : {}),
+      latencyMs,
+    };
   }
 
   async listUsage(scope: GatewayScope, limit = 50): Promise<readonly UsageRecord[]> {
@@ -960,6 +1229,7 @@ export class AIProviderGateway {
   private async adapterContext(
     ownerRef: string,
     connection: ProviderConnection,
+    signal?: AbortSignal,
   ): Promise<AdapterContext> {
     const definition = this.registry.definition(connection.providerId);
     const apiKey = await this.vault.read(ownerRef, connection.credentialRef);
@@ -975,7 +1245,13 @@ export class AIProviderGateway {
           })
         ).toString()
       : rawBase;
-    return { apiKey, baseUrl, timeoutMs: this.timeoutMs, transport: this.transport };
+    return {
+      apiKey,
+      baseUrl,
+      timeoutMs: this.timeoutMs,
+      transport: this.transport,
+      ...(signal ? { signal } : {}),
+    };
   }
 
   private async resolveBaseUrl(
@@ -1033,6 +1309,67 @@ export class AIProviderGateway {
         : { lastErrorCategory: category ?? 'unknown' }),
       displayName: connection.displayName,
     } as ProviderConnection);
+  }
+
+  /**
+   * Builds a usage record from what actually happened.
+   *
+   * Token counts and costs are only ever copied from provider-confirmed numbers
+   * plus an operator-declared price; anything else stays null and is labelled
+   * `unavailable` rather than estimated.
+   */
+  private usageFor(input: {
+    readonly ownerRef: string;
+    readonly projectId?: string;
+    readonly taskType?: string;
+    readonly providerId: string;
+    readonly modelId: string;
+    readonly connectionId?: string;
+    readonly runId?: string;
+    readonly requestedAt: string;
+    readonly status: 'success' | 'failure' | 'cancelled';
+    readonly inputTokens: number | null;
+    readonly outputTokens: number | null;
+    readonly latencyMs: number;
+    readonly attempts: number;
+    readonly streamed: boolean;
+    readonly errorCategory?: string;
+  }): Omit<UsageRecord, 'id'> {
+    const confirmed =
+      input.status === 'success' && input.inputTokens !== null && input.outputTokens !== null;
+    const totalTokens = confirmed
+      ? (input.inputTokens as number) + (input.outputTokens as number)
+      : null;
+    const cost = this.pricing.estimate({
+      providerId: input.providerId,
+      modelId: input.modelId,
+      inputTokens: confirmed ? input.inputTokens : null,
+      outputTokens: confirmed ? input.outputTokens : null,
+    });
+    const usageSource: UsageSource = confirmed ? 'provider-confirmed' : 'unavailable';
+    const costSource: CostSource = cost.costSource;
+    return {
+      ownerRef: input.ownerRef,
+      ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+      ...(input.taskType !== undefined ? { taskType: input.taskType } : {}),
+      providerId: input.providerId,
+      modelId: input.modelId,
+      ...(input.connectionId !== undefined ? { connectionId: input.connectionId } : {}),
+      ...(input.runId !== undefined ? { runId: input.runId } : {}),
+      requestedAt: input.requestedAt,
+      status: input.status,
+      inputTokens: confirmed ? input.inputTokens : null,
+      outputTokens: confirmed ? input.outputTokens : null,
+      totalTokens,
+      usageSource,
+      estimatedCostUsd: cost.estimatedCostUsd,
+      costSource,
+      latencyMs: input.latencyMs,
+      attempts: input.attempts,
+      streamed: input.streamed,
+      ...(input.errorCategory !== undefined ? { errorCategory: input.errorCategory } : {}),
+      live: true,
+    };
   }
 
   private async recordUsage(record: Omit<UsageRecord, 'id'>): Promise<void> {
@@ -1154,3 +1491,10 @@ export class GatewayScopedProvider implements AIProvider {
 }
 
 export type { RateLimitAction };
+
+/** A cancelled request is a typed outcome, not a mystery rejection. */
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) {
+    throw new GatewayError('GATEWAY_ABORTED', 'The request was cancelled.');
+  }
+}
