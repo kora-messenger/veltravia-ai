@@ -7,6 +7,7 @@ import {
   FilesPage,
   AudioPage,
   ImagePage,
+  DocumentsPage,
   VideoPage,
   ProjectDetailPage,
   ProjectWorkspacePage,
@@ -35,6 +36,8 @@ export function App() {
                 return <VideoPage />;
               case 'image':
                 return <ImagePage />;
+              case 'documents':
+                return <DocumentsPage />;
               case 'project-detail':
                 return <ProjectDetailPage projectId={route.projectId} />;
               case 'project-workspace':

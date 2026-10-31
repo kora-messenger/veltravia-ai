@@ -21,6 +21,7 @@ export const ROUTES: readonly RouteDef[] = [
   { id: 'audio', hash: '#/audio', title: 'Audio intelligence' },
   { id: 'video', hash: '#/video', title: 'Video intelligence' },
   { id: 'image', hash: '#/image', title: 'Image intelligence' },
+  { id: 'documents', hash: '#/documents', title: 'Document intelligence' },
   { id: 'settings', hash: '#/settings', title: 'Settings' },
 ] as const;
 
@@ -32,6 +33,7 @@ export type RouteId =
   | 'audio'
   | 'image'
   | 'video'
+  | 'documents'
   | 'project-detail'
   | 'project-workspace'
   | 'settings';

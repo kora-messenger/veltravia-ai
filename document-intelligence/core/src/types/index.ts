@@ -285,17 +285,37 @@ export interface DocumentProcessingJob {
   readonly finishedAt: string | null;
 }
 
+/** Derivative exports a caller may publish through the Step 19 file system. */
+export const DOCUMENT_ARTIFACT_KINDS = [
+  'document_structure_json',
+  'document_text_md',
+  'document_tables_csv',
+  'document_summary_md',
+  'document_entities_json',
+  'document_search_json',
+  'document_comparison_json',
+] as const;
+export type DocumentArtifactKind = (typeof DOCUMENT_ARTIFACT_KINDS)[number];
+
 export interface DocumentArtifactInput {
-  readonly kind: 'document_summary' | 'document_answer' | 'document_comparison';
-  readonly title: string;
-  readonly body: string;
+  readonly kind: DocumentArtifactKind;
+  /** Optional summary mode for document_summary_md. */
+  readonly mode?: DocumentSummaryMode;
+  /** Optional query for document_search_json. */
+  readonly query?: string;
+  /** Optional second document for document_comparison_json. */
+  readonly otherFileId?: FileAssetId | null;
 }
 
 export interface DocumentArtifactView {
-  readonly artifactId: string;
-  readonly kind: DocumentArtifactInput['kind'];
-  readonly title: string;
+  readonly id: FileAssetId;
+  readonly kind: DocumentArtifactKind;
+  readonly filename: string;
+  readonly mimeType: string;
+  readonly byteSize: number;
   readonly createdAt: string;
+  readonly projectId: string | null;
+  readonly workspaceId: string | null;
 }
 
 /** A parsed structure record kept after processing. */

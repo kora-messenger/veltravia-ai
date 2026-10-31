@@ -459,3 +459,31 @@ in the left region on desktop and inside its own accessible drawer
 - **Trust boundary**: the panel talks only to `src/api/codebase.ts` (safe
   views: paths, counts, statuses, bounded evidence). Source content is
   never rendered here — the file tree remains the content pathway.
+
+## Documents page (Step 23)
+
+`#/documents` (`apps/web/src/pages/DocumentsPage.tsx`) is the document workspace.
+
+- **Honest simulation banner** — states that parsing is real while reasoning
+  answers come from a deterministic simulation. It is never hidden behind a menu.
+- **Upload + list** — uploads are bounded to the development limit, rejected if
+  the file is not identified as a document, and listed with size. Empty state
+  explains what to do next.
+- **Inspect** — shows the detected format, size and that it came from magic
+  bytes, not a filename.
+- **Process** — one button, disabled while working, with a visible working state.
+  Failure surfaces as a `role="alert"` message, never a silent dead end.
+- **Structure** — element, table, section, page/slide/sheet counts; a plain
+  truncation notice when a document is large; sections list and extracted text.
+  Extracted text renders as text nodes: markup inside a document is displayed,
+  never executed.
+- **Search** — deterministic text search with an honest "no matches" notice.
+- **Ask** — answer with confidence and the verified evidence quotes, labeled
+  AI-generated.
+- **Summary, entities, sheets, slides** — each section appears only when the
+  document supports it; wrong-format requests produce an honest error.
+- **Export** — artifact kinds as a labeled select, published through the Step 19
+  file system.
+
+Layout reuses the `v-video__*` two-column shell (list panel + content) and
+collapses to one column on narrow screens.

@@ -52,6 +52,8 @@ import {
 import {
   DOCUMENT_CAPABILITIES,
   type DocumentAnswerView,
+  type DocumentArtifactInput,
+  type DocumentArtifactView,
   type DocumentComparisonView,
   type DocumentEntitiesView,
   type DocumentExactSearchResult,
@@ -80,6 +82,8 @@ export interface DocumentIntelligenceOptions {
 interface JobRecord {
   job: DocumentProcessingJob;
   cancelled: boolean;
+  /** Owner the job was started for; job reads are scoped to that owner. */
+  ownerRef: string;
 }
 
 interface StructureRecord {
@@ -118,6 +122,21 @@ export class DocumentIntelligenceManager {
     this.sink = options.audit;
   }
 
+  /** True when the active provider is a deterministic simulation. */
+  get providerIsSimulation(): boolean {
+    return this.providers.list().length > 0
+      ? this.providers.list().every((p) => p.getCapabilities().simulated)
+      : false;
+  }
+
+  /** Every capability the configured providers declare. */
+  capabilities(): readonly string[] {
+    const out = new Set<string>();
+    for (const provider of this.providers.list())
+      for (const capability of provider.getCapabilities().capabilities) out.add(capability);
+    return [...out].sort();
+  }
+
   /** Magic-byte format inspection without processing. */
   async inspect(fileId: FileAssetId, principal: FilePrincipal): Promise<DocumentInspectionView> {
     this.expireJobs();
@@ -150,7 +169,7 @@ export class DocumentIntelligenceManager {
       startedAt: this.now().toISOString(),
       finishedAt: null,
     };
-    const record: JobRecord = { job, cancelled: false };
+    const record: JobRecord = { job, cancelled: false, ownerRef: principal.ownerRef };
     this.jobs.set(jobId, record);
     this.audit('document_processing_started', principal.ownerRef, {
       jobId,
@@ -221,20 +240,34 @@ export class DocumentIntelligenceManager {
     }
   }
 
-  async getJob(jobId: string): Promise<DocumentProcessingJob> {
-    this.expireJobs();
+  /** Job reads are owner-scoped: a foreign job id is indistinguishable from
+   *  an unknown one, so job existence never leaks across owners. */
+  private requireOwnedJob(jobId: string, principal: FilePrincipal): JobRecord {
     const record = this.jobs.get(jobId);
-    if (!record)
+    if (!record || record.ownerRef !== principal.ownerRef)
       throw new DocumentIntelligenceError('DOCUMENT_JOB_NOT_FOUND', 'Unknown document job.');
-    return { ...record.job };
+    return record;
+  }
+
+  async getJob(jobId: string, principal: FilePrincipal): Promise<DocumentProcessingJob> {
+    this.expireJobs();
+    return { ...this.requireOwnedJob(jobId, principal).job };
+  }
+
+  /** Bounded, newest-first job list for one owner. */
+  async listJobs(principal: FilePrincipal): Promise<readonly DocumentProcessingJob[]> {
+    this.expireJobs();
+    return [...this.jobs.values()]
+      .filter((record) => record.ownerRef === principal.ownerRef)
+      .map((record) => record.job)
+      .reverse()
+      .slice(0, 100);
   }
 
   /** One-way cancellation; a cancelled job never resumes. */
-  async cancelJob(jobId: string): Promise<DocumentProcessingJob> {
+  async cancelJob(jobId: string, principal: FilePrincipal): Promise<DocumentProcessingJob> {
     this.expireJobs();
-    const record = this.jobs.get(jobId);
-    if (!record)
-      throw new DocumentIntelligenceError('DOCUMENT_JOB_NOT_FOUND', 'Unknown document job.');
+    const record = this.requireOwnedJob(jobId, principal);
     if (TERMINAL.includes(record.job.status)) return { ...record.job };
     record.cancelled = true;
     if (record.job.status === 'received' || record.job.status === 'parsing') {
@@ -675,6 +708,116 @@ export class DocumentIntelligenceManager {
         }
       }
     }
+  }
+
+  /** Publish a derived export through the Step 19 file system. Every byte is
+   *  regenerated from the current structure, so an artifact can never carry
+   *  stale or unverified content. */
+  async saveArtifact(
+    fileId: FileAssetId,
+    principal: FilePrincipal,
+    draft: DocumentArtifactInput,
+  ): Promise<DocumentArtifactView> {
+    this.expireJobs();
+    const record = await this.requireProcessed(fileId, principal);
+    const asset = await this.files.getFile(fileId, principal);
+    const base = asset.metadata.normalizedFilename.replace(/\.[^.]+$/, '').slice(0, 120);
+    const needs = (present: boolean, message: string): void => {
+      if (!present) throw new DocumentIntelligenceError('DOCUMENT_INVALID_REQUEST', message);
+    };
+    const buffer = (text: string): Buffer => Buffer.from(text, 'utf8');
+    const structure = record.structure;
+    let filename: string;
+    let mimeType: string;
+    let bytes: Buffer;
+    switch (draft.kind) {
+      case 'document_structure_json':
+        filename = `${base}-structure.json`;
+        mimeType = 'application/json';
+        bytes = buffer(JSON.stringify(structure, null, 2));
+        break;
+      case 'document_text_md': {
+        const lines = structure.elements.map((e) =>
+          e.type === 'heading'
+            ? `${'#'.repeat(Math.min(Math.max(e.level ?? 1, 1), 6))} ${e.text}`
+            : e.type === 'listItem'
+              ? `- ${e.text}`
+              : e.text,
+        );
+        filename = `${base}-text.md`;
+        mimeType = 'text/markdown';
+        bytes = buffer(lines.join('\n\n'));
+        break;
+      }
+      case 'document_tables_csv': {
+        needs(structure.tables.length > 0, 'This document has no tables to export.');
+        const escape = (cell: string): string => `"${cell.replace(/"/g, '""')}"`;
+        const parts = structure.tables.map((table) =>
+          [table.headers, ...table.rows].map((row) => row.map(escape).join(',')).join('\n'),
+        );
+        filename = `${base}-tables.csv`;
+        mimeType = 'text/csv';
+        bytes = buffer(parts.join('\n\n'));
+        break;
+      }
+      case 'document_summary_md': {
+        const summary = await this.summarize(fileId, draft.mode ?? 'brief', principal);
+        filename = `${base}-summary.md`;
+        mimeType = 'text/markdown';
+        bytes = buffer(`# Summary\n\n${summary.summary}\n`);
+        break;
+      }
+      case 'document_entities_json': {
+        const entities = await this.extractEntities(fileId, principal);
+        filename = `${base}-entities.json`;
+        mimeType = 'application/json';
+        bytes = buffer(JSON.stringify(entities, null, 2));
+        break;
+      }
+      case 'document_search_json': {
+        const query = (draft.query ?? '').trim();
+        needs(query.length > 0, 'A search query is required for a search export.');
+        const result = await this.searchExact(fileId, query, principal);
+        filename = `${base}-search.json`;
+        mimeType = 'application/json';
+        bytes = buffer(JSON.stringify(result, null, 2));
+        break;
+      }
+      case 'document_comparison_json': {
+        const other = draft.otherFileId ?? null;
+        needs(!!other, 'A second document is required for a comparison export.');
+        const comparison = await this.compare(fileId, other as FileAssetId, principal);
+        filename = `${base}-comparison.json`;
+        mimeType = 'application/json';
+        bytes = buffer(JSON.stringify(comparison, null, 2));
+        break;
+      }
+      default:
+        throw new DocumentIntelligenceError('DOCUMENT_INVALID_REQUEST', 'Unknown artifact kind.');
+    }
+    const saved = await this.files.registerFile({
+      filename,
+      bytes,
+      declaredMimeType: mimeType,
+      source: 'derived_extraction',
+      scope: asset.scope,
+      parentFileId: fileId,
+    });
+    this.audit('document_artifact_saved', principal.ownerRef, {
+      fileId: String(fileId),
+      kind: draft.kind,
+      filename: saved.metadata.normalizedFilename,
+    });
+    return {
+      id: saved.id,
+      kind: draft.kind,
+      filename: saved.metadata.normalizedFilename,
+      mimeType: saved.metadata.detectedMimeType ?? mimeType,
+      byteSize: saved.metadata.byteSize,
+      createdAt: saved.createdAt,
+      projectId: saved.scope.projectId,
+      workspaceId: saved.scope.workspaceId,
+    };
   }
 
   private audit(

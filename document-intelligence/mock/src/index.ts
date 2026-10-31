@@ -15,6 +15,16 @@ export const MOCK_DOCUMENT_PROVIDER_ID = 'mock.document';
 export class MockDocumentProvider implements DocumentProvider {
   readonly id = MOCK_DOCUMENT_PROVIDER_ID;
 
+  constructor(options: { readonly latencyMs?: number } = {}) {
+    this.latencyMs = Math.max(0, Math.min(options.latencyMs ?? 0, 5000));
+  }
+
+  private readonly latencyMs: number;
+
+  private async delay(): Promise<void> {
+    if (this.latencyMs > 0) await new Promise((r) => setTimeout(r, this.latencyMs));
+  }
+
   getCapabilities(): DocumentProviderCapabilities {
     return {
       providerId: MOCK_DOCUMENT_PROVIDER_ID,
@@ -32,6 +42,7 @@ export class MockDocumentProvider implements DocumentProvider {
   }
 
   async process(request: DocumentProviderRequest): Promise<string> {
+    await this.delay();
     const structure = request.structure;
     const elements = structure.elements;
     switch (request.operation) {
@@ -184,8 +195,10 @@ export class MockDocumentProvider implements DocumentProvider {
   }
 }
 
-export function createMockDocumentProvider(): DocumentProvider {
-  return new MockDocumentProvider();
+export function createMockDocumentProvider(
+  options: { readonly latencyMs?: number } = {},
+): DocumentProvider {
+  return new MockDocumentProvider(options);
 }
 
 export type { DocumentStructureView };

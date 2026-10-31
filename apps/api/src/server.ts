@@ -1,6 +1,9 @@
 import { registerVideoRoutes } from './routes/video.js';
+import { registerDocumentRoutes } from './routes/document.js';
 import { createVideoIntelligenceService } from './video-service.js';
 import type { VideoIntelligenceManager } from '@veltravia/video-intelligence-core';
+import type { DocumentIntelligenceManager } from '@veltravia/document-intelligence-core';
+import { createDocumentIntelligenceService } from './document-service.js';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AICore } from '@veltravia/ai-core';
 import type { ConnectorManager } from '@veltravia/connector-core';
@@ -91,6 +94,7 @@ export interface BuildAppOptions {
   readonly audioManager?: AudioIntelligenceManager;
   readonly imageManager?: ImageIntelligenceManager;
   readonly videoManager?: VideoIntelligenceManager;
+  readonly documentManager?: DocumentIntelligenceManager;
 }
 
 /**
@@ -146,6 +150,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     options.imageManager ?? createImageIntelligenceService({ files: fileManager });
   const videoManager =
     options.videoManager ?? createVideoIntelligenceService({ files: fileManager });
+  const documentManager =
+    options.documentManager ?? createDocumentIntelligenceService({ files: fileManager });
   const tools =
     options.tools ??
     createToolManager(
@@ -280,6 +286,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // vision provider is claimed in this step.
   registerImageRoutes(app, imageManager);
   registerVideoRoutes(app, videoManager);
+
+  // Step 23: document understanding over Step 19 files. Parsing is genuine
+  // (DOCX/XLSX/PPTX/PDF/CSV/MD/HTML/JSON/XML/TXT); the reasoning provider is
+  // the deterministic mock (see document-service.ts). Extracted text and
+  // tables are UNTRUSTED DATA; reasoning output is ai_generated.
+  registerDocumentRoutes(app, documentManager);
 
   return app;
 }

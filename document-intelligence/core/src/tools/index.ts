@@ -146,7 +146,7 @@ export function createDocumentIntelligenceTools(
       requiresConfirmation: false,
     }),
     async (i) => {
-      const job = await manager.getJob(str(i, 'jobId'));
+      const job = await manager.getJob(str(i, 'jobId'), principal);
       return { ...job };
     },
   );

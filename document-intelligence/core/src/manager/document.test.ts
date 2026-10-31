@@ -317,7 +317,7 @@ describe('DocumentIntelligenceManager - jobs', () => {
     const h = harness();
     const id = await register(h, 'report.docx', DOCX_MIME);
     const job1 = await h.documents.process(asFileAssetId(id), owner);
-    const got = await h.documents.getJob(job1.jobId);
+    const got = await h.documents.getJob(job1.jobId, owner);
     expect(got.jobId).toBe(job1.jobId);
     const job2 = await h.documents.process(asFileAssetId(id), owner);
     expect(job2.jobId).not.toBe(job1.jobId);
@@ -329,13 +329,28 @@ describe('DocumentIntelligenceManager - jobs', () => {
     const h = harness();
     const id = await register(h, 'report.docx', DOCX_MIME);
     const job = await h.documents.process(asFileAssetId(id), owner);
-    const cancelled = await h.documents.cancelJob(job.jobId);
+    const cancelled = await h.documents.cancelJob(job.jobId, owner);
     expect(['cancelled', 'completed']).toContain(cancelled.status);
     if (cancelled.status === 'cancelled') {
-      await expect(h.documents.cancelJob(job.jobId)).rejects.toBeInstanceOf(
+      await expect(h.documents.cancelJob(job.jobId, owner)).rejects.toBeInstanceOf(
         DocumentIntelligenceError,
       );
     }
+  });
+
+  it('scopes job reads and cancellation to the owner', async () => {
+    const h = harness();
+    const id = await register(h, 'report.docx', DOCX_MIME);
+    const job = await h.documents.process(asFileAssetId(id), owner);
+    // a foreign owner cannot read, list or cancel the job
+    await expect(h.documents.getJob(job.jobId, stranger)).rejects.toMatchObject({
+      code: 'DOCUMENT_JOB_NOT_FOUND',
+    });
+    await expect(h.documents.cancelJob(job.jobId, stranger)).rejects.toMatchObject({
+      code: 'DOCUMENT_JOB_NOT_FOUND',
+    });
+    expect(await h.documents.listJobs(stranger)).toHaveLength(0);
+    expect(await h.documents.listJobs(owner)).toHaveLength(1);
   });
 
   it('answers without a processed structure fail closed', async () => {
@@ -344,5 +359,38 @@ describe('DocumentIntelligenceManager - jobs', () => {
     await expect(h.documents.ask(asFileAssetId(id), 'question', owner)).rejects.toMatchObject({
       code: 'DOCUMENT_NOT_PROCESSED',
     });
+  });
+
+  it('exports artifacts regenerated from the current structure', async () => {
+    const h = harness();
+    const id = await register(h, 'report.docx', DOCX_MIME);
+    await h.documents.process(asFileAssetId(id), owner);
+    const text = await h.documents.saveArtifact(asFileAssetId(id), owner, {
+      kind: 'document_text_md',
+    });
+    expect(text.mimeType).toBe('text/markdown');
+    expect(text.filename).toContain('report');
+    const tables = await h.documents.saveArtifact(asFileAssetId(id), owner, {
+      kind: 'document_tables_csv',
+    });
+    expect(tables.mimeType).toBe('text/csv');
+  });
+
+  it('refuses a tables export when the document has no tables', async () => {
+    const h = harness();
+    const id = await register(h, 'notes.txt', 'text/plain');
+    await h.documents.process(asFileAssetId(id), owner);
+    await expect(
+      h.documents.saveArtifact(asFileAssetId(id), owner, { kind: 'document_tables_csv' }),
+    ).rejects.toMatchObject({ code: 'DOCUMENT_INVALID_REQUEST' });
+  });
+
+  it('refuses to export from a document the caller does not own', async () => {
+    const h = harness();
+    const id = await register(h, 'report.docx', DOCX_MIME);
+    await h.documents.process(asFileAssetId(id), owner);
+    await expect(
+      h.documents.saveArtifact(asFileAssetId(id), stranger, { kind: 'document_text_md' }),
+    ).rejects.toMatchObject({ code: 'DOCUMENT_FORBIDDEN' });
   });
 });

@@ -313,3 +313,19 @@ Image content is untrusted data, and text inside images is doubly so: OCR output
 4. Timestamps outside the genuine duration are dropped; evidence references are index-mapped and forged refs are dropped; speaker identity is never inferred from voice.
 5. All operations are bounded: bytes, duration, dimensions, streams, frames, transcript/OCR size, concurrency, wall-clock. Frame budgets are reserved before provider calls.
 6. Playback media is served with nosniff and no-store; audit data contains identifiers and counts, never media text.
+
+## 5t. Document Intelligence (Step 23)
+
+1. Document content is untrusted data end to end. Extracted headings, paragraphs, tables, cells and OCR text are `untrusted_data`; summaries, answers, entity lists, comparisons and search interpretations are `ai_generated` and never authorization or an action. Nothing in a document is executed: formulas are recorded as text, macros and embedded scripts are ignored, and script/style text is stripped before HTML parsing.
+2. Formats come from magic bytes plus container structure (ZIP entries, OOXML markers), never from declared MIME types or filenames. Unidentified or unsupported bytes fail closed; an empty or damaged archive fails closed rather than yielding an empty document.
+3. Every operation re-authorizes through the File Intelligence boundary. Cached parsed structures are re-authorized _before_ they are consulted, so an unauthorized caller never learns whether a document was processed.
+4. Secret-shaped content fails closed at parse time with `DOCUMENT_SECRET_REJECTED` (HTTP 400). A document carrying credentials is not processed, partially stored, or reasoned about.
+5. Evidence cannot be smuggled. Every quoted passage is matched against the genuinely parsed text; forged quotes are dropped. When a provider claims evidence that does not exist, the answer is annotated as unconfirmed and its confidence is forced to `low`.
+6. Jobs are owner-scoped: reads, listings and cancellations check the caller's owner reference, and a foreign job id returns `DOCUMENT_JOB_NOT_FOUND` so job existence is not disclosed. Cancellation is one-way.
+7. All processing is bounded: bytes, elements, sections, tables, table rows, sheet rows, slides, concurrent jobs, provider calls and wall-clock. Exceeding a bound truncates with an honest marker or fails closed; nothing loops unbounded.
+8. Text inside a document is content, never instructions. Prompt-injection text is parsed and labeled as data; the manager exposes no execute, approve, confirm or publish-from-document method, and no document text is ever injected into system or developer prompts.
+9. Audit events carry identifiers, counts and scrubbed error strings only, never document content.
+10. Exported artifacts (structure JSON, text Markdown, tables CSV, summary, entities, search results, comparison) are regenerated from the current structure on every export, ride the Step 19 derived-file integrity rules, and are recorded as `system_derived` memory candidates with zero authority until a human approves them.
+11. The API's wired reasoning provider is the deterministic mock, disclosed in the API response and the UI. Parsing is genuine; the reasoning side never represents real model quality, and no real document-reasoning provider is wired in this step.
+
+See [documents.md](documents.md).
