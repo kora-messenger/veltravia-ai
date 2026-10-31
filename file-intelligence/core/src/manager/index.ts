@@ -479,7 +479,11 @@ export class FileIntelligenceManager {
     principal: FilePrincipal,
   ): Promise<{ bytes: Uint8Array; mimeType: string }> {
     const asset = await this.requireFile(id, principal);
-    if (asset.metadata.category !== 'document' && asset.metadata.category !== 'spreadsheet' && asset.metadata.category !== 'text')
+    if (
+      asset.metadata.category !== 'document' &&
+      asset.metadata.category !== 'spreadsheet' &&
+      asset.metadata.category !== 'text'
+    )
       throw new FileIntelligenceError('FILE_TYPE_REJECTED', 'File is not a document.');
     const bytes = await this.options.store.getFileBytes(id);
     if (

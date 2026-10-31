@@ -247,7 +247,10 @@ export async function detectFile(
   )
     detected = 'unknown';
   // OOXML containers share ZIP magic; refine by extension, validated structurally during extraction.
-  if (detected === 'zip' && (extensionType === 'docx' || extensionType === 'xlsx' || extensionType === 'pptx'))
+  if (
+    detected === 'zip' &&
+    (extensionType === 'docx' || extensionType === 'xlsx' || extensionType === 'pptx')
+  )
     detected = extensionType;
   const detectedMime =
     detected === 'audio' && magic?.mime
