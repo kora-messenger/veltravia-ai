@@ -1,5 +1,5 @@
 import { readEnv } from '@veltravia/config';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   InvalidPathError,
   isProjectError,
@@ -97,6 +97,21 @@ function developmentOwnerRef(): string {
   return readEnv('VELTRAVIA_DEFAULT_OWNER_REF') ?? 'veltravia-dev-user';
 }
 
+/**
+ * The owner a request speaks for, when it names one.
+ *
+ * Steps that scope data per owner (files, documents, media intelligence, cross-
+ * source intelligence) identify the caller with `x-veltravia-owner-ref`. A
+ * project created without an explicit `ownerRef` inherits that identity so the
+ * same caller can find its own projects afterwards; without a header the
+ * development owner is used, exactly as before.
+ */
+function requestOwnerRef(request: FastifyRequest): string | null {
+  const raw = request.headers['x-veltravia-owner-ref'];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return typeof value === 'string' && value.length > 0 ? value.slice(0, 256) : null;
+}
+
 export function registerProjectRoutes(app: FastifyInstance, engine: ProjectEngine): void {
   // -----------------------------------------------------------------
   // Projects
@@ -129,7 +144,7 @@ export function registerProjectRoutes(app: FastifyInstance, engine: ProjectEngin
         name: body.name,
         description: body.description,
         projectType: body.projectType,
-        ownerRef: body.ownerRef ?? developmentOwnerRef(),
+        ownerRef: body.ownerRef ?? requestOwnerRef(request) ?? developmentOwnerRef(),
         ...(body.version !== undefined ? { version: body.version } : {}),
         ...(body.metadata !== undefined ? { metadata: body.metadata } : {}),
       });

@@ -469,3 +469,37 @@ GitHub becomes live when `CONNECTED_APPS_GITHUB_TOKEN` and
 provider runs. Google Drive and Notion always run their simulations in this
 build, and the API reports each provider's mode so the UI cannot imply a real
 account where a simulation runs.
+
+## Step 25: Cross-Source Intelligence
+
+`intelligence/core` owns the whole question-answering path and depends on the earlier
+steps rather than duplicating them:
+
+```
+owners' sources
+  ├── uploaded documents      → Step 19 files + Step 23 parsers  (files adapter)
+  ├── connected-app resources → Step 24 connections              (one adapter per provider)
+  └── project workspace files → Step 7 project engine            (workspace adapter)
+        ↓
+  sources/     SourceRegistry: discover, read, availability, freshness, trust tagging
+        ↓
+  search/      CrossSourceSearch: ranking, dedupe, filters, cursor paging
+        ↓
+  evidence/    EvidenceCollector: excerpts, locators, revisions, re-verification
+        ↓
+  relationships/ + contradictions/   bounded deterministic rules that explain themselves
+        ↓
+  reasoning/   SynthesisProvider (mock_reasoning | structural_extract), strict output validation
+        ↓
+  synthesis/   IntelligenceEngine: claims, citations, gaps, status, disclosure
+        ↓
+  jobs/        owner-scoped async synthesis; tools/  8 read-only Tool System tools
+```
+
+Separation of concerns is deliberate: retrieval, extraction, reasoning, answer assembly
+and citation validation are five independent pieces, so a real model can replace the
+reasoning provider without touching evidence, contradictions or citations.
+
+The engine never lets a provider widen what the owner can read. Every provider gets only
+the evidence the collector verified, and every claim it returns is re-checked against
+that evidence before it reaches an answer.

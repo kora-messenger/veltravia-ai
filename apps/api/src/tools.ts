@@ -7,6 +7,8 @@ import type { ConnectorOperationExecutor } from '@veltravia/tool-core';
 import { createMockConnector } from '@veltravia/connector-mock';
 import type { SandboxManager } from '@veltravia/sandbox-core';
 import { ToolManager } from '@veltravia/tool-core';
+import { CrossSourceSearch, createIntelligenceTools } from '@veltravia/intelligence-core';
+import type { IntelligenceService } from './intelligence-service.js';
 import { createCodebaseTools, type CodebaseIntelligenceManager } from '@veltravia/codebase-core';
 import { createVersionTools, type VersionControlManager } from '@veltravia/version-core';
 import {
@@ -66,6 +68,8 @@ export function createToolManager(
   /** Image Intelligence (Step 21): bounded image understanding tools. */
   image?: ImageIntelligenceManager,
   video?: VideoIntelligenceManager,
+  /** Cross-source Intelligence (Step 25): read-only search and synthesis tools. */
+  intelligence?: IntelligenceService,
 ): ToolManager {
   const connectors = existingConnectors ?? new ConnectorManager({ now });
   if (existingConnectors === undefined) {
@@ -207,6 +211,21 @@ export function createToolManager(
       const d = t.definitions.find((v) => v.id === id);
       if (d) for (const p of d.requiredPermissions) manager.grantPermission(id, p);
     }
+  }
+  // Step 25: cross-source intelligence tools. Registration grants NOTHING; the
+  // read-only tools are granted explicitly below. Every call still resolves
+  // sources through the owner's own adapters, so a tool cannot widen access.
+  if (intelligence !== undefined) {
+    const t = createIntelligenceTools({
+      engine: intelligence.engine,
+      search: new CrossSourceSearch(intelligence.registry),
+      collectorFor: () => null,
+      ownerRef: 'veltravia-dev-user',
+    });
+    for (const d of t.definitions) manager.register(d);
+    for (const i of t.implementations) manager.registerImplementation(i);
+    for (const d of t.definitions)
+      for (const p of d.requiredPermissions) manager.grantPermission(d.id, p);
   }
   return manager;
 }

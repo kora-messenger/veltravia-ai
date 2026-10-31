@@ -1,6 +1,8 @@
 import { registerVideoRoutes } from './routes/video.js';
 import { registerDocumentRoutes } from './routes/document.js';
 import { registerConnectionRoutes } from './routes/connections.js';
+import { registerIntelligenceRoutes } from './routes/intelligence.js';
+import { createIntelligenceService } from './intelligence-service.js';
 import { createVideoIntelligenceService } from './video-service.js';
 import type { VideoIntelligenceManager } from '@veltravia/video-intelligence-core';
 import type { DocumentIntelligenceManager } from '@veltravia/document-intelligence-core';
@@ -154,6 +156,22 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     options.videoManager ?? createVideoIntelligenceService({ files: fileManager });
   const documentManager =
     options.documentManager ?? createDocumentIntelligenceService({ files: fileManager });
+
+  // Step 24: connected-app intelligence. GitHub is live-capable when a token and
+  // repository allowlist are configured; Google Drive and Notion run the
+  // deterministic simulation (see connections-service.ts). Every response
+  // reports which mode is active. All operations are read-only.
+  const connections = createConnectionService({});
+
+  // Step 25: cross-source intelligence. Sources are the owner's uploaded
+  // documents, connected-app resources and project workspace files. Reasoning
+  // runs a deterministic provider (no model, no credentials) and says so.
+  const intelligence = createIntelligenceService({
+    files: fileManager,
+    connected: connections.manager,
+    projectEngine,
+  });
+
   const tools =
     options.tools ??
     createToolManager(
@@ -167,6 +185,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       audioManager,
       imageManager,
       videoManager,
+      intelligence,
     );
   registerToolRoutes(app, tools);
 
@@ -295,12 +314,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // tables are UNTRUSTED DATA; reasoning output is ai_generated.
   registerDocumentRoutes(app, documentManager);
 
-  // Step 24: connected-app intelligence. GitHub is live-capable when a token and
-  // repository allowlist are configured; Google Drive and Notion run the
-  // deterministic simulation (see connections-service.ts). Every response
-  // reports which mode is active. All operations are read-only.
-  const connections = createConnectionService({});
   registerConnectionRoutes(app, connections);
+
+  // Cross-source search, synthesis, contradictions, relationships and evidence.
+  // Owner-scoped and read-only; the reasoning mode is disclosed in every answer.
+  registerIntelligenceRoutes(app, intelligence);
 
   return app;
 }

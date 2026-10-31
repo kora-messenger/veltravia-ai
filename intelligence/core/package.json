@@ -1,0 +1,24 @@
+{
+  "name": "@veltravia/intelligence-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cross-source intelligence: a unified source registry, bounded cross-source search, evidence-backed synthesis, contradiction detection and a bounded source relationship graph. Retrieved content is untrusted data; reasoning is a replaceable provider and is always disclosed.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/tool-core": "0.1.0"
+  }
+}

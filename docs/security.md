@@ -357,3 +357,40 @@ Connected-app access is read-only and owner-scoped.
     a simulated account is never presented as a real one.
 
 See [connected-apps.md](connected-apps.md).
+
+## 5p. Cross-source intelligence (Step 25)
+
+1. One owner scope governs the whole pipeline. Discovery, search, content reads,
+   synthesis, comparison, evidence lookups and jobs all resolve the caller's
+   `ownerRef`; a foreign source id returns `INTELLIGENCE_SOURCE_NOT_FOUND`,
+   indistinguishable from a missing one.
+2. Retrieved content is `untrusted_data` on every path. Source metadata, segments,
+   evidence and answer sources all carry the tag, and it is never upgraded.
+3. Instruction-shaped content is detected and reported (`injectionRisk`); it is
+   returned as retrievable evidence only. No document text can invoke a tool,
+   change a grant, approve a plan or alter the owner scope.
+4. Evidence is verified before it can be cited. `excerptAppearsIn` re-checks the
+   quoted text against the retrieved source; a claim citing unknown evidence is
+   downgraded to `unsupported` with no citations, and unverifiable extracts are
+   withheld and reported as an `unsupported_claim` gap.
+5. Reasoning providers cannot invent structure. Provider output is parsed strictly
+   (JSON, non-empty summary, known claim kinds, clamped confidence, bounded claim
+   count); a malformed answer is a provider failure, not something to repair.
+6. The reasoning mode is disclosed in every answer and in the UI, and both shipped
+   providers report `simulated: true`. Nothing claims a model that is not there.
+7. Conflicts are never resolved silently. A contradiction reports both statements
+   with source, revision and date; `resolvable` is true only when the evidence
+   itself is explicit (an explicit supersession).
+8. Secret-shaped queries and questions are rejected before retrieval
+   (`INTELLIGENCE_SECRET_REJECTED`); excerpts and summaries are scrubbed.
+9. All eight tools are read-only, declare `intelligence.read`, and registration
+   grants nothing - the API grants that single permission explicitly.
+10. Limits bound every run (sources scanned, excerpt size, claims, contradictions,
+    edges, jobs per owner, timeout); a truncated scan is reported as a
+    `not_retrieved` gap rather than presented as complete.
+11. Unavailable providers are named in the response and the UI, so an unavailable
+    source is never presented as absent evidence.
+12. Jobs are in-process and owner-scoped; the API does not claim durability it does
+    not have.
+
+See [intelligence.md](intelligence.md).

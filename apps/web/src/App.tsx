@@ -9,6 +9,7 @@ import {
   ImagePage,
   DocumentsPage,
   ConnectionsPage,
+  IntelligencePage,
   VideoPage,
   ProjectDetailPage,
   ProjectWorkspacePage,
@@ -41,6 +42,8 @@ export function App() {
                 return <DocumentsPage />;
               case 'connections':
                 return <ConnectionsPage />;
+              case 'intelligence':
+                return <IntelligencePage />;
               case 'project-detail':
                 return <ProjectDetailPage projectId={route.projectId} />;
               case 'project-workspace':
