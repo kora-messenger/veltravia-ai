@@ -162,11 +162,24 @@ describe('reasoning API: runs', () => {
       payload: { providerId: 'openai', apiKey: TEST_OPENAI_KEY, displayName: 'QA' },
     });
 
+    // The run names its model: this test covers the gateway path, not which model
+    // the router would pick (the fixture model declares no structured output).
+    const connections = (
+      await app.inject({ method: 'GET', url: '/api/ai/providers', headers: ownerA })
+    ).json();
+    const connectionId = connections.providers[0].id as string;
+
     const started = await app.inject({
       method: 'POST',
       url: '/api/reasoning/runs',
       headers: ownerA,
-      payload: { task: 'What is 3 + 4?', profile: 'workspace' },
+      payload: {
+        task: 'What is 3 + 4?',
+        profile: 'workspace',
+        mode: 'gateway',
+        connectionId,
+        modelId: 'gpt-test-mini',
+      },
     });
     expect(started.statusCode).toBe(202);
     const runId = started.json().run.id as string;

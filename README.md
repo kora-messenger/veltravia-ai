@@ -214,3 +214,27 @@ Known limits, stated plainly: runs and usage are in-process and lost on restart;
 replays from a bounded buffer, so an older run only shows its final state; context is passed
 explicitly by the caller rather than retrieved automatically from project memory; and the
 simulated provider proves the loop, not model quality.
+
+### Model routing (Step 28)
+
+The [model router](docs/model-routing.md) is the single place that decides which model runs
+a task. It normalizes your connected providers into one catalog, checks what a task actually
+needs (`text-generation`, `vision`, `tool-calling`, `large-context`, …), and only then chooses
+a model — automatic by fit and readiness, your default, a task preference, a project override,
+or an explicit pick. Every decision carries a one-sentence explanation and the models it
+rejected with reasons, so "why this model?" has an answer that is not a guess. Categories the
+platform cannot serve yet, such as video understanding, are refused with the reason instead of
+being approximated by a text model. Reasoning runs and provider generation both route through
+it, saving a preference mirrors it into the gateway so the agent layer, coding agent and
+document reasoning use the same config, and real outcomes (successes, failures, latencies)
+feed outage pausing and the speed preference.
+
+Known limits, stated plainly: cost is never asserted, because no reliable per-model pricing is
+configured — a cheaper preference says cost comparison is unavailable rather than inventing a
+number; speed ranking needs latencies observed in this session; fallback is opt-in, capability
+matched and never retried after a billed attempt; decisions and preferences are in-process and
+lost on restart. `#/settings/models` shows the catalog with capability provenance, what each
+model cannot do, an "Explain the choice" check that runs the real router, and per-project
+overrides. That check is advisory and answers with the decision (including an honest refusal)
+instead of an error, and the screen distinguishes "nothing is connected" from "what is
+connected cannot run right now" so the two different fixes stay separate.

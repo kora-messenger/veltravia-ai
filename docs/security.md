@@ -487,3 +487,38 @@ See [ai-providers.md](ai-providers.md).
     never blanks the page.
 
 See [reasoning.md](reasoning.md).
+
+## 5s. Model routing (Step 28)
+
+1. A decision can only name a model on the caller's own connection. The router reads the
+   catalog through the same gateway that will make the call, so a foreign connection id is
+   refused (`ROUTER_PREFERENCE_UNUSABLE`) rather than used.
+2. Decisions are owner-scoped. Another owner reading, reusing or configuring a decision or
+   project returns the same answer as a missing one (`ROUTER_DECISION_NOT_FOUND`), so ids
+   leak nothing.
+3. The routing surface cannot execute a model call. `POST /api/ai/router/route` decides and
+   records; it does not spend anything, and the page says so.
+4. No credential, sealed record, credential hint or provider endpoint appears in any
+   decision, explanation or page response. Explanations name a provider and a model only.
+5. Capability checks come before preference. A preference can reorder compatible models but
+   can never select a model that cannot do the task, and a category with a structural gap
+   is refused instead of approximated.
+6. Rejections and failures are category-coded. Provider text is never stored in a decision
+   record, so a vendor message cannot leak account detail through the routing history.
+7. Fallback is opt-in, capability-matched, single-attempt, and never retried after a billed
+   attempt. A swap is disclosed in the decision (`fallback.used`, `fallback.replaced`)
+   rather than presented as the owner's original choice.
+8. Outage pausing is derived from real outcomes only. A model is paused after repeated
+   reported failures, for a bounded window; one failure is never enough, and the pause is
+   visible in the explanation.
+9. Cost is never asserted. With no reliable pricing configured a cheaper preference reports
+   `costComparison: 'unavailable'` plus a warning; inventing a price is treated as worse
+   than admitting the gap.
+10. Preferences that reach execution are reported as such. When mirroring into the gateway
+    fails the API says `appliedToExecution: false` with a note, instead of implying the
+    choice took effect everywhere.
+11. A refusal is never disguised. The advisory route endpoint answers with the decision so a
+    caller reads `outcome`, and the UI explains it; malformed input still fails loudly.
+12. The reason for a gap matches the real state. "No provider is connected" is emitted only
+    when there are no connections at all; a connection that exists but cannot run reports
+    the gateway's own reason, so a misconfiguration is never reported as missing setup.

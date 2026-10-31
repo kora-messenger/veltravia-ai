@@ -67,6 +67,18 @@ export interface ReasoningToolSummary {
 
 export interface ReasoningServiceOptions {
   readonly gateway: AIProviderGateway | null;
+  /**
+   * Step 28: the platform's single model-selection seam. When a gateway run
+   * arrives without an explicit model, this decides which one runs and why; a
+   * refusal is reported as an honest error rather than a silent substitution.
+   */
+  readonly routeFor?: (input: {
+    readonly ownerRef: string;
+    readonly projectId?: string;
+  }) => Promise<
+    | { readonly outcome: 'routed'; readonly connectionId: string; readonly modelId: string }
+    | { readonly outcome: 'unsupported' | 'needs-attention'; readonly summary: string }
+  >;
   readonly blockedReason?: string;
   readonly now?: () => Date;
   readonly codebase?: CodebaseIntelligenceManager;
@@ -219,14 +231,36 @@ export class ReasoningService {
             'No AI provider is connected yet. Connect one in Settings, then run reasoning.',
         );
       }
+      // Step 28: with no explicit model, the platform's router decides - and a
+      // refusal is reported as-is instead of quietly trying something else.
+      let connectionId = input.connectionId;
+      let modelId = input.modelId;
+      if (connectionId === undefined || modelId === undefined) {
+        if (this.options.routeFor === undefined) {
+          throw new GatewayError(
+            'GATEWAY_NO_PROVIDER_CONFIGURED',
+            'No model has been selected for this run. Choose one in Settings → Model routing.',
+          );
+        }
+        const routed = await this.options.routeFor({
+          ownerRef: input.ownerRef,
+          ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+        });
+        if (routed.outcome !== 'routed') {
+          throw new GatewayError('GATEWAY_NO_PROVIDER_CONFIGURED', routed.summary);
+        }
+        connectionId = routed.connectionId;
+        modelId = routed.modelId;
+      }
+
       provider = new GatewayReasoningProvider({
         gateway: this.options.gateway,
         scope: {
           ownerRef: input.ownerRef,
           ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
         },
-        ...(input.connectionId !== undefined ? { connectionId: input.connectionId } : {}),
-        ...(input.modelId !== undefined ? { modelId: input.modelId } : {}),
+        connectionId,
+        modelId,
       });
     }
 

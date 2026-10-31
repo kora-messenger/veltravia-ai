@@ -2,6 +2,12 @@ import { registerVideoRoutes } from './routes/video.js';
 import { registerDocumentRoutes } from './routes/document.js';
 import { registerConnectionRoutes } from './routes/connections.js';
 import { registerAiGatewayRoutes } from './routes/ai-gateway.js';
+import { registerModelRouterRoutes } from './routes/model-router.js';
+import {
+  SERVICE_CATEGORIES,
+  createModelRouterService,
+  type ModelRouterService,
+} from './model-router-service.js';
 import { createGatewayService, type GatewayService } from './ai-gateway-service.js';
 import { registerIntelligenceRoutes } from './routes/intelligence.js';
 import { registerReasoningRoutes } from './routes/reasoning.js';
@@ -110,6 +116,8 @@ export interface BuildAppOptions {
   readonly aiGateway?: GatewayService;
   /** Reasoning engine (Step 27). Defaults to a gateway-backed service. */
   readonly reasoning?: ReasoningService;
+  /** Model router (Step 28). Defaults to the gateway-backed router. */
+  readonly modelRouter?: ModelRouterService;
 }
 
 /**
@@ -179,6 +187,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // the service reports `ready: false` and refuses to store anything rather
   // than falling back to plaintext.
   const aiGateway = options.aiGateway ?? createGatewayService({});
+
+  // Step 28: one model-selection seam for the whole platform. The router reads
+  // the owner's connections from the same gateway that will make the call, so a
+  // decision can never name a provider or model the caller cannot use.
+  const modelRouter =
+    options.modelRouter ?? createModelRouterService({ gateway: aiGateway.gateway ?? null });
 
   // Step 25: cross-source intelligence. Sources are the owner's uploaded
   // documents, connected-app resources and project workspace files. Reasoning
@@ -357,7 +371,22 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   // Owner-scoped provider connections, model discovery, preferences and usage.
   // No endpoint returns a credential; only a masked hint ever crosses the API.
-  registerAiGatewayRoutes(app, { service: aiGateway });
+  registerAiGatewayRoutes(app, {
+    service: aiGateway,
+    router: modelRouter,
+    persistenceNote:
+      'Routing preferences are held in memory for this server process and are lost on restart.',
+  });
+
+  // The catalog, per-task support, preferences and explanations behind every
+  // model choice. Read-only apart from preferences: this surface never calls a
+  // provider, so a decision cannot bill anything.
+  registerModelRouterRoutes(app, {
+    service: modelRouter,
+    projects: projectEngine,
+    gateway: aiGateway.gateway ?? null,
+    ...(aiGateway.blockedReason ? { blockedReason: aiGateway.blockedReason } : {}),
+  });
 
   // Cross-source search, synthesis, contradictions, relationships and evidence.
   // Owner-scoped and read-only; the reasoning mode is disclosed in every answer.
@@ -377,6 +406,24 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       codebase,
       files: fileManager,
       intelligence,
+      routeFor: async (input) => {
+        const decision = await modelRouter.routeFor(input.ownerRef, {
+          category: SERVICE_CATEGORIES.reasoning,
+          ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+          purpose: 'reasoning run',
+        });
+        if (decision.outcome === 'routed' && decision.selected !== null) {
+          return {
+            outcome: 'routed' as const,
+            connectionId: decision.selected.connectionId,
+            modelId: decision.selected.modelId,
+          };
+        }
+        return {
+          outcome: decision.outcome === 'routed' ? 'needs-attention' : decision.outcome,
+          summary: decision.summary,
+        };
+      },
     });
   registerReasoningRoutes(app, reasoning);
 

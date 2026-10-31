@@ -8,7 +8,9 @@ import {
   type UpdateConnectionInput,
 } from '@veltravia/ai-gateway';
 
+import { isTaskCategory } from '@veltravia/ai-router';
 import type { GatewayService } from '../ai-gateway-service.js';
+import type { ModelRouterService } from '../model-router-service.js';
 
 /**
  * AI provider gateway routes (Step 26).
@@ -70,19 +72,6 @@ function ownerOf(request: FastifyRequest): { ownerRef: string } {
   return { ownerRef: readEnv('VELTRAVIA_DEFAULT_OWNER_REF') ?? 'veltravia-dev-user' };
 }
 
-function projectOf(body: unknown, query?: unknown): string | undefined {
-  const candidates: unknown[] = [];
-  if (body && typeof body === 'object')
-    candidates.push((body as { projectId?: unknown }).projectId);
-  if (query && typeof query === 'object')
-    candidates.push((query as { projectId?: unknown }).projectId);
-  for (const candidate of candidates) {
-    if (typeof candidate === 'string' && candidate.trim().length > 0)
-      return candidate.trim().slice(0, 128);
-  }
-  return undefined;
-}
-
 function requireGateway(service: GatewayService): AIProviderGateway {
   if (!service.gateway) {
     throw new GatewayError(
@@ -111,6 +100,14 @@ function parseStrings(value: unknown, field: string, max = 500): string[] | unde
 
 export interface AiGatewayRouteDeps {
   readonly service: GatewayService;
+  /**
+   * Step 28: the platform's model router. When a generation request names no
+   * model, the router decides which one runs and why, and its refusal is
+   * reported instead of a silent substitution. Explicit picks skip the router.
+   */
+  readonly router?: ModelRouterService;
+  /** Honest note about where routing preferences live. */
+  readonly persistenceNote?: string;
 }
 
 export function registerAiGatewayRoutes(app: FastifyInstance, deps: AiGatewayRouteDeps): void {
@@ -407,18 +404,54 @@ export function registerAiGatewayRoutes(app: FastifyInstance, deps: AiGatewayRou
       if (messages.length === 0) {
         throw new GatewayError('GATEWAY_INVALID_REQUEST', 'At least one message is required.');
       }
+      const projectId =
+        typeof body.projectId === 'string' ? body.projectId.slice(0, 128) : undefined;
+      let connectionId = typeof body.connectionId === 'string' ? body.connectionId : undefined;
+      let modelId = typeof body.modelId === 'string' ? body.modelId : undefined;
+      let routing: { decisionId: string; summary: string } | null = null;
+
+      // No model named: the router decides, once, before anything is billed.
+      if ((connectionId === undefined || modelId === undefined) && deps.router !== undefined) {
+        const category = isTaskCategory(body.category) ? body.category : 'general-conversation';
+        const decision = await deps.router.routeFor(owner.ownerRef, {
+          category,
+          ...(projectId !== undefined ? { projectId } : {}),
+          purpose: 'provider generation',
+        });
+        if (decision.outcome !== 'routed' || decision.selected === null) {
+          return reply.status(409).send({
+            error: { code: 'GATEWAY_NO_PROVIDER_CONFIGURED', message: decision.summary },
+            decision,
+          });
+        }
+        connectionId = decision.selected.connectionId;
+        modelId = decision.selected.modelId;
+        routing = { decisionId: decision.id, summary: decision.summary };
+      }
+
       const outcome = await gateway.generate(
-        { ownerRef: owner.ownerRef, ...(projectOf(body) ? { projectId: projectOf(body) } : {}) },
+        { ownerRef: owner.ownerRef, ...(projectId ? { projectId } : {}) },
         {
           messages,
           ...(typeof body.system === 'string' ? { system: body.system.slice(0, 8000) } : {}),
-          ...(typeof body.connectionId === 'string' ? { connectionId: body.connectionId } : {}),
-          ...(typeof body.modelId === 'string' ? { modelId: body.modelId } : {}),
-          ...(typeof body.projectId === 'string'
-            ? { projectId: body.projectId.slice(0, 128) }
-            : {}),
+          connectionId,
+          modelId,
+          ...(projectId !== undefined ? { projectId } : {}),
         },
       );
+
+      // Execution evidence for outage pausing and the speed preference.
+      if (deps.router !== undefined) {
+        await deps.router
+          .recordOutcome(owner.ownerRef, {
+            providerId: outcome.providerId,
+            modelId: outcome.modelId,
+            status: 'success',
+            latencyMs: outcome.latencyMs,
+          })
+          .catch(() => undefined);
+      }
+
       return reply.send({
         content: outcome.content,
         providerId: outcome.providerId,
@@ -428,6 +461,8 @@ export function registerAiGatewayRoutes(app: FastifyInstance, deps: AiGatewayRou
         usage: outcome.usage,
         latencyMs: outcome.latencyMs,
         live: outcome.live,
+        ...(routing !== null ? { routing } : {}),
+        ...(deps.persistenceNote ? { routingPersistence: deps.persistenceNote } : {}),
       });
     } catch (error) {
       const mapped = toError(error);
