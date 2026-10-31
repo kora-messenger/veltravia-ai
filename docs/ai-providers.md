@@ -53,13 +53,27 @@ answer keeps saying so.
 | GET    | `/api/ai/providers/catalog`                    | vendor declarations only                                      |
 | POST   | `/api/ai/providers/connections`                | store a key (encrypted) and discover models                   |
 | PATCH  | `/api/ai/providers/connections/:id`            | label, default model, models, status                          |
-| POST   | `/api/ai/providers/connections/:id/validate`   | live verification                                             |
+| POST   | `/api/ai/providers/connections/:id/validate`   | live verification -> `{ valid, errorCategory, connection }`   |
 | GET    | `/api/ai/providers/connections/:id/models`     | cached or `?refresh=true`                                     |
 | POST   | `/api/ai/providers/connections/:id/credential` | replace the key                                               |
 | DELETE | `/api/ai/providers/connections/:id`            | remove connection and credential                              |
 | PUT    | `/api/ai/providers/preferences`                | default connection and model                                  |
 | GET    | `/api/ai/providers/usage`                      | metadata-only history                                         |
 | POST   | `/api/ai/providers/generate`                   | one direct chat completion                                    |
+
+### Verification results
+
+`validate` never returns provider wording and never returns the key. It answers
+with `valid`, a normalized `errorCategory` when the check failed, and the
+re-read `connection` so the caller sees the status the check produced. The
+settings page turns the category into a plain sentence (rejected key, rate
+limited, timed out, refused endpoint, undecryptable key, unreachable, provider
+error) and falls back to "the provider did not confirm the key" for a category
+it does not recognize, so no raw code ever reaches the screen.
+
+A repeated provider + key pair is refused with `409 GATEWAY_CONNECTION_DUPLICATE`
+rather than stored twice. That is why the live browser QA now uses a fresh key
+per pass.
 
 ## Routing
 

@@ -182,7 +182,9 @@ loopback, private, link-local, CGNAT and metadata addresses, re-resolved per req
 rebinding fails. Agents, document reasoning and cross-source synthesis can all run on a
 connected provider when a request asks for it (`reasoning: "gateway"`); everything else keeps
 its deterministic provider and keeps saying so. `#/settings/ai-providers` covers connect,
-verify, default model, replace key, remove, and a metadata-only usage table.
+verify, default model, replace key, remove, and a metadata-only usage table. A failed
+verification reports a normalized reason in plain words (rejected key, rate limited, timed
+out, refused endpoint, undecryptable key, unreachable), never a raw code or provider text.
 
 Known limits, stated plainly: usage history is in-process, key rotation is manual (old
 versions stay readable), discovery can fail on providers that hide their model list (manual
