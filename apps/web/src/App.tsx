@@ -10,6 +10,7 @@ import {
   DocumentsPage,
   ConnectionsPage,
   IntelligencePage,
+  ReasoningPage,
   VideoPage,
   ProjectDetailPage,
   ProjectWorkspacePage,
@@ -49,6 +50,8 @@ export function App() {
                 return <ProjectDetailPage projectId={route.projectId} />;
               case 'project-workspace':
                 return <ProjectWorkspacePage projectId={route.projectId} />;
+              case 'reasoning':
+                return <ReasoningPage />;
               case 'ai-providers':
                 return <AiProvidersPage />;
               case 'settings':

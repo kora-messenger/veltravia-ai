@@ -1,0 +1,25 @@
+{
+  "name": "@veltravia/reasoning-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The Veltravia reasoning engine: a bounded, validated pipeline that turns a user instruction into a task classification, an execution plan, authorized tool calls and a final answer through the AI provider gateway. Model output is untrusted data; every action is re-validated server-side.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/ai-core": "0.1.0",
+    "@veltravia/tool-core": "0.1.0"
+  }
+}

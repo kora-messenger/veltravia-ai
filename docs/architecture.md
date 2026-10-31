@@ -544,3 +544,47 @@ connections (owner-scoped) → route resolution → scoped AICore → usage reco
 `apps/api/src/routes/ai-providers.ts` exposes the surface and
 `apps/api/src/tests/api-ai-gateway.test.ts` drives it end to end against the fixture
 transport, proving owner isolation, key non-disclosure and the fail-closed vault.
+
+## Step 27: Reasoning Engine
+
+`reasoning/core` (`@veltravia/reasoning-core`) turns "the model may call tools" into a
+bounded, inspectable pipeline. It owns no vendor SDK and no credential; the only way it
+reaches a model is the Step 26 gateway, and the only way it touches the world is the
+Step 5 Tool System.
+
+```
+validate → classify → plan → execute (through ToolManager) → synthesize → assess
+                                    ↑
+                     context (owner-checked, trust-fenced) + offered tools (profile-filtered)
+```
+
+- **Profiles.** A profile declares which context kinds and which tool prefixes a run may
+  use. It is a filter, never a grant: `ToolManager` still decides availability and still
+  forces a confirmation for risky work. An unoffered tool named by the model is refused
+  (`REASONING_TOOL_NOT_ALLOWED`) instead of being executed.
+- **Plan-first, validated.** The model returns a task classification and a short plan that
+  is schema-validated before any step runs. Malformed output fails the run with
+  `REASONING_INVALID_MODEL_OUTPUT`; nothing is repaired silently.
+- **Context is a boundary, not a dump.** Context entries are tagged by kind and trust,
+  owner-checked against the caller (`REASONING_CONTEXT_REJECTED`), truncated to a budget and
+  reported when dropped. Retrieved text is delimited and labelled as data, so an instruction
+  found inside a document stays a document's words.
+- **Budgets are server-authoritative.** Iterations, tool calls, wall clock, provider
+  retries and context size have defaults and hard ceilings chosen server-side; a caller can
+  narrow them and never widen them. Exhaustion is `limit_reached`, not an answer.
+- **Observability over chain of thought.** The record holds the plan, the tool steps with
+  durations and outcomes, the concise decisions, provenance, dropped context, usage and
+  limitations. Hidden reasoning is never requested, stored, logged or streamed.
+- **Streaming is delivery.** A bounded per-run buffer feeds a server-sent event stream and
+  replays on `Last-Event-ID`, so a reconnecting browser sees the same events a finished run
+  reports - no second, richer channel for the client.
+- **Honest providers.** `reasoning/mock` is a deterministic simulated provider that
+  discloses `simulated: true` and adds a limitation saying no model ran. A gateway run
+  discloses the provider and model that actually answered.
+
+`apps/api/src/reasoning-service.ts` keeps one engine per owner (provider resolved per run),
+`apps/api/src/routes/reasoning.ts` exposes `/api/reasoning`, and
+`apps/api/src/tests/api-reasoning.test.ts` drives it end to end against a fixture provider.
+The web client at `#/reasoning` follows the run's own stream and renders the run status,
+phases, answer, tool steps, budget line and pending confirmation without inventing any of
+them.

@@ -435,3 +435,46 @@ See [intelligence.md](intelligence.md).
     reporting `simulated: true` and are never presented as live model output.
 
 See [ai-providers.md](ai-providers.md).
+
+## 5r. Reasoning engine rules (Step 27)
+
+1. The model never holds a credential. Reasoning reaches a provider only through
+   the Step 26 gateway, which resolves and decrypts the caller's connection on the
+   server. No reasoning response, event or page contains a key, a sealed record or
+   an endpoint URL.
+2. No hidden reasoning is stored or streamed. The engine keeps the plan, the tool
+   steps, the concise decisions, provenance and the final answer. An internal
+   chain of thought is never requested, persisted, logged or sent to the browser.
+3. Tools are filtered before the prompt is built. Only tools matching the profile's
+   declared prefixes are offered, all are read-only, and a tool the model names
+   that was not offered is refused with `REASONING_TOOL_NOT_ALLOWED` rather than
+   executed.
+4. Every tool call goes through the Tool System. Availability, permissions,
+   validation, confirmation and audit are unchanged by reasoning; a risky tool
+   pauses the run and no invocation happens until a human decides.
+5. Confirmations are single-use and input-bound. The engine can never approve its
+   own request, and a confirmation id from another run is refused
+   (`REASONING_CONFIRMATION_INVALID`) before the Tool System is touched.
+6. Runs are owner-scoped. Each run records the owner that started it; another
+   owner's read, cancel, decision or event stream returns `REASONING_RUN_NOT_FOUND`,
+   identical to a missing run, so ids leak nothing.
+7. Context is fenced by trust. Owner-scoped context is checked against the caller
+   (`REASONING_CONTEXT_REJECTED`), untrusted text is delimited and labelled as data,
+   and instructions inside retrieved content are never treated as the operator's.
+8. Model output is untrusted input. A reply must satisfy the step schema or the run
+   fails with `REASONING_INVALID_MODEL_OUTPUT`; nothing is repaired silently and no
+   partial answer is presented as complete.
+9. Budgets are enforced server-side. Iterations, tool calls, wall-clock time,
+   provider retries and context size are bounded by the server's ceilings, never by
+   what the client sends, and exhaustion is reported as `limit_reached`.
+10. A simulated run is labelled everywhere. The offline mock sets `simulated: true`
+    and `live: false`, adds a limitation saying no model ran, and the UI shows a
+    "Simulated" badge. It is never presented as a real answer.
+11. Failures stay failures. A provider error, a refused tool or a cancelled run
+    produces an honest status and message; the page shows no answer rather than a
+    plausible substitute.
+12. Streaming is delivery, not authority. The event stream carries the same events
+    the run records, replays buffered ones on reconnect (`Last-Event-ID`) and never
+    exposes anything the finished run would not.
+
+See [reasoning.md](reasoning.md).

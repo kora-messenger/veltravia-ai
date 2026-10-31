@@ -190,3 +190,24 @@ Known limits, stated plainly: usage history is in-process, key rotation is manua
 versions stay readable), discovery can fail on providers that hide their model list (manual
 model ids cover that case), and only chat-shaped providers have adapters — image, audio,
 video and embedding providers are declared so the UI is honest, not to imply they run.
+
+### Reasoning engine (Step 27)
+
+The [reasoning engine](docs/reasoning.md) gives the platform a bounded reasoning loop on top
+of your connected model: it classifies the task, plans, calls read-only tools through the
+Tool System, then answers from what the tools returned. A profile decides which tools a run
+may even name, every tool call keeps its existing permissions and confirmation rules, and a
+risky call pauses the run until you decide. The record shows the plan, each tool step with
+its outcome and duration, the provenance of the answer, the context that was dropped and the
+budget actually consumed — and never a hidden chain of thought, which is not requested,
+stored or streamed. Limits (iterations, tool calls, wall clock, retries, context size) are
+enforced server-side against hard ceilings, and exhausting them reports `limit_reached`
+instead of a plausible-sounding answer. Answers state which provider and model produced them;
+the deterministic simulated provider is badged "Simulated" and says no model ran.
+`/api/reasoning` exposes capabilities, runs, cancel, decision, an SSE event stream and usage,
+and `#/reasoning` is the workspace that follows it.
+
+Known limits, stated plainly: runs and usage are in-process and lost on restart; streaming
+replays from a bounded buffer, so an older run only shows its final state; context is passed
+explicitly by the caller rather than retrieved automatically from project memory; and the
+simulated provider proves the loop, not model quality.

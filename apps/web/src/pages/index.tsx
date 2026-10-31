@@ -12,4 +12,5 @@ export { VideoPage } from './VideoPage';
 export { DocumentsPage } from './DocumentsPage';
 export { ConnectionsPage } from './ConnectionsPage';
 export { IntelligencePage } from './IntelligencePage';
+export { ReasoningPage } from './ReasoningPage';
 export { AiProvidersPage } from './AiProvidersPage';

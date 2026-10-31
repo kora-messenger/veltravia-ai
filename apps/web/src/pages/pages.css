@@ -1729,3 +1729,173 @@
   font-size: 0.8125rem;
   color: var(--v-text-muted);
 }
+
+/* ==========================================================================
+   Reasoning workspace (Step 27).
+   Only design tokens: no raw colors, no fixed spacing values.
+   ========================================================================== */
+
+.v-reason__chips {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  flex-wrap: wrap;
+}
+
+.v-reason__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+}
+
+.v-reason__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--v-space-3);
+}
+
+.v-reason__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-1);
+}
+
+.v-reason__label {
+  font-size: var(--v-text-sm);
+  font-weight: var(--v-weight-semibold);
+  color: var(--v-text-muted);
+}
+
+.v-reason__hint {
+  margin: 0;
+  font-size: var(--v-text-sm);
+  color: var(--v-text-muted);
+}
+
+.v-reason__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  flex-wrap: wrap;
+}
+
+.v-reason__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--v-space-4);
+}
+
+@media (min-width: 900px) {
+  .v-reason__grid {
+    grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.v-reason__heading {
+  margin: 0 0 var(--v-space-2);
+  font-size: var(--v-text-lg);
+  font-weight: 650;
+  color: var(--v-text);
+}
+
+.v-reason__subheading {
+  margin: var(--v-space-4) 0 var(--v-space-2);
+  font-size: var(--v-text-sm);
+  font-weight: var(--v-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--v-text-muted);
+}
+
+.v-reason__phase-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  margin-bottom: var(--v-space-3);
+}
+
+.v-reason__phase {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--v-space-1);
+  padding: 0 var(--v-space-2);
+  border-radius: var(--v-radius-full);
+  border: 1px solid var(--v-border);
+  font-size: var(--v-text-xs);
+  color: var(--v-text);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.v-reason__phase-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: var(--v-radius-full);
+  background: var(--v-primary);
+  flex: none;
+}
+
+.v-reason__status {
+  margin: 0;
+  font-size: var(--v-text-sm);
+  color: var(--v-text-muted);
+}
+
+.v-reason__live {
+  color: var(--v-primary);
+  font-weight: var(--v-weight-semibold);
+}
+
+.v-reason__answer {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--v-text-md);
+  line-height: 1.6;
+  color: var(--v-text);
+}
+
+.v-reason__plan {
+  margin: 0;
+  padding-left: var(--v-space-4);
+  color: var(--v-text);
+  font-size: var(--v-text-sm);
+}
+
+.v-reason__tools {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+}
+
+.v-reason__tool {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  flex-wrap: wrap;
+  font-size: var(--v-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.v-reason__tool-name {
+  font-family: var(--v-font-mono);
+  font-size: var(--v-text-xs);
+  color: var(--v-text);
+}
+
+.v-reason__muted {
+  margin: var(--v-space-2) 0 0;
+  font-size: var(--v-text-sm);
+  color: var(--v-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.v-reason__error {
+  margin: 0 0 var(--v-space-2);
+  font-size: var(--v-text-sm);
+  color: var(--v-danger);
+  overflow-wrap: anywhere;
+}

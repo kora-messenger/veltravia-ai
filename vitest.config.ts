@@ -59,6 +59,8 @@ export default defineConfig({
       '@veltravia/connected-apps-mock': r('./connected-apps/mock/src/index.ts'),
       '@veltravia/intelligence-core': r('./intelligence/core/src/index.ts'),
       '@veltravia/api': r('./apps/api/src/server.ts'),
+      '@veltravia/reasoning-core': r('./reasoning/core/src/index.ts'),
+      '@veltravia/reasoning-mock': r('./reasoning/mock/src/index.ts'),
     },
   },
   test: {
@@ -78,6 +80,7 @@ export default defineConfig({
       'document-intelligence/*/src/**/*.test.ts',
       'connected-apps/*/src/**/*.test.ts',
       'intelligence/*/src/**/*.test.ts',
+      'reasoning/*/src/**/*.test.ts',
       'packages/*/src/**/*.test.ts',
       'apps/*/src/**/*.test.ts',
       'apps/*/src/**/*.test.tsx',

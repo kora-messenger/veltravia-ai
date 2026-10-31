@@ -4,6 +4,8 @@ import { registerConnectionRoutes } from './routes/connections.js';
 import { registerAiGatewayRoutes } from './routes/ai-gateway.js';
 import { createGatewayService, type GatewayService } from './ai-gateway-service.js';
 import { registerIntelligenceRoutes } from './routes/intelligence.js';
+import { registerReasoningRoutes } from './routes/reasoning.js';
+import { ReasoningService } from './reasoning-service.js';
 import { createIntelligenceService } from './intelligence-service.js';
 import { createVideoIntelligenceService } from './video-service.js';
 import type { VideoIntelligenceManager } from '@veltravia/video-intelligence-core';
@@ -106,6 +108,8 @@ export interface BuildAppOptions {
   readonly documentManager?: DocumentIntelligenceManager;
   /** AI provider gateway (Step 26). Defaults to an env-keyed encrypted service. */
   readonly aiGateway?: GatewayService;
+  /** Reasoning engine (Step 27). Defaults to a gateway-backed service. */
+  readonly reasoning?: ReasoningService;
 }
 
 /**
@@ -358,6 +362,23 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Cross-source search, synthesis, contradictions, relationships and evidence.
   // Owner-scoped and read-only; the reasoning mode is disclosed in every answer.
   registerIntelligenceRoutes(app, intelligence);
+
+  // Step 27: the reasoning engine. Every run goes through the owner's own
+  // provider (or the disclosed offline mock), may only name tools the server
+  // offers, and pauses for a human before anything risky. Streaming exposes the
+  // same events the API reports, never hidden reasoning.
+  const reasoning =
+    options.reasoning ??
+    new ReasoningService({
+      gateway: aiGateway.gateway ?? null,
+      ...(aiGateway.gateway
+        ? {}
+        : { blockedReason: aiGateway.blockedReason ?? 'No AI provider is connected yet.' }),
+      codebase,
+      files: fileManager,
+      intelligence,
+    });
+  registerReasoningRoutes(app, reasoning);
 
   return app;
 }

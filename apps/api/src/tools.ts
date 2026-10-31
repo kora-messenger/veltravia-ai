@@ -51,6 +51,9 @@ export interface ExtraToolWiring {
   readonly connectorExecutor?: ConnectorOperationExecutor;
 }
 
+/** The owner used when a caller does not name one (development stand-in for auth). */
+export const DEFAULT_OWNER_REF = 'veltravia-dev-user';
+
 export function createToolManager(
   now: () => Date = () => new Date(),
   sandboxes?: SandboxManager,
@@ -70,6 +73,12 @@ export function createToolManager(
   video?: VideoIntelligenceManager,
   /** Cross-source Intelligence (Step 25): read-only search and synthesis tools. */
   intelligence?: IntelligenceService,
+  /**
+   * Step 27: the owner every owner-scoped tool binds to. Agent and reasoning
+   * runs pass the caller's owner ref so one owner can never read another
+   * owner's files, documents or intelligence sources through a tool.
+   */
+  ownerRef: string = DEFAULT_OWNER_REF,
 ): ToolManager {
   const connectors = existingConnectors ?? new ConnectorManager({ now });
   if (existingConnectors === undefined) {
@@ -162,7 +171,7 @@ export function createToolManager(
   // delete and project publish remain unavailable until an operator grants
   // them and their forced human confirmation succeeds.
   if (files !== undefined) {
-    const fileTools = createFileIntelligenceTools(files, { ownerRef: 'veltravia-dev-user' });
+    const fileTools = createFileIntelligenceTools(files, { ownerRef });
     for (const definition of fileTools.definitions) manager.register(definition);
     for (const implementation of fileTools.implementations)
       manager.registerImplementation(implementation);
@@ -180,7 +189,7 @@ export function createToolManager(
   // search, describe, and ocr tools are granted explicitly; the processing
   // and artifact tools stay ungranted until an operator enables them.
   if (image !== undefined) {
-    const imageTools = createImageIntelligenceTools(image, { ownerRef: 'veltravia-dev-user' });
+    const imageTools = createImageIntelligenceTools(image, { ownerRef });
     for (const definition of imageTools.definitions) manager.register(definition);
     for (const implementation of imageTools.implementations)
       manager.registerImplementation(implementation);
@@ -192,7 +201,7 @@ export function createToolManager(
     }
   }
   if (audio !== undefined) {
-    const audioTools = createAudioIntelligenceTools(audio, { ownerRef: 'veltravia-dev-user' });
+    const audioTools = createAudioIntelligenceTools(audio, { ownerRef });
     for (const definition of audioTools.definitions) manager.register(definition);
     for (const implementation of audioTools.implementations)
       manager.registerImplementation(implementation);
@@ -204,7 +213,7 @@ export function createToolManager(
     }
   }
   if (video) {
-    const t = createVideoIntelligenceTools(video, { ownerRef: 'veltravia-dev-user' });
+    const t = createVideoIntelligenceTools(video, { ownerRef });
     for (const d of t.definitions) manager.register(d);
     for (const i of t.implementations) manager.registerImplementation(i);
     for (const id of ['video.inspect', 'video.analyze', 'video.search']) {
@@ -220,7 +229,7 @@ export function createToolManager(
       engine: intelligence.engine,
       search: new CrossSourceSearch(intelligence.registry),
       collectorFor: () => null,
-      ownerRef: 'veltravia-dev-user',
+      ownerRef,
     });
     for (const d of t.definitions) manager.register(d);
     for (const i of t.implementations) manager.registerImplementation(i);
