@@ -1,9 +1,11 @@
 import { registerVideoRoutes } from './routes/video.js';
 import { registerDocumentRoutes } from './routes/document.js';
+import { registerConnectionRoutes } from './routes/connections.js';
 import { createVideoIntelligenceService } from './video-service.js';
 import type { VideoIntelligenceManager } from '@veltravia/video-intelligence-core';
 import type { DocumentIntelligenceManager } from '@veltravia/document-intelligence-core';
 import { createDocumentIntelligenceService } from './document-service.js';
+import { createConnectionService } from './connections-service.js';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AICore } from '@veltravia/ai-core';
 import type { ConnectorManager } from '@veltravia/connector-core';
@@ -292,6 +294,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // the deterministic mock (see document-service.ts). Extracted text and
   // tables are UNTRUSTED DATA; reasoning output is ai_generated.
   registerDocumentRoutes(app, documentManager);
+
+  // Step 24: connected-app intelligence. GitHub is live-capable when a token and
+  // repository allowlist are configured; Google Drive and Notion run the
+  // deterministic simulation (see connections-service.ts). Every response
+  // reports which mode is active. All operations are read-only.
+  const connections = createConnectionService({});
+  registerConnectionRoutes(app, connections);
 
   return app;
 }

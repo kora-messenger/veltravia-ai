@@ -1,0 +1,24 @@
+{
+  "name": "@veltravia/connected-apps-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Connected-app intelligence: provider-neutral, read-only access to apps a user has explicitly authorized. Connections are owner-scoped, credentials stay behind references, every resource carries its provenance, and all operations are bounded and audited.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/tool-core": "0.1.0"
+  }
+}

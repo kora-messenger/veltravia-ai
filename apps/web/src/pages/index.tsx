@@ -10,3 +10,4 @@ export { SettingsPage } from './SettingsPage';
 
 export { VideoPage } from './VideoPage';
 export { DocumentsPage } from './DocumentsPage';
+export { ConnectionsPage } from './ConnectionsPage';

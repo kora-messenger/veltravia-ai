@@ -441,4 +441,31 @@ Later steps add their own dependencies only when they become necessary — this 
 
 | `@veltravia/video-intelligence-core` | Bounded video understanding (Step 22, simulated provider) | video-intelligence/core |
 | `@veltravia/document-intelligence-core` | Bounded document parsing + reasoning (Step 23, simulated reasoning provider) | document-intelligence/core |
+| `@veltravia/connected-apps-core` | Provider architecture, owner-scoped connections, provenance, 10 read-only tools (Step 24) | connected-apps/core |
+| `@veltravia/connected-apps-mock` | Deterministic GitHub, Google Drive and Notion providers (Step 24) | connected-apps/mock |
 | `@veltravia/document-intelligence-mock` | Deterministic offline document provider | document-intelligence/mock |
+
+## Step 24: Connected Apps
+
+`connected-apps/core` sits beside Document Intelligence rather than inside it.
+
+```
+web #/connections
+  -> /api/connections/*            (safe views only)
+       -> ConnectedAppManager      owner scope, capability, rate, timeout, provenance
+            -> ProviderRegistry    github | google_drive | notion
+                 -> Provider       read-only operations over a transport
+       -> ConnectedResourceIntelligence
+            -> analyzer           document-intelligence/core parsers
+```
+
+The manager is the only caller of a provider. The tool layer
+(`connected-apps/core/src/tools`) registers the same operations as read-only
+tools so the Tool System can grant them independently of a connection.
+
+`apps/api/src/connections-service.ts` decides the mode per provider at startup:
+GitHub becomes live when `CONNECTED_APPS_GITHUB_TOKEN` and
+`CONNECTED_APPS_GITHUB_REPOS` are present, otherwise the deterministic GitHub
+provider runs. Google Drive and Notion always run their simulations in this
+build, and the API reports each provider's mode so the UI cannot imply a real
+account where a simulation runs.

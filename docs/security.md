@@ -329,3 +329,31 @@ Image content is untrusted data, and text inside images is doubly so: OCR output
 11. The API's wired reasoning provider is the deterministic mock, disclosed in the API response and the UI. Parsing is genuine; the reasoning side never represents real model quality, and no real document-reasoning provider is wired in this step.
 
 See [documents.md](documents.md).
+
+## 5u. Connected Apps (Step 24)
+
+Connected-app access is read-only and owner-scoped.
+
+1. Every operation resolves the connection through the requesting owner; a
+   foreign owner receives `404`, never data.
+2. Granting a scope is explicit and separate from capability: capabilities are
+   derived from granted scopes and re-checked per call.
+3. Credentials live in a `CredentialVault`; only a reference crosses the manager
+   boundary. No API response contains a token, refresh token or credential.
+4. Disconnect is terminal; later reads fail with `CONNECTED_NOT_CONNECTED`.
+5. Every provider call is bounded by a rate budget, a timeout and a byte cap;
+   limit breaches surface as typed errors, never as silent truncation of a
+   different operation.
+6. GitHub enforces an owner/repository allowlist on every operation, rejects
+   unsafe paths, and uses HTTPS only. A live token is never logged.
+7. Connected content, listings and metadata are `untrusted_data`; structured
+   analysis summaries are `structure_extract`. Connected content can never
+   grant a capability, approve a plan or change a connection.
+8. Tool outputs drop null fields instead of widening the schema, so a declared
+   output shape stays honest about what is guaranteed.
+9. All ten tools are read-only; no tool, route or adapter writes to a
+   third-party app.
+10. Providers that are simulations say so in the API (`mode`) and in the UI, so
+    a simulated account is never presented as a real one.
+
+See [connected-apps.md](connected-apps.md).

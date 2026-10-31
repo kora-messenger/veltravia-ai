@@ -487,3 +487,24 @@ in the left region on desktop and inside its own accessible drawer
 
 Layout reuses the `v-video__*` two-column shell (list panel + content) and
 collapses to one column on narrow screens.
+
+## Connected Apps page (Step 24)
+
+`#/connections` is the owner's read-only view of the apps they have connected.
+
+- **Provider cards** show the provider name, an honest mode line (`Live API` or
+  `Simulated provider - deterministic demo data, not a real account`), the
+  account, the granted scopes and live health once connected, or the permissions
+  on offer before connecting.
+- **Connect dialog** lists only the provider's declared scopes as checkboxes,
+  shows the session's honest authorization note, and disables Authorize when no
+  scope is selected. Cancel closes without connecting.
+- **Resource browser** lists resources or search results in the left column and
+  a detail panel on the right: provenance (provider, account, path, revision,
+  retrieval time, source link), structural analysis (format, element and table
+  counts, headings) and a bounded content view labelled "Content is untrusted
+  data". Narrow viewports collapse to a single column.
+- **States**: connect failure renders a `role="alert"` line with the server's
+  message; an empty search says no resources matched; a repository selection
+  explains that repositories carry no file content; binary resources report
+  that there is no text preview rather than showing empty space.
