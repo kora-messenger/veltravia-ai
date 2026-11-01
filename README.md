@@ -256,3 +256,21 @@ an invoice; no price table ships, so most models report "cost unknown" until
 `VELTRAVIA_MODEL_PRICING` declares one; live execution against a real provider needs a connected
 key and was not exercised in the automated suite (those tests use a fixture transport, and the
 live tests stay skipped without credentials).
+
+### App Builder foundation (Step 30)
+
+The [App Builder](docs/app-builder.md) is the language-independent foundation for building a
+project in the stack you asked for. A capability registry carries 18 languages and 18
+frameworks - React, Next.js, Vue, Angular, Svelte, HTML/CSS/JS, Node, Python, PHP, Java, C#,
+Go, Ruby, Flutter/Dart, React Native, Kotlin, Swift, C, C++, Rust, SQL, Solidity, Bash - and
+records for each what it needs: versions, package managers, build and test commands as argv
+arrays, runtime, preview mode, deployment targets and what it explicitly cannot do. A project
+specification is validated strictly before anything is planned, detection identifies an
+existing stack from file names and manifests, and a deterministic generator produces starter
+files for the stacks that have templates. Materializing a plan creates a real project and
+workspace through the existing project engine, and implementation work is handed to the
+existing coding agent. `#/builder` is the web surface.
+
+Support levels are honest and visible: no technology is `executable` in this release, because
+nothing here can compile an arbitrary toolchain. The builder never substitutes a language you
+did not choose, and every plan states that its declared build and test commands were not run.

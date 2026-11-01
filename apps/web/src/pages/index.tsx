@@ -15,4 +15,5 @@ export { IntelligencePage } from './IntelligencePage';
 export { ReasoningPage } from './ReasoningPage';
 export { AiProvidersPage } from './AiProvidersPage';
 export { ModelRoutingPage } from './ModelRoutingPage';
+export { BuilderPage } from './BuilderPage';
 export { ExecutePage } from './ExecutePage';

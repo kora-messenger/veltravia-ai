@@ -1,0 +1,22 @@
+{
+  "name": "@veltravia/app-builder-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia App Builder: a language-independent project architecture - capability registry for languages/frameworks, strict project specifications, stack detection, deterministic scaffold plans, and owner-scoped orchestration through existing project, sandbox, coding-agent and AI packages.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {}
+}

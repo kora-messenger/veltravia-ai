@@ -557,3 +557,34 @@ See [reasoning.md](reasoning.md).
     existing run.
 13. **`GATEWAY_RUN_NOT_CANCELLABLE`** (409) is the only answer for a finished run, so a
     completed answer can never be overwritten by a late cancel.
+
+## 5w. App Builder rules (Step 30, `app-builder/core` + `apps/api`)
+
+1. **A technology is data, not a branch.** Behaviour comes from a validated registry entry;
+   adding a language must never require editing builder logic.
+2. **Commands are argv arrays.** Registration rejects shell strings and the shell itself
+   (`sh`, `bash`, `-c`, `&&`, `;`, `|`, `$(`, backticks). The builder never builds a command
+   line by joining strings.
+3. **No unsupported substitution.** If any role in the requested stack is `planned`,
+   planning fails with `APP_BUILDER_UNSUPPORTED_TECHNOLOGY` and names it. The builder never
+   swaps in a language the user did not choose and never labels a stub as their stack.
+4. **Declared is not executed.** `executable` is a claim the platform must earn; no entry in
+   this release carries it, and no build, test, preview or deployment is run.
+5. **Detection reads names.** The detector takes paths and bounded manifest text and never
+   touches the filesystem; the API builds the manifest from the project engine, so detection
+   cannot see a file the caller could not otherwise read.
+6. **Paths are relative and validated.** Materialization writes through the project engine,
+   which rejects traversal, absolute paths, control characters and Windows separators.
+7. **Owner scoping is universal.** Plans, detections and materializations are per owner; a
+   foreign plan answers `APP_BUILDER_PLAN_NOT_FOUND`, never a permission error that confirms
+   it exists.
+8. **No credentials in builder data.** Registry entries, specifications and plans carry no
+   provider keys; specifications reject secret-shaped values during validation.
+9. **Specifications are bounded.** Size, text length, field count, dependency count and
+   manifest size all have ceilings, so a specification cannot be used as a payload.
+10. **Ports stay closed by default.** Sandbox, preview and deployment ports report
+    `available: false` with a reason until real implementations are wired behind them.
+11. **Materialization is idempotent per plan.** A plan materializes once; the second call
+    fails with `APP_BUILDER_PLAN_ALREADY_MATERIALIZED` instead of creating a duplicate project.
+12. **Audit is scrubbed.** Builder audit events carry counts, ids and codes - never file
+    content, secret-shaped values or host paths.
