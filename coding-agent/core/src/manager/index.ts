@@ -867,6 +867,7 @@ export class CodingAgentManager {
       startedAt: run.startedAt.toISOString(),
       updatedAt: run.updatedAt.toISOString(),
       pendingApproval: run.pendingApproval,
+      plan: run.plan,
       failure: run.failure,
     };
   }

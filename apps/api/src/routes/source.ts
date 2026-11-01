@@ -6,6 +6,7 @@ import {
   type ChangeOperation,
   type SourceRepositoryManager,
 } from '@veltravia/source-storage-core';
+import { classifyFrontendStructure } from '@veltravia/app-builder-core';
 
 /**
  * Native project source routes (Step 31).
@@ -18,6 +19,15 @@ import {
 
 export interface SourceRouteDeps {
   readonly source: SourceRepositoryManager;
+  /**
+   * Optional stack detection, supplied by the server wiring. When it is absent
+   * (or fails) the structure endpoint reports `framework: null` and groups
+   * files neutrally instead of guessing React.
+   */
+  readonly detectStack?: (
+    projectId: string,
+    workspaceId: string | undefined,
+  ) => Promise<string | null>;
 }
 
 function readEnv(name: string): string | undefined {
@@ -93,6 +103,35 @@ export function registerSourceRoutes(app: FastifyInstance, deps: SourceRouteDeps
     try {
       const file = await source.readFile(ownerOf(request), { ...scope(request), path: query.path });
       return { file };
+    } catch (error) {
+      return fail(reply, error);
+    }
+  });
+
+  /**
+   * Logical frontend structure: pages, components, layouts, hooks, styles,
+   * assets, utilities. Path-only classification - no file contents travel and
+   * no framework is assumed when detection did not identify one.
+   */
+  app.get('/api/projects/:projectId/source/structure', async (request, reply) => {
+    try {
+      const scoped = scope(request);
+      const tree = await source.tree(ownerOf(request), scoped);
+      let framework: string | null = null;
+      if (deps.detectStack !== undefined) {
+        try {
+          framework = await deps.detectStack(scoped.projectId, tree.workspaceId);
+        } catch {
+          // Detection is presentation-only: an unknown stack stays unknown.
+          framework = null;
+        }
+      }
+      return {
+        structure: classifyFrontendStructure({
+          framework,
+          files: tree.files.map((file) => ({ path: file.path, size: file.size })),
+        }),
+      };
     } catch (error) {
       return fail(reply, error);
     }

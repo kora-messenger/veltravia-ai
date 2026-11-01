@@ -51,6 +51,9 @@ function toRunPayload(view: CodingRunView): Record<string, unknown> {
     startedAt: view.startedAt,
     updatedAt: view.updatedAt,
     pendingApproval: view.pendingApproval,
+    // The validated plan is safe by construction (goal/steps/paths only) and is
+    // what makes an approval decision reviewable before anything is written.
+    plan: view.plan,
     failure: view.failure,
   };
 }
@@ -79,6 +82,13 @@ const confirmationBodySchema = {
   },
 } as const;
 
+/** What the API's coding agent is actually able to do in this build. */
+export interface CodingAgentInfo {
+  /** 'scripted-demo' means no model is called; the script decides. */
+  readonly decisionSource: 'scripted-demo' | 'injected';
+  readonly planApprovalRequired: boolean;
+}
+
 /**
  * Safe coding-agent endpoints. Runs are bounded by server-side limits with
  * hard ceilings; every file mutation and validation flows through the Tool
@@ -90,7 +100,33 @@ export function registerCodingRoutes(
   app: FastifyInstance,
   manager: CodingAgentManager,
   captures: RunCaptureHooks = {},
+  info: CodingAgentInfo = { decisionSource: 'scripted-demo', planApprovalRequired: true },
 ): void {
+  /**
+   * Capability truth, so the builder UI can say what it is talking to instead
+   * of implying a language model is behind every plan.
+   */
+  app.get('/api/coding/capabilities', async () => ({
+    capabilities: {
+      decisionSource: info.decisionSource,
+      planApprovalRequired: info.planApprovalRequired,
+      toolConfirmationsRequired: true,
+      states: [
+        'idle',
+        'analyzing',
+        'planning',
+        'awaiting_approval',
+        'inspecting',
+        'editing',
+        'validating',
+        'iterating',
+        'completed',
+        'failed',
+        'cancelled',
+      ],
+    },
+  }));
+
   app.post('/api/coding/runs', { schema: { body: runBodySchema } }, async (request, reply) => {
     try {
       const body = request.body as {

@@ -318,7 +318,18 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       sandboxes,
       now: () => new Date(),
     });
-  registerCodingRoutes(app, coding, { version: versionManager });
+  registerCodingRoutes(
+    app,
+    coding,
+    { version: versionManager },
+    // Honest capability reporting: the API's default coding agent runs a
+    // scripted decision source, so the UI can say "demo" instead of implying
+    // a model produced the plan.
+    {
+      decisionSource: options.coding === undefined ? 'scripted-demo' : 'injected',
+      planApprovalRequired: true,
+    },
+  );
 
   // App Generation endpoints: bounded, state-machine-driven idea-to-app
   // runs. The engine gets its OWN Tool System instance (project file tools
@@ -487,7 +498,17 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Native source storage (Step 31): history, atomic change sets and snapshots
   // over the SAME project engine. No second project system, no filesystem.
   const sourceStorage = options.sourceStorage ?? createSourceService({ projectEngine });
-  registerSourceRoutes(app, { source: sourceStorage });
+  registerSourceRoutes(app, {
+    source: sourceStorage,
+    // Framework-aware structure: detection reads manifests through the project
+    // engine; a stack it cannot identify stays `null` rather than a guess.
+    detectStack: async (projectId, workspaceId) => {
+      if (workspaceId === undefined) return null;
+      const detection = await appBuilder.detectWorkspace({ projectId, workspaceId });
+      const best = [...detection.frameworks].sort((a, b) => b.confidence - a.confidence)[0];
+      return best?.id ?? null;
+    },
+  });
 
   registerAiExecutionRoutes(app, {
     service:

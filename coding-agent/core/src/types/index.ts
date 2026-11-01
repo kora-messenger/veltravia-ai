@@ -266,5 +266,7 @@ export interface CodingRunView {
   readonly startedAt: string;
   readonly updatedAt: string;
   readonly pendingApproval: CodingPendingApproval | null;
+  /** The validated plan, once accepted (or awaiting approval). Safe by construction. */
+  readonly plan: CodingPlan | null;
   readonly failure: CodingRunFailure | null;
 }

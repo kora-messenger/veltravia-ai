@@ -316,4 +316,104 @@ describe('native source storage API', () => {
       .entries.find((item: { path: string }) => item.path === 'agent-output.ts');
     expect(entry).toMatchObject({ actor: 'external-writer', changeKind: 'created' });
   });
+
+  it('classifies frontend files without inventing a framework', async () => {
+    const app = buildApp();
+    const { projectId, workspaceId } = await projectWithWorkspace(app);
+    const files = [
+      'src/pages/Home.tsx',
+      'src/pages/Pricing.tsx',
+      'src/components/Nav.tsx',
+      'src/hooks/useSession.ts',
+      'src/styles/theme.css',
+      'public/logo.svg',
+      'src/lib/money.ts',
+      'README.md',
+    ];
+    // Parents must exist first: the engine never invents intermediate dirs.
+    for (const path of [
+      'src',
+      'public',
+      'src/pages',
+      'src/components',
+      'src/hooks',
+      'src/styles',
+      'src/lib',
+    ]) {
+      const directory = await app.inject({
+        method: 'POST',
+        url: `/api/workspaces/${workspaceId}/directories`,
+        headers: ownerA,
+        payload: { path },
+      });
+      expect(directory.statusCode).toBe(201);
+    }
+    for (const path of files) {
+      const created = await app.inject({
+        method: 'POST',
+        url: `/api/workspaces/${workspaceId}/files`,
+        headers: ownerA,
+        payload: { path, content: 'x' },
+      });
+      expect(created.statusCode).toBe(201);
+    }
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/projects/${projectId}/source/structure?workspaceId=${workspaceId}`,
+      headers: ownerA,
+    });
+    expect(response.statusCode).toBe(200);
+    const structure = response.json().structure;
+    expect(structure.totals.files).toBe(files.length);
+    expect(structure.pages).toEqual(['src/pages/Home.tsx', 'src/pages/Pricing.tsx']);
+    expect(structure.components).toEqual(['src/components/Nav.tsx']);
+    const sections = structure.sections.map((section: { section: string }) => section.section);
+    expect(sections).toEqual(expect.arrayContaining(['pages', 'components', 'hooks', 'styles']));
+    // No manifest means no framework claim, and a neutral grouping.
+    expect(structure.framework).toBeNull();
+  });
+
+  it('keeps structure scoped to the owner', async () => {
+    const app = buildApp();
+    const { projectId, workspaceId } = await projectWithWorkspace(app);
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/projects/${projectId}/source/structure?workspaceId=${workspaceId}`,
+      headers: ownerB,
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('reports coding-agent capabilities honestly', async () => {
+    const app = buildApp();
+    const response = await app.inject({ method: 'GET', url: '/api/coding/capabilities' });
+    expect(response.statusCode).toBe(200);
+    const capabilities = response.json().capabilities;
+    expect(capabilities.decisionSource).toBe('scripted-demo');
+    expect(capabilities.planApprovalRequired).toBe(true);
+    expect(capabilities.toolConfirmationsRequired).toBe(true);
+  });
+
+  it('exposes the plan on a run awaiting approval', async () => {
+    const app = buildApp();
+    const { projectId, workspaceId } = await projectWithWorkspace(app);
+    const run = await app.inject({
+      method: 'POST',
+      url: '/api/coding/runs',
+      headers: ownerA,
+      payload: {
+        projectId,
+        workspaceId,
+        userRequirement: 'Add a pricing page',
+      },
+    });
+    expect(run.statusCode).toBe(200);
+    const view = run.json();
+    expect(['awaiting_approval', 'planning', 'analyzing']).toContain(view.state);
+    if (view.state === 'awaiting_approval') {
+      expect(view.plan).not.toBeNull();
+      expect(typeof view.plan.goal).toBe('string');
+    }
+  });
 });
