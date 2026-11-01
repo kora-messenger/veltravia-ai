@@ -204,13 +204,26 @@
 /* Notification centre: the supplied status mark, an honest empty state. */
 .v-topbar__notifications {
   position: relative;
+  /* Flex rather than block: the inline-flex button otherwise sits in a line box
+     with descender space and the mark rides about 1px high. */
+  display: flex;
+  align-items: center;
+}
+
+/* The actions must share one row: as blocks they stacked taller than the bar
+   and flex centring pushed both the mark and the account menu half out of it. */
+.v-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-3);
 }
 
 .v-topbar__notify-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.125rem;
+  /* 24px mark + 4px each side keeps a 32px hit target. */
+  padding: 0.25rem;
   border: none;
   border-radius: var(--v-radius-sm);
   background: transparent;
@@ -257,4 +270,18 @@
   color: var(--v-text-muted);
   font-size: var(--v-text-sm);
   line-height: 1.5;
+}
+
+/* The notification panel is anchored to the bell, which on a phone sits beside
+ * the account menu, so its left edge hung 39px off a 390px viewport. Below
+ * 900px pin it to the gutters under the bar. Kept last so it wins over the
+ * base rule above. */
+@media (max-width: 900px) {
+  .v-topbar__notify-panel {
+    position: fixed;
+    top: calc(3.5rem + 0.5rem);
+    left: auto;
+    right: var(--v-space-4);
+    width: min(20rem, calc(100vw - var(--v-space-4) * 2));
+  }
 }

@@ -150,7 +150,7 @@ describe('BrandMark', () => {
   });
 
   it('renders the notification mark', () => {
-    render(<BrandMark variant="notification" size={20} />);
+    render(<BrandMark variant="notification" size={24} />);
     const image = screen.getByRole('img', { name: 'Veltravia AI notifications' });
     expect(image.getAttribute('src')).toBe('/brand/veltravia-notification-96.png');
     expect(image.getAttribute('srcSet') ?? '').toContain(

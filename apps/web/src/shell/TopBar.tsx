@@ -80,7 +80,7 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
             aria-controls="veltravia-notifications"
             onClick={() => setNotificationsOpen((open) => !open)}
           >
-            <BrandMark variant="notification" size={20} decorative />
+            <BrandMark variant="notification" size={24} decorative />
           </button>
           {notificationsOpen && (
             <div
@@ -90,7 +90,7 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
               aria-label="Notification centre"
             >
               <div className="v-topbar__notify-head">
-                <BrandMark variant="notification" size={24} decorative />
+                <BrandMark variant="notification" size={28} decorative />
                 <h2 className="v-heading-3">Notifications</h2>
                 <button
                   type="button"

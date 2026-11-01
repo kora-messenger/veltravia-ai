@@ -513,27 +513,30 @@ collapses to one column on narrow screens.
 
 The supplied artwork ships untouched next to the files the app actually loads:
 
-| File                                        | Role                                               |
-| ------------------------------------------- | -------------------------------------------------- |
-| `veltravia-logo.png` (1024x1024)            | supplied logo, kept at its delivered size          |
-| `veltravia-mark.png` (1024x341)             | supplied wide notification mark, kept as delivered |
-| `veltravia-logo-trim.png` (1024x1024)       | logo cropped to its ink and re-centred             |
-| `veltravia-notification-trim.png` (512x512) | notification mark, same treatment                  |
-| `veltravia-logo-{32,48,96,180,192,512}.png` | favicon and app icons                              |
-| `veltravia-notification-{48,96,256}.png`    | status mark sizes for the top bar                  |
-| `favicon.ico`                               | multi-resolution 16 to 256                         |
+| File                                        | Role                                          |
+| ------------------------------------------- | --------------------------------------------- |
+| `veltravia-logo.png` (1024x1024)            | supplied logo, kept at its delivered size     |
+| `veltravia-mark.png` (1024x518)             | supplied notification mark, kept as delivered |
+| `veltravia-logo-trim.png` (1024x1024)       | logo cropped to its ink and re-centred        |
+| `veltravia-notification-trim.png` (512x512) | notification mark, same treatment             |
+| `veltravia-logo-{32,48,96,180,192,512}.png` | favicon and app icons                         |
+| `veltravia-notification-{48,96,256}.png`    | status mark sizes for the top bar             |
+| `favicon.ico`                               | multi-resolution 16 to 256                    |
 
 Measured on the delivered files: the logo's ink occupies 64% x 51% of its
-1024 square and the notification mark's ink 41% x 69% of its 1024x518, so drawing it raw put a 17 x 14px shape inside the 28px sidebar
-box. `scripts/trim-brand-assets.py` crops to the ink at an alpha threshold of
-128, re-centres on a square canvas with 7% padding, and writes every derived
+1024 square and the notification mark's ink 41% x 69% of its 1024x518, so
+drawing them raw put a 17 x 14px shape inside the 28px sidebar box and a
+14 x 13px shape inside the 20px status chip. `scripts/trim-brand-assets.py`
+crops to the ink at an alpha threshold of 128, re-centres on a square canvas with 7% padding, and writes every derived
 size from that crop, one uniform scale and no recolour. The rendered mark now
 covers 88% of its box instead of 62% and is centred to within 7px at 4x.
 `brand-assets.json` records the measurements, and `brand.test.tsx` fails if any
 shipped icon falls below an 80% ink fill.
 
 `BrandMark` serves `srcSet` densities (1x/2x/3x), so a 3x display fetches the
-512px file instead of upscaling. The mark sits on the `--v-neutral-950` chip in
+512px file instead of upscaling. The status mark renders at 24px in the top bar
+and 28px in the notification panel heading, and the panel shows the 16px heading
+unchanged so the mark never outgrows its title. The mark sits on the `--v-neutral-950` chip in
 both themes because the artwork mixes deep violet with white highlights: a light
 surface would swallow the highlights, a mid surface would soften the violet
 edges. The mark is static: `brand.css` has no keyframes, animation or
