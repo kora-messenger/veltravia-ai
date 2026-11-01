@@ -346,3 +346,9 @@ gpt-4.1-mini" or "no model connected" and mean it.
 
 A model-authored patch must match exactly one location in a file it has already read, and
 cancelling a run aborts the in-flight model call instead of only discarding the answer.
+
+A run makes one model call per decision, so it meets rate limits a chat turn never would. The
+gateway waits as long as the provider asks (capped at 20s), waits at least 5s on a 429 that states
+no wait, and names the provider's own reason - an exhausted daily quota reads as one. Metered keys
+can also pace decisions with `VELTRAVIA_CODING_MODEL_MIN_INTERVAL_MS`. What none of that does is
+make a spent quota work; the run ends as a typed failure that says so.
