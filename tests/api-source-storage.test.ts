@@ -386,16 +386,35 @@ describe('native source storage API', () => {
   });
 
   it('reports coding-agent capabilities honestly', async () => {
+    // Without a connected provider the agent says so (Step 35). The scripted
+    // source is an explicit server-side opt-in, never a silent default.
     const app = buildApp();
     const response = await app.inject({ method: 'GET', url: '/api/coding/capabilities' });
     expect(response.statusCode).toBe(200);
     const capabilities = response.json().capabilities;
-    expect(capabilities.decisionSource).toBe('scripted-demo');
+    expect(capabilities.decisionSource).toBe('unavailable');
+    expect(capabilities.unavailableReason).toMatch(/connect a provider|credential encryption/i);
     expect(capabilities.planApprovalRequired).toBe(true);
     expect(capabilities.toolConfirmationsRequired).toBe(true);
+
+    const previous = process.env.VELTRAVIA_CODING_DEMO;
+    process.env.VELTRAVIA_CODING_DEMO = '1';
+    try {
+      const demo = (
+        await buildApp().inject({ method: 'GET', url: '/api/coding/capabilities' })
+      ).json();
+      expect(demo.capabilities.decisionSource).toBe('scripted-demo');
+    } finally {
+      if (previous === undefined) delete process.env.VELTRAVIA_CODING_DEMO;
+      else process.env.VELTRAVIA_CODING_DEMO = previous;
+    }
   });
 
   it('exposes the plan on a run awaiting approval', async () => {
+    // The scripted source is the only one available without a provider, and it
+    // is opt-in: this test exercises the run view, not the model.
+    const previous = process.env.VELTRAVIA_CODING_DEMO;
+    process.env.VELTRAVIA_CODING_DEMO = '1';
     const app = buildApp();
     const { projectId, workspaceId } = await projectWithWorkspace(app);
     const run = await app.inject({
@@ -414,6 +433,10 @@ describe('native source storage API', () => {
     if (view.state === 'awaiting_approval') {
       expect(view.plan).not.toBeNull();
       expect(typeof view.plan.goal).toBe('string');
+      // Provenance is explicit: a scripted plan never claims a model wrote it.
+      expect(view.plan.origin).toBe('demonstration');
     }
+    if (previous === undefined) delete process.env.VELTRAVIA_CODING_DEMO;
+    else process.env.VELTRAVIA_CODING_DEMO = previous;
   });
 });

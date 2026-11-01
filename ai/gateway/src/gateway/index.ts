@@ -85,6 +85,8 @@ export interface GatewayOptions {
   readonly pricing?: ModelPricingTable;
   /** Bounded retry policy for retryable provider failures. */
   readonly retry?: RetryPolicy;
+  /** Shortest wait before retrying a 429 that stated no wait (default 5s). */
+  readonly rateLimitFloorMs?: number;
   /** Injectable delay, so retry timing is testable without real waiting. */
   readonly sleep?: (ms: number) => Promise<void>;
 }
@@ -103,8 +105,25 @@ export interface RetryPolicy {
 export const DEFAULT_RETRY_POLICY: RetryPolicy = {
   maxAttempts: 3,
   baseDelayMs: 250,
-  maxDelayMs: 2_000,
+  // Long enough to honour a provider's own retry hint (Gemini asks for 15-30s
+  // on a 429), short enough that a run never appears hung.
+  maxDelayMs: 20_000,
 };
+
+/** Shortest wait between retries of a rate-limited call, when none was stated. */
+const DEFAULT_RATE_LIMIT_FLOOR_MS = 5_000;
+
+function isRateLimit(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === 'GATEWAY_RATE_LIMITED';
+}
+
+/** The provider's own wait suggestion, when it gave one. */
+function retryHintOf(error: unknown): number | null {
+  const details = (error as { details?: Record<string, unknown> } | null)?.details;
+  const hint = details?.retryAfterMs;
+  if (typeof hint !== 'number' || !Number.isFinite(hint) || hint <= 0) return null;
+  return hint;
+}
 
 const RETRYABLE_CODES = new Set([
   'GATEWAY_RATE_LIMITED',
@@ -208,6 +227,59 @@ function requireOwner(scope: GatewayScope): string {
   return scope.ownerRef.slice(0, 256);
 }
 
+/**
+ * Picks the model a connection uses when the caller did not choose one.
+ *
+ * Providers list their newest preview/experimental models first, and those are
+ * exactly the ones a live account may reject. Taking `modelIds[0]` therefore
+ * turned "connected successfully" into a guaranteed failed first request (live
+ * QA: Gemini's catalog starts with `antigravity-preview-*`). Preference order:
+ * a general-purpose stable id, then any id without a preview/experimental/lab
+ * marker, then the first entry as a last resort.
+ */
+const DEFAULT_MODEL_PREFERENCE: readonly RegExp[] = [
+  /^(?:gemini-[\d.]+-flash|gpt-[\d.]+(?:-mini)?|claude-[a-z]+-[\d.]+|deepseek-[a-z\d.]+)$/i,
+];
+const UNSTABLE_MODEL_MARKER =
+  /(preview|experimental|exp\b|alpha|beta|lab|test|deprecated|latest|-0\d{3,})/i;
+
+/** Highest version number in an id, so 3.8 beats 2.5 rather than losing on order. */
+function modelVersion(id: string): number {
+  const versions = [...id.matchAll(/(\d+(?:\.\d+)*)/g)].map((match) => Number(match[1]));
+  const usable = versions.filter((value) => Number.isFinite(value));
+  return usable.length === 0 ? 0 : Math.max(...usable);
+}
+
+function pickDefaultModelId(
+  modelIds: readonly string[],
+  providerDefault?: string,
+): string | undefined {
+  if (modelIds.length === 0) return undefined;
+  // A provider's declared model beats any heuristic: discovery lists retired
+  // ids next to current ones, so "newest" can be a model the key cannot call.
+  if (providerDefault !== undefined && modelIds.includes(providerDefault)) return providerDefault;
+  const preferred = modelIds.filter((id) =>
+    DEFAULT_MODEL_PREFERENCE.some((pattern) => pattern.test(id)),
+  );
+  const stable = modelIds.filter((id) => !UNSTABLE_MODEL_MARKER.test(id));
+  // Rank: preferred-and-stable, then stable, then everything, each by highest
+  // version. Providers list deprecated models alongside current ones (Gemini
+  // still advertises 2.5 after retiring it for new accounts), so the newest
+  // general-purpose id is the only sane guess.
+  const rank = (id: string): number[] => {
+    const preferredScore = DEFAULT_MODEL_PREFERENCE.some((pattern) => pattern.test(id)) ? 2 : 0;
+    const stableScore = UNSTABLE_MODEL_MARKER.test(id) ? 0 : 1;
+    return [preferredScore + stableScore, modelVersion(id)];
+  };
+  const pool = preferred.length > 0 ? [...preferred] : [...stable];
+  const candidates = pool.length > 0 ? pool : [...modelIds];
+  return candidates.sort((a, b) => {
+    const [ra, va] = rank(a) as [number, number];
+    const [rb, vb] = rank(b) as [number, number];
+    return rb - ra || vb - va;
+  })[0];
+}
+
 export class AIProviderGateway {
   private readonly vault: CredentialVault;
   private readonly connections: ConnectionStore;
@@ -225,6 +297,7 @@ export class AIProviderGateway {
   private selector?: RouteSelector;
   private readonly pricing: ModelPricingTable;
   private readonly retry: RetryPolicy;
+  private readonly rateLimitFloorMs: number;
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: GatewayOptions) {
@@ -244,6 +317,7 @@ export class AIProviderGateway {
     this.selector = options.selector;
     this.pricing = options.pricing ?? new ModelPricingTable();
     this.retry = options.retry ?? DEFAULT_RETRY_POLICY;
+    this.rateLimitFloorMs = options.rateLimitFloorMs ?? DEFAULT_RATE_LIMIT_FLOOR_MS;
     this.sleep = options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   }
 
@@ -338,7 +412,7 @@ export class AIProviderGateway {
     const defaultModelId =
       input.defaultModelId && modelIds.includes(input.defaultModelId)
         ? input.defaultModelId
-        : (modelIds[0] as string);
+        : (pickDefaultModelId(modelIds, definition.defaultModelId) as string);
 
     const stored = await this.vault.put(ownerRef, input.apiKey.trim());
     const timestamp = nowIso(this.now);
@@ -438,10 +512,11 @@ export class AIProviderGateway {
       ...connection.modelIds,
       ...discovered.map((model) => model.modelId),
     ]);
+    const definition = this.registry.definition(connection.providerId);
     const defaultModelId =
       connection.defaultModelId && modelIds.includes(connection.defaultModelId)
         ? connection.defaultModelId
-        : (modelIds[0] ?? undefined);
+        : pickDefaultModelId(modelIds, definition.defaultModelId);
     await this.connections.put({
       ...connection,
       status: 'active',
@@ -898,7 +973,17 @@ export class AIProviderGateway {
       } catch (error) {
         failure = error;
         if (!isRetryable(error) || attempts >= maxAttempts) break;
-        const delay = Math.min(this.retry.baseDelayMs * 2 ** (attempts - 1), this.retry.maxDelayMs);
+        // A provider that says how long to wait is obeyed, within the ceiling
+        // this server sets: a live 429 from Gemini asks for 15-30s, and three
+        // 250ms retries would all be rejected the same way.
+        const hint = retryHintOf(error);
+        // A 429 with no stated wait still needs room: free tiers meter per
+        // minute, and 250ms/500ms retries spend the whole budget failing.
+        const floor = isRateLimit(error) ? this.rateLimitFloorMs : 0;
+        const delay = Math.min(
+          Math.max(hint ?? this.retry.baseDelayMs * 2 ** (attempts - 1), floor),
+          this.retry.maxDelayMs,
+        );
         await this.sleep(delay);
       }
     }

@@ -24,7 +24,7 @@ import { createToolManager } from './tools.js';
  * and audit are fully real: swapping the scripted source for an AI-routed
  * CodingDecisionSource changes nothing else.
  */
-function createDemoCodingDecisionSource(): CodingDecisionSource {
+export function createDemoCodingDecisionSource(): CodingDecisionSource {
   return createScriptedCodingDecisionSource([
     {
       type: 'plan',
@@ -35,6 +35,15 @@ function createDemoCodingDecisionSource(): CodingDecisionSource {
         filesToModify: ['notes.md'],
         validations: [],
         acceptanceCriteria: ['notes.md exists in the workspace'],
+        requestSummary: 'Create a small markdown note.',
+        projectUnderstanding: 'An empty workspace needs no inspection first.',
+        approach: 'Write one file at the workspace root, then stop.',
+        filesToCreate: ['notes.md'],
+        risks: [],
+        validationStrategy: ['No checks are available in this workspace.'],
+        approvalRequirements: ['Approve the plan before notes.md is written.'],
+        // Provenance is declared by the source, not inferred by the manager.
+        origin: 'demonstration',
       },
     },
     {

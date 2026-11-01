@@ -1,6 +1,7 @@
 import type { AIFinishReason } from '@veltravia/ai-core';
 
 import { GatewayError } from '../errors/index.js';
+import { retryHintMs } from './retry-hint.js';
 import type { GatewayModel, ProviderDefinition } from '../types/index.js';
 import { joinEndpoint } from '../ssrf/index.js';
 import type {
@@ -24,7 +25,12 @@ import { parseJsonFrame, readSseEvents } from './sse.js';
 
 const ANTHROPIC_VERSION = '2023-06-01';
 
-function statusError(status: number): GatewayError {
+function retryDetails(body: unknown): Record<string, number> {
+  const hint = retryHintMs(body);
+  return hint === undefined ? {} : { retryAfterMs: hint };
+}
+
+function statusError(status: number, body?: unknown): GatewayError {
   if (status === 401 || status === 403)
     return new GatewayError('GATEWAY_AUTH_FAILED', 'The provider rejected the API key.', {
       details: { status },
@@ -35,7 +41,7 @@ function statusError(status: number): GatewayError {
     });
   if (status === 429)
     return new GatewayError('GATEWAY_RATE_LIMITED', 'The provider is rate limiting this key.', {
-      details: { status },
+      details: { ...retryDetails(body), status },
     });
   if (status === 400 || status === 422)
     return new GatewayError('GATEWAY_INVALID_REQUEST', 'The provider rejected the request.', {
@@ -106,7 +112,8 @@ export class AnthropicAdapter implements ProviderAdapter {
       headers: this.headers(context),
       timeoutMs: context.timeoutMs,
     });
-    if (response.status < 200 || response.status >= 300) throw statusError(response.status);
+    if (response.status < 200 || response.status >= 300)
+      throw statusError(response.status, response.body);
     const entries = (response.body as { data?: unknown } | undefined)?.data;
     if (!Array.isArray(entries)) {
       throw new GatewayError(
@@ -166,7 +173,8 @@ export class AnthropicAdapter implements ProviderAdapter {
       body,
       timeoutMs: context.timeoutMs,
     });
-    if (response.status < 200 || response.status >= 300) throw statusError(response.status);
+    if (response.status < 200 || response.status >= 300)
+      throw statusError(response.status, response.body);
 
     const payload = response.body as
       | {
@@ -289,7 +297,8 @@ export class AnthropicAdapter implements ProviderAdapter {
         body,
         timeoutMs: context.timeoutMs,
       });
-      if (response.status < 200 || response.status >= 300) throw statusError(response.status);
+      if (response.status < 200 || response.status >= 300)
+        throw statusError(response.status, response.body);
       for (const line of response.text.split(/\r?\n/)) {
         const trimmed = line.trim();
         if (!trimmed.startsWith('data:')) continue;

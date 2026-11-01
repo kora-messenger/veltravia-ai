@@ -24,6 +24,8 @@ function setup(options: { transport?: FixtureProviderTransport; now?: () => Date
     // public custom-endpoint fixtures.
     resolveHost: async () => ['93.184.216.34'],
     ...(options.now ? { now: options.now } : {}),
+    // The 5s rate-limit floor is correct in production and far too slow here.
+    rateLimitFloorMs: 1,
   };
   return { gateway: new AIProviderGateway(gatewayOptions), transport, usage };
 }
@@ -388,5 +390,72 @@ describe('provider gateway: AI Core integration', () => {
     await expect(gateway.createCore(ownerA)).rejects.toMatchObject({
       code: 'GATEWAY_NO_PROVIDER_CONFIGURED',
     });
+  });
+  it('defaults to a stable model instead of the first, preview-heavy entry', async () => {
+    // Live QA (Step 35): Gemini's catalog begins with preview models that a real
+    // account rejects, so the first request after a successful connect always
+    // failed. The default has to be something the provider actually serves.
+    const { gateway } = setup({
+      transport: new FixtureProviderTransport({
+        models: ['gemini-preview-09-2026', 'gemini-3.5-flash', 'gemini-2.5-pro'],
+      }),
+    });
+    const connection = await gateway.createConnection(ownerA, {
+      providerId: 'gemini',
+      apiKey: 'test-key-0000000000000000',
+      displayName: 'Gemini',
+    });
+    // Newest stable general-purpose id wins, not the first in the provider list.
+    expect(connection.defaultModelId).toBe('gemini-3.5-flash');
+
+    // Re-validation keeps that choice rather than collapsing back to index 0.
+    const validated = await gateway.validateConnection(ownerA, connection.id);
+    expect(validated.valid).toBe(true);
+    const after = await gateway.getConnection(ownerA, connection.id);
+    expect(after.defaultModelId).toBe('gemini-3.5-flash');
+  });
+
+  it('prefers the newest version over list order', async () => {
+    const { gateway } = setup({
+      transport: new FixtureProviderTransport({
+        models: ['gemini-2.5-flash', 'gemini-preview-09-2026', 'gemini-3.8-flash'],
+      }),
+    });
+    const connection = await gateway.createConnection(ownerA, {
+      providerId: 'gemini',
+      apiKey: 'test-key-0000000000000002',
+      displayName: 'Gemini',
+    });
+    expect(connection.defaultModelId).toBe('gemini-3.8-flash');
+  });
+
+  it('uses the provider declared model ahead of the newest one', async () => {
+    // Live QA: 3.8-flash was advertised but refused for this account, 3.5-flash
+    // answered. A declared default is verified, so it outranks the heuristic.
+    const { gateway } = setup({
+      transport: new FixtureProviderTransport({
+        models: ['gemini-preview-09-2026', 'gemini-3.8-flash', 'gemini-3.5-flash'],
+      }),
+    });
+    const connection = await gateway.createConnection(ownerA, {
+      providerId: 'gemini',
+      apiKey: 'test-key-0000000000000003',
+      displayName: 'Gemini',
+    });
+    expect(connection.defaultModelId).toBe('gemini-3.5-flash');
+  });
+
+  it('still chooses deterministically when every model looks unstable', async () => {
+    const { gateway } = setup({
+      transport: new FixtureProviderTransport({ models: ['alpha-lab-1', 'beta-preview-2'] }),
+    });
+    const connection = await gateway.createConnection(ownerA, {
+      providerId: 'gemini',
+      apiKey: 'test-key-0000000000000001',
+      displayName: 'Gemini',
+    });
+    // With nothing stable to prefer, the highest version wins rather than the
+    // first entry, so the choice does not depend on the provider's list order.
+    expect(connection.defaultModelId).toBe('beta-preview-2');
   });
 });

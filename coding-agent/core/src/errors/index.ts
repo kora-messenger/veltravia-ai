@@ -22,6 +22,13 @@ export const CODING_ERROR_CODES = [
   'CODING_DURATION_LIMIT',
   'CODING_CONSECUTIVE_FAILURES',
   'CODING_CANCELLED',
+  // Model-powered planning (Step 35). These are first-class codes so a model
+  // failure is reported as itself instead of collapsing into INVALID_DECISION.
+  'CODING_MODEL_UNAVAILABLE',
+  'CODING_MODEL_INVALID_OUTPUT',
+  'CODING_MODEL_PROVIDER_ERROR',
+  'CODING_MODEL_REFUSED',
+  'CODING_MODEL_CANCELLED',
 ] as const;
 
 export type CodingErrorCode = (typeof CODING_ERROR_CODES)[number];

@@ -108,8 +108,10 @@ const structure: sourceApi.FrontendStructureView = {
 
 const capabilities: codingApi.CodingCapabilities = {
   decisionSource: 'scripted-demo',
+  unavailableReason: null,
   planApprovalRequired: true,
   toolConfirmationsRequired: true,
+  phases: ['planning', 'awaiting_approval', 'completed'],
 };
 
 function runView(overrides: Partial<codingApi.CodingRunView> = {}): codingApi.CodingRunView {
@@ -130,10 +132,22 @@ function runView(overrides: Partial<codingApi.CodingRunView> = {}): codingApi.Co
       steps: ['Read the router', 'Create the page'],
       filesToInspect: ['src/App.tsx'],
       filesToModify: ['src/pages/Pricing.tsx'],
+      filesToCreate: ['src/pages/Pricing.tsx'],
+      filesToDelete: [],
       validations: ['npm run build'],
       acceptanceCriteria: ['Build passes'],
+      requestSummary: 'Add a pricing page',
+      projectUnderstanding: 'Pages live in src/pages',
+      approach: 'Register the page in the router',
+      risks: [],
+      validationStrategy: ['npm run build'],
+      approvalRequirements: [],
+      origin: 'script',
     },
     failure: null,
+    phase: 'awaiting_approval',
+    validationResults: [],
+    model: null,
     ...overrides,
   };
 }
@@ -241,7 +255,9 @@ describe('frontend builder page', () => {
     expect(await screen.findByTestId('plan-review')).toBeDefined();
     // Appears twice: the user's request and the plan's goal.
     expect(screen.getAllByText('Add a pricing page').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText('src/pages/Pricing.tsx')).toBeDefined();
+    // The path is named in both "Will create" and "Intended files" (Step 35
+    // added the create list), so the assertion counts rather than assumes one.
+    expect(screen.getAllByText(/src\/pages\/Pricing\.tsx/).length).toBeGreaterThanOrEqual(1);
     // No changes claimed yet.
     expect(screen.queryByTestId('run-changes')).toBeNull();
 

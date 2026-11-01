@@ -13,6 +13,7 @@ import type { ToolManager } from '@veltravia/tool-core';
 import { CodingError } from '../errors/index.js';
 import {
   CODING_ACTION_TYPES,
+  CODING_PLAN_ORIGINS,
   CODING_LIMIT_CEILINGS,
   CODING_LIMIT_DEFAULTS,
   type CodingAction,
@@ -29,6 +30,7 @@ export const CODING_TOOL_IDS = {
   createFile: 'project.create-file',
   createDirectory: 'project.create-directory',
   updateFile: 'project.update-file',
+  patchFile: 'project.patch-file',
   deleteFile: 'project.delete-file',
   moveFile: 'project.move-file',
   sandboxCreate: 'sandbox.create',
@@ -177,6 +179,40 @@ export function validateCodingPlan(plan: CodingPlan): CodingPlan {
   assertTextArray(plan.filesToModify, 'plan.filesToModify');
   assertTextArray(plan.validations, 'plan.validations');
   assertTextArray(plan.acceptanceCriteria, 'plan.acceptanceCriteria');
+  assertTextArray(plan.filesToCreate, 'plan.filesToCreate');
+  assertTextArray(plan.filesToDelete, 'plan.filesToDelete');
+  assertTextArray(plan.dependencies, 'plan.dependencies');
+  assertTextArray(plan.risks, 'plan.risks');
+  assertTextArray(plan.validationStrategy, 'plan.validationStrategy');
+  assertTextArray(plan.approvalRequirements, 'plan.approvalRequirements');
+  for (const field of ['requestSummary', 'projectUnderstanding', 'approach'] as const) {
+    const value = plan[field];
+    if (value === undefined) continue;
+    if (typeof value !== 'string' || value.length === 0 || value.length > MAX_TEXT) {
+      throw new CodingError('CODING_INVALID_PLAN', `plan ${field} must be a bounded string`, {
+        details: { field },
+      });
+    }
+    assertNoSecretShaped(value, `plan.${field}`);
+  }
+  if (
+    plan.origin !== undefined &&
+    !(CODING_PLAN_ORIGINS as readonly string[]).includes(plan.origin)
+  ) {
+    throw new CodingError('CODING_INVALID_PLAN', 'plan origin must be "model" or "demonstration"', {
+      details: { field: 'origin' },
+    });
+  }
+  // Deleted files are destructive: a plan may only delete files the engine can
+  // address, and the delete itself still needs the existing confirmation.
+  for (const listName of [
+    'filesToInspect',
+    'filesToModify',
+    'filesToCreate',
+    'filesToDelete',
+  ] as const) {
+    for (const entry of plan[listName] ?? []) assertPath(entry, `plan.${listName}`);
+  }
   // A plan is data: it cannot carry tool ids, permissions, commands, limits,
   // or credential references. Those simply do not exist as plan fields.
   return plan;
@@ -286,6 +322,38 @@ export function bindCodingAction(
           content: action.content,
           // The manager substitutes its own tracked revision when absent;
           // optimistic revision protection is always enforced either way.
+          expectedRevision:
+            action.expectedRevision !== undefined && Number.isInteger(action.expectedRevision)
+              ? action.expectedRevision
+              : -1,
+        },
+        state: 'editing',
+      };
+    }
+    case 'patch_file': {
+      assertNoSecretShaped(action.replace, 'action.replace');
+      if (typeof action.find !== 'string' || action.find.length === 0) {
+        throw new CodingError('CODING_INVALID_DECISION', 'patch_file requires a non-empty find', {
+          details: { field: 'find' },
+        });
+      }
+      if (typeof action.replace !== 'string') {
+        throw new CodingError('CODING_INVALID_DECISION', 'patch_file requires replace text', {
+          details: { field: 'replace' },
+        });
+      }
+      if (action.find === action.replace) {
+        throw new CodingError('CODING_INVALID_DECISION', 'patch_file changes nothing', {
+          details: { field: 'replace' },
+        });
+      }
+      return {
+        toolId: CODING_TOOL_IDS.patchFile,
+        input: {
+          workspaceId,
+          path: assertPath(action.path, 'action.path'),
+          find: action.find,
+          replace: action.replace,
           expectedRevision:
             action.expectedRevision !== undefined && Number.isInteger(action.expectedRevision)
               ? action.expectedRevision

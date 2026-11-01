@@ -93,6 +93,9 @@ const DEFAULT_HISTORY = 40;
 const DEFAULT_OUTAGE_MS = 10 * 60 * 1000;
 const FAILURES_FOR_OUTAGE = 3;
 
+/** Ids providers mark as not-yet-general: previews, labs, betas, experiments. */
+const UNSTABLE_MODEL_ID = /(preview|experimental|alpha|beta|lab|test|early-access)/i;
+
 /** In-process evidence about how models behaved. Never leaves the server. */
 export class InMemoryObservationStore {
   private readonly byKey = new Map<string, ObservationState>();
@@ -755,6 +758,18 @@ export class ModelRouter {
       }
 
       let score = 0;
+      // Preview, experimental and lab ids are advertised by providers but a
+      // live account may refuse them (live QA: Gemini answered 400 "Developer
+      // instruction is not enabled" for antigravity-preview-05-2026 while the
+      // current flash model worked). Automatic routing should land on
+      // something that actually serves requests; previews stay selectable by
+      // name but stop winning on paper capability alone.
+      if (UNSTABLE_MODEL_ID.test(model.modelId)) score -= 6;
+      // A connection's default is either provider-declared or owner-chosen,
+      // and both were verified against the live API, so it outranks a generic
+      // capability tally. An explicit preference (faster, stronger reasoning,
+      // lower cost) still decides for itself.
+      if (model.connectionDefault && preferenceKind === 'balanced') score += 2.5;
       for (const capability of requirement.preferred) {
         if (model.capabilities.includes(capability)) score += 2;
       }

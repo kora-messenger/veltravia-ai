@@ -25,6 +25,7 @@ function setup(
     selector?: RouteSelector;
     pricing?: ModelPricingTable;
     retry?: RetryPolicy;
+    rateLimitFloorMs?: number;
     sleep?: (ms: number) => Promise<void>;
   } = {},
 ) {
@@ -42,6 +43,9 @@ function setup(
     ...(options.selector ? { selector: options.selector } : {}),
     ...(options.pricing ? { pricing: options.pricing } : {}),
     ...(options.retry ? { retry: options.retry } : {}),
+    ...(options.rateLimitFloorMs !== undefined
+      ? { rateLimitFloorMs: options.rateLimitFloorMs }
+      : { rateLimitFloorMs: 1 }),
     ...(options.sleep ? { sleep: options.sleep } : {}),
   };
   return { gateway: new AIProviderGateway(gatewayOptions), transport, usage };
@@ -424,5 +428,36 @@ describe('execution: owner isolation', () => {
       }),
     ).rejects.toMatchObject({ code: 'GATEWAY_CONNECTION_NOT_FOUND' });
     expect(await gateway.listUsage(ownerB, 10)).toHaveLength(0);
+  });
+  it('waits as long as the provider asks on a rate limit, up to the ceiling', async () => {
+    // Live QA (Step 35): a free Gemini key answered 429 naming retryDelay
+    // "17s". Retrying after 250ms, 500ms and 1s failed identically.
+    const sleeps: number[] = [];
+    let limited = false;
+    const transport = new FixtureProviderTransport({
+      models: ['gpt-a'],
+      override: () =>
+        limited
+          ? {
+              status: 429,
+              headers: {},
+              text: '{"error":{"code":429,"details":[{"retryDelay":"17s"}]}}',
+              body: { error: { code: 429, details: [{ retryDelay: '17s' }] } },
+            }
+          : undefined,
+    });
+    const { gateway } = setup({
+      transport,
+      retry: { maxAttempts: 2, baseDelayMs: 10, maxDelayMs: 5_000 },
+      sleep: async (ms: number) => {
+        sleeps.push(ms);
+      },
+    });
+    await connect(gateway);
+    limited = true;
+    await expect(
+      gateway.generate(ownerA, { messages: [{ role: 'user', content: 'hi' }] }),
+    ).rejects.toMatchObject({ code: 'GATEWAY_RATE_LIMITED' });
+    expect(sleeps).toEqual([5_000]);
   });
 });

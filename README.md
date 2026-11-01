@@ -327,3 +327,22 @@ without one. Cross-layer edges (frontend request to backend route, route to hand
 model, route to auth) each carry a file and a line at both ends; a request with no route is
 listed as unmatched with its reason, and a route nobody calls is reported without being called
 broken.
+
+### Model-powered coding (Step 35)
+
+The coding agent behind every Build surface now plans and implements with a **real model**.
+[Model-powered coding](docs/model-powered-coding-agent.md) is one completion port implemented on
+the existing execution service, so the router still chooses the model, the gateway still decrypts
+the credential for one request, and usage is still recorded once. Nothing else moved: the model
+returns JSON, the agent validates it, the Tool System authorises it, the Project Engine applies
+it, and a human still approves the plan before a single file is written.
+
+`GET /api/coding/capabilities` answers per caller - `model`, `unavailable` with a plain reason, or
+`scripted-demo` only when the server was started with `VELTRAVIA_CODING_DEMO=1`. With no provider
+connected, `POST /api/coding/runs` refuses with `409 CODING_MODEL_UNAVAILABLE` rather than quietly
+falling back to a script. Run payloads carry `phase`, `plan.origin`, the answering provider and
+model ids, and each validation's real outcome - so the builder can say "Planned by OpenAI ·
+gpt-4.1-mini" or "no model connected" and mean it.
+
+A model-authored patch must match exactly one location in a file it has already read, and
+cancelling a run aborts the in-flight model call instead of only discarding the answer.

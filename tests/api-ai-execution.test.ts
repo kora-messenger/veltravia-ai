@@ -22,7 +22,12 @@ const ownerA = { 'x-veltravia-owner-ref': 'exec-owner-a' };
 const ownerB = { 'x-veltravia-owner-ref': 'exec-owner-b' };
 
 function appWith(transport: FixtureProviderTransport) {
-  const aiGateway = createGatewayService({ keyring: createTestKeyring([1]), transport });
+  // A 5s rate-limit floor is right in production and too slow to assert here.
+  const aiGateway = createGatewayService({
+    keyring: createTestKeyring([1]),
+    transport,
+    rateLimitFloorMs: 1,
+  });
   return { app: buildApp({ aiGateway }), transport };
 }
 

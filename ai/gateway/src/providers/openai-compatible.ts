@@ -1,6 +1,7 @@
 import type { AIFinishReason } from '@veltravia/ai-core';
 
 import { GatewayError } from '../errors/index.js';
+import { retryHintMs } from './retry-hint.js';
 import { redact, summarizeProviderMessage } from '../security/index.js';
 import type { GatewayModel, ProviderDefinition } from '../types/index.js';
 import { joinEndpoint } from '../ssrf/index.js';
@@ -43,12 +44,12 @@ const ERROR_STATUS: Readonly<Record<number, [string, string]>> = {
   429: ['GATEWAY_RATE_LIMITED', 'The provider is rate limiting this key.'],
 };
 
-function normalizedFor(status: number, rawMessage: string): GatewayError {
+function normalizedFor(status: number, rawMessage: string, body?: unknown): GatewayError {
   const mapped = ERROR_STATUS[status];
   if (mapped) {
     const [code, message] = mapped as [string, string];
     return new GatewayError(code as GatewayError['code'], message, {
-      details: { status },
+      details: { ...retryDetails(body), status },
     });
   }
   if (status === 402) {
@@ -74,6 +75,11 @@ function normalizedFor(status: number, rawMessage: string): GatewayError {
       details: { status },
     },
   );
+}
+
+function retryDetails(body: unknown): Record<string, number> {
+  const hint = retryHintMs(body);
+  return hint === undefined ? {} : { retryAfterMs: hint };
 }
 
 function providerMessage(response: TransportResponse): string {
@@ -184,7 +190,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
       timeoutMs: context.timeoutMs,
     });
     if (response.status < 200 || response.status >= 300) {
-      throw normalizedFor(response.status, providerMessage(response));
+      throw normalizedFor(response.status, providerMessage(response), response.body);
     }
     const entries = (response.body as { data?: unknown } | undefined)?.data;
     if (!Array.isArray(entries)) {
@@ -257,7 +263,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
       timeoutMs: context.timeoutMs,
     });
     if (response.status < 200 || response.status >= 300) {
-      throw normalizedFor(response.status, providerMessage(response));
+      throw normalizedFor(response.status, providerMessage(response), response.body);
     }
     const choice = (response.body as { choices?: unknown } | undefined)?.choices;
     if (!Array.isArray(choice) || choice.length === 0) {
@@ -342,7 +348,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
       timeoutMs: context.timeoutMs,
     });
     if (response.status < 200 || response.status >= 300) {
-      throw normalizedFor(response.status, providerMessage(response));
+      throw normalizedFor(response.status, providerMessage(response), response.body);
     }
     let usage: { inputTokens: number | null; outputTokens: number | null } | undefined;
     let finish: AIFinishReason | undefined;

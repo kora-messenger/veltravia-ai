@@ -1,10 +1,13 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { captureRunEnd, captureRunStart, type RunCaptureHooks } from '../run-captures.js';
 import {
+  CODING_PHASES,
   isCodingError,
   type CodingAgentManager,
   type CodingRunView,
 } from '@veltravia/coding-agent-core';
+
+import type { ApiCodingDecisionSource } from '../coding-model.js';
 
 /** Maps normalized coding error codes to HTTP status codes. */
 const CODING_ERROR_STATUS: Record<string, number> = {
@@ -26,6 +29,13 @@ const CODING_ERROR_STATUS: Record<string, number> = {
   CODING_DURATION_LIMIT: 409,
   CODING_CONSECUTIVE_FAILURES: 409,
   CODING_CANCELLED: 409,
+  // Model-powered planning: a missing provider is a fixable state (409), an
+  // unreadable answer is the caller's model misbehaving (422), and an upstream
+  // outage is not this service's fault (502).
+  CODING_MODEL_UNAVAILABLE: 409,
+  CODING_MODEL_INVALID_OUTPUT: 422,
+  CODING_MODEL_PROVIDER_ERROR: 502,
+  CODING_MODEL_CANCELLED: 409,
 };
 
 function toHttpError(error: unknown): { status: number; body: Record<string, unknown> } {
@@ -36,8 +46,22 @@ function toHttpError(error: unknown): { status: number; body: Record<string, unk
   return { status: 500, body: { error: { code: 'INTERNAL', message: 'unexpected failure' } } };
 }
 
-/** The safe public shape of a run: exactly the CodingRunView fields. */
-function toRunPayload(view: CodingRunView): Record<string, unknown> {
+function ownerOf(request: FastifyRequest): string {
+  const header = request.headers['x-veltravia-owner-ref'] ?? request.headers['x-veltravia-owner'];
+  const raw = Array.isArray(header) ? header[0] : header;
+  if (typeof raw === 'string' && raw.length > 0) return raw.slice(0, 256);
+  return process.env.VELTRAVIA_DEFAULT_OWNER_REF ?? 'veltravia-dev-user';
+}
+
+/**
+ * The safe public shape of a run: exactly the CodingRunView fields, plus the
+ * model that actually answered (ids only - never a credential) and the real
+ * phase the run has reached.
+ */
+function toRunPayload(
+  view: CodingRunView,
+  decisionSource?: ApiCodingDecisionSource,
+): Record<string, unknown> {
   return {
     runId: view.runId,
     projectId: view.projectId,
@@ -55,6 +79,23 @@ function toRunPayload(view: CodingRunView): Record<string, unknown> {
     // what makes an approval decision reviewable before anything is written.
     plan: view.plan,
     failure: view.failure,
+    phase: view.phase,
+    ...(decisionSource !== undefined
+      ? {
+          model: (() => {
+            const exchanges = decisionSource.exchangesFor(view.runId);
+            const last = exchanges[exchanges.length - 1];
+            return {
+              used: exchanges.length > 0,
+              providerId: last?.providerId ?? null,
+              providerName: last?.providerName ?? null,
+              modelId: last?.modelId ?? null,
+              live: last?.live ?? false,
+              decisions: exchanges.length,
+            };
+          })(),
+        }
+      : {}),
   };
 }
 
@@ -85,8 +126,13 @@ const confirmationBodySchema = {
 /** What the API's coding agent is actually able to do in this build. */
 export interface CodingAgentInfo {
   /** 'scripted-demo' means no model is called; the script decides. */
-  readonly decisionSource: 'scripted-demo' | 'injected';
+  readonly decisionSource: 'scripted-demo' | 'injected' | 'model' | 'unavailable';
   readonly planApprovalRequired: boolean;
+}
+
+export interface CodingRouteDeps {
+  /** Present when the API runs the model-powered source. */
+  readonly decisionSource?: ApiCodingDecisionSource;
 }
 
 /**
@@ -101,31 +147,43 @@ export function registerCodingRoutes(
   manager: CodingAgentManager,
   captures: RunCaptureHooks = {},
   info: CodingAgentInfo = { decisionSource: 'scripted-demo', planApprovalRequired: true },
+  deps: CodingRouteDeps = {},
 ): void {
   /**
    * Capability truth, so the builder UI can say what it is talking to instead
    * of implying a language model is behind every plan.
    */
-  app.get('/api/coding/capabilities', async () => ({
-    capabilities: {
-      decisionSource: info.decisionSource,
-      planApprovalRequired: info.planApprovalRequired,
-      toolConfirmationsRequired: true,
-      states: [
-        'idle',
-        'analyzing',
-        'planning',
-        'awaiting_approval',
-        'inspecting',
-        'editing',
-        'validating',
-        'iterating',
-        'completed',
-        'failed',
-        'cancelled',
-      ],
-    },
-  }));
+  app.get('/api/coding/capabilities', async (request) => {
+    // Honest per-caller capability: a provider connected by SOMEONE ELSE is not
+    // a provider this caller can plan with.
+    const described =
+      deps.decisionSource !== undefined
+        ? await deps.decisionSource.describe(ownerOf(request))
+        : null;
+    return {
+      capabilities: {
+        decisionSource: described?.mode ?? info.decisionSource,
+        providerName: described?.providerName ?? null,
+        unavailableReason: described?.reason ?? null,
+        planApprovalRequired: info.planApprovalRequired,
+        toolConfirmationsRequired: true,
+        phases: CODING_PHASES,
+        states: [
+          'idle',
+          'analyzing',
+          'planning',
+          'awaiting_approval',
+          'inspecting',
+          'editing',
+          'validating',
+          'iterating',
+          'completed',
+          'failed',
+          'cancelled',
+        ],
+      },
+    };
+  });
 
   app.post('/api/coding/runs', { schema: { body: runBodySchema } }, async (request, reply) => {
     try {
@@ -138,6 +196,20 @@ export function registerCodingRoutes(
         constraints?: string[];
         acceptanceCriteria?: string[];
       };
+      if (deps.decisionSource !== undefined) {
+        const described = await deps.decisionSource.describe(ownerOf(request));
+        if (described.mode === 'unavailable') {
+          reply.code(409);
+          return {
+            error: {
+              code: 'CODING_MODEL_UNAVAILABLE',
+              message:
+                described.reason ??
+                'No AI provider is connected, so no model can plan this change yet.',
+            },
+          };
+        }
+      }
       // Step 18: bracket the run - capture BEFORE the run starts (best-effort).
       await captureRunStart(captures, 'coding_before', body.projectId, body.workspaceId);
       const view = await manager.startRun({
@@ -152,7 +224,7 @@ export function registerCodingRoutes(
           : {}),
       });
       reply.code(200);
-      return toRunPayload(view);
+      return toRunPayload(view, deps.decisionSource);
     } catch (error) {
       const { status, body } = toHttpError(error);
       reply.code(status);
@@ -164,7 +236,7 @@ export function registerCodingRoutes(
     const { runId } = request.params as { runId: string };
     try {
       reply.code(200);
-      return toRunPayload(manager.getRun(runId));
+      return toRunPayload(manager.getRun(runId), deps.decisionSource);
     } catch (error) {
       const { status, body } = toHttpError(error);
       reply.code(status);
@@ -176,9 +248,12 @@ export function registerCodingRoutes(
     const { runId } = request.params as { runId: string };
     try {
       const view = manager.cancelRun(runId);
+      // Abort the model call itself: cancelling should stop the spend, not
+      // just make the answer unread.
+      deps.decisionSource?.abortRun(runId);
       await captureRunEnd(captures, 'coding_after', view.projectId, view.workspaceId, view.state);
       reply.code(200);
-      return toRunPayload(view);
+      return toRunPayload(view, deps.decisionSource);
     } catch (error) {
       const { status, body } = toHttpError(error);
       reply.code(status);
@@ -196,7 +271,7 @@ export function registerCodingRoutes(
         const view = await manager.submitApproval(runId, decision);
         await captureRunEnd(captures, 'coding_after', view.projectId, view.workspaceId, view.state);
         reply.code(200);
-        return toRunPayload(view);
+        return toRunPayload(view, deps.decisionSource);
       } catch (error) {
         const { status, body } = toHttpError(error);
         reply.code(status);

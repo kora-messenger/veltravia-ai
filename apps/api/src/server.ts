@@ -79,7 +79,8 @@ import type { ImageIntelligenceManager } from '@veltravia/image-intelligence-cor
 import { createRuntimeManager } from './runtime-service.js';
 import { createCodebaseManager } from './codebase-service.js';
 import { registerGenerationRoutes } from './routes/generation.js';
-import { createCodingManager } from './coding.js';
+import { createCodingManager, createDemoCodingDecisionSource } from './coding.js';
+import { createApiCodingDecisionSource } from './coding-model.js';
 import { createTestingManager } from './testing.js';
 import { createGenerationManager } from './generation.js';
 import { registerToolRoutes } from './routes/tools.js';
@@ -87,6 +88,14 @@ import { registerProjectRoutes } from './routes/projects.js';
 import { registerIntegrationRoutes } from './routes/integrations.js';
 import { createIntegrationSystem, type ApiIntegrationSystem } from './integrations.js';
 import { createGitHubApiConnector } from './github.js';
+
+/** A positive integer from the environment, or 0 when unset or nonsense. */
+function readPositiveIntEnv(name: string): number {
+  const raw = process.env[name];
+  if (raw === undefined) return 0;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
 
 export interface BuildAppOptions {
   /** Pre-built AICore (tests inject one); defaults to the mock-backed core. */
@@ -308,6 +317,35 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Coding Agent endpoints: bounded, state-machine-driven coding runs. Every
   // file mutation and validation flows through the Tool System above; plan
   // approvals and tool confirmations are decided by humans through the API.
+  // Step 29's execution service is the ONE real-model path (router -> gateway
+  // -> provider -> usage). Step 35's coding agent calls it, so the coding run
+  // adds no second gateway, no second vault and no second usage record.
+  const aiExecution =
+    options.aiExecution ??
+    createAiExecutionService({
+      gateway: aiGateway.gateway ?? null,
+      router: modelRouter,
+      ...(aiGateway.blockedReason ? { blockedReason: aiGateway.blockedReason } : {}),
+    });
+
+  // Step 35: the model-powered decision source. Scripted plans are a
+  // development tool only, and only when the server says so explicitly.
+  const codingDemoMode = (process.env.VELTRAVIA_CODING_DEMO ?? '') === '1';
+  const codingModelMinIntervalMs = readPositiveIntEnv('VELTRAVIA_CODING_MODEL_MIN_INTERVAL_MS');
+  const codingDecision =
+    options.coding === undefined
+      ? createApiCodingDecisionSource({
+          execution: aiGateway.gateway ? aiExecution : null,
+          gateway: aiGateway.gateway ?? null,
+          projectEngine,
+          demoMode: codingDemoMode,
+          // Free provider tiers meter per minute; a coding run spends several
+          // calls, so an operator can pace decisions for a metered key.
+          ...(codingModelMinIntervalMs > 0 ? { minIntervalMs: codingModelMinIntervalMs } : {}),
+          ...(aiGateway.blockedReason ? { blockedReason: aiGateway.blockedReason } : {}),
+        })
+      : null;
+
   const coding =
     options.coding ??
     // The coding agent gets its OWN Tool System instance, seeded with the
@@ -319,6 +357,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       projectEngine,
       sandboxes,
       now: () => new Date(),
+      // A real model plans and implements by default. The scripted source is
+      // used only when VELTRAVIA_CODING_DEMO=1 is set server-side, and the run
+      // view then says "demonstration" instead of implying model output.
+      decisionSource:
+        codingDecision === null || codingDemoMode
+          ? createDemoCodingDecisionSource()
+          : codingDecision,
     });
   registerCodingRoutes(
     app,
@@ -328,9 +373,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     // scripted decision source, so the UI can say "demo" instead of implying
     // a model produced the plan.
     {
-      decisionSource: options.coding === undefined ? 'scripted-demo' : 'injected',
+      decisionSource:
+        options.coding !== undefined ? 'injected' : codingDemoMode ? 'scripted-demo' : 'model',
       planApprovalRequired: true,
     },
+    codingDecision !== null ? { decisionSource: codingDecision } : {},
   );
 
   // App Generation endpoints: bounded, state-machine-driven idea-to-app
@@ -575,15 +622,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     },
   });
 
-  registerAiExecutionRoutes(app, {
-    service:
-      options.aiExecution ??
-      createAiExecutionService({
-        gateway: aiGateway.gateway ?? null,
-        router: modelRouter,
-        ...(aiGateway.blockedReason ? { blockedReason: aiGateway.blockedReason } : {}),
-      }),
-  });
+  registerAiExecutionRoutes(app, { service: aiExecution });
 
   return app;
 }

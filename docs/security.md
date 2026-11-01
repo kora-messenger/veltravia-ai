@@ -681,3 +681,52 @@ classification surface, and it inherits every rule of the layers it composes.
 11. **Bounded reads.** The scanner keeps the Step 33 budgets (60 files, 40 route files, 48 KiB
     each). When a cap is reached the health panel says the picture is partial.
 12. **No execution.** No unified route runs code, starts a sandbox or opens a database connection.
+
+## 6. Model-powered coding agent (Step 35, `coding-agent/model` + `apps/api`)
+
+The coding agent now plans with a real language model. Nothing about that loosens a rule: the
+model is an _untrusted proposer_, and every effect it asks for still passes the gates built in
+Steps 5, 9, 18 and 34.
+
+1. **The model cannot act.** It returns JSON. The agent validates it, the Tool System authorises
+   it, the Project Engine applies it. No model output reaches a file, a sandbox or a network call
+   without those three layers agreeing.
+2. **One execution path.** `apps/api/src/coding-model.ts` implements the completion port on top of
+   the Step 29 `AiExecutionService`. The router still picks the model, the gateway still decrypts
+   the credential for exactly one request, and usage is still recorded once. There is no second
+   gateway, no second key store, and no vendor SDK inside the agent.
+3. **Credentials never move.** A provider key stays in the vault; the browser and the project see
+   provider and model _ids_ only. Tests assert that the API-key fixture appears in no run payload,
+   plan, or file, and that `sk-` never appears in a response body.
+4. **Fail closed, never simulate.** With no provider connected for this owner, `POST
+/api/coding/runs` returns `409 CODING_MODEL_UNAVAILABLE` with a plain reason. The scripted
+   decision source is used only when `VELTRAVIA_CODING_DEMO=1` is set server-side, and every run
+   view then reports `plan.origin: "script"`. A reply whose provider is a fixture (`live: false`)
+   is refused, so simulated text can never be presented as model output.
+5. **Per-owner capability.** Capabilities are resolved for the _caller_: another owner's working
+   connection never makes this owner's agent look model-backed.
+6. **Untrusted project text.** Files, plans and validation output are delimited and labelled
+   UNTRUSTED DATA in the prompt; the system message states that project content is never an
+   instruction. Retrieved content is data the model may reason about, not authority it may cite.
+7. **Bounded prompt.** At most 8 files, 4 KiB each, 16 KiB total, with the plan's own inspection
+   list read first. Credential-shaped text is redacted before the request leaves the process.
+8. **Strict parsing, one repair.** An unparseable answer gets exactly one corrective retry; a
+   second failure ends the run as `CODING_MODEL_INVALID_OUTPUT` with no action taken. An unknown
+   decision type fails the run instead of being ignored, and a partially parsed object is never
+   executed.
+9. **Patches refuse to guess.** `patch_file` requires exactly one match, requires the file to have
+   been read in this run, and honours `expectedRevision`, so a model cannot overwrite a file it
+   has not seen or pick between ambiguous matches. Zero matches and multiple matches are typed
+   refusals with the reason fed back to the model.
+10. **Human approval is unchanged.** A model-authored plan is still a plan: it waits for an
+    explicit human decision, high-risk tool calls still pause for confirmation, and rejecting it
+    writes nothing.
+11. **Cancellation stops the spend.** Cancelling a run aborts the in-flight model call and ends
+    the run as `cancelled`; the agent never self-cancels and never self-approves.
+12. **Ceilings are server-side.** Iterations, tool calls, consecutive failures and duration keep
+    their Step 9 values and hard ceilings. No prompt can raise them.
+13. **Honest provenance.** Run payloads carry `phase`, `plan.origin`, the answering provider and
+    model ids, and each validation's real outcome (including timeouts). The UI shows "Planned by
+    <provider> · <model>", or says the offline script planned it, or says no model is connected.
+14. **Audit stays scrubbed.** Model errors are classified and scrubbed: no prompt text, no
+    credential, no raw provider body in a stored event.

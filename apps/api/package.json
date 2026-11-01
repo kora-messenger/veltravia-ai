@@ -17,6 +17,7 @@
     "@veltravia/ai-provider-gemini": "*",
     "@veltravia/ai-provider-mock": "*",
     "@veltravia/coding-agent-core": "*",
+    "@veltravia/coding-agent-model": "*",
     "@veltravia/coding-agent-mock": "*",
     "@veltravia/config": "*",
     "@veltravia/connector-core": "*",

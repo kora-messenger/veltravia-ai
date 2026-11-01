@@ -65,6 +65,14 @@ export interface ProviderDefinition {
   readonly allowsCustomBaseUrl: boolean;
   /** Documentation URL for the provider's API-key screen (no secrets). */
   readonly docsUrl?: string;
+  /**
+   * A known-good general-purpose model for this provider, used as the
+   * connection default when the caller names none. Discovery lists retired and
+   * unreleased ids alongside current ones, so an ordering heuristic alone can
+   * pick a model the account cannot call (live QA: Gemini 2.5 answers 404,
+   * 3.8-flash is refused, 3.5-flash works).
+   */
+  readonly defaultModelId?: string;
 }
 
 /**

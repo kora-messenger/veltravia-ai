@@ -383,6 +383,82 @@ export function createProjectTools(projectEngine: ProjectEngine): {
     },
   );
 
+  // ---- project.patch-file (MEDIUM) ---------------------------------------------
+  //
+  // A targeted edit. The model states the exact snippet it expects to find and
+  // what it should become; the engine applies it only when the snippet occurs
+  // exactly once, so unrelated code is never rewritten by accident. Reads and
+  // writes both go through the Project Engine (same path security, same
+  // optimistic revision protection).
+
+  wrap(
+    defineTool({
+      id: 'project.patch-file',
+      name: 'Patch File',
+      description:
+        'Replaces exactly one occurrence of a snippet in a file. Rejects a snippet that is absent or ambiguous, so unrelated code stays untouched.',
+      version: '1.0.0',
+      category: 'filesystem',
+      inputSchema: defineObjectSchema({
+        properties: {
+          workspaceId: workspaceIdSchema,
+          path: pathSchema,
+          find: {
+            type: 'string',
+            description: 'Exact snippet expected exactly once in the file.',
+            maxLength: 64000,
+          },
+          replace: { type: 'string', description: 'Replacement snippet.', maxLength: 64000 },
+          expectedRevision: { type: 'number', description: 'Revision the caller last saw.' },
+        },
+        required: ['workspaceId', 'path', 'find', 'replace', 'expectedRevision'],
+        additionalProperties: false,
+      }),
+      outputSchema: defineObjectSchema({
+        properties: {
+          path: { type: 'string', description: 'Patched file path.' },
+          revision: { type: 'number', description: 'Node revision after the patch.' },
+          replacements: { type: 'number', description: 'Replacements applied (always 1).' },
+        },
+        required: ['path', 'revision', 'replacements'],
+        additionalProperties: false,
+      }),
+      requiredPermissions: ['project.write'],
+      riskLevel: 'medium',
+      requiresConfirmation: false,
+    }),
+    async (input) => {
+      const workspaceId = input.workspaceId as string;
+      const path = input.path as string;
+      const find = input.find as string;
+      const replace = input.replace as string;
+      const expectedRevision = input.expectedRevision as number;
+      const current = await projectEngine.files.readFile(workspaceId, path);
+      const occurrences = current.content.split(find).length - 1;
+      if (occurrences === 0) {
+        throw new ToolExecutionError(
+          'project.patch-file',
+          'the snippet to find is not in the file',
+          {
+            details: { cause: 'PATCH_NOT_FOUND', occurrences },
+          },
+        );
+      }
+      if (occurrences > 1) {
+        throw new ToolExecutionError(
+          'project.patch-file',
+          `the snippet occurs ${occurrences} times; a patch must identify exactly one`,
+          { details: { cause: 'PATCH_AMBIGUOUS', occurrences } },
+        );
+      }
+      const node = await projectEngine.files.updateFile(workspaceId, path, {
+        content: current.content.replace(find, replace),
+        expectedRevision,
+      });
+      return { path: node.path, revision: node.revision, replacements: 1 };
+    },
+  );
+
   // ---- project.delete-file (HIGH) ----------------------------------------------
 
   wrap(

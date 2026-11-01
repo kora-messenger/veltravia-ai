@@ -42,6 +42,7 @@ import {
   type CodingPlan,
   type CodingRunLimits,
   type CodingRunRequest,
+  type CodingPhase,
   type CodingRunState,
   type CodingRunView,
   type CodingToolResultView,
@@ -75,6 +76,8 @@ interface ManagedRun {
   untrustedToolResults: CodingToolResultView[];
   validationResults: CodingValidationResult[];
   failure: { code: string; message: string } | null;
+  /** The real execution phase reported in the view. Never advanced by a timer. */
+  phase: CodingPhase;
   updatedAt: Date;
 }
 
@@ -159,6 +162,7 @@ export class CodingAgentManager {
       lastFailure: null,
       untrustedToolResults: [],
       validationResults: [],
+      phase: 'understanding',
       failure: null,
       updatedAt: this.now(),
     };
@@ -203,6 +207,7 @@ export class CodingAgentManager {
       run.pendingApproval = null;
       run.resumeState = null;
       run.state = transition(run.state, 'cancelled');
+      run.phase = 'cancelled';
       run.updatedAt = this.now();
       audit('coding_run_cancelled', 'Coding run cancelled while awaiting approval', {
         committedFiles: [...run.changedFiles.keys()],
@@ -245,6 +250,7 @@ export class CodingAgentManager {
       run.planApproved = true;
       audit('coding_plan_approved', 'Coding plan approved by human', {});
       run.state = transition(run.state, 'inspecting');
+      run.phase = 'inspecting';
       run.updatedAt = this.now();
       return this.drive(run);
     }
@@ -295,6 +301,7 @@ export class CodingAgentManager {
     while (!isCodingRunTerminal(run.state)) {
       if (run.cancelled) {
         run.state = transition(run.state, 'cancelled');
+        run.phase = 'cancelled';
         run.updatedAt = this.now();
         audit('coding_run_cancelled', 'Coding run cancelled; committed changes preserved', {
           committedFiles: [...run.changedFiles.keys()],
@@ -305,12 +312,26 @@ export class CodingAgentManager {
       if (run.state === 'failed') {
         return this.view(run);
       }
+      // The phase reflects what is actually happening: a run that already
+      // validated something and is asking the source again is correcting.
+      const lastValidation = run.validationResults[run.validationResults.length - 1];
+      if (run.planApproved && lastValidation !== undefined) {
+        run.phase = lastValidation.status === 'success' ? 'validating' : 'correcting';
+      }
       let decision: ReturnType<typeof validateCodingDecision>;
       try {
         decision = validateCodingDecision(
           await this.decisionSource.nextDecision(this.buildContext(run)),
         );
       } catch (error) {
+        if (run.cancelled) {
+          // The human cancelled while the decision source was working: the run
+          // ends as cancelled, never as a failure it did not cause.
+          run.state = transition(run.state, 'cancelled');
+          run.phase = 'cancelled';
+          run.updatedAt = this.now();
+          return this.view(run);
+        }
         // Malformed/untrusted decision output NEVER acts; the run fails typed.
         const message = error instanceof CodingError ? error.message : 'invalid decision';
         const code = error instanceof CodingError ? error.code : 'CODING_INVALID_DECISION';
@@ -368,6 +389,7 @@ export class CodingAgentManager {
     run.plan = plan;
     const audit = createCodingAuditEmitter(run.request.runId, this.now);
     run.state = transition(run.state, 'planning');
+    run.phase = 'planning';
     audit('coding_plan_created', `Coding plan created: ${plan.goal.slice(0, 120)}`, {
       steps: plan.steps.length,
       filesToInspect: plan.filesToInspect.length,
@@ -378,11 +400,13 @@ export class CodingAgentManager {
       run.pendingApproval = { kind: 'plan_approval' };
       run.resumeState = 'inspecting';
       run.state = transition(run.state, 'awaiting_approval');
+      run.phase = 'awaiting_approval';
       run.updatedAt = this.now();
       return this.view(run); // paused for human plan approval
     }
     run.planApproved = true;
     run.state = transition(run.state, 'inspecting');
+    run.phase = 'inspecting';
     run.updatedAt = this.now();
     return null;
   }
@@ -413,13 +437,15 @@ export class CodingAgentManager {
     // does not, the manager substitutes its own tracked revision. A file the
     // run never read or created has no revision -> typed failure, no blind
     // overwrite.
-    if (binding.toolId === CODING_TOOL_IDS.updateFile && binding.input.expectedRevision === -1) {
+    const needsRevision =
+      binding.toolId === CODING_TOOL_IDS.updateFile || binding.toolId === CODING_TOOL_IDS.patchFile;
+    if (needsRevision && binding.input.expectedRevision === -1) {
       const tracked = run.fileRevisions.get(String(binding.input.path));
       if (tracked === undefined) {
         return this.finishFailure(
           run,
           'CODING_STALE_REVISION',
-          'update_file requires the file to be read or created by this run first',
+          'editing a file requires the run to read or create it first',
         );
       }
       binding = { ...binding, input: { ...binding.input, expectedRevision: tracked } };
@@ -427,6 +453,16 @@ export class CodingAgentManager {
     if (run.state !== binding.state) {
       run.state = transition(run.state, binding.state);
     }
+    run.phase =
+      binding.toolId === CODING_TOOL_IDS.sandboxExecute
+        ? 'validating'
+        : binding.toolId === CODING_TOOL_IDS.createFile ||
+            binding.toolId === CODING_TOOL_IDS.updateFile ||
+            binding.toolId === CODING_TOOL_IDS.patchFile ||
+            binding.toolId === CODING_TOOL_IDS.deleteFile ||
+            binding.toolId === CODING_TOOL_IDS.moveFile
+          ? 'applying'
+          : 'inspecting';
     run.updatedAt = this.now();
 
     // Validation actions are bounded by the iteration limit and need a sandbox.
@@ -762,6 +798,7 @@ export class CodingAgentManager {
     run.summary = scrubCodingSecrets(summary);
     run.pendingApproval = null;
     run.state = transition(run.state, 'completed');
+    run.phase = 'completed';
     run.updatedAt = this.now();
     const audit = createCodingAuditEmitter(run.request.runId, this.now);
     audit('coding_run_completed', 'Coding run completed', {
@@ -781,6 +818,7 @@ export class CodingAgentManager {
     run.resumeState = null;
     this.resumeInputs.delete(run.request.runId);
     run.state = transition(run.state, 'failed');
+    run.phase = 'failed';
     run.updatedAt = this.now();
     const audit = createCodingAuditEmitter(run.request.runId, this.now);
     audit('coding_run_failed', `Coding run failed: ${run.failure.message}`, {
@@ -869,6 +907,7 @@ export class CodingAgentManager {
       pendingApproval: run.pendingApproval,
       plan: run.plan,
       failure: run.failure,
+      phase: run.phase,
     };
   }
 

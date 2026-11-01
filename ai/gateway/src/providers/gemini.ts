@@ -1,6 +1,7 @@
 import type { AIFinishReason } from '@veltravia/ai-core';
 
 import { GatewayError } from '../errors/index.js';
+import { retryHintMs } from './retry-hint.js';
 import type { GatewayModel, ProviderDefinition } from '../types/index.js';
 import { joinEndpoint } from '../ssrf/index.js';
 import { parseJsonFrame, readSseEvents } from './sse.js';
@@ -25,30 +26,74 @@ import type {
  * client per request. Both normalize to the same AI Core shapes.
  */
 
-function statusError(status: number): GatewayError {
+/**
+ * A provider refusal must say WHY. "The provider rejected the request." is a
+ * dead end for the person holding the key: during live QA the same message was
+ * returned for a retired model, an unsupported parameter and a malformed body.
+ * The provider's own message is included, scrubbed and truncated.
+ */
+function providerReason(body: unknown): string | undefined {
+  if (!body || typeof body !== 'object') return undefined;
+  const error = (body as { error?: unknown }).error;
+  if (!error || typeof error !== 'object') return undefined;
+  const message = (error as { message?: unknown }).message;
+  if (typeof message !== 'string') return undefined;
+  const trimmed = message.replace(/\s+/g, ' ').trim();
+  return trimmed.length === 0 ? undefined : trimmed.slice(0, 240);
+}
+
+function retryDetails(body: unknown): Record<string, number> {
+  const hint = retryHintMs(body);
+  return hint === undefined ? {} : { retryAfterMs: hint };
+}
+
+function statusError(status: number, body?: unknown): GatewayError {
+  const reason = providerReason(body);
+  const withReason = (text: string): string =>
+    reason === undefined ? text : `${text} (${reason})`;
   if (status === 400)
-    return new GatewayError('GATEWAY_INVALID_REQUEST', 'The provider rejected the request.', {
-      details: { status },
-    });
+    return new GatewayError(
+      'GATEWAY_INVALID_REQUEST',
+      withReason('The provider rejected the request.'),
+      {
+        details: { status, ...(reason !== undefined ? { providerMessage: reason } : {}) },
+      },
+    );
   if (status === 401 || status === 403)
     return new GatewayError('GATEWAY_AUTH_FAILED', 'The provider rejected the API key.', {
       details: { status },
     });
   if (status === 404)
-    return new GatewayError('GATEWAY_MODEL_UNKNOWN', 'The provider does not know that model.', {
-      details: { status },
-    });
+    return new GatewayError(
+      'GATEWAY_MODEL_UNKNOWN',
+      withReason('The provider does not know that model.'),
+      {
+        details: { status, ...(reason !== undefined ? { providerMessage: reason } : {}) },
+      },
+    );
   if (status === 429)
-    return new GatewayError('GATEWAY_RATE_LIMITED', 'The provider is rate limiting this key.', {
-      details: { status },
-    });
+    return new GatewayError(
+      'GATEWAY_RATE_LIMITED',
+      withReason('The provider is rate limiting this key.'),
+      {
+        details: {
+          ...retryDetails(body),
+          status,
+          ...(reason !== undefined ? { providerMessage: reason } : {}),
+        },
+      },
+    );
   if (status >= 500)
     return new GatewayError('GATEWAY_PROVIDER_UNAVAILABLE', 'The provider is unavailable.', {
       details: { status },
     });
-  return new GatewayError('GATEWAY_PROVIDER_ERROR', 'The provider rejected the request.', {
-    details: { status },
-  });
+  return new GatewayError(
+    'GATEWAY_PROVIDER_ERROR',
+    withReason('The provider rejected the request.'),
+    {
+      details: { status, ...(reason !== undefined ? { providerMessage: reason } : {}) },
+    },
+  );
 }
 
 function finishReasonOf(raw: unknown): AIFinishReason {
@@ -179,7 +224,8 @@ export class GeminiGatewayAdapter implements ProviderAdapter {
       body,
       timeoutMs: context.timeoutMs,
     });
-    if (response.status < 200 || response.status >= 300) throw statusError(response.status);
+    if (response.status < 200 || response.status >= 300)
+      throw statusError(response.status, response.body);
 
     const payload = response.body as
       | {

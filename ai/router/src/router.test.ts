@@ -646,4 +646,36 @@ describe('security and audit', () => {
       code: 'ROUTER_INVALID_REQUEST',
     });
   });
+  it('does not let a preview model win on paper capability alone', async () => {
+    // Live QA: antigravity-preview-05-2026 scored highest (provider-reported
+    // capabilities) and then answered 400, while the current flash model
+    // worked. Previews stay selectable by name but never win automatically.
+    const router = makeRouter([
+      connection({
+        id: 'conn_anthropic',
+        providerId: 'anthropic',
+        modelIds: ['antigravity-preview-05-2026', 'gemini-3.5-flash'],
+        defaultModelId: 'gemini-3.5-flash',
+      }),
+    ]);
+    const decision = await router.route(scope, { category: 'coding' });
+    expect(decision.selected?.modelId).toBe('gemini-3.5-flash');
+    expect(decision.rejected.map((entry) => entry.modelId)).toContain(
+      'antigravity-preview-05-2026',
+    );
+  });
+  it('prefers a verified connection default over an advertised junk id', async () => {
+    // Live QA: Gemini discovery lists "aqa" and three previews beside real
+    // models. Automatically routing to "aqa" returned 404 from the provider.
+    const router = makeRouter([
+      connection({
+        id: 'conn_anthropic',
+        providerId: 'anthropic',
+        modelIds: ['antigravity-preview-05-2026', 'aqa', 'gemini-3.5-flash'],
+        defaultModelId: 'gemini-3.5-flash',
+      }),
+    ]);
+    const decision = await router.route(scope, { category: 'coding' });
+    expect(decision.selected?.modelId).toBe('gemini-3.5-flash');
+  });
 });

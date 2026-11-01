@@ -60,9 +60,21 @@ export interface CodingPlanStep {
 }
 
 /**
+ * Where a plan came from. `model` means a real configured provider produced it;
+ * `demonstration` means the offline scripted source did. It is recorded, shown
+ * in the UI, and never inferred from the presence of a plan.
+ */
+export const CODING_PLAN_ORIGINS = ['model', 'demonstration'] as const;
+
+export type CodingPlanOrigin = (typeof CODING_PLAN_ORIGINS)[number];
+
+/**
  * A validated implementation plan. Concise actionable summaries only - the
  * plan can never grant permissions, change limits, bypass confirmations,
  * execute commands directly, or reference credentials.
+ *
+ * The fields after `acceptanceCriteria` are optional so the offline scripted
+ * source still validates; a model-generated plan fills them in.
  */
 export interface CodingPlan {
   readonly goal: string;
@@ -71,6 +83,22 @@ export interface CodingPlan {
   readonly filesToModify: readonly string[];
   readonly validations: readonly string[];
   readonly acceptanceCriteria: readonly string[];
+  /** One-sentence restatement of what the user asked for. */
+  readonly requestSummary?: string;
+  /** What the model understood about the existing project. */
+  readonly projectUnderstanding?: string;
+  /** The technical approach, in plain language. */
+  readonly approach?: string;
+  readonly filesToCreate?: readonly string[];
+  readonly filesToDelete?: readonly string[];
+  readonly dependencies?: readonly string[];
+  readonly risks?: readonly string[];
+  /** How the result will be checked, and which checks are NOT available. */
+  readonly validationStrategy?: readonly string[];
+  /** What a human is approving, stated plainly. */
+  readonly approvalRequirements?: readonly string[];
+  /** Provenance. Absent means the source did not declare one. */
+  readonly origin?: CodingPlanOrigin;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +113,7 @@ export const CODING_ACTION_TYPES = [
   'update_file',
   'delete_file',
   'move_file',
+  'patch_file',
   'validate',
   'invoke_tool',
 ] as const;
@@ -101,6 +130,19 @@ export type CodingAction =
       readonly path: string;
       readonly content: string;
       /** Optional: the file revision the decision source last saw. */
+      readonly expectedRevision?: number;
+    }
+  | {
+      /**
+       * Targeted edit: replaces exactly one occurrence of `find` with
+       * `replace`. Preferred over `update_file` when the rest of the file must
+       * stay byte-identical. A `find` that is absent or appears more than once
+       * is rejected rather than guessed at.
+       */
+      readonly type: 'patch_file';
+      readonly path: string;
+      readonly find: string;
+      readonly replace: string;
       readonly expectedRevision?: number;
     }
   | { readonly type: 'delete_file'; readonly path: string }
@@ -237,6 +279,30 @@ export function isCodingRunTerminal(state: CodingRunState): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Progress phases (derived from real execution, never invented)
+// ---------------------------------------------------------------------------
+
+/**
+ * One plain-word phase per real step. The view carries the phase the run has
+ * actually reached; a phase is never advanced by a timer or a guess.
+ */
+export const CODING_PHASES = [
+  'understanding',
+  'inspecting',
+  'planning',
+  'awaiting_approval',
+  'applying',
+  'validating',
+  'diagnosing',
+  'correcting',
+  'completed',
+  'failed',
+  'cancelled',
+] as const;
+
+export type CodingPhase = (typeof CODING_PHASES)[number];
+
+// ---------------------------------------------------------------------------
 // Safe run view (what the API returns; no secrets, no chain-of-thought)
 // ---------------------------------------------------------------------------
 
@@ -269,4 +335,6 @@ export interface CodingRunView {
   /** The validated plan, once accepted (or awaiting approval). Safe by construction. */
   readonly plan: CodingPlan | null;
   readonly failure: CodingRunFailure | null;
+  /** The real execution phase, in plain words. */
+  readonly phase: CodingPhase;
 }

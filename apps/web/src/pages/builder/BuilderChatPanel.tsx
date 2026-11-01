@@ -44,6 +44,20 @@ interface BuilderChatPanelProps {
   readonly reviewChangesLabel?: string;
 }
 
+const PHASE_WORDS: Record<string, string> = {
+  understanding: 'understanding the request',
+  inspecting: 'reading files',
+  planning: 'drafting a plan',
+  awaiting_approval: 'waiting for your approval',
+  applying: 'writing changes',
+  validating: 'running checks',
+  diagnosing: 'reading the failure',
+  correcting: 'correcting the change',
+  completed: 'finished',
+  failed: 'stopped',
+  cancelled: 'cancelled',
+};
+
 const STATE_WORDS: Record<string, string> = {
   idle: 'Getting ready',
   analyzing: 'Reading the project',
@@ -107,14 +121,30 @@ export function BuilderChatPanel({
     <section className="v-fbuilder__panel v-fbuilder__chat" aria-label="AI builder conversation">
       <header className="v-fbuilder__panel-head">
         <h2 className="v-fbuilder__panel-title">{heading}</h2>
-        <Badge tone={capabilities?.decisionSource === 'injected' ? 'success' : 'neutral'}>
+        <Badge
+          tone={
+            capabilities?.decisionSource === 'model' || capabilities?.decisionSource === 'injected'
+              ? 'success'
+              : 'neutral'
+          }
+        >
           {capabilities === null
             ? 'agent status unknown'
-            : capabilities.decisionSource === 'injected'
+            : capabilities.decisionSource === 'model' || capabilities.decisionSource === 'injected'
               ? 'connected model'
-              : 'scripted demo agent'}
+              : capabilities.decisionSource === 'unavailable'
+                ? 'no model connected'
+                : 'scripted demo agent'}
         </Badge>
       </header>
+
+      {capabilities?.decisionSource === 'unavailable' && (
+        <p className="v-fbuilder__note" role="note" data-testid="model-unavailable">
+          {capabilities.unavailableReason ??
+            'No AI provider is connected yet, so no model can plan a change.'}{' '}
+          Connect one in Settings, AI providers. Nothing here is simulated in the meantime.
+        </p>
+      )}
 
       {capabilities?.decisionSource === 'scripted-demo' && (
         <p className="v-fbuilder__note" role="note">
@@ -152,8 +182,29 @@ export function BuilderChatPanel({
             {busy && !awaiting && <Spinner size="sm" aria-label="Run in progress" />}
             <span className="v-fbuilder__run-meta">
               {run.toolCalls} tool calls · {run.changedFiles.length} files changed
+              {run.validationResults.length > 0
+                ? ` · ${run.validationResults.filter((entry) => entry.passed).length}/${run.validationResults.length} checks passed`
+                : ''}
             </span>
           </div>
+
+          {run.phase !== null && run.phase !== run.state && (
+            <p className="v-fbuilder__phase" data-testid="run-phase">
+              Step: {PHASE_WORDS[run.phase] ?? run.phase.replace(/_/g, ' ')}
+            </p>
+          )}
+
+          {run.plan !== null && run.plan.origin !== 'unknown' && (
+            <p className="v-fbuilder__provenance" data-testid="plan-provenance">
+              {run.plan.origin === 'model'
+                ? `Planned by ${run.model?.providerName ?? run.model?.providerId ?? 'a model'}${
+                    run.model?.modelId !== null && run.model?.modelId !== undefined
+                      ? ` · ${run.model.modelId}`
+                      : ''
+                  }`
+                : 'Planned by the offline script (no model was called)'}
+            </p>
+          )}
 
           {run.state === 'failed' && run.failure !== null && (
             <p className="v-fbuilder__error" role="alert">
@@ -165,6 +216,23 @@ export function BuilderChatPanel({
             <div className="v-fbuilder__review" data-testid="plan-review">
               <h3 className="v-fbuilder__review-title">Review the plan</h3>
               <p className="v-fbuilder__review-goal">{run.plan.goal}</p>
+              {run.plan.requestSummary !== null && (
+                <p className="v-fbuilder__review-files">
+                  <span className="v-fbuilder__review-label">Understood as:</span>{' '}
+                  {run.plan.requestSummary}
+                </p>
+              )}
+              {run.plan.projectUnderstanding !== null && (
+                <p className="v-fbuilder__review-files">
+                  <span className="v-fbuilder__review-label">Project:</span>{' '}
+                  {run.plan.projectUnderstanding}
+                </p>
+              )}
+              {run.plan.approach !== null && (
+                <p className="v-fbuilder__review-files">
+                  <span className="v-fbuilder__review-label">Approach:</span> {run.plan.approach}
+                </p>
+              )}
               {run.plan.steps.length > 0 && (
                 <ol className="v-fbuilder__review-list">
                   {run.plan.steps.map((step) => (
@@ -178,10 +246,41 @@ export function BuilderChatPanel({
                   {run.plan.filesToModify.join(', ')}
                 </p>
               )}
+              {run.plan.filesToCreate.length > 0 && (
+                <p className="v-fbuilder__review-files">
+                  <span className="v-fbuilder__review-label">Will create:</span>{' '}
+                  {run.plan.filesToCreate.join(', ')}
+                </p>
+              )}
+              {run.plan.filesToDelete.length > 0 && (
+                <p className="v-fbuilder__review-files">
+                  <span className="v-fbuilder__review-label">Will delete:</span>{' '}
+                  {run.plan.filesToDelete.join(', ')}
+                </p>
+              )}
               {run.plan.filesToInspect.length > 0 && (
                 <p className="v-fbuilder__review-files">
                   <span className="v-fbuilder__review-label">Will read:</span>{' '}
                   {run.plan.filesToInspect.join(', ')}
+                </p>
+              )}
+              {run.plan.risks.length > 0 && (
+                <div className="v-fbuilder__review-risks" data-testid="plan-risks">
+                  <span className="v-fbuilder__review-label">Risks the plan names:</span>
+                  <ul className="v-fbuilder__review-list">
+                    {run.plan.risks.map((risk) => (
+                      <li key={risk}>{risk}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {(run.plan.validationStrategy.length > 0 || run.plan.validations.length > 0) && (
+                <p className="v-fbuilder__review-files">
+                  <span className="v-fbuilder__review-label">How it will check the work:</span>{' '}
+                  {(run.plan.validationStrategy.length > 0
+                    ? run.plan.validationStrategy
+                    : run.plan.validations
+                  ).join(' · ')}
                 </p>
               )}
               <p className="v-fbuilder__note">
@@ -222,6 +321,23 @@ export function BuilderChatPanel({
                 </Button>
               </div>
             </div>
+          )}
+
+          {run.validationResults.length > 0 && (
+            <ul className="v-fbuilder__validation" data-testid="run-validations">
+              {run.validationResults.map((entry, index) => (
+                <li key={`${entry.command}-${index}`}>
+                  <code>{entry.command}</code>{' '}
+                  <span className="v-fbuilder__kind">
+                    {entry.timedOut
+                      ? 'timed out'
+                      : entry.passed
+                        ? 'passed'
+                        : `failed${entry.exitCode === null ? '' : ` (exit ${entry.exitCode})`}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
 
           {run.state === 'completed' && (

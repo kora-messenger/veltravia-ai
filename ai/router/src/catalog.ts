@@ -110,6 +110,7 @@ export function buildCatalog(input: CatalogInput): readonly CatalogModel[] {
         available: unavailableReason === null,
         unavailableReason,
         discoverySource: source,
+        connectionDefault: connection.defaultModelId === modelId,
         lastValidatedAt: connection.lastValidatedAt ?? null,
       });
     }

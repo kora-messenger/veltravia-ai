@@ -72,6 +72,9 @@ export const GEMINI_PROVIDER: ProviderDefinition = {
     'large-context',
   ],
   allowsCustomBaseUrl: false,
+  // Verified live, 2026-11-01: Gemini lists retired ids (2.5-flash answers 404)
+  // and unreleased previews before the current flash model.
+  defaultModelId: 'gemini-3.5-flash',
   docsUrl: 'https://aistudio.google.com/app/apikey',
 };
 

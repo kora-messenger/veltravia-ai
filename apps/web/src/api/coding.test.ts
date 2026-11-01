@@ -113,11 +113,85 @@ describe('coding client', () => {
     expect(view.state).toBe('completed');
   });
 
-  it('reports capabilities with a safe default when the field is odd', async () => {
+  it('reports capabilities honestly when the field is unknown', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ capabilities: { decisionSource: 'mystery' } }));
     const capabilities = await coding.fetchCodingCapabilities();
-    expect(capabilities.decisionSource).toBe('scripted-demo');
+    // An unknown mode is never displayed as a working model.
+    expect(capabilities.decisionSource).toBe('unavailable');
     expect(capabilities.planApprovalRequired).toBe(true);
+  });
+
+  it('passes through the model mode and its honest reason', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        capabilities: {
+          decisionSource: 'unavailable',
+          unavailableReason: 'Connect a provider in Settings before a model can plan this change.',
+          phases: ['understanding', 'planning', 'completed'],
+        },
+      }),
+    );
+    const capabilities = await coding.fetchCodingCapabilities();
+    expect(capabilities.decisionSource).toBe('unavailable');
+    expect(capabilities.unavailableReason).toMatch(/connect a provider/i);
+    expect(capabilities.phases).toContain('planning');
+  });
+
+  it('maps plan provenance, phase, model and validation results', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        runId: 'run-1',
+        projectId: 'prj-1',
+        workspaceId: 'ws-1',
+        state: 'completed',
+        phase: 'completed',
+        plan: {
+          goal: 'Add the route',
+          steps: [{ summary: 'Create src/invoices.ts' }],
+          filesToCreate: ['src/invoices.ts'],
+          filesToDelete: [],
+          filesToModify: [],
+          filesToInspect: ['src/users.ts'],
+          validations: ['npm test'],
+          acceptanceCriteria: [],
+          requestSummary: 'Add an invoice route',
+          projectUnderstanding: 'Routes live in src/routes',
+          approach: 'Mirror the users route',
+          risks: ['The form needs a shared fetch helper'],
+          validationStrategy: ['npm test'],
+          approvalRequirements: ['Approve before writing'],
+          origin: 'model',
+        },
+        validationResults: [
+          { command: 'npm test', passed: true, status: 'succeeded', exitCode: 0, timedOut: false },
+        ],
+        model: {
+          used: true,
+          providerId: 'openai',
+          providerName: 'OpenAI',
+          modelId: 'gpt-4.1-mini',
+          live: true,
+          decisions: 4,
+        },
+      }),
+    );
+    const view = await coding.fetchCodingRun('run-1');
+    expect(view.plan?.origin).toBe('model');
+    expect(view.plan?.filesToCreate).toEqual(['src/invoices.ts']);
+    expect(view.plan?.risks).toHaveLength(1);
+    expect(view.phase).toBe('completed');
+    expect(view.model).toMatchObject({ live: true, modelId: 'gpt-4.1-mini', decisions: 4 });
+    expect(view.validationResults[0]?.passed).toBe(true);
+  });
+
+  it('never shows an unknown plan origin as model-generated', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ runId: 'run-1', state: 'planning', plan: { goal: 'g', origin: 'mystery' } }),
+    );
+    const view = await coding.fetchCodingRun('run-1');
+    expect(view.plan?.origin).toBe('unknown');
+    expect(view.model).toBeNull();
+    expect(view.phase).toBeNull();
   });
 
   it('treats only completed, failed and cancelled as terminal', () => {

@@ -130,6 +130,13 @@ export interface CatalogModel {
   readonly unavailableReason: string | null;
   /** How this row was discovered. */
   readonly discoverySource: 'connection' | 'catalog' | 'discovery';
+  /**
+   * True when this row is the model its connection defaults to. Discovery
+   * lists junk ids next to usable ones (live QA: Gemini advertises "aqa" and
+   * several previews, and answering with "aqa" returns 404), so the verified
+   * default has to carry weight in automatic ranking.
+   */
+  readonly connectionDefault: boolean;
   readonly lastValidatedAt: string | null;
 }
 

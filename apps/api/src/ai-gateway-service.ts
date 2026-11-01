@@ -40,6 +40,8 @@ export interface GatewayServiceOptions {
   readonly keyring?: VaultKeyring | null;
   readonly transport?: ConstructorParameters<typeof AIProviderGateway>[0]['transport'];
   readonly timeoutMs?: number;
+  /** Shortest wait before retrying a rate-limited call (production: 5s). */
+  readonly rateLimitFloorMs?: number;
 }
 
 export const ENCRYPTION_SETUP_HINT =
@@ -79,6 +81,9 @@ export function createGatewayService(options: GatewayServiceOptions = {}): Gatew
     usage: new InMemoryUsageStore(),
     transport: options.transport ?? new FetchProviderTransport(),
     ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+    ...(options.rateLimitFloorMs !== undefined
+      ? { rateLimitFloorMs: options.rateLimitFloorMs }
+      : {}),
     now,
   });
   return {
