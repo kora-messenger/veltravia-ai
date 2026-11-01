@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge, Button, Spinner } from '../../components/ui';
 import { errorMessage } from '../../api/client';
 import * as api from '../../api/source';
@@ -16,6 +16,20 @@ import * as api from '../../api/source';
 
 interface SourceExplorerProps {
   readonly projectId: string;
+  /** Pin the workspace; omitted means the server's default active workspace. */
+  readonly workspaceId?: string;
+  /**
+   * Inline preview (default). The builder workspace turns it off and renders
+   * the file in its own main region instead, so a file is fetched once.
+   */
+  readonly showPreview?: boolean;
+  /** Controlled selection, used when the caller owns the file view. */
+  readonly selectedPath?: string | null;
+  readonly onSelectFile?: (path: string) => void;
+  /** Bump to reload the tree (after a coding run, for example). */
+  readonly refreshSignal?: number;
+  /** Lets the caller reuse the loaded tree/history instead of refetching it. */
+  readonly onLoaded?: (tree: api.SourceTreeView, history: readonly api.FileHistoryEntry[]) => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -33,14 +47,32 @@ function ancestorDirectories(path: string): string[] {
   return directories;
 }
 
-export function SourceExplorer({ projectId }: SourceExplorerProps) {
+export function SourceExplorer({
+  projectId,
+  workspaceId,
+  showPreview = true,
+  selectedPath,
+  onSelectFile,
+  onLoaded,
+  refreshSignal,
+}: SourceExplorerProps) {
   const [tree, setTree] = useState<api.SourceTreeView | null>(null);
   const [history, setHistory] = useState<readonly api.FileHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const [selected, setSelected] = useState<string | null>(null);
+  const [localSelected, setLocalSelected] = useState<string | null>(null);
+  const selected = selectedPath !== undefined ? selectedPath : localSelected;
+  // Callbacks and the controlled flag live in refs so a caller passing inline
+  // functions cannot retrigger the tree load on every render.
+  const onLoadedRef = useRef(onLoaded);
+  onLoadedRef.current = onLoaded;
+  const onSelectRef = useRef(onSelectFile);
+  onSelectRef.current = onSelectFile;
+  const controlledRef = useRef(selectedPath !== undefined);
+  controlledRef.current = selectedPath !== undefined;
+
   const [file, setFile] = useState<api.SourceFileContent | null>(null);
   const [fileLoading, setFileLoading] = useState(false);
   const [fileError, setFileError] = useState('');
@@ -50,22 +82,36 @@ export function SourceExplorer({ projectId }: SourceExplorerProps) {
     setError('');
     try {
       const [nextTree, nextHistory] = await Promise.all([
-        api.fetchTree(projectId),
-        api.fetchHistory(projectId, 50).catch(() => [] as readonly api.FileHistoryEntry[]),
+        api.fetchTree(projectId, workspaceId),
+        api
+          .fetchHistory(projectId, 50, workspaceId)
+          .catch(() => [] as readonly api.FileHistoryEntry[]),
       ]);
       setTree(nextTree);
       setHistory(nextHistory);
-      setSelected((current) => current ?? nextTree.files[0]?.path ?? null);
+      onLoadedRef.current?.(nextTree, nextHistory);
+      if (!controlledRef.current) {
+        setLocalSelected((current) => current ?? nextTree.files[0]?.path ?? null);
+      }
     } catch (loadError) {
       setError(errorMessage(loadError));
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, workspaceId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // An external refresh request reloads in place, keeping expansion state.
+  const lastSignal = useRef(refreshSignal ?? 0);
+  useEffect(() => {
+    const signal = refreshSignal ?? 0;
+    if (signal === lastSignal.current) return;
+    lastSignal.current = signal;
+    void load();
+  }, [refreshSignal, load]);
 
   const recentlyChanged = useMemo(
     () =>
@@ -75,11 +121,14 @@ export function SourceExplorer({ projectId }: SourceExplorerProps) {
 
   const loadFile = useCallback(
     async (path: string) => {
-      setSelected(path);
+      if (onSelectRef.current !== undefined) onSelectRef.current(path);
+      else setLocalSelected(path);
+      // Tree-only mode: the caller renders the file, so nothing is fetched here.
+      if (!showPreview) return;
       setFileLoading(true);
       setFileError('');
       try {
-        setFile(await api.fetchFile(projectId, path));
+        setFile(await api.fetchFile(projectId, path, workspaceId));
       } catch (readError) {
         setFile(null);
         setFileError(errorMessage(readError));
@@ -87,13 +136,13 @@ export function SourceExplorer({ projectId }: SourceExplorerProps) {
         setFileLoading(false);
       }
     },
-    [projectId],
+    [projectId, workspaceId, showPreview],
   );
 
   useEffect(() => {
-    if (selected === null) return;
+    if (!showPreview || selected === null) return;
     void loadFile(selected);
-  }, [selected, loadFile]);
+  }, [selected, loadFile, showPreview]);
 
   const toggle = (directory: string) => {
     setExpanded((current) => {

@@ -116,7 +116,13 @@ export function ProjectDetailPage({ projectId }: { projectId: string | null }) {
               </div>
             </div>
             <div className="v-detail-header__actions">
-              <Button onClick={() => navigateToHash(`#/projects/${project.id}/workspace`)}>
+              <Button onClick={() => navigateToHash(`#/projects/${project.id}/builder`)}>
+                Open builder
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => navigateToHash(`#/projects/${project.id}/workspace`)}
+              >
                 Open workspace
               </Button>
               <Menu

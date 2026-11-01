@@ -18,6 +18,7 @@ import {
   AiProvidersPage,
   ModelRoutingPage,
   BuilderPage,
+  FrontendBuilderPage,
   ExecutePage,
   SettingsPage,
 } from './pages';
@@ -53,6 +54,8 @@ export function App() {
                 return <ProjectDetailPage projectId={route.projectId} />;
               case 'project-workspace':
                 return <ProjectWorkspacePage projectId={route.projectId} />;
+              case 'project-builder':
+                return <FrontendBuilderPage projectId={route.projectId} />;
               case 'reasoning':
                 return <ReasoningPage />;
               case 'ai-providers':

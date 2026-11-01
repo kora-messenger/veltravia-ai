@@ -47,6 +47,7 @@ export type RouteId =
   | 'execute'
   | 'project-detail'
   | 'project-workspace'
+  | 'project-builder'
   | 'ai-providers'
   | 'model-routing'
   | 'builder'
@@ -61,6 +62,7 @@ export interface RouteState {
 
 const PROJECT_ID_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)$/;
 const WORKSPACE_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/workspace$/;
+const BUILDER_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/builder$/;
 
 function routeForHash(hash: string): RouteState {
   if (hash === '' || hash === '#' || hash === '#/dashboard') {
@@ -108,6 +110,14 @@ function routeForHash(hash: string): RouteState {
   }
   if (hash === '#/settings') {
     return { id: 'settings', title: 'Settings', projectId: null };
+  }
+  const builderMatch = BUILDER_PATTERN.exec(hash);
+  if (builderMatch !== null) {
+    return {
+      id: 'project-builder',
+      title: 'Frontend builder',
+      projectId: builderMatch[1] ?? null,
+    };
   }
   const workspaceMatch = WORKSPACE_PATTERN.exec(hash);
   if (workspaceMatch !== null) {

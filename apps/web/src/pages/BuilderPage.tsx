@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Badge, Button, Card, Input, Select, Spinner, Textarea, useToast } from '../components/ui';
 import { errorMessage } from '../api/client';
+import { navigateToHash } from '../shell/useHashRoute';
 import { SourceExplorer } from './source/SourceExplorer';
 import * as api from '../api/app-builder';
 
@@ -493,6 +494,17 @@ export function BuilderPage() {
                 {materialized.createdFiles.length} files in workspace{' '}
                 <code>{materialized.workspaceId}</code>.
               </p>
+              <div className="v-builder__actions">
+                <Button
+                  onClick={() =>
+                    navigateToHash(
+                      `#/projects/${encodeURIComponent(materialized.projectId)}/builder`,
+                    )
+                  }
+                >
+                  Open in frontend builder
+                </Button>
+              </div>
               <SourceExplorer projectId={materialized.projectId} />
             </>
           )}

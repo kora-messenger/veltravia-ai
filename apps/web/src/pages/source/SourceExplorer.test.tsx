@@ -99,7 +99,7 @@ describe('source explorer', () => {
     fireEvent.click(await screen.findByRole('button', { name: /src\// }));
     fireEvent.click(await screen.findByRole('button', { name: /main\.ts/ }));
     expect(await screen.findByLabelText('Contents of src/main.ts')).toBeDefined();
-    expect(api.fetchFile).toHaveBeenCalledWith('prj_1', 'src/main.ts');
+    expect(api.fetchFile).toHaveBeenCalledWith('prj_1', 'src/main.ts', undefined);
   });
 
   it('collapses a directory until it is expanded', async () => {

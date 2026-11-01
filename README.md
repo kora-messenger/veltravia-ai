@@ -279,3 +279,18 @@ existing coding agent. `#/builder` is the web surface.
 Support levels are honest and visible: no technology is `executable` in this release, because
 nothing here can compile an arbitrary toolchain. The builder never substitutes a language you
 did not choose, and every plan states that its declared build and test commands were not run.
+
+### Frontend builder workspace (Step 32)
+
+[The builder UI](docs/frontend-builder-ui.md) puts those pieces in one workspace:
+`#/projects/<id>/builder` shows the real project files (explorer, folders, revisions,
+recent changes), a project overview classified by the server into pages, components,
+layouts, hooks, styles and assets, and a conversation with the coding agent. A request
+starts a bounded coding run; the validated plan is shown before approval, nothing is
+written until you approve it, and recorded file changes are reported after the run
+finishes. File viewing is read-only in this release - there is no editor yet.
+
+`GET /api/projects/:projectId/source/structure` classifies frontend files from paths
+only, and reports `framework: null` when the stack detector recognises nothing instead
+of guessing React. `GET /api/coding/capabilities` says plainly whether the API's coding
+agent is model-backed or the scripted demo, so the UI never implies a model wrote a plan.

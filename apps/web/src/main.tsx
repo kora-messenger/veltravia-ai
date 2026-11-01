@@ -7,6 +7,7 @@ import './components/ui/ui.css';
 import './shell/shell.css';
 import './pages/pages.css';
 import './pages/workspace/workspace.css';
+import './pages/builder/builder.css';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Root element #root not found');

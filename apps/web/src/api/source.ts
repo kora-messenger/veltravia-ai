@@ -47,16 +47,34 @@ export interface FileHistoryEntry {
   readonly at: string;
 }
 
-export async function fetchTree(projectId: string): Promise<SourceTreeView> {
+/** Builds a source URL, carrying the workspace when the caller pinned one. */
+function sourceUrl(
+  projectId: string,
+  suffix: string,
+  workspaceId: string | undefined,
+  params: Record<string, string | number> = {},
+): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) search.set(key, String(value));
+  if (workspaceId !== undefined && workspaceId.length > 0) search.set('workspaceId', workspaceId);
+  const query = search.toString();
+  return `/api/projects/${encodeURIComponent(projectId)}/source${suffix}${query === '' ? '' : `?${query}`}`;
+}
+
+export async function fetchTree(projectId: string, workspaceId?: string): Promise<SourceTreeView> {
   const response = await apiRequest<{ tree: SourceTreeView }>(
-    `/api/projects/${encodeURIComponent(projectId)}/source`,
+    sourceUrl(projectId, '', workspaceId),
   );
   return response.tree;
 }
 
-export async function fetchFile(projectId: string, path: string): Promise<SourceFileContent> {
+export async function fetchFile(
+  projectId: string,
+  path: string,
+  workspaceId?: string,
+): Promise<SourceFileContent> {
   const response = await apiRequest<{ file: SourceFileContent }>(
-    `/api/projects/${encodeURIComponent(projectId)}/source/file?path=${encodeURIComponent(path)}`,
+    sourceUrl(projectId, '/file', workspaceId, { path }),
   );
   return response.file;
 }
@@ -64,9 +82,39 @@ export async function fetchFile(projectId: string, path: string): Promise<Source
 export async function fetchHistory(
   projectId: string,
   limit = 50,
+  workspaceId?: string,
 ): Promise<readonly FileHistoryEntry[]> {
   const response = await apiRequest<{ entries: readonly FileHistoryEntry[] }>(
-    `/api/projects/${encodeURIComponent(projectId)}/source/history?limit=${limit}`,
+    sourceUrl(projectId, '/history', workspaceId, { limit }),
   );
   return response.entries;
+}
+
+/** Logical frontend sections (pages, components, …) computed by the server. */
+export interface FrontendSectionView {
+  readonly section: string;
+  readonly label: string;
+  readonly count: number;
+  readonly bytes: number;
+  readonly files: readonly { readonly path: string; readonly size: number }[];
+  readonly omitted: number;
+}
+
+export interface FrontendStructureView {
+  readonly layout: 'component-based' | 'flutter' | 'neutral';
+  readonly framework: string | null;
+  readonly totals: { readonly files: number; readonly bytes: number };
+  readonly sections: readonly FrontendSectionView[];
+  readonly pages: readonly string[];
+  readonly components: readonly string[];
+}
+
+export async function fetchStructure(
+  projectId: string,
+  workspaceId?: string,
+): Promise<FrontendStructureView> {
+  const response = await apiRequest<{ structure: FrontendStructureView }>(
+    sourceUrl(projectId, '/structure', workspaceId),
+  );
+  return response.structure;
 }
