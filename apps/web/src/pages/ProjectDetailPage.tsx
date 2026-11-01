@@ -116,8 +116,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string | null }) {
               </div>
             </div>
             <div className="v-detail-header__actions">
-              <Button onClick={() => navigateToHash(`#/projects/${project.id}/builder`)}>
-                Open builder
+              <Button onClick={() => navigateToHash(`#/projects/${project.id}/app`)}>
+                Open app workspace
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => navigateToHash(`#/projects/${project.id}/builder`)}
+              >
+                Open frontend builder
               </Button>
               <Button
                 variant="secondary"

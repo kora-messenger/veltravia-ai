@@ -310,3 +310,20 @@ backend change is still a bounded run you approve before anything is written. `G
 /api/projects/:projectId/backend` (plus per-section routes and `/api/backend/capabilities`)
 is read-only; environment variables are collected by name only, and quoted evidence is
 redacted before it leaves the scanner.
+
+### Unified application workspace (Step 34)
+
+[The unified workspace](docs/unified-app-builder.md) at `#/projects/<id>/app` presents the
+frontend builder, the backend builder, the database view, the API surface, the files and the
+assistant as one application. It adds no store and no AI system: one bounded pass over the same
+source tree feeds the overview, the grouped file explorer, the health panel and the cross-layer
+graph.
+
+`GET /api/projects/:projectId/app` composes the view, with `/overview`, `/files`, `/links` and
+`/health` slices, and `POST /app/group` classifies the paths a plan would touch. Health uses six
+words only - `configured`, `detected`, `tested`, `running`, `unavailable`, `not-configured` - so
+"a provider is declared" is never reported as "the database works", and no test run is claimed
+without one. Cross-layer edges (frontend request to backend route, route to handler, handler to
+model, route to auth) each carry a file and a line at both ends; a request with no route is
+listed as unmatched with its reason, and a route nobody calls is reported without being called
+broken.

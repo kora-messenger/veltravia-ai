@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge, Button, EmptyState, ErrorState, Spinner, useToast } from '../../components/ui';
+import { navigateToHash } from '../../shell/useHashRoute';
 import { errorMessage } from '../../api/client';
 import * as backendApi from '../../api/backend';
 import * as codingApi from '../../api/coding';
@@ -261,6 +262,13 @@ export function BackendBuilderPage({ projectId }: BackendBuilderPageProps) {
             <Badge tone="neutral">{workspace === null ? 'no workspace' : workspace.name}</Badge>
             <Badge tone="info">backend · read-only</Badge>
           </div>
+          <button
+            type="button"
+            className="v-bbuilder__crosslink"
+            onClick={() => navigateToHash(`#/projects/${project.id}/app`)}
+          >
+            Open application workspace
+          </button>
         </div>
         <nav className="v-bbuilder__tabs" aria-label="Backend builder panels">
           {(['sections', 'workspace', 'chat'] as const).map((panel) => (

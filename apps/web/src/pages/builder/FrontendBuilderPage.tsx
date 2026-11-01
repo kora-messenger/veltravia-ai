@@ -6,6 +6,7 @@ import * as projectsApi from '../../api/projects';
 import * as sourceApi from '../../api/source';
 import * as workspacesApi from '../../api/workspaces';
 import { SourceExplorer } from '../source/SourceExplorer';
+import { navigateToHash } from '../../shell/useHashRoute';
 import { BuilderChatPanel, type ChatMessage } from './BuilderChatPanel';
 import { BuilderMainPanel } from './BuilderMainPanel';
 import { useCodingRun } from './useCodingRun';
@@ -265,6 +266,13 @@ export function FrontendBuilderPage({ projectId }: FrontendBuilderPageProps) {
             <Badge tone="neutral">{shellNote}</Badge>
           </div>
         </div>
+        <button
+          type="button"
+          className="v-fbuilder__crosslink"
+          onClick={() => navigateToHash(`#/projects/${project.id}/app`)}
+        >
+          Open application workspace
+        </button>
         <nav className="v-fbuilder__tabs" aria-label="Builder panels">
           {(['files', 'builder', 'chat'] as const).map((panel) => (
             <button

@@ -642,3 +642,42 @@ secret or turn a description into an authority.
    text, so a claim can be checked against the repository rather than trusted.
 8. **The report is data, not instructions.** Evidence text is rendered as text in a `<pre>`,
    never injected as markup, and the UI treats it as untrusted content.
+
+## 5z. Unified application workspace (Step 34, `app-builder/core/unified` + `apps/api`)
+
+The unified workspace composes earlier layers. It adds one new read surface and one new
+classification surface, and it inherits every rule of the layers it composes.
+
+1. **One store, one analyser.** `unified-service.ts` reads through the Step 31 source layer and
+   the Step 33 scanner. There is no second project repository, no second file store, and no
+   second AI execution path; the assistant calls the same `/api/coding/runs` routes.
+2. **Ownership is checked twice.** The source layer resolves the project by owner (foreign
+   project → 404), and the composed view re-checks the project record's `ownerRef` before its
+   metadata is returned. Authorization is server-side; the browser sends no owner claims.
+3. **Read-only by construction.** Every unified route is a GET except `POST /app/group`, which
+   classifies a list of paths and writes nothing. An API test asserts that POST/PUT/DELETE on the
+   unified paths fail, so a future write surface cannot appear unnoticed.
+4. **No secrets.** Environment variables stay names-only from the Step 33 scanner. An API test
+   seeds a DSN and a secret and asserts the composed payload contains neither; a live browser
+   check asserts the run's DOM never contains the seeded secret value.
+5. **Statuses cannot lie.** Health uses six words: `configured`, `detected`, `tested`, `running`,
+   `unavailable`, `not-configured`. `configured` means a declaration exists, never that a
+   connection works. `tested` is never claimed (no test run is recorded). `runtime` reports
+   `running` only from an observed runtime state.
+6. **Counts come from one place.** The health panel and the file explorer both read the grouping,
+   so a manifest-only project cannot be reported as having "frontend files" (found in live QA:
+   the scan's wider view made a two-file project report two frontend files).
+7. **Grouping never hides a file.** Every path lands in exactly one group; grouping is a reading
+   aid and does not rename, move or omit files.
+8. **Relationships are evidence, not claims.** Every edge carries file and line at both ends and
+   a confidence of `exact` or `parameterised`. An unmatched request keeps its reason; a route
+   with no caller is reported without being called broken. A dynamic URL is never guessed.
+9. **Untrusted project text.** Route text, file content and evidence are rendered as text, never
+   injected as markup, and are treated as data. A `/api/...` literal in a file is evidence of a
+   call, not an instruction.
+10. **Approval still gates every write.** The AI panel and the Build section share one coding
+    run: plans require human approval, tool confirmations still pause the run, cancellation is
+    one-way and server-confirmed, and revision conflicts stay typed errors.
+11. **Bounded reads.** The scanner keeps the Step 33 budgets (60 files, 40 route files, 48 KiB
+    each). When a cap is reached the health panel says the picture is partial.
+12. **No execution.** No unified route runs code, starts a sandbox or opens a database connection.

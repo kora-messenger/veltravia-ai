@@ -19,3 +19,4 @@ export { BuilderPage } from './BuilderPage';
 export { ExecutePage } from './ExecutePage';
 export { FrontendBuilderPage } from './builder/FrontendBuilderPage';
 export { BackendBuilderPage } from './backend/BackendBuilderPage';
+export { UnifiedAppPage } from './unified/UnifiedAppPage';

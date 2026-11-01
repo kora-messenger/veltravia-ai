@@ -20,6 +20,7 @@ import {
   BuilderPage,
   FrontendBuilderPage,
   BackendBuilderPage,
+  UnifiedAppPage,
   ExecutePage,
   SettingsPage,
 } from './pages';
@@ -59,6 +60,8 @@ export function App() {
                 return <FrontendBuilderPage projectId={route.projectId} />;
               case 'project-backend':
                 return <BackendBuilderPage projectId={route.projectId} />;
+              case 'project-app':
+                return <UnifiedAppPage projectId={route.projectId} />;
               case 'reasoning':
                 return <ReasoningPage />;
               case 'ai-providers':
