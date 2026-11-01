@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """Derive the shipped brand files from the supplied originals.
 
-The artwork arrives with a lot of transparent padding: the supplied logo keeps
-its mark inside 64% x 51% of a 1024 square, so a 28px mark drawn from the raw
-file renders as a 17 x 14px shape floating in the corner of its box. This
-script crops to the ink at a fixed alpha threshold, re-centres the result on a
-square transparent canvas with 7% breathing room, and writes every derived size
-from that trim.
+Two derivations, chosen per artwork:
+
+  * the app logo is the owner's artwork, so every icon is the delivered 1024
+    canvas at one uniform scale: same composition, same margins, same centring.
+    Nothing is cropped or re-centred (`exact-rescale`).
+  * the notification mark is a wide status chip sized 24-28px, where its own
+    padding would leave a 10px shape, so it is cropped to the ink at a fixed
+    alpha threshold and re-centred on a square canvas (`ink-crop`).
 
 Rules the script keeps:
   * the original files are only ever read, never rewritten;
-  * nothing is recoloured, sharpened, cropped for composition or stretched
-    (one uniform scale per derivative, aspect preserved);
+  * nothing is recoloured, sharpened or stretched (one uniform scale, aspect
+    preserved), and the logo is never cropped;
   * the alpha channel stays: no flattened white background;
   * measured results are written to brand-assets.json so the asset test can
-    assert a real fill ratio instead of trusting a filename.
+    assert the real fill ratio and method instead of trusting a filename.
 
 Run: python3 scripts/trim-brand-assets.py   (needs Pillow)
 """
@@ -54,6 +56,11 @@ def fill_ratio(image: Image.Image) -> float:
     return round(max((right - left) / width, (bottom - top) / height), 3)
 
 
+def exact_scale(source: Image.Image, size: int) -> Image.Image:
+    """The delivered canvas at one uniform scale, composition untouched."""
+    return source.convert("RGBA").resize((size, size), Image.LANCZOS)
+
+
 def square_trim(source: Image.Image, size: int) -> Image.Image:
     """Crop to the ink, then centre it on a square transparent canvas."""
     image = source.convert("RGBA")
@@ -80,12 +87,18 @@ def prettier_json(document: dict) -> str:
     ) + "]", text) + "\n"
 
 
-def write(image: Image.Image, name: str, written: dict[str, dict[str, object]]) -> None:
+def write(
+    image: Image.Image,
+    name: str,
+    written: dict[str, dict[str, object]],
+    method: str,
+) -> None:
     target = BRAND / name
     image.save(target, "PNG", optimize=True)
     written[name] = {
         "width": image.width,
         "height": image.height,
+        "method": method,
         "inkFill": fill_ratio(image),
         "bytes": target.stat().st_size,
     }
@@ -106,18 +119,18 @@ def main() -> None:
 
     written: dict[str, dict[str, object]] = {}
 
-    logo_master = square_trim(logo, MASTER)
-    write(logo_master, "veltravia-logo-trim.png", written)
+    # The app logo is the owner's artwork: scale the delivered canvas, never crop it.
     for size in LOGO_SIZES:
-        write(square_trim(logo, size), f"veltravia-logo-{size}.png", written)
+        write(exact_scale(logo, size), f"veltravia-logo-{size}.png", written, "exact-rescale")
 
     notification_master = square_trim(mark, 512)
-    write(notification_master, "veltravia-notification-trim.png", written)
+    write(notification_master, "veltravia-notification-trim.png", written, "ink-crop")
     for size in NOTIFICATION_SIZES:
-        write(square_trim(mark, size), f"veltravia-notification-{size}.png", written)
+        write(square_trim(mark, size), f"veltravia-notification-{size}.png", written, "ink-crop")
 
-    # A multi-resolution .ico so the tab icon is crisp on every density.
-    logo_master.save(
+    # A multi-resolution .ico so the tab icon is crisp on every density. Drawn
+    # from the delivered canvas, so the tab icon is the logo exactly as supplied.
+    logo.save(
         BRAND / "favicon.ico",
         format="ICO",
         sizes=[(size, size) for size in ICON_SIZES],
@@ -135,13 +148,17 @@ def main() -> None:
             {"file": "veltravia-logo.png", "width": 1024, "height": 1024},
             {"file": "veltravia-mark.png", "width": 1024, "height": 518},
         ],
+        "logoInkRatio": 0.64,
         "files": written,
     }
     (BRAND / "brand-assets.json").write_text(prettier_json(manifest))
 
     for name, info in written.items():
         if "inkFill" in info:
-            print(f"  {name}: {info['width']}x{info['height']} ink fill {info['inkFill']}")
+            print(
+                f"  {name}: {info['width']}x{info['height']} "
+                f"{info['method']} ink fill {info['inkFill']}"
+            )
 
 
 if __name__ == "__main__":

@@ -14,76 +14,81 @@
       "height": 518
     }
   ],
+  "logoInkRatio": 0.64,
   "files": {
-    "veltravia-logo-trim.png": {
-      "width": 1024,
-      "height": 1024,
-      "inkFill": 0.875,
-      "bytes": 283773
-    },
     "veltravia-logo-32.png": {
       "width": 32,
       "height": 32,
-      "inkFill": 0.812,
-      "bytes": 1655
+      "method": "exact-rescale",
+      "inkFill": 0.625,
+      "bytes": 1061
     },
     "veltravia-logo-48.png": {
       "width": 48,
       "height": 48,
-      "inkFill": 0.875,
-      "bytes": 2751
+      "method": "exact-rescale",
+      "inkFill": 0.625,
+      "bytes": 1825
     },
     "veltravia-logo-96.png": {
       "width": 96,
       "height": 96,
-      "inkFill": 0.875,
-      "bytes": 7251
+      "method": "exact-rescale",
+      "inkFill": 0.625,
+      "bytes": 4602
     },
     "veltravia-logo-180.png": {
       "width": 180,
       "height": 180,
-      "inkFill": 0.867,
-      "bytes": 17729
+      "method": "exact-rescale",
+      "inkFill": 0.633,
+      "bytes": 11145
     },
     "veltravia-logo-192.png": {
       "width": 192,
       "height": 192,
-      "inkFill": 0.875,
-      "bytes": 19561
+      "method": "exact-rescale",
+      "inkFill": 0.635,
+      "bytes": 12240
     },
     "veltravia-logo-512.png": {
       "width": 512,
       "height": 512,
-      "inkFill": 0.875,
-      "bytes": 95071
+      "method": "exact-rescale",
+      "inkFill": 0.637,
+      "bytes": 57380
     },
     "veltravia-notification-trim.png": {
       "width": 512,
       "height": 512,
+      "method": "ink-crop",
       "inkFill": 0.875,
       "bytes": 93243
     },
     "veltravia-notification-48.png": {
       "width": 48,
       "height": 48,
+      "method": "ink-crop",
       "inkFill": 0.875,
       "bytes": 2040
     },
     "veltravia-notification-96.png": {
       "width": 96,
       "height": 96,
+      "method": "ink-crop",
       "inkFill": 0.875,
       "bytes": 5354
     },
     "veltravia-notification-256.png": {
       "width": 256,
       "height": 256,
+      "method": "ink-crop",
       "inkFill": 0.875,
       "bytes": 28906
     },
     "favicon.ico": {
       "sizes": [16, 24, 32, 48, 64, 128, 256],
-      "bytes": 52490
+      "bytes": 32964
     }
   }
 }

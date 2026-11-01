@@ -517,21 +517,33 @@ The supplied artwork ships untouched next to the files the app actually loads:
 | ------------------------------------------- | --------------------------------------------- |
 | `veltravia-logo.png` (1024x1024)            | supplied logo, kept at its delivered size     |
 | `veltravia-mark.png` (1024x518)             | supplied notification mark, kept as delivered |
-| `veltravia-logo-trim.png` (1024x1024)       | logo cropped to its ink and re-centred        |
-| `veltravia-notification-trim.png` (512x512) | notification mark, same treatment             |
+| `veltravia-notification-trim.png` (512x512) | notification mark, cropped to its ink         |
 | `veltravia-logo-{32,48,96,180,192,512}.png` | favicon and app icons                         |
 | `veltravia-notification-{48,96,256}.png`    | status mark sizes for the top bar             |
 | `favicon.ico`                               | multi-resolution 16 to 256                    |
 
-Measured on the delivered files: the logo's ink occupies 64% x 51% of its
-1024 square and the notification mark's ink 41% x 69% of its 1024x518, so
-drawing them raw put a 17 x 14px shape inside the 28px sidebar box and a
-14 x 13px shape inside the 20px status chip. `scripts/trim-brand-assets.py`
-crops to the ink at an alpha threshold of 128, re-centres on a square canvas with 7% padding, and writes every derived
-size from that crop, one uniform scale and no recolour. The rendered mark now
-covers 88% of its box instead of 62% and is centred to within 7px at 4x.
-`brand-assets.json` records the measurements, and `brand.test.tsx` fails if any
-shipped icon falls below an 80% ink fill.
+Measured on the delivered files: the logo's ink occupies 64% x 52% of its 1024
+square and the notification mark's ink 41% x 69% of its 1024x518, so drawing the
+wide mark raw put a 14 x 13px shape inside the 20px status chip.
+
+Two derivations, recorded per file in `brand-assets.json`:
+
+- **The app logo is used exactly as delivered** (`exact-rescale`): every icon is
+  the 1024 canvas at one uniform scale, so the composition, margins and centring
+  are the owner's own. Nothing is cropped, re-centred, recoloured or stretched,
+  and the transparent background stays transparent. Because the artwork carries
+  its own padding (64% ink), the sidebar draws it in a 38px box so the ink still
+  lands at the 24px it was before, rather than shrinking the mark.
+- **The notification mark is cropped to its ink** (`ink-crop`): it only ever
+  appears as a 24-28px status chip, where its own padding would leave a 10px
+  shape. `scripts/trim-brand-assets.py` crops it at an alpha threshold of 128,
+  re-centres on a square canvas with 7% padding and writes the chip sizes from
+  that trim, 88% ink fill.
+
+`brand-assets.json` records the measurements and the method per file, and
+`brand.test.tsx` fails if a logo icon stops being an exact rescale, if the
+cropped chip falls below an 80% ink fill, if the originals change size, or if a
+cropped copy of the logo reappears.
 
 `BrandMark` serves `srcSet` densities (1x/2x/3x), so a 3x display fetches the
 512px file instead of upscaling. The status mark renders at 24px in the top bar

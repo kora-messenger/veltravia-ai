@@ -178,7 +178,7 @@ export function Sidebar({
       >
         <div className="v-sidebar__header">
           <a className="v-sidebar__brand" href="#/dashboard" onClick={onMobileClose}>
-            <BrandMark size={collapsed ? 26 : 28} decorative />
+            <BrandMark size={collapsed ? 36 : 38} decorative />
             {!collapsed && <span className="v-sidebar__brand-name">Veltravia AI</span>}
           </a>
           <button

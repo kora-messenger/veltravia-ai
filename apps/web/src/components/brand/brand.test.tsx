@@ -18,7 +18,12 @@ const BRAND_DIR = resolve(__dirname, '../../../public/brand');
 interface BrandManifest {
   inkAlpha: number;
   padding: number;
-  files: Record<string, { width?: number; height?: number; inkFill?: number; bytes?: number }>;
+  logoInkRatio: number;
+  originals: Array<{ file: string; width: number; height: number }>;
+  files: Record<
+    string,
+    { width?: number; height?: number; method?: string; inkFill?: number; bytes?: number }
+  >;
 }
 
 /** Measurements written by scripts/trim-brand-assets.py, reviewed in the commit. */
@@ -74,19 +79,45 @@ describe('brand assets', () => {
     }
   });
 
-  it('derives every shipped icon from artwork cropped to its ink', () => {
+  it('ships the app logo icons as the delivered artwork, uncropped', () => {
     const measured = manifest();
-    // The padding this fixes: the raw logo is only 64% x 51% ink inside its canvas.
-    expect(measured.padding).toBeGreaterThan(0);
-    expect(measured.padding).toBeLessThanOrEqual(0.1);
-    const derived = Object.entries(measured.files).filter(([name]) => name.endsWith('.png'));
-    expect(derived.length).toBeGreaterThanOrEqual(10);
-    for (const [name, info] of derived) {
+    const logoIcons = Object.entries(measured.files).filter(([name]) =>
+      name.startsWith('veltravia-logo-'),
+    );
+    expect(logoIcons.map(([name]) => name).sort()).toEqual([
+      'veltravia-logo-180.png',
+      'veltravia-logo-192.png',
+      'veltravia-logo-32.png',
+      'veltravia-logo-48.png',
+      'veltravia-logo-512.png',
+      'veltravia-logo-96.png',
+    ]);
+    for (const [name, info] of logoIcons) {
       const header = pngHeader(name);
       expect({ name, width: header.width }).toEqual({ name, width: info.width });
       expect({ name, height: header.height }).toEqual({ name, height: info.height });
-      // A mark that fills under 70% of its box renders visibly small at 28px.
-      expect({ name, fill: info.inkFill }).toEqual({ name, fill: expect.any(Number) });
+      // Exact rescale: the artwork keeps its own margins, so no crop step and a
+      // fill ratio that matches the delivered canvas instead of a trim.
+      expect({ name, method: info.method }).toEqual({ name, method: 'exact-rescale' });
+      expect(info.inkFill ?? 1).toBeLessThanOrEqual(measured.logoInkRatio + 0.02);
+      expect(info.inkFill ?? 0).toBeGreaterThan(measured.logoInkRatio - 0.03);
+    }
+  });
+
+  it('crops only the notification mark, which is a 24px status chip', () => {
+    const measured = manifest();
+    expect(measured.padding).toBeGreaterThan(0);
+    expect(measured.padding).toBeLessThanOrEqual(0.1);
+    const notificationIcons = Object.entries(measured.files).filter(([name]) =>
+      name.startsWith('veltravia-notification-'),
+    );
+    expect(notificationIcons.length).toBeGreaterThanOrEqual(4);
+    for (const [name, info] of notificationIcons) {
+      const header = pngHeader(name);
+      expect({ name, width: header.width }).toEqual({ name, width: info.width });
+      expect({ name, height: header.height }).toEqual({ name, height: info.height });
+      expect({ name, method: info.method }).toEqual({ name, method: 'ink-crop' });
+      // Without the crop the wide mark would paint about 10px inside a 24px chip.
       expect(info.inkFill ?? 0).toBeGreaterThanOrEqual(0.8);
     }
   });
@@ -101,19 +132,12 @@ describe('brand assets', () => {
     expect(pngHeader('veltravia-mark.png')).toMatchObject({ width: 1024, height: 518 });
   });
 
-  it('ships the trimmed masters as square RGBA', () => {
-    for (const [file, size] of [
-      ['veltravia-logo-trim.png', 1024],
-      ['veltravia-notification-trim.png', 512],
-    ] as const) {
-      const header = pngHeader(file);
-      expect({ file, width: header.width, height: header.height }).toEqual({
-        file,
-        width: size,
-        height: size,
-      });
-      expect(header.colorType).toBe(6);
-    }
+  it('ships the notification master as square RGBA and no cropped logo copy', () => {
+    const header = pngHeader('veltravia-notification-trim.png');
+    expect({ width: header.width, height: header.height }).toEqual({ width: 512, height: 512 });
+    expect(header.colorType).toBe(6);
+    // The app logo is used exactly as delivered: a crop would be a second version.
+    expect(() => pngHeader('veltravia-logo-trim.png')).toThrow();
   });
 
   it('includes a multi-size favicon.ico', () => {
