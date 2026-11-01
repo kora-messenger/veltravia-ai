@@ -1,13 +1,19 @@
 import type { CSSProperties } from 'react';
 
 /**
- * The supplied Veltravia assets, used as they were delivered.
+ * The Veltravia mark, drawn from the delivered artwork.
  *
- * Both files are transparent PNGs whose artwork includes white type, so a logo
- * placed straight on a light surface would lose the wordmark. The mark is
- * therefore mounted on a fixed dark tile: the artwork is never recoloured,
- * cropped or stretched, and it stays legible in light, dark and system themes.
- * Sizes are square and taken from the asset's own proportions.
+ * Measured on the supplied files (scripts/trim-brand-assets.py records this in
+ * brand-assets.json): the logo keeps its ink inside 64% x 51% of the 1024
+ * square, so drawing it directly produced a 17 x 14px shape inside a 28px box.
+ * The shipped files are therefore cropped to the ink and re-centred with 7%
+ * breathing room; the artwork itself is untouched (no recolour, no per-axis
+ * scale, alpha preserved) and the originals ship alongside at their full size.
+ *
+ * The artwork mixes deep violet with white highlights, so it is always mounted
+ * on a dark chip: on a light surface the white highlights would disappear, and
+ * on the dark surface the chip keeps the mark's own edges crisp in both themes.
+ * Sizes are square and follow the asset's own proportions.
  */
 
 export type BrandVariant = 'logo' | 'notification';
@@ -22,9 +28,23 @@ export interface BrandMarkProps {
   readonly className?: string;
 }
 
-const SOURCE: Record<BrandVariant, string> = {
-  logo: '/brand/veltravia-logo.png',
-  notification: '/brand/veltravia-notification-256.png',
+interface BrandSource {
+  /** Fallback for browsers without srcset support. */
+  readonly src: string;
+  /** Density descriptors, so a 3x display gets a 3x file, not an upscale. */
+  readonly srcSet: string;
+}
+
+const SOURCE: Record<BrandVariant, BrandSource> = {
+  logo: {
+    src: '/brand/veltravia-logo-192.png',
+    srcSet:
+      '/brand/veltravia-logo-96.png 1x, /brand/veltravia-logo-192.png 2x, /brand/veltravia-logo-512.png 3x',
+  },
+  notification: {
+    src: '/brand/veltravia-notification-96.png',
+    srcSet: '/brand/veltravia-notification-96.png 1x, /brand/veltravia-notification-256.png 2x',
+  },
 };
 
 const LABEL: Record<BrandVariant, string> = {
@@ -47,7 +67,8 @@ export function BrandMark({
     >
       <img
         className="v-brand-mark__image"
-        src={SOURCE[variant]}
+        src={SOURCE[variant].src}
+        srcSet={SOURCE[variant].srcSet}
         width={size}
         height={size}
         alt={decorative ? '' : LABEL[variant]}

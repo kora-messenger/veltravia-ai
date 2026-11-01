@@ -15,6 +15,17 @@ import { BrandMark } from './BrandMark';
 
 const BRAND_DIR = resolve(__dirname, '../../../public/brand');
 
+interface BrandManifest {
+  inkAlpha: number;
+  padding: number;
+  files: Record<string, { width?: number; height?: number; inkFill?: number; bytes?: number }>;
+}
+
+/** Measurements written by scripts/trim-brand-assets.py, reviewed in the commit. */
+function manifest(): BrandManifest {
+  return JSON.parse(readFileSync(resolve(BRAND_DIR, 'brand-assets.json'), 'utf8')) as BrandManifest;
+}
+
 /** Reads width, height and colour type straight from a PNG header. */
 function pngHeader(file: string): { width: number; height: number; colorType: number } {
   const buffer = readFileSync(resolve(BRAND_DIR, file));
@@ -62,6 +73,48 @@ describe('brand assets', () => {
     }
   });
 
+  it('derives every shipped icon from artwork cropped to its ink', () => {
+    const measured = manifest();
+    // The padding this fixes: the raw logo is only 64% x 51% ink inside its canvas.
+    expect(measured.padding).toBeGreaterThan(0);
+    expect(measured.padding).toBeLessThanOrEqual(0.1);
+    const derived = Object.entries(measured.files).filter(([name]) => name.endsWith('.png'));
+    expect(derived.length).toBeGreaterThanOrEqual(10);
+    for (const [name, info] of derived) {
+      const header = pngHeader(name);
+      expect({ name, width: header.width }).toEqual({ name, width: info.width });
+      expect({ name, height: header.height }).toEqual({ name, height: info.height });
+      // A mark that fills under 70% of its box renders visibly small at 28px.
+      expect({ name, fill: info.inkFill }).toEqual({ name, fill: expect.any(Number) });
+      expect(info.inkFill ?? 0).toBeGreaterThanOrEqual(0.8);
+    }
+  });
+
+  it('keeps the delivered originals at full size next to the derivatives', () => {
+    const measured = manifest();
+    expect(measured.originals.map((entry) => entry.file)).toEqual([
+      'veltravia-logo.png',
+      'veltravia-mark.png',
+    ]);
+    expect(pngHeader('veltravia-logo.png')).toMatchObject({ width: 1024, height: 1024 });
+    expect(pngHeader('veltravia-mark.png')).toMatchObject({ width: 1024, height: 341 });
+  });
+
+  it('ships the trimmed masters as square RGBA', () => {
+    for (const [file, size] of [
+      ['veltravia-logo-trim.png', 1024],
+      ['veltravia-notification-trim.png', 512],
+    ] as const) {
+      const header = pngHeader(file);
+      expect({ file, width: header.width, height: header.height }).toEqual({
+        file,
+        width: size,
+        height: size,
+      });
+      expect(header.colorType).toBe(6);
+    }
+  });
+
   it('includes a multi-size favicon.ico', () => {
     const ico = readFileSync(resolve(BRAND_DIR, 'favicon.ico'));
     expect(ico.readUInt16LE(0)).toBe(0);
@@ -85,7 +138,12 @@ describe('BrandMark', () => {
   it('renders the full logo with a product label', () => {
     render(<BrandMark size={40} />);
     const image = screen.getByRole('img', { name: 'Veltravia AI' });
-    expect(image.getAttribute('src')).toBe('/brand/veltravia-logo.png');
+    // The cropped 192px derivative, with densities so 3x screens get 512, not an upscale.
+    expect(image.getAttribute('src')).toBe('/brand/veltravia-logo-192.png');
+    const srcSet = image.getAttribute('srcSet') ?? '';
+    expect(srcSet).toContain('/brand/veltravia-logo-96.png 1x');
+    expect(srcSet).toContain('/brand/veltravia-logo-192.png 2x');
+    expect(srcSet).toContain('/brand/veltravia-logo-512.png 3x');
     expect(image.getAttribute('width')).toBe('40');
     expect(image.getAttribute('height')).toBe('40');
   });
@@ -93,13 +151,24 @@ describe('BrandMark', () => {
   it('renders the notification mark', () => {
     render(<BrandMark variant="notification" size={20} />);
     const image = screen.getByRole('img', { name: 'Veltravia AI notifications' });
-    expect(image.getAttribute('src')).toBe('/brand/veltravia-notification-256.png');
+    expect(image.getAttribute('src')).toBe('/brand/veltravia-notification-96.png');
+    expect(image.getAttribute('srcSet') ?? '').toContain(
+      '/brand/veltravia-notification-256.png 2x',
+    );
   });
 
   it('hides a decorative mark from assistive technology', () => {
     const { container } = render(<BrandMark decorative />);
     expect(container.querySelector('img')?.getAttribute('alt')).toBe('');
     expect(container.querySelector('img')?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('never animates the mark', () => {
+    const css = readFileSync(resolve(__dirname, 'brand.css'), 'utf8');
+    // The logo is static: no float, drift, pulse or spin anywhere in its styles.
+    expect(css).not.toMatch(/@keyframes/);
+    expect(css).not.toMatch(/animation\s*:/);
+    expect(css).not.toMatch(/transform\s*:\s*(rotate|scale)/);
   });
 
   it('keeps the asset square through the size variable', () => {

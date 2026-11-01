@@ -1,4 +1,8 @@
-/* Brand assets: fixed dark tile, square crop-free sizing. */
+/*
+ * Brand assets: the artwork is already cropped to its ink, so the mark is
+ * contained rather than padded. The chip is a token, not a magic colour, and
+ * the mark never animates: no float, drift or pulse on the logo itself.
+ */
 .v-brand-mark {
   display: inline-flex;
   align-items: center;
@@ -6,7 +10,7 @@
   width: var(--brand-mark-size, 28px);
   height: var(--brand-mark-size, 28px);
   border-radius: calc(var(--brand-mark-size, 28px) * 0.26);
-  background: #05060a;
+  background: var(--v-neutral-950);
   overflow: hidden;
   flex: 0 0 auto;
   box-shadow: 0 0 0 1px rgb(255 255 255 / 8%);
@@ -21,5 +25,4 @@
 
 .v-brand-mark[data-variant='notification'] {
   border-radius: 50%;
-  background: #05060a;
 }

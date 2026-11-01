@@ -1,0 +1,97 @@
+{
+  "generatedBy": "scripts/trim-brand-assets.py",
+  "inkAlpha": 128,
+  "padding": 0.07,
+  "originals": [
+    {
+      "file": "veltravia-logo.png",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "file": "veltravia-mark.png",
+      "width": 1024,
+      "height": 341
+    }
+  ],
+  "files": {
+    "veltravia-logo-trim.png": {
+      "width": 1024,
+      "height": 1024,
+      "inkFill": 0.875,
+      "bytes": 283773
+    },
+    "veltravia-logo-32.png": {
+      "width": 32,
+      "height": 32,
+      "inkFill": 0.812,
+      "bytes": 1655
+    },
+    "veltravia-logo-48.png": {
+      "width": 48,
+      "height": 48,
+      "inkFill": 0.875,
+      "bytes": 2751
+    },
+    "veltravia-logo-96.png": {
+      "width": 96,
+      "height": 96,
+      "inkFill": 0.875,
+      "bytes": 7251
+    },
+    "veltravia-logo-180.png": {
+      "width": 180,
+      "height": 180,
+      "inkFill": 0.867,
+      "bytes": 17729
+    },
+    "veltravia-logo-192.png": {
+      "width": 192,
+      "height": 192,
+      "inkFill": 0.875,
+      "bytes": 19561
+    },
+    "veltravia-logo-512.png": {
+      "width": 512,
+      "height": 512,
+      "inkFill": 0.875,
+      "bytes": 95071
+    },
+    "veltravia-notification-trim.png": {
+      "width": 512,
+      "height": 512,
+      "inkFill": 0.877,
+      "bytes": 94514
+    },
+    "veltravia-notification-48.png": {
+      "width": 48,
+      "height": 48,
+      "inkFill": 0.875,
+      "bytes": 2146
+    },
+    "veltravia-notification-96.png": {
+      "width": 96,
+      "height": 96,
+      "inkFill": 0.875,
+      "bytes": 5816
+    },
+    "veltravia-notification-256.png": {
+      "width": 256,
+      "height": 256,
+      "inkFill": 0.875,
+      "bytes": 29679
+    },
+    "favicon.ico": {
+      "sizes": [
+        16,
+        24,
+        32,
+        48,
+        64,
+        128,
+        256
+      ],
+      "bytes": 52490
+    }
+  }
+}
