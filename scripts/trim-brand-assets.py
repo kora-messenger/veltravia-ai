@@ -22,6 +22,7 @@ Run: python3 scripts/trim-brand-assets.py   (needs Pillow)
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from PIL import Image
@@ -64,6 +65,19 @@ def square_trim(source: Image.Image, size: int) -> Image.Image:
     # Pasted at its own pixels, centred: no axis is scaled differently.
     canvas.paste(cropped, ((side - cropped.width) // 2, (side - cropped.height) // 2), cropped)
     return canvas.resize((size, size), Image.LANCZOS)
+
+
+def prettier_json(document: dict) -> str:
+    """Serialise the manifest in the shape `prettier --check .` accepts.
+
+    Kept here rather than as a manual format step: regenerating the assets must
+    not dirty a file that CI checks.
+    """
+    text = json.dumps(document, indent=2)
+    # Prettier keeps a short list of numbers on one line.
+    return re.sub(r"\[\s*((?:\d+,\s*)*\d+)\s*\]", lambda m: "[" + ", ".join(
+        part.strip() for part in m.group(1).split(",")
+    ) + "]", text) + "\n"
 
 
 def write(image: Image.Image, name: str, written: dict[str, dict[str, object]]) -> None:
@@ -123,7 +137,7 @@ def main() -> None:
         ],
         "files": written,
     }
-    (BRAND / "brand-assets.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (BRAND / "brand-assets.json").write_text(prettier_json(manifest))
 
     for name, info in written.items():
         if "inkFill" in info:
