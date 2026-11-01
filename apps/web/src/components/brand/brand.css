@@ -1,0 +1,25 @@
+/* Brand assets: fixed dark tile, square crop-free sizing. */
+.v-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--brand-mark-size, 28px);
+  height: var(--brand-mark-size, 28px);
+  border-radius: calc(var(--brand-mark-size, 28px) * 0.26);
+  background: #05060a;
+  overflow: hidden;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 8%);
+}
+
+.v-brand-mark__image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.v-brand-mark[data-variant='notification'] {
+  border-radius: 50%;
+  background: #05060a;
+}

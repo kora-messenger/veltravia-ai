@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { BrandMark } from '../components/brand/BrandMark';
 import { ROUTES, type RouteDef } from './useHashRoute';
 
 const ICONS: Record<string, ReactNode> = {
@@ -177,9 +178,7 @@ export function Sidebar({
       >
         <div className="v-sidebar__header">
           <a className="v-sidebar__brand" href="#/dashboard" onClick={onMobileClose}>
-            <span className="v-sidebar__logo" aria-hidden="true">
-              V
-            </span>
+            <BrandMark size={collapsed ? 26 : 28} decorative />
             {!collapsed && <span className="v-sidebar__brand-name">Veltravia AI</span>}
           </a>
           <button

@@ -42,19 +42,6 @@
   font-weight: var(--v-weight-semibold);
   min-width: 0;
 }
-.v-sidebar__logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  flex: none;
-  border-radius: var(--v-radius-sm);
-  background: linear-gradient(135deg, var(--v-brand-600), var(--v-brand-400));
-  color: #ffffff;
-  font-size: var(--v-text-sm);
-  font-weight: var(--v-weight-bold);
-}
 .v-sidebar__collapse {
   display: inline-flex;
   align-items: center;
@@ -212,4 +199,62 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* Notification centre: the supplied status mark, an honest empty state. */
+.v-topbar__notifications {
+  position: relative;
+}
+
+.v-topbar__notify-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.125rem;
+  border: none;
+  border-radius: var(--v-radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
+
+.v-topbar__notify-button:hover,
+.v-topbar__notify-button:focus-visible {
+  background: var(--v-surface-hover);
+}
+
+.v-topbar__notify-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  width: min(20rem, 78vw);
+  padding: var(--v-space-4);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface);
+  box-shadow: var(--v-shadow-3);
+  z-index: 40;
+}
+
+.v-topbar__notify-head {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  margin-bottom: var(--v-space-2);
+}
+
+.v-topbar__notify-close {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--v-text-faint);
+  font-size: var(--v-text-lg);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.v-topbar__notify-empty {
+  margin: 0;
+  color: var(--v-text-muted);
+  font-size: var(--v-text-sm);
+  line-height: 1.5;
 }

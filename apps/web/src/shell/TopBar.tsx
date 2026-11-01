@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Menu, type MenuItemDef } from '../components/ui';
+import { BrandMark } from '../components/brand/BrandMark';
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider';
 import type { RouteState } from './useHashRoute';
 
@@ -15,6 +17,7 @@ const THEME_LABEL: Record<ThemePreference, string> = {
 
 export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
   const { preference, setPreference } = useTheme();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const accountItems: MenuItemDef[] = [
     {
@@ -68,6 +71,43 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
       </div>
       <div className="v-topbar__spacer" />
       <div className="v-topbar__actions">
+        <div className="v-topbar__notifications">
+          <button
+            type="button"
+            className="v-topbar__notify-button"
+            aria-label="Notifications"
+            aria-expanded={notificationsOpen}
+            aria-controls="veltravia-notifications"
+            onClick={() => setNotificationsOpen((open) => !open)}
+          >
+            <BrandMark variant="notification" size={20} decorative />
+          </button>
+          {notificationsOpen && (
+            <div
+              id="veltravia-notifications"
+              className="v-topbar__notify-panel"
+              role="dialog"
+              aria-label="Notification centre"
+            >
+              <div className="v-topbar__notify-head">
+                <BrandMark variant="notification" size={24} decorative />
+                <h2 className="v-heading-3">Notifications</h2>
+                <button
+                  type="button"
+                  className="v-topbar__notify-close"
+                  onClick={() => setNotificationsOpen(false)}
+                  aria-label="Close notifications"
+                >
+                  ×
+                </button>
+              </div>
+              <p className="v-topbar__notify-empty" role="status">
+                Nothing here yet. This release has no notification source connected, so no events
+                are collected or shown.
+              </p>
+            </div>
+          )}
+        </div>
         <Menu triggerLabel="Account menu" items={accountItems} trigger={<span>Account</span>} />
       </div>
     </header>

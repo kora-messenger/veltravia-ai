@@ -613,3 +613,32 @@ See [reasoning.md](reasoning.md).
 10. **AI writes stay on the existing rails.** The coding agent keeps writing through the
     project engine and its own tool/confirmation rules; the source layer observes and attributes
     those writes instead of offering the agent a bypass.
+
+## 5y. Backend Builder (Step 33, `app-builder/core/backend` + `apps/api`)
+
+The Backend Builder only reads. These rules exist so that reading a backend cannot leak a
+secret or turn a description into an authority.
+
+1. **No endpoint in this surface writes or runs anything.** There is no route, model, function
+   or environment endpoint that accepts a mutation, a query, or a command. The one write path
+   is a coding run started from the existing AI panel, which keeps its own plan approval and
+   revision checks.
+2. **Ownership is enforced by the source layer.** An unknown project and another owner's project
+   both return `SOURCE_REPOSITORY_NOT_FOUND` (404) with identical bodies, so the endpoint cannot
+   be used to discover which project ids exist.
+3. **Credential values never reach the scanner.** File reads come from the same read-only source
+   provider the frontend builder uses, and `redactSensitiveText` runs over any text that is
+   quoted as evidence before it is stored or returned.
+4. **Environment variables are names, not values.** Only the identifier is captured. The right
+   hand side of an assignment is discarded during extraction, so no `.env` value can appear in a
+   report, an API response or the UI.
+5. **Reads are bounded.** At most 60 files are considered, 48 KiB read per file, 8 entries per
+   evidence list. Files beyond the budget are counted and reported as skipped rather than
+   silently ignored.
+6. **Nothing is claimed that was not read.** A route without a visible guard reports
+   `auth: 'unknown'`, never `public`. The database reports `connection: 'not-configured'`. Logs
+   report `available: false` with a reason. Auth reports `sessionStrategy: 'not-inspected'`.
+7. **Evidence is preserved.** Every route carries its file and 1-based line plus the declaration
+   text, so a claim can be checked against the repository rather than trusted.
+8. **The report is data, not instructions.** Evidence text is rendered as text in a `<pre>`,
+   never injected as markup, and the UI treats it as untrusted content.

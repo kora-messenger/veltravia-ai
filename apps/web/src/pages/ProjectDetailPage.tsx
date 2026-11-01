@@ -121,6 +121,12 @@ export function ProjectDetailPage({ projectId }: { projectId: string | null }) {
               </Button>
               <Button
                 variant="secondary"
+                onClick={() => navigateToHash(`#/projects/${project.id}/backend`)}
+              >
+                Open backend
+              </Button>
+              <Button
+                variant="secondary"
                 onClick={() => navigateToHash(`#/projects/${project.id}/workspace`)}
               >
                 Open workspace

@@ -31,6 +31,17 @@ interface BuilderChatPanelProps {
   readonly onDecide: (decision: 'approve' | 'reject') => void;
   readonly onCancel: () => void;
   readonly onReviewChanges: () => void;
+  /**
+   * Step 33: the backend workspace reuses this conversation. Only the copy
+   * changes - the run, approval and cancellation paths are the same objects.
+   */
+  readonly heading?: string;
+  readonly emptyTitle?: string;
+  readonly emptyDescription?: string;
+  readonly placeholder?: string;
+  readonly submitLabel?: string;
+  readonly suggestions?: readonly string[];
+  readonly reviewChangesLabel?: string;
 }
 
 const STATE_WORDS: Record<string, string> = {
@@ -66,6 +77,13 @@ export function BuilderChatPanel({
   onDecide,
   onCancel,
   onReviewChanges,
+  heading = 'AI builder',
+  emptyTitle = 'Describe what you want to build',
+  emptyDescription = 'Requests become a bounded coding run: plan, your approval, then real file changes.',
+  placeholder = 'What should the builder do?',
+  submitLabel = 'Send request',
+  suggestions = SUGGESTIONS,
+  reviewChangesLabel = 'Show changes in the explorer',
 }: BuilderChatPanelProps) {
   const [draft, setDraft] = useState('');
   const trimmed = draft.trim();
@@ -88,7 +106,7 @@ export function BuilderChatPanel({
   return (
     <section className="v-fbuilder__panel v-fbuilder__chat" aria-label="AI builder conversation">
       <header className="v-fbuilder__panel-head">
-        <h2 className="v-fbuilder__panel-title">AI builder</h2>
+        <h2 className="v-fbuilder__panel-title">{heading}</h2>
         <Badge tone={capabilities?.decisionSource === 'injected' ? 'success' : 'neutral'}>
           {capabilities === null
             ? 'agent status unknown'
@@ -106,12 +124,7 @@ export function BuilderChatPanel({
       )}
 
       <div className="v-fbuilder__messages" role="log" aria-live="polite" aria-label="Conversation">
-        {messages.length === 0 && (
-          <EmptyState
-            title="Describe what you want to build"
-            description="Requests become a bounded coding run: plan, your approval, then real file changes."
-          />
-        )}
+        {messages.length === 0 && <EmptyState title={emptyTitle} description={emptyDescription} />}
         {messages.map((message) => (
           <article
             key={message.id}
@@ -225,7 +238,7 @@ export function BuilderChatPanel({
                 {run.changedFiles.length === 0 && <li>No files were changed by this run.</li>}
               </ul>
               <Button variant="secondary" onClick={onReviewChanges}>
-                Show changes in the explorer
+                {reviewChangesLabel}
               </Button>
             </div>
           )}
@@ -252,7 +265,7 @@ export function BuilderChatPanel({
 
       <div className="v-fbuilder__composer">
         <Textarea
-          label="What should the builder do?"
+          label={placeholder}
           name="requirement"
           rows={3}
           value={draft}
@@ -268,12 +281,12 @@ export function BuilderChatPanel({
         />
         <div className="v-fbuilder__composer-actions">
           <Button onClick={submit} disabled={trimmed.length === 0 || busy} loading={busy}>
-            Send request
+            {submitLabel}
           </Button>
         </div>
         {messages.length === 0 && (
           <ul className="v-fbuilder__suggestions" aria-label="Example requests">
-            {SUGGESTIONS.map((suggestion) => (
+            {suggestions.map((suggestion) => (
               <li key={suggestion}>
                 <button
                   type="button"

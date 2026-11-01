@@ -18,3 +18,4 @@ export { ModelRoutingPage } from './ModelRoutingPage';
 export { BuilderPage } from './BuilderPage';
 export { ExecutePage } from './ExecutePage';
 export { FrontendBuilderPage } from './builder/FrontendBuilderPage';
+export { BackendBuilderPage } from './backend/BackendBuilderPage';

@@ -294,3 +294,19 @@ finishes. File viewing is read-only in this release - there is no editor yet.
 only, and reports `framework: null` when the stack detector recognises nothing instead
 of guessing React. `GET /api/coding/capabilities` says plainly whether the API's coding
 agent is model-backed or the scripted demo, so the UI never implies a model wrote a plan.
+
+### Backend builder workspace (Step 33)
+
+[The backend builder](docs/backend-builder.md) is the same idea pointed at the server:
+`#/projects/<id>/backend` reads the project's own files and describes the routes, database,
+models, functions, authentication, environment variable names and log availability it finds.
+Every route opens to the file, line and declaration it came from. Where a capability does not
+exist in this release the panel says so - the database reports `not-configured`, logs report
+`unavailable` with a reason, and a route whose file shows no guard reports `unknown` rather
+than `public`.
+
+The AI panel is the same coding agent and the same approval gate as the frontend builder, so a
+backend change is still a bounded run you approve before anything is written. `GET
+/api/projects/:projectId/backend` (plus per-section routes and `/api/backend/capabilities`)
+is read-only; environment variables are collected by name only, and quoted evidence is
+redacted before it leaves the scanner.

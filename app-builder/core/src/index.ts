@@ -22,6 +22,7 @@ export * from './registry/index.js';
 export * from './spec/index.js';
 export * from './detect/index.js';
 export * from './frontend/structure.js';
+export * from './backend/index.js';
 export * from './generate/templates.js';
 export * from './generate/index.js';
 export * from './ports/index.js';

@@ -13,6 +13,7 @@ import { registerIntelligenceRoutes } from './routes/intelligence.js';
 import { registerAiExecutionRoutes } from './routes/ai-execution.js';
 import { registerAppBuilderRoutes } from './routes/app-builder.js';
 import { registerSourceRoutes } from './routes/source.js';
+import { registerBackendRoutes } from './routes/backend.js';
 import { createSourceService } from './source-service.js';
 import { createAppBuilderManager } from './app-builder-service.js';
 import type { RouteSelectorRequest } from '@veltravia/ai-gateway';
@@ -507,6 +508,25 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       const detection = await appBuilder.detectWorkspace({ projectId, workspaceId });
       const best = [...detection.frameworks].sort((a, b) => b.confidence - a.confidence)[0];
       return best?.id ?? null;
+    },
+  });
+
+  // Backend Builder (Step 33): a descriptive scan of the SAME tree. Read-only,
+  // bounded, redacted, and explicit about the capabilities it does not have.
+  registerBackendRoutes(app, {
+    scan: {
+      source: sourceStorage,
+      detect: async (projectId, workspaceId) => {
+        if (workspaceId === undefined) return { framework: null, language: null, runtime: null };
+        const detection = await appBuilder.detectWorkspace({ projectId, workspaceId });
+        const framework = [...detection.frameworks].sort((a, b) => b.confidence - a.confidence)[0];
+        const language = [...detection.languages].sort((a, b) => b.confidence - a.confidence)[0];
+        return {
+          framework: framework?.id ?? null,
+          language: language?.name ?? null,
+          runtime: null,
+        };
+      },
     },
   });
 
