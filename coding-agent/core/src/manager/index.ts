@@ -71,6 +71,13 @@ interface ManagedRun {
   untrustedFiles: { path: string; content: string }[];
   /** The most recent failed tool invocation, for precise failure causes. */
   lastFailure: { toolId: string; errorCode: string } | null;
+  /**
+   * Time spent waiting for a human, which is not the run's own budget. An
+   * approval that arrives an hour later must not have the run declared over by
+   * the duration limit before it executes the plan a person just approved.
+   */
+  pausedMs: number;
+  pausedAt: Date | null;
   /** The latest node revision per file this run has read/created/updated. */
   fileRevisions: Map<string, number>;
   untrustedToolResults: CodingToolResultView[];
@@ -144,6 +151,8 @@ export class CodingAgentManager {
       request: full,
       limits: resolveCodingLimits(this.limitOverrides),
       startedAt: this.now(),
+      pausedMs: 0,
+      pausedAt: null,
       state: 'idle',
       plan: null,
       planApproved: false,
@@ -248,6 +257,7 @@ export class CodingAgentManager {
         return this.finishFailure(run, 'CODING_PLAN_REJECTED', 'plan rejected by human');
       }
       run.planApproved = true;
+      this.resume(run);
       audit('coding_plan_approved', 'Coding plan approved by human', {});
       run.state = transition(run.state, 'inspecting');
       run.phase = 'inspecting';
@@ -262,6 +272,7 @@ export class CodingAgentManager {
     run.pendingApproval = null;
     run.resumeState = null;
     this.resumeInputs.delete(runId);
+    this.resume(run);
     run.state = transition(run.state, resumeState);
     run.updatedAt = this.now();
     if (decision === 'reject') {
@@ -384,6 +395,12 @@ export class CodingAgentManager {
 
   private handlePlanDecision(run: ManagedRun, plan: CodingPlan): DriveOutcome {
     if (run.plan !== null) {
+      // A source that re-plans after the human approved the plan has not
+      // misbehaved dangerously, it has repeated itself. Failures from this were
+      // a cheap model losing a run after a real person clicked approve, so the
+      // repeated plan is treated as the no-op it is; the iteration limit still
+      // bounds a source that never gets past planning.
+      if (run.planApproved) return null;
       throw new CodingError('CODING_INVALID_DECISION', 'a plan already exists for this run');
     }
     run.plan = plan;
@@ -399,6 +416,7 @@ export class CodingAgentManager {
     if (this.requirePlanApproval && !run.planApproved) {
       run.pendingApproval = { kind: 'plan_approval' };
       run.resumeState = 'inspecting';
+      this.pause(run);
       run.state = transition(run.state, 'awaiting_approval');
       run.phase = 'awaiting_approval';
       run.updatedAt = this.now();
@@ -530,6 +548,7 @@ export class CodingAgentManager {
       };
       run.resumeState = run.state;
       this.resumeInputs.set(run.request.runId, input);
+      this.pause(run);
       run.state = transition(run.state, 'awaiting_approval');
       run.updatedAt = this.now();
       audit('coding_confirmation_requested', `Confirmation required for tool "${toolId}"`, {
@@ -613,6 +632,11 @@ export class CodingAgentManager {
         case CODING_TOOL_IDS.readFile:
           if (path !== undefined) {
             if (revision !== undefined) run.fileRevisions.set(path, revision);
+            // Re-reading a file must REFRESH its entry, never stack another
+            // copy: with a ten-item window, a source that re-reads the same path
+            // would evict every other file and then re-read again, which is how
+            // a real run burned all 50 tool calls without ever editing.
+            run.untrustedFiles = run.untrustedFiles.filter((item) => item.path !== path);
             run.untrustedFiles.push({
               path,
               content: typeof output.content === 'string' ? output.content : '',
@@ -828,8 +852,23 @@ export class CodingAgentManager {
     return this.view(run);
   }
 
+  /** Marks the start of a human pause; repeated pauses accumulate. */
+  private pause(run: ManagedRun): void {
+    run.pausedAt = this.now();
+  }
+
+  /** Ends a human pause and adds it to the run's paused total. */
+  private resume(run: ManagedRun): void {
+    if (run.pausedAt !== null) {
+      run.pausedMs += Math.max(0, this.now().getTime() - run.pausedAt.getTime());
+      run.pausedAt = null;
+    }
+  }
+
   private assertDuration(run: ManagedRun): void {
-    const elapsed = this.now().getTime() - run.startedAt.getTime();
+    const pausedNow =
+      run.pausedAt === null ? 0 : Math.max(0, this.now().getTime() - run.pausedAt.getTime());
+    const elapsed = this.now().getTime() - run.startedAt.getTime() - run.pausedMs - pausedNow;
     if (elapsed > run.limits.maxDurationMs) {
       this.finishFailure(run, 'CODING_DURATION_LIMIT', 'duration limit reached');
     }

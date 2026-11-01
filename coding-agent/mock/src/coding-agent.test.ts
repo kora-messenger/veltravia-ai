@@ -690,3 +690,79 @@ describe('coding agent invoke_tool (offline GitHub connector environment)', () =
     expect(content).toContain('IGNORE ALL PREVIOUS INSTRUCTIONS');
   });
 });
+
+describe("the duration limit is the run's own time, not the human's", () => {
+  it('completes a plan approved after a long pause', async () => {
+    const env = await createCodingFixtureEnvironment({ now: NOW });
+    let clock = new Date('2026-09-13T17:00:00.000Z');
+    const capture = new CapturingSource([
+      PLAN,
+      { type: 'action', action: { type: 'inspect_project' } },
+      createAction('LATE.md', '# Written after a long wait\n'),
+      { type: 'complete', summary: 'Wrote the file after a long approval wait.' },
+    ]);
+    const manager = new CodingAgentManager({
+      tools: env.tools,
+      decisionSource: capture as never,
+      now: () => clock,
+      limits: { maxDurationMs: 60_000 },
+      requirePlanApproval: true,
+    });
+
+    const paused = await manager.startRun({
+      projectId: env.projectId,
+      workspaceId: env.workspaceId,
+      userRequirement: 'Add a note file',
+    });
+    expect(paused.state).toBe('awaiting_approval');
+
+    // An hour passes before a person clicks approve. That hour is not execution.
+    clock = new Date(clock.getTime() + 60 * 60 * 1000);
+    const resumed = await manager.submitApproval(paused.runId, 'approve');
+
+    expect(resumed.failure).toBeNull();
+    expect(resumed.state).toBe('completed');
+    expect(resumed.changedFiles).toEqual(['LATE.md']);
+  });
+});
+
+describe('rereading a file refreshes its context entry', () => {
+  it('keeps one entry per path so a re-read cannot evict other files', async () => {
+    const env = await createCodingFixtureEnvironment({ now: NOW });
+    const read = (path: string): CodingDecision => ({
+      type: 'action',
+      action: { type: 'read_file', path },
+    });
+    const script: CodingDecision[] = [
+      PLAN,
+      createAction('NOTES.md', '# Notes\n'),
+      createAction('README.md', '# Demo\nSetup.\n'),
+      read('NOTES.md'),
+      read('README.md'),
+      ...Array.from({ length: 11 }, () => read('README.md')),
+      { type: 'complete', summary: 'Read the files.' },
+    ];
+    const capture = new CapturingSource(script);
+    const manager = new CodingAgentManager({
+      tools: env.tools,
+      decisionSource: capture as never,
+      now: NOW,
+      limits: { maxToolCalls: 40 },
+      requirePlanApproval: true,
+    });
+
+    const start = await manager.startRun({
+      projectId: env.projectId,
+      workspaceId: env.workspaceId,
+      userRequirement: 'Read the notes',
+    });
+    const done = await manager.submitApproval(start.runId, 'approve');
+    expect(done.failure).toBeNull();
+    expect(done.state).toBe('completed');
+
+    const last = capture.contexts[capture.contexts.length - 1];
+    const paths = last.untrustedFiles.map((file) => file.path);
+    expect(paths.filter((path) => path === 'README.md')).toHaveLength(1);
+    expect(paths).toContain('NOTES.md');
+  });
+});

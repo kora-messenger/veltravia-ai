@@ -18,7 +18,7 @@
 import { validateCodingDecision, type CodingDecision } from '@veltravia/coding-agent-core';
 import type { CodingDecisionContext, CodingDecisionSource } from '@veltravia/coding-agent-core';
 
-import type { CodingModelClient } from './client.js';
+import type { CodingModelClient, CodingModelReply, CodingModelRequest } from './client.js';
 import { ModelCodingError, scrubModelText } from './errors.js';
 import { normaliseDecisionShape, parseModelDecision } from './parse.js';
 import { buildDecisionPrompt, DEFAULT_PROMPT_LIMITS, type PromptLimits } from './prompt.js';
@@ -74,7 +74,7 @@ export function createModelCodingDecisionSource(options: ModelCodingOptions): Mo
       for (let attempt = 0; attempt <= maxRepairAttempts; attempt += 1) {
         let reply;
         try {
-          reply = await client.complete({
+          reply = await requestCompletion(client, {
             messages,
             maxOutputTokens,
             temperature,
@@ -189,4 +189,30 @@ export function createModelCodingDecisionSource(options: ModelCodingOptions): Mo
       );
     },
   };
+}
+
+/**
+ * Asks for a completion, lowering the requested ceiling when the provider says
+ * it cannot RESERVE that many output tokens on the account's balance.
+ *
+ * A 402 that names max_tokens is not a dead key: a real run against a
+ * low-balance OpenRouter account failed with "cannot reserve that many output
+ * tokens" while the same key answered a smaller request, so the ceiling is
+ * adaptively lowered instead of losing the run.
+ */
+async function requestCompletion(
+  client: CodingModelClient,
+  request: CodingModelRequest,
+): Promise<CodingModelReply> {
+  let ceiling = request.maxOutputTokens;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await client.complete({ ...request, maxOutputTokens: ceiling });
+    } catch (error) {
+      const message = String((error as Error)?.message ?? '');
+      const unaffordable = /output tokens|max_tokens|reserve/i.test(message);
+      if (!unaffordable || attempt >= 2 || ceiling <= 512) throw error;
+      ceiling = Math.max(512, Math.floor(ceiling / 2));
+    }
+  }
 }

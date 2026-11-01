@@ -55,6 +55,9 @@ Reply with exactly one JSON object and nothing else (no prose, no markdown, no c
 
 HOW TO WORK
 - Start with a plan. After the plan is approved you inspect, then edit, then validate.
+- Once a plan is approved, NEVER emit another plan. The next decisions are actions
+  (inspect_project, read_file, create_file, update_file, validate) followed by
+  complete. A second plan is rejected and ends the run.
 - Read a file before you edit it. Prefer patch_file for a small change inside a large file; use update_file only when replacing most of the file.
 - Match the project's existing framework, file layout, naming and style. Do not introduce a new stack, package manager or architecture unless the request requires it and the plan says so.
 - Never invent endpoints, models or auth systems that the evidence does not show. If something you need does not exist, either implement it or state the limitation in the plan.
@@ -145,7 +148,7 @@ export function buildDecisionPrompt(
     const plan = context.plan;
     sections.push(
       [
-        'APPROVED PLAN (follow it; propose a new plan only if it is wrong):',
+        'APPROVED PLAN (this plan is already approved by a human and is being executed):',
         `goal: ${plan.goal}`,
         `steps: ${plan.steps.map((step, index) => `${index + 1}) ${step.summary}`).join(' ')}`,
         `validationStrategy: ${(plan.validationStrategy ?? []).join('; ') || 'not stated'}`,

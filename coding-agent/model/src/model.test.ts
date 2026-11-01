@@ -296,3 +296,26 @@ describe('model decision source', () => {
     expect(normaliseDecisionShape(action)).toEqual({ value: action, coercedLists: [] });
   });
 });
+
+describe('output-token ceiling', () => {
+  it('lowers the ceiling when the provider refuses the reservation', async () => {
+    const ceilings: number[] = [];
+    const inner = client([PLAN]);
+    const fake: CodingModelClient = {
+      providerName: 'Fake Provider',
+      async complete(request) {
+        ceilings.push(request.maxOutputTokens);
+        if (request.maxOutputTokens > 1000) {
+          throw new Error('The provider cannot reserve that many output tokens on this balance.');
+        }
+        return inner.complete(request);
+      },
+    };
+    const source = createModelCodingDecisionSource({ client: fake });
+    const decision = await source.nextDecision(context());
+    expect(decision.type).toBe('plan');
+    expect(ceilings[0]).toBe(4000);
+    expect(ceilings[1]).toBe(2000);
+    expect(ceilings[2]).toBe(1000);
+  });
+});
