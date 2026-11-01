@@ -11,7 +11,7 @@
     {
       "file": "veltravia-mark.png",
       "width": 1024,
-      "height": 341
+      "height": 518
     }
   ],
   "files": {
@@ -60,26 +60,26 @@
     "veltravia-notification-trim.png": {
       "width": 512,
       "height": 512,
-      "inkFill": 0.877,
-      "bytes": 94514
+      "inkFill": 0.875,
+      "bytes": 93243
     },
     "veltravia-notification-48.png": {
       "width": 48,
       "height": 48,
       "inkFill": 0.875,
-      "bytes": 2146
+      "bytes": 2040
     },
     "veltravia-notification-96.png": {
       "width": 96,
       "height": 96,
       "inkFill": 0.875,
-      "bytes": 5816
+      "bytes": 5354
     },
     "veltravia-notification-256.png": {
       "width": 256,
       "height": 256,
       "inkFill": 0.875,
-      "bytes": 29679
+      "bytes": 28906
     },
     "favicon.ico": {
       "sizes": [16, 24, 32, 48, 64, 128, 256],

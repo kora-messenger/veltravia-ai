@@ -49,9 +49,10 @@ describe('brand assets', () => {
   });
 
   it('ships the supplied notification mark at its original proportions', () => {
+    // The delivered notification art: white ink on transparency, 1024x518.
     const header = pngHeader('veltravia-mark.png');
     expect(header.width).toBe(1024);
-    expect(header.height).toBe(341);
+    expect(header.height).toBe(518);
     expect(header.colorType).toBe(6);
   });
 
@@ -97,7 +98,7 @@ describe('brand assets', () => {
       'veltravia-mark.png',
     ]);
     expect(pngHeader('veltravia-logo.png')).toMatchObject({ width: 1024, height: 1024 });
-    expect(pngHeader('veltravia-mark.png')).toMatchObject({ width: 1024, height: 341 });
+    expect(pngHeader('veltravia-mark.png')).toMatchObject({ width: 1024, height: 518 });
   });
 
   it('ships the trimmed masters as square RGBA', () => {

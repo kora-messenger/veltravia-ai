@@ -524,7 +524,7 @@ The supplied artwork ships untouched next to the files the app actually loads:
 | `favicon.ico`                               | multi-resolution 16 to 256                         |
 
 Measured on the delivered files: the logo's ink occupies 64% x 51% of its
-1024 square, so drawing it raw put a 17 x 14px shape inside the 28px sidebar
+1024 square and the notification mark's ink 41% x 69% of its 1024x518, so drawing it raw put a 17 x 14px shape inside the 28px sidebar
 box. `scripts/trim-brand-assets.py` crops to the ink at an alpha threshold of
 128, re-centres on a square canvas with 7% padding, and writes every derived
 size from that crop, one uniform scale and no recolour. The rendered mark now

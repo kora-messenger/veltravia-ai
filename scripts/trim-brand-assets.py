@@ -133,7 +133,7 @@ def main() -> None:
         "padding": PADDING,
         "originals": [
             {"file": "veltravia-logo.png", "width": 1024, "height": 1024},
-            {"file": "veltravia-mark.png", "width": 1024, "height": 341},
+            {"file": "veltravia-mark.png", "width": 1024, "height": 518},
         ],
         "files": written,
     }
