@@ -14,6 +14,7 @@ import { registerAiExecutionRoutes } from './routes/ai-execution.js';
 import { registerAppBuilderRoutes } from './routes/app-builder.js';
 import { registerSourceRoutes } from './routes/source.js';
 import { registerBackendRoutes } from './routes/backend.js';
+import { registerUnifiedRoutes } from './routes/unified.js';
 import { createSourceService } from './source-service.js';
 import { createAppBuilderManager } from './app-builder-service.js';
 import type { RouteSelectorRequest } from '@veltravia/ai-gateway';
@@ -525,6 +526,50 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
           framework: framework?.id ?? null,
           language: language?.name ?? null,
           runtime: null,
+        };
+      },
+    },
+  });
+
+  // Unified app workspace (Step 34): one project is one application. This
+  // composes the source layer, the frontend classifier and the backend scan that
+  // already exist - no second store, no second analyser, no second AI system.
+  registerUnifiedRoutes(app, {
+    unified: {
+      source: sourceStorage,
+      scan: {
+        source: sourceStorage,
+        detect: async (projectId, workspaceId) => {
+          if (workspaceId === undefined) return { framework: null, language: null, runtime: null };
+          const detection = await appBuilder.detectWorkspace({ projectId, workspaceId });
+          const framework = [...detection.frameworks].sort(
+            (a, b) => b.confidence - a.confidence,
+          )[0];
+          const language = [...detection.languages].sort((a, b) => b.confidence - a.confidence)[0];
+          return {
+            framework: framework?.id ?? null,
+            language: language?.name ?? null,
+            runtime: null,
+          };
+        },
+      },
+      describeProject: async (projectId, ownerRef) => {
+        const project = await projectEngine.projects.getProject(projectId);
+        // Ownership is enforced by the source layer below; this only reads the
+        // record it has already been allowed to see.
+        if (project.ownerRef !== ownerRef) {
+          const error = Object.assign(new Error('Project not found.'), {
+            code: 'PROJECT_NOT_FOUND',
+          });
+          throw error;
+        }
+        return {
+          id: project.id,
+          name: project.name,
+          description: project.description,
+          projectType: project.projectType,
+          status: project.status,
+          updatedAt: project.updatedAt,
         };
       },
     },
