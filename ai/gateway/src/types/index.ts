@@ -1,3 +1,4 @@
+import type { ConnectionKey, KeyView } from '../gateway/keypool.js';
 import type { AICapability } from '@veltravia/ai-core';
 
 /**
@@ -141,6 +142,12 @@ export interface ProviderConnection {
   readonly lastValidatedAt?: string;
   /** Normalized category of the last failure, never the provider's raw text. */
   readonly lastErrorCategory?: string;
+  /**
+   * Every key this connection may spend (Step 36). Absent only on records
+   * stored before keys became a pool; `credentialRef` is always the first
+   * entry's ref, so an older record reads as a one-key pool.
+   */
+  readonly keys?: readonly ConnectionKey[];
 }
 
 /** Anything that may cross the API boundary as a connection view. */
@@ -158,6 +165,8 @@ export interface ConnectionView {
   readonly updatedAt: string;
   readonly lastValidatedAt: string | null;
   readonly lastErrorCategory: string | null;
+  /** Each key's masked state. Never a secret, never a vault reference. */
+  readonly keys: readonly KeyView[];
 }
 
 /** Per-owner, per-project provider preferences. */

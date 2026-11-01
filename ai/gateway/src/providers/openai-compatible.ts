@@ -34,6 +34,9 @@ interface ChatMessage {
   readonly content: string | readonly unknown[];
 }
 
+/** Bounded ceiling used when a caller does not ask for one. */
+const DEFAULT_MAX_OUTPUT_TOKENS = 4096;
+
 const ERROR_STATUS: Readonly<Record<number, [string, string]>> = {
   400: ['GATEWAY_INVALID_REQUEST', 'The provider rejected the request.'],
   401: ['GATEWAY_AUTH_FAILED', 'The provider rejected the API key.'],
@@ -53,6 +56,15 @@ function normalizedFor(status: number, rawMessage: string, body?: unknown): Gate
     });
   }
   if (status === 402) {
+    // A provider that names max_tokens in a 402 is refusing the RESERVATION, not
+    // reporting a dead account: the same key will serve a smaller request.
+    if (/fewer max_tokens|max_tokens/i.test(rawMessage)) {
+      return new GatewayError(
+        'GATEWAY_INVALID_REQUEST',
+        'The provider cannot reserve that many output tokens on this balance. Ask for a lower maxOutputTokens.',
+        { details: { status, affordability: 'max-tokens' } },
+      );
+    }
     return new GatewayError('GATEWAY_LIMIT_EXCEEDED', 'The provider reports no remaining credit.', {
       details: { status },
     });
@@ -231,7 +243,10 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
       messages.push({ role: message.role, content: message.content });
     const body: Record<string, unknown> = { model: request.modelId, messages };
     if (request.temperature !== undefined) body.temperature = request.temperature;
-    if (request.maxOutputTokens !== undefined) body.max_tokens = request.maxOutputTokens;
+    // Always state an output ceiling. Left to itself the provider reserves the
+    // model's whole output window (OpenRouter asked for 65,536 tokens for one
+    // "say OK"), which a prepaid balance is then refused as unaffordable.
+    body.max_tokens = request.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
     if (request.structuredOutput) {
       if (!this.definition.capabilities.includes('structured-output')) {
         throw new GatewayError(

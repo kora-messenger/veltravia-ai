@@ -10,6 +10,18 @@ import type {
 import { AICore, AIProviderError, ModelRegistry } from '@veltravia/ai-core';
 
 import { GatewayError, errorCategoryOf, isGatewayError } from '../errors/index.js';
+import {
+  type ConnectionKey,
+  findKey,
+  keyView,
+  markKeyCooling,
+  markKeyHealthy,
+  markKeyInvalid,
+  markKeyUsed,
+  replaceKey,
+  selectKeyOrder,
+  usableKeys,
+} from './keypool.js';
 import type { CredentialVault } from '../vault/index.js';
 import { bounded, credentialHint, looksSecretShaped } from '../security/index.js';
 import { assertSafeEndpoint } from '../ssrf/index.js';
@@ -74,6 +86,8 @@ export interface GatewayOptions {
   readonly allowInsecureEndpoints?: boolean;
   readonly resolveHost?: (hostname: string) => Promise<readonly string[]>;
   readonly maxConnectionsPerOwner?: number;
+  /** How many keys one connection may pool (default 8). */
+  readonly maxKeysPerConnection?: number;
   readonly maxModelsPerConnection?: number;
   /**
    * The model-selection port (Step 28 router). When present the gateway NEVER
@@ -113,6 +127,11 @@ export const DEFAULT_RETRY_POLICY: RetryPolicy = {
 /** Shortest wait between retries of a rate-limited call, when none was stated. */
 const DEFAULT_RATE_LIMIT_FLOOR_MS = 5_000;
 
+/** A key the provider refused as unauthenticated never becomes usable again. */
+function isAuthFailure(error: unknown): boolean {
+  return isGatewayError(error) && error.code === 'GATEWAY_AUTH_FAILED';
+}
+
 function isRateLimit(error: unknown): boolean {
   return (error as { code?: string } | null)?.code === 'GATEWAY_RATE_LIMITED';
 }
@@ -133,6 +152,17 @@ const RETRYABLE_CODES = new Set([
 
 function isRetryable(error: unknown): boolean {
   return isGatewayError(error) && RETRYABLE_CODES.has(error.code);
+}
+
+/**
+ * A key that authenticates but cannot pay. It is not a rate limit: waiting will
+ * not help until someone tops the account up, so it rests for an hour and the
+ * pool moves on to a key that can actually serve the request.
+ */
+const OUT_OF_CREDIT_COOLDOWN_MS = 60 * 60 * 1000;
+
+function isOutOfCredit(error: unknown): boolean {
+  return isGatewayError(error) && error.code === 'GATEWAY_LIMIT_EXCEEDED';
 }
 
 export interface CreateConnectionInput {
@@ -293,6 +323,7 @@ export class AIProviderGateway {
   private readonly allowInsecureEndpoints: boolean;
   private readonly resolveHost?: (hostname: string) => Promise<readonly string[]>;
   private readonly maxConnectionsPerOwner: number;
+  private readonly maxKeysPerConnection: number;
   private readonly maxModelsPerConnection: number;
   private selector?: RouteSelector;
   private readonly pricing: ModelPricingTable;
@@ -313,6 +344,7 @@ export class AIProviderGateway {
     this.allowInsecureEndpoints = options.allowInsecureEndpoints ?? false;
     if (options.resolveHost) this.resolveHost = options.resolveHost;
     this.maxConnectionsPerOwner = options.maxConnectionsPerOwner ?? 12;
+    this.maxKeysPerConnection = options.maxKeysPerConnection ?? 8;
     this.maxModelsPerConnection = options.maxModelsPerConnection ?? MAX_MODELS;
     this.selector = options.selector;
     this.pricing = options.pricing ?? new ModelPricingTable();
@@ -428,6 +460,18 @@ export class AIProviderGateway {
       ...(baseUrl ? { baseUrl } : {}),
       credentialHint: hint,
       credentialFingerprint: fingerprint,
+      // The first key is an explicit pool of one, so rotation has a real list
+      // to work with from the moment a connection exists.
+      keys: [
+        {
+          id: `key_${randomUUID()}`,
+          ref: stored.ref,
+          hint,
+          fingerprint,
+          status: validation.valid ? 'active' : 'invalid',
+          createdAt: timestamp,
+        },
+      ],
       createdAt: timestamp,
       updatedAt: timestamp,
       ...(validation.valid ? { lastValidatedAt: timestamp } : {}),
@@ -634,7 +678,10 @@ export class AIProviderGateway {
   async deleteConnection(scope: GatewayScope, connectionId: string): Promise<void> {
     const ownerRef = requireOwner(scope);
     const connection = await this.requireOwnedConnection(ownerRef, connectionId);
-    await this.vault.delete(ownerRef, connection.credentialRef);
+    // Every pooled key's ciphertext goes with the connection.
+    for (const key of this.keysOf(connection)) {
+      await this.vault.delete(ownerRef, key.ref);
+    }
     await this.connections.delete(connection.id);
 
     const preferences = await this.preferences.get(ownerRef);
@@ -941,7 +988,19 @@ export class AIProviderGateway {
 
     const startedAt = Date.now();
     const requestedAt = nowIso(this.now);
-    const maxAttempts = Math.max(1, Math.min(this.retry.maxAttempts, 5));
+    let keys = this.keysOf(connection);
+    // A rate-limited key is a spent bucket, not a broken provider. Rotating to
+    // another key can serve the request immediately, so candidates are ordered
+    // least-recently-used first and an attempt is not wasted waiting when a
+    // fresh key is available.
+    const candidates = usableKeys(keys, this.now());
+    if (candidates.length === 0) {
+      throw this.allKeysCooling(keys);
+    }
+    const maxAttempts = Math.max(
+      1,
+      Math.min(Math.max(this.retry.maxAttempts, candidates.length), 8),
+    );
     let attempts = 0;
     let result: AdapterResult | undefined;
     let failure: unknown;
@@ -949,10 +1008,11 @@ export class AIProviderGateway {
     // Bounded retries, applied ONLY to failures that are safe to repeat: nothing
     // has been produced yet, so a retry cannot double-charge for an answer.
     while (attempts < maxAttempts) {
+      const key = candidates[attempts % candidates.length] as ConnectionKey;
       attempts += 1;
       throwIfAborted(request.signal);
       try {
-        const context = await this.adapterContext(ownerRef, connection, request.signal);
+        const context = await this.adapterContext(ownerRef, connection, request.signal, key.ref);
         result = await adapter.generate(context, {
           modelId: route.modelId,
           messages: request.messages,
@@ -969,10 +1029,28 @@ export class AIProviderGateway {
             : {}),
         });
         failure = undefined;
+        keys = replaceKey(keys, markKeyHealthy(key, this.now()));
         break;
       } catch (error) {
         failure = error;
-        if (!isRetryable(error) || attempts >= maxAttempts) break;
+        keys = replaceKey(keys, this.keyAfterFailure(key, error));
+        if (attempts >= maxAttempts) break;
+        // A rejected key is retired, so moving on is safe: the next key has
+        // not been tried yet.
+        // Only a key-shaped failure is worth another key. A malformed request
+        // or an unknown model would fail the same way on every key in the pool.
+        const keySpecific = isRateLimit(error) || isAuthFailure(error) || isOutOfCredit(error);
+        const unspentKeyRemains = keySpecific && key !== candidates[candidates.length - 1];
+        // Another key is a different bucket: spend it before waiting on this
+        // one. Waiting is what the LAST candidate does, never the first.
+        if (unspentKeyRemains) continue;
+        if (!keySpecific) break;
+        // A pool never sleeps. With more than one key the caller gets an
+        // immediate honest refusal naming the soonest reset, because sitting on
+        // a cooldown is exactly the slowness the pool exists to remove. A
+        // single key may still wait: that is the only way it can recover.
+        if (candidates.length > 1) break;
+        if (!isRetryable(error)) break;
         // A provider that says how long to wait is obeyed, within the ceiling
         // this server sets: a live 429 from Gemini asks for 15-30s, and three
         // 250ms retries would all be rejected the same way.
@@ -988,6 +1066,17 @@ export class AIProviderGateway {
       }
     }
     const latencyMs = Date.now() - startedAt;
+    if (keys !== this.keysOf(connection)) await this.writeKeys(connection, keys);
+    // Every key now needs a wait: say so plainly, with the soonest reset,
+    // instead of passing along the last provider refusal as if the vendor were
+    // down. A caller can then act on the real reason.
+    if (
+      result === undefined &&
+      (isRateLimit(failure) || isOutOfCredit(failure)) &&
+      usableKeys(keys, this.now()).length === 0
+    ) {
+      failure = this.allKeysCooling(keys);
+    }
 
     if (result === undefined) {
       const aborted = isGatewayError(failure) && failure.code === 'GATEWAY_ABORTED';
@@ -1095,25 +1184,75 @@ export class AIProviderGateway {
     let usage: { inputTokens: number | null; outputTokens: number | null } | undefined;
     let finishReason: string | undefined;
 
+    // Streaming rotates too: a spent key is tried once, then the next one
+    // serves the same request. Fragments already yielded mean the attempt
+    // cannot be repeated, so rotation only happens before the first fragment.
+    const keys = this.keysOf(connection);
+    const candidates = usableKeys(keys, this.now());
+    if (candidates.length === 0) {
+      await this.recordUsage(
+        this.usageFor({
+          ownerRef,
+          ...(projectId ? { projectId } : {}),
+          ...(request.category ? { taskType: request.category } : {}),
+          providerId: connection.providerId,
+          modelId: route.modelId,
+          connectionId: connection.id,
+          ...(request.runId ? { runId: request.runId } : {}),
+          requestedAt,
+          status: 'failure',
+          inputTokens: null,
+          outputTokens: null,
+          latencyMs: Date.now() - startedAt,
+          attempts: 0,
+          streamed: true,
+          errorCategory: 'rate-limit',
+        }),
+      );
+      throw this.allKeysCooling(keys);
+    }
+
     try {
-      const context = await this.adapterContext(ownerRef, connection, request.signal);
-      for await (const chunk of adapter.stream(context, {
-        modelId: route.modelId,
-        messages: request.messages,
-        ...(request.system !== undefined ? { system: request.system } : {}),
-        ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
-        ...(request.maxOutputTokens !== undefined
-          ? { maxOutputTokens: request.maxOutputTokens }
-          : {}),
-      })) {
-        // An abort ends the stream as a cancellation, even when the transport
-        // merely stops producing fragments instead of throwing.
-        throwIfAborted(request.signal);
-        if (chunk.usage !== undefined) usage = chunk.usage;
-        if (chunk.finishReason !== undefined) finishReason = chunk.finishReason;
-        if (chunk.delta.length > 0) yield { delta: chunk.delta, done: false };
-        if (chunk.done) break;
+      let lastStreamError: unknown;
+      let started = false;
+      for (let index = 0; index < candidates.length; index += 1) {
+        const key = candidates[index] as ConnectionKey;
+        try {
+          const context = await this.adapterContext(ownerRef, connection, request.signal, key.ref);
+          for await (const chunk of adapter.stream(context, {
+            modelId: route.modelId,
+            messages: request.messages,
+            ...(request.system !== undefined ? { system: request.system } : {}),
+            ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+            ...(request.maxOutputTokens !== undefined
+              ? { maxOutputTokens: request.maxOutputTokens }
+              : {}),
+          })) {
+            // An abort ends the stream as a cancellation, even when the transport
+            // merely stops producing fragments instead of throwing.
+            throwIfAborted(request.signal);
+            if (chunk.usage !== undefined) usage = chunk.usage;
+            if (chunk.finishReason !== undefined) finishReason = chunk.finishReason;
+            if (chunk.delta.length > 0) {
+              started = true;
+              yield { delta: chunk.delta, done: false };
+            }
+            if (chunk.done) break;
+          }
+          await this.writeKeys(connection, replaceKey(keys, markKeyHealthy(key, this.now())));
+          lastStreamError = undefined;
+          break;
+        } catch (error) {
+          lastStreamError = error;
+          await this.writeKeys(connection, replaceKey(keys, this.keyAfterFailure(key, error)));
+          // Once a fragment has reached the caller the answer cannot be
+          // restarted on another key without duplicating text.
+          if (started) throw error;
+          if (!isRateLimit(error) && !isAuthFailure(error) && !isOutOfCredit(error)) throw error;
+          if (index === candidates.length - 1) throw error;
+        }
       }
+      if (lastStreamError !== undefined) throw lastStreamError;
     } catch (error) {
       const cancelled = isGatewayError(error) && error.code === 'GATEWAY_ABORTED';
       await this.recordUsage(
@@ -1315,9 +1454,12 @@ export class AIProviderGateway {
     ownerRef: string,
     connection: ProviderConnection,
     signal?: AbortSignal,
+    keyRef?: string,
   ): Promise<AdapterContext> {
     const definition = this.registry.definition(connection.providerId);
-    const apiKey = await this.vault.read(ownerRef, connection.credentialRef);
+    // Only the attempt that is about to run decrypts its key, so the plaintext
+    // window stays as narrow with eight keys as it was with one.
+    const apiKey = await this.vault.read(ownerRef, keyRef ?? connection.credentialRef);
     const rawBase = connection.baseUrl ?? definition.baseUrl;
     if (!rawBase) {
       throw new GatewayError('GATEWAY_UNSAFE_ENDPOINT', 'This provider needs an endpoint URL.');
@@ -1485,6 +1627,190 @@ export class AIProviderGateway {
     return bounded(trimmed, MAX_NAME);
   }
 
+  /**
+   * A record stored before keys became a pool reads as a one-key pool, so
+   * nothing has to be migrated and no caller sees two shapes.
+   */
+  private keysOf(connection: ProviderConnection): readonly ConnectionKey[] {
+    if (connection.keys && connection.keys.length > 0) return connection.keys;
+    return [
+      {
+        id: `key_${connection.id}`,
+        ref: connection.credentialRef,
+        hint: connection.credentialHint,
+        fingerprint: connection.credentialFingerprint,
+        status: connection.status === 'invalid' ? 'invalid' : 'active',
+        createdAt: connection.createdAt,
+      },
+    ];
+  }
+
+  /**
+   * What one failed attempt means for its key: a rate limit cools it for the
+   * wait the provider stated, a rejection retires it, anything else (timeout,
+   * outage) leaves it usable because the key was not at fault.
+   */
+  private keyAfterFailure(key: ConnectionKey, error: unknown): ConnectionKey {
+    if (isOutOfCredit(error)) {
+      return markKeyCooling(key, this.now(), {
+        retryAfterMs: OUT_OF_CREDIT_COOLDOWN_MS,
+        errorCategory: 'credit',
+      });
+    }
+    if (isRateLimit(error)) {
+      return markKeyCooling(key, this.now(), {
+        retryAfterMs: retryHintOf(error),
+        errorCategory: errorCategoryOf(error),
+      });
+    }
+    if (isAuthFailure(error)) return markKeyInvalid(key, 'authentication');
+    return markKeyUsed(key, this.now());
+  }
+
+  /** Honest refusal when every key on a connection is spent. */
+  private allKeysCooling(keys: readonly ConnectionKey[]): GatewayError {
+    const ordered = selectKeyOrder(keys, this.now());
+    const next = ordered[0];
+    const until = next?.cooldownUntil ? Date.parse(next.cooldownUntil) : Number.NaN;
+    const waitMs = Number.isFinite(until) ? Math.max(0, until - this.now().getTime()) : null;
+    const live = keys.filter((key) => key.status !== 'invalid');
+    if (live.length > 0 && live.every((key) => key.lastErrorCategory === 'credit')) {
+      return new GatewayError(
+        'GATEWAY_LIMIT_EXCEEDED',
+        'Every key on this connection is out of credit. Top one up or add another key.',
+        { details: { reason: 'all-keys-out-of-credit', keyCount: live.length } },
+      );
+    }
+    if (keys.every((key) => key.status === 'invalid')) {
+      return new GatewayError(
+        'GATEWAY_AUTH_FAILED',
+        'Every key on this connection was rejected by the provider. Add or replace one to continue.',
+        { details: { reason: 'all-keys-invalid' } },
+      );
+    }
+    return new GatewayError(
+      'GATEWAY_RATE_LIMITED',
+      waitMs === null
+        ? 'Every key on this connection is rate limited right now.'
+        : `Every key on this connection is rate limited. The soonest frees up in ${Math.max(1, Math.ceil(waitMs / 1000))}s.`,
+      {
+        details: {
+          ...(waitMs === null ? {} : { retryAfterMs: waitMs }),
+          reason: 'all-keys-cooling',
+          keyCount: keys.length,
+        },
+      },
+    );
+  }
+
+  /** Persists a key-state change without touching anything else. */
+  private async writeKeys(
+    connection: ProviderConnection,
+    keys: readonly ConnectionKey[],
+  ): Promise<void> {
+    const live = keys.filter((key) => key.status !== 'invalid');
+    const healthy = live.some((key) => key.status === 'active');
+    await this.connections.put({
+      ...connection,
+      keys,
+      status: live.length === 0 ? 'invalid' : healthy ? 'active' : connection.status,
+      updatedAt: nowIso(this.now),
+    } as ProviderConnection);
+  }
+
+  /**
+   * Adds a key to an existing connection so one exhausted key no longer fails
+   * the run. The key is validated first: a key that cannot authenticate would
+   * only sit in the pool pretending to be capacity.
+   */
+  async addKey(
+    scope: GatewayScope,
+    connectionId: string,
+    input: { apiKey: string; label?: string },
+  ): Promise<ConnectionView> {
+    const ownerRef = requireOwner(scope);
+    const connection = await this.requireOwnedConnection(ownerRef, connectionId);
+    const keys = this.keysOf(connection);
+    if (keys.length >= this.maxKeysPerConnection) {
+      throw new GatewayError(
+        'GATEWAY_LIMIT_EXCEEDED',
+        `A connection can hold at most ${this.maxKeysPerConnection} keys.`,
+      );
+    }
+    const secret = typeof input.apiKey === 'string' ? input.apiKey.trim() : '';
+    if (secret.length === 0) {
+      throw new GatewayError('GATEWAY_INVALID_REQUEST', 'An API key is required.');
+    }
+    const fingerprint = credentialFingerprint(ownerRef, secret);
+    if (keys.some((key) => key.fingerprint === fingerprint)) {
+      throw new GatewayError(
+        'GATEWAY_CONNECTION_DUPLICATE',
+        'That key is already on this connection.',
+      );
+    }
+    const definition = this.registry.definition(connection.providerId);
+    const adapter = this.registry.adapter(connection.providerId);
+    const validation = await adapter.validateCredential({
+      apiKey: secret,
+      baseUrl: connection.baseUrl ?? definition.baseUrl,
+      timeoutMs: this.timeoutMs,
+      transport: this.transport,
+    });
+    if (!validation.valid) {
+      throw new GatewayError(
+        'GATEWAY_CREDENTIAL_INVALID',
+        validation.errorCategory === 'rate-limit'
+          ? 'That key is rate limited right now, so it could not be checked. Try again shortly.'
+          : 'That key was refused by the provider, so it was not added.',
+        { details: { errorCategory: validation.errorCategory ?? 'validation' } },
+      );
+    }
+    const stored = await this.vault.put(ownerRef, secret);
+    const timestamp = nowIso(this.now);
+    const next: ConnectionKey = {
+      id: `key_${randomUUID()}`,
+      ref: stored.ref,
+      hint: credentialHint(secret),
+      fingerprint,
+      ...(input.label ? { label: bounded(input.label, 60) } : {}),
+      status: 'active',
+      createdAt: timestamp,
+    };
+    await this.writeKeys(connection, [...keys, next]);
+    return this.toView(
+      (await this.requireOwnedConnection(ownerRef, connectionId)) as ProviderConnection,
+    );
+  }
+
+  /** Removes one key. The last key cannot be removed; delete the connection. */
+  async removeKey(
+    scope: GatewayScope,
+    connectionId: string,
+    keyId: string,
+  ): Promise<ConnectionView> {
+    const ownerRef = requireOwner(scope);
+    const connection = await this.requireOwnedConnection(ownerRef, connectionId);
+    const keys = this.keysOf(connection);
+    const target = findKey(keys, keyId);
+    if (!target) {
+      throw new GatewayError('GATEWAY_CREDENTIAL_MISSING', 'That key is not on this connection.');
+    }
+    if (keys.length === 1) {
+      throw new GatewayError(
+        'GATEWAY_INVALID_REQUEST',
+        'That is the only key on this connection. Delete the connection instead.',
+      );
+    }
+    await this.vault.delete(ownerRef, target.ref);
+    await this.writeKeys(
+      connection,
+      keys.filter((key) => key.id !== keyId),
+    );
+    return this.toView(
+      (await this.requireOwnedConnection(ownerRef, connectionId)) as ProviderConnection,
+    );
+  }
+
   private toView(connection: ProviderConnection): ConnectionView {
     const definition = this.registry.definition(connection.providerId);
     return {
@@ -1501,6 +1827,7 @@ export class AIProviderGateway {
       updatedAt: connection.updatedAt,
       lastValidatedAt: connection.lastValidatedAt ?? null,
       lastErrorCategory: connection.lastErrorCategory ?? null,
+      keys: this.keysOf(connection).map(keyView),
     };
   }
 }

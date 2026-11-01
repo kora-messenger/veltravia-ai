@@ -118,6 +118,9 @@ export function registerAiGatewayRoutes(app: FastifyInstance, deps: AiGatewayRou
   app.get('/api/ai/providers', async (request, reply) => {
     try {
       const owner = ownerOf(request);
+      // A restart restores the environment pool before the page reads it, so a
+      // saved key never looks lost.
+      await service.ensurePool?.(owner.ownerRef);
       if (!service.gateway) {
         return reply.send({
           ready: false,
@@ -286,6 +289,45 @@ export function registerAiGatewayRoutes(app: FastifyInstance, deps: AiGatewayRou
     }
   });
 
+  /**
+   * Adds a key to a connection's pool. One exhausted key no longer fails a
+   * run: the gateway moves to the next key before it waits.
+   */
+  app.post('/api/ai/providers/connections/:id/keys', async (request, reply) => {
+    try {
+      const gateway = requireGateway(service);
+      const owner = ownerOf(request);
+      const { id } = request.params as { id: string };
+      const body = (request.body ?? {}) as { apiKey?: unknown; label?: unknown };
+      if (typeof body.apiKey !== 'string' || body.apiKey.trim().length === 0) {
+        throw new GatewayError('GATEWAY_INVALID_REQUEST', 'An API key is required.');
+      }
+      const view = await gateway.addKey(owner, id, {
+        apiKey: body.apiKey,
+        ...(typeof body.label === 'string' && body.label.trim().length > 0
+          ? { label: body.label.trim() }
+          : {}),
+      });
+      return reply.status(201).send({ connection: view });
+    } catch (error) {
+      const mapped = toError(error);
+      return reply.status(mapped.status).send(mapped.body);
+    }
+  });
+
+  app.delete('/api/ai/providers/connections/:id/keys/:keyId', async (request, reply) => {
+    try {
+      const gateway = requireGateway(service);
+      const owner = ownerOf(request);
+      const { id, keyId } = request.params as { id: string; keyId: string };
+      const view = await gateway.removeKey(owner, id, keyId);
+      return reply.send({ connection: view });
+    } catch (error) {
+      const mapped = toError(error);
+      return reply.status(mapped.status).send(mapped.body);
+    }
+  });
+
   app.delete('/api/ai/providers/connections/:id', async (request, reply) => {
     try {
       const gateway = requireGateway(service);
@@ -382,6 +424,7 @@ export function registerAiGatewayRoutes(app: FastifyInstance, deps: AiGatewayRou
     try {
       const gateway = requireGateway(service);
       const owner = ownerOf(request);
+      await service.ensurePool?.(owner.ownerRef);
       const body = (request.body ?? {}) as Record<string, unknown>;
       const messages = Array.isArray(body.messages)
         ? body.messages
