@@ -12,6 +12,8 @@ import { createGatewayService, type GatewayService } from './ai-gateway-service.
 import { registerIntelligenceRoutes } from './routes/intelligence.js';
 import { registerAiExecutionRoutes } from './routes/ai-execution.js';
 import { registerAppBuilderRoutes } from './routes/app-builder.js';
+import { registerSourceRoutes } from './routes/source.js';
+import { createSourceService } from './source-service.js';
 import { createAppBuilderManager } from './app-builder-service.js';
 import type { RouteSelectorRequest } from '@veltravia/ai-gateway';
 import { createAiExecutionService } from './ai-execution-service.js';
@@ -22,6 +24,7 @@ import { createIntelligenceService } from './intelligence-service.js';
 import { createVideoIntelligenceService } from './video-service.js';
 import type { VideoIntelligenceManager } from '@veltravia/video-intelligence-core';
 import type { AppBuilderManager } from '@veltravia/app-builder-core';
+import type { SourceRepositoryManager } from '@veltravia/source-storage-core';
 import type { DocumentIntelligenceManager } from '@veltravia/document-intelligence-core';
 import {
   createDocumentIntelligenceService,
@@ -106,6 +109,8 @@ export interface BuildAppOptions {
   readonly aiExecution?: AiExecutionService;
   /** Pre-built App Builder manager (tests inject one). */
   readonly appBuilder?: AppBuilderManager;
+  /** Pre-built native source storage manager (tests inject one). */
+  readonly sourceStorage?: SourceRepositoryManager;
   /** Pre-built TestingManager (tests inject one); defaults to the demo testing engine. */
   readonly testing?: TestingManager;
   /** Project memory (Step 15). Defaults to an in-process manager. */
@@ -478,6 +483,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const appBuilder =
     options.appBuilder ?? createAppBuilderManager({ projectEngine, codingAgent: coding });
   registerAppBuilderRoutes(app, { appBuilder });
+
+  // Native source storage (Step 31): history, atomic change sets and snapshots
+  // over the SAME project engine. No second project system, no filesystem.
+  const sourceStorage = options.sourceStorage ?? createSourceService({ projectEngine });
+  registerSourceRoutes(app, { source: sourceStorage });
 
   registerAiExecutionRoutes(app, {
     service:

@@ -259,6 +259,11 @@ live tests stay skipped without credentials).
 
 ### App Builder foundation (Step 30)
 
+Source files live in Veltravia itself: [native project source storage](docs/source-storage.md)
+gives every project per-file history, atomic multi-file change sets, snapshots with restore and
+compare, and content-addressed blobs behind a `ContentStore` port that can become object storage
+without touching anything above it. GitHub stays optional.
+
 The [App Builder](docs/app-builder.md) is the language-independent foundation for building a
 project in the stack you asked for. A capability registry carries 18 languages and 18
 frameworks - React, Next.js, Vue, Angular, Svelte, HTML/CSS/JS, Node, Python, PHP, Java, C#,

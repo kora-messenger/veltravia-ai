@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Badge, Button, Card, Input, Select, Spinner, Textarea, useToast } from '../components/ui';
 import { errorMessage } from '../api/client';
+import { SourceExplorer } from './source/SourceExplorer';
 import * as api from '../api/app-builder';
 
 /**
@@ -486,11 +487,14 @@ export function BuilderPage() {
               </Button>
             </div>
           ) : (
-            <p className="v-builder__hint" data-testid="materialized">
-              Created project <code>{materialized.projectId}</code> with{' '}
-              {materialized.createdFiles.length} files in workspace{' '}
-              <code>{materialized.workspaceId}</code>.
-            </p>
+            <>
+              <p className="v-builder__hint" data-testid="materialized">
+                Created project <code>{materialized.projectId}</code> with{' '}
+                {materialized.createdFiles.length} files in workspace{' '}
+                <code>{materialized.workspaceId}</code>.
+              </p>
+              <SourceExplorer projectId={materialized.projectId} />
+            </>
           )}
         </Card>
       )}

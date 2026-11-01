@@ -2105,3 +2105,114 @@
   min-width: 160px;
   font-size: var(--v-text-sm);
 }
+
+/* Native source explorer (Step 31) */
+.v-source {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+}
+
+.v-source__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  align-items: center;
+}
+
+.v-source__body {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  gap: var(--v-space-3);
+  align-items: start;
+}
+
+.v-source__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.v-source__directory,
+.v-source__file {
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: var(--v-text-sm);
+  color: var(--v-text);
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: left;
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.v-source__directory {
+  color: var(--v-text-muted);
+}
+
+.v-source__file:focus-visible,
+.v-source__directory:focus-visible {
+  outline: 2px solid var(--v-primary);
+  outline-offset: 1px;
+}
+
+.v-source__file--active {
+  background: rgba(108, 99, 255, 0.12);
+  font-weight: 600;
+}
+
+.v-source__changed {
+  color: var(--v-danger);
+  margin-left: 4px;
+  font-size: var(--v-text-2xs);
+}
+
+.v-source__preview {
+  min-width: 0;
+}
+
+.v-source__meta {
+  margin: 0 0 var(--v-space-1);
+  font-size: var(--v-text-sm);
+  color: var(--v-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.v-source__content {
+  margin: 0;
+  padding: var(--v-space-2);
+  max-height: 320px;
+  overflow: auto;
+  font-size: var(--v-text-xs);
+  line-height: 1.5;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.v-source__state,
+.v-source__note {
+  margin: 0;
+  font-size: var(--v-text-sm);
+  color: var(--v-text-muted);
+}
+
+.v-source__error {
+  margin: 0;
+  font-size: var(--v-text-sm);
+  color: var(--v-danger);
+}
+
+@media (max-width: 900px) {
+  .v-source__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

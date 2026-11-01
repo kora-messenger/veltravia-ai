@@ -588,3 +588,28 @@ See [reasoning.md](reasoning.md).
     fails with `APP_BUILDER_PLAN_ALREADY_MATERIALIZED` instead of creating a duplicate project.
 12. **Audit is scrubbed.** Builder audit events carry counts, ids and codes - never file
     content, secret-shaped values or host paths.
+
+## 5x. Native source storage (Step 31, `source-storage/core` + `apps/api`)
+
+1. **Ownership is resolved by the project engine, not by the caller.** An unknown project and
+   another owner's project return the same `SOURCE_REPOSITORY_NOT_FOUND` (404).
+2. **A resolved repository is pinned to its owner.** A later call with a different owner is
+   refused even if the resolver were wrong.
+3. **Paths are validated twice.** The source layer rejects absolute paths, `..`, backslashes,
+   control characters, empty segments, trailing slashes and over-long paths before any engine
+   call; the project engine validates again.
+4. **Every write carries a revision.** Updates and deletes require `expectedRevision`, so a
+   concurrent writer is never silently overwritten.
+5. **Secret-shaped content is refused** (`SOURCE_SECRET_REJECTED`), using the project engine's
+   own pattern list, plus secret dotfiles refused by name.
+6. **Multi-file writes are atomic or reported.** Pre-flight validation, then ordered apply,
+   then reverse compensation. `SOURCE_ROLLBACK_FAILED` names the operation that could not be
+   undone - a partial state is never presented as success.
+7. **Work is bounded:** 100 operations per change set, 2000 files per snapshot, 512 KiB per
+   file, 1 MiB per read, 50 snapshots per repository.
+8. **Restores are reversible.** A `pre-restore` snapshot is taken before any file is touched.
+9. **No execution, no shell, no host path.** Snapshot blobs are content hashes; the development
+   store reports `durable: false` rather than implying safety it does not have.
+10. **AI writes stay on the existing rails.** The coding agent keeps writing through the
+    project engine and its own tool/confirmation rules; the source layer observes and attributes
+    those writes instead of offering the agent a bypass.
