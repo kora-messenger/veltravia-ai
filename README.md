@@ -119,6 +119,15 @@ Tests use **Vitest**:
 
 Any failing step fails the workflow. No API keys or credentials exist in the repository; CI requires none today.
 
+## Trying it on a phone
+
+[The testing platform](docs/testing-platform.md) packages the same web application as
+an Android app: Capacitor wraps `apps/web/dist`, CI builds the APK on every push, and
+the bundle finds its backend through a public `runtime-config.json` rather than a
+build-time secret. With no backend URL configured the app says so plainly instead of
+pretending to work; it needs a deployed API and a physical-device pass before it is
+usable by anyone else.
+
 ## Security rules
 
 The full policy lives in [docs/security.md](docs/security.md). The non-negotiables:

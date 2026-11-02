@@ -4,8 +4,12 @@ import { buildApp } from '@veltravia/api';
 const post = (app: Awaited<ReturnType<typeof buildApp>>, body: unknown) =>
   app.inject({ method: 'POST', url: '/api/ai/generate', payload: body });
 
+// The mock provider is named explicitly: the runtime default is a real provider
+// whenever one is configured, so an implicit default would make these assertions
+// depend on whichever credentials happen to exist in the environment.
 const validBody = {
   messages: [{ role: 'user', content: 'Hello, Veltravia!' }],
+  model: 'mock-text-small',
 };
 
 describe('POST /api/ai/generate', () => {
