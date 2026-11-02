@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { AppShell } from './AppShell';
 
@@ -130,17 +130,29 @@ describe('AppShell', () => {
     expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toBeDefined();
   });
 
-  it('opens the mobile drawer and closes it via the backdrop and Escape', () => {
+  it('opens the phone drawer, navigates from it, and closes via the scrim and Escape', () => {
     renderShell();
-    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
-    // Drawer open: navigating closes it.
-    fireEvent.click(screen.getByRole('link', { name: /Settings/ }));
-    expect(screen.getByTestId('page-settings')).toBeDefined();
+    const drawer = screen.getByTestId('mobile-menu');
+    expect(drawer.classList.contains('v-mmenu--open')).toBe(false);
 
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+    expect(drawer.classList.contains('v-mmenu--open')).toBe(true);
+
+    // Navigating from the drawer lands on the page and closes the drawer.
+    fireEvent.click(within(drawer).getByRole('link', { name: 'Settings' }));
+    expect(screen.getByTestId('page-settings')).toBeDefined();
+    expect(drawer.classList.contains('v-mmenu--open')).toBe(false);
+
+    // Tapping the dimmed area closes it without navigating anywhere.
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+    fireEvent.click(drawer.querySelector('.v-mmenu__scrim') as Element);
+    expect(drawer.classList.contains('v-mmenu--open')).toBe(false);
+
+    // And so does Escape.
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+    expect(drawer.classList.contains('v-mmenu--open')).toBe(true);
     fireEvent.keyDown(document, { key: 'Escape' });
-    // Backdrop is gone after Escape.
-    expect(screen.queryByRole('presentation')).toBeNull();
+    expect(drawer.classList.contains('v-mmenu--open')).toBe(false);
   });
 
   it('routes to the documents page and marks it active', () => {

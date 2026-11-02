@@ -876,3 +876,33 @@ simulation, which answers without tools, so the line correctly reads
 `Working on it` and offers nothing to expand. The step-by-step line is verified
 in tests against real run payloads; seeing it fill in inside a browser needs a
 connected provider.
+
+### The phone navigation drawer
+
+Below 900px the menu is `MobileMenu`, not the desktop sidebar slid in. It was
+laid out from a screen recording of a reference drawer (1080px capture, 2.62 px
+per dp) and checked in a browser against the same numbers:
+
+| Element            | Reference                                          | Here                                 |
+| ------------------ | -------------------------------------------------- | ------------------------------------ |
+| panel width        | 863px = 80% of the screen                          | 80% (330dp at 412dp wide)            |
+| scrim              | rgb(125) over white, ~51% black                    | rgba(0,0,0,.51)                      |
+| row pitch          | ~137px                                             | 52dp                                 |
+| icon / label / gap | 24dp / 17dp / 20dp                                 | 24dp / 17px / 20dp                   |
+| group label        | 13dp, muted, 28dp above                            | 13px, 600, 28px above                |
+| open               | ~267ms, decelerating, settles a hair past its mark | 270ms `cubic-bezier(.18,.9,.3,1.02)` |
+| close              | ~200ms                                             | 200ms ease-in                        |
+
+Two groups, both drawn from the routes the app really has: the everyday places
+first (Chat, Projects, App Builder, Files & artifacts, Dashboard), then every
+other route under one **Tools** label. Nothing is invented; a feature the app
+does not have does not get a row. The reference shows a list of pinned
+conversations, and there is no conversation history here, so that group is not
+drawn.
+
+A pill at the bottom-left starts a new chat and a profile circle at the
+bottom-right opens Settings (the circle shows the first letter of the owner's
+name, as in the thread). The list fades out beneath them instead of being cut
+off. While closed the panel is `inert` and `aria-hidden`, so it cannot be tabbed
+into or read out. Reduced-motion users get no slide. The desktop sidebar and its
+backdrop are not drawn on a phone.

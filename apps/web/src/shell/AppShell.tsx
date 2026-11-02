@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
+import { MobileMenu } from './MobileMenu';
+import { NEW_CHAT_EVENT } from '../pages/chat/useChatSession';
 import { TopBar } from './TopBar';
 import { BackendNotice } from '../components/BackendNotice';
 import { OfflineBanner } from '../components/OfflineBanner';
@@ -49,6 +51,19 @@ export function AppShell({ renderPage }: AppShellProps) {
         onToggleCollapse={() => setCollapsed((value) => !value)}
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
+      />
+      <MobileMenu
+        open={mobileOpen}
+        activeRouteId={activeNavId}
+        onNavigate={(next) => {
+          navigate(next);
+        }}
+        onNewChat={() => {
+          // Starting a chat from anywhere lands on the chat first, then clears it.
+          navigate({ id: 'chat', hash: '#/chat', title: 'Chat' });
+          window.setTimeout(() => window.dispatchEvent(new Event(NEW_CHAT_EVENT)), 0);
+        }}
+        onClose={() => setMobileOpen(false)}
       />
       <div className="v-shell__main">
         <BackendNotice />
