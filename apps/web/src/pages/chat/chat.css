@@ -988,3 +988,106 @@
     transition: none;
   }
 }
+
+/* ---------- Way back to the live edge ----------
+   Measured from the reference clip: a frosted circle, three dots a tenth of its
+   diameter wide on a pitch of 0.18 of it, rising and falling in turn on a one
+   second loop with each dot a third of a cycle behind the last. The clip is a
+   zoomed crop (circle 182px), so sizes here are that ratio at a 44px target.
+
+   Glass is a translucent white over a blur of whatever is behind it, with a light
+   top edge and a darker bottom edge so it reads as a lens rather than a disc.
+   Where backdrop-filter is unsupported it falls back to a near-opaque fill, so
+   the dots never sit on text showing through. */
+
+.v-chat__footer {
+  position: relative;
+}
+
+.v-live-edge {
+  position: absolute;
+  left: 50%;
+  /* Floats over the end of the thread, centred just above the type box, so the
+     thread's text passes behind the glass (the reference's placement). The
+     footer's top edge is the composer's top edge less its padding, so 100% is
+     the line the thread ends on. */
+  bottom: calc(100% - var(--v-space-1));
+  z-index: 3;
+  width: 46px;
+  height: 46px;
+  margin: 0 0 0 -23px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 50%;
+  background: rgba(250, 250, 247, 0.94);
+  box-shadow:
+    0 6px 18px rgba(32, 28, 52, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -6px 10px rgba(32, 28, 52, 0.05);
+  color: var(--v-text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .v-live-edge {
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.78), rgba(244, 244, 239, 0.56));
+    -webkit-backdrop-filter: blur(14px) saturate(1.5);
+    backdrop-filter: blur(14px) saturate(1.5);
+  }
+}
+
+.v-live-edge:focus-visible {
+  outline: 2px solid var(--v-brand-400);
+  outline-offset: 2px;
+}
+
+.v-live-edge:active {
+  transform: scale(0.96);
+}
+
+.v-live-edge__dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.v-live-edge__dot {
+  display: block;
+  width: 4.5px;
+  height: 4.5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: v-live-edge-wave 1s ease-in-out infinite;
+}
+
+.v-live-edge__dot:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.v-live-edge__dot:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+/* Each dot drops and returns once per loop; the rest of the loop it holds. The
+   travel is the clip's 3.7px of 182px, scaled to this circle. */
+@keyframes v-live-edge-wave {
+  0%,
+  45%,
+  100% {
+    transform: translateY(0);
+  }
+  22% {
+    transform: translateY(1.8px);
+  }
+}
+
+/* Motion is the signal here, so with reduced motion the dots hold still. The
+   control's presence and its label still say that work is going on. */
+@media (prefers-reduced-motion: reduce) {
+  .v-live-edge__dot {
+    animation: none;
+  }
+}

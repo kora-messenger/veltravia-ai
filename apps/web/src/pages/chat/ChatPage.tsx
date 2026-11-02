@@ -3,6 +3,7 @@ import { useAgentProfile } from '../../agent/AgentProfileProvider';
 import { isPackagedApp } from '../../config/runtime-config';
 import { ChatComposer } from './ChatComposer';
 import { ChatThread } from './ChatThread';
+import { LiveEdgeButton } from './LiveEdgeButton';
 import { MobileLanding } from './MobileLanding';
 import { WebLanding } from './WebLanding';
 import { SUGGESTIONS } from './suggestions';
@@ -37,6 +38,8 @@ export function ChatPage() {
   const session = useChatSession();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const followBottom = useRef(true);
+  // The same fact as followBottom, but as state, so the way back can render.
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
 
   /**
    * Follows new activity only while the person is already at the bottom.
@@ -50,7 +53,9 @@ export function ChatPage() {
     if (node === null) return;
     const onScroll = () => {
       const distance = node.scrollHeight - node.scrollTop - node.clientHeight;
-      followBottom.current = distance < 80;
+      const atBottom = distance < 80;
+      followBottom.current = atBottom;
+      setAwayFromBottom(!atBottom);
     };
     node.addEventListener('scroll', onScroll, { passive: true });
     return () => node.removeEventListener('scroll', onScroll);
@@ -61,6 +66,13 @@ export function ChatPage() {
     if (node === null || !followBottom.current) return;
     node.scrollTop = node.scrollHeight;
   }, [session.chat.messages]);
+  const returnToLive = () => {
+    const node = scrollRef.current;
+    if (node === null) return;
+    followBottom.current = true;
+    setAwayFromBottom(false);
+    node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+  };
   const profile = useAgentProfile();
   const [dismissed, setDismissed] = useState<readonly string[]>(readDismissed);
   const app = isPackagedApp();
@@ -102,6 +114,11 @@ export function ChatPage() {
       </div>
 
       <div className="v-chat__footer">
+        <LiveEdgeButton
+          working={session.chat.busy}
+          awayFromBottom={awayFromBottom}
+          onReturn={returnToLive}
+        />
         {session.sendError !== null ? (
           <p className="v-chat__senderror" role="status">
             <span>{session.sendError}</span>

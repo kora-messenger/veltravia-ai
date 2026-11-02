@@ -334,6 +334,65 @@ describe('the chat landing page', () => {
   });
 });
 
+describe('the way back to the live edge', () => {
+  /** jsdom has no layout, so give the scroll area the geometry the page reads. */
+  const giveGeometry = (node: HTMLElement, top: number) => {
+    Object.defineProperty(node, 'scrollHeight', { configurable: true, value: 2000 });
+    Object.defineProperty(node, 'clientHeight', { configurable: true, value: 700 });
+    node.scrollTop = top;
+    fireEvent.scroll(node);
+  };
+
+  const startLongRun = async () => {
+    startRun.mockResolvedValue(run({ status: 'running', answer: undefined }));
+    getRun.mockResolvedValue(run({ status: 'running', answer: undefined }));
+    const view = renderPage();
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Long job' } });
+    fireEvent.keyDown(screen.getByLabelText('Message'), { key: 'Enter' });
+    await screen.findByRole('button', { name: 'Stop the answer' });
+    return view.container.querySelector('.v-chat__scroll') as HTMLElement;
+  };
+
+  const control = () => screen.queryByRole('button', { name: /still working/i });
+
+  it('appears when the reader scrolls up during a run, and not while they are at the bottom', async () => {
+    const scroller = await startLongRun();
+    giveGeometry(scroller, 1300); // 2000 - 1300 - 700 = 0 from the bottom
+    expect(control()).toBeNull();
+    act(() => giveGeometry(scroller, 200)); // 1100px from the bottom
+    expect(await screen.findByRole('button', { name: /still working/i })).toBeDefined();
+  });
+
+  it('leaves once the reader is back at the newest content', async () => {
+    const scroller = await startLongRun();
+    act(() => giveGeometry(scroller, 200));
+    expect(await screen.findByRole('button', { name: /still working/i })).toBeDefined();
+    act(() => giveGeometry(scroller, 1300));
+    await waitFor(() => expect(control()).toBeNull());
+  });
+
+  it('scrolls to the end and goes away when tapped', async () => {
+    const scroller = await startLongRun();
+    const scrollTo = vi.fn();
+    scroller.scrollTo = scrollTo as unknown as typeof scroller.scrollTo;
+    act(() => giveGeometry(scroller, 200));
+    fireEvent.click(await screen.findByRole('button', { name: /still working/i }));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 2000, behavior: 'smooth' });
+    await waitFor(() => expect(control()).toBeNull());
+  });
+
+  it('is absent when no run is going, however far up the reader is', async () => {
+    startRun.mockResolvedValue(run());
+    const view = renderPage();
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Quick one' } });
+    fireEvent.keyDown(screen.getByLabelText('Message'), { key: 'Enter' });
+    await screen.findByText('Here is what I found.');
+    const scroller = view.container.querySelector('.v-chat__scroll') as HTMLElement;
+    act(() => giveGeometry(scroller, 100));
+    expect(control()).toBeNull();
+  });
+});
+
 describe("the owner's picture beside their own turns", () => {
   const renderAs = (ownerName: string | null) => {
     const fetchImpl = vi.fn(
