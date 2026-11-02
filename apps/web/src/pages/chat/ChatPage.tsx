@@ -85,9 +85,6 @@ export function ChatPage() {
           providerLabel={session.providerLabel}
           providerDetail={session.providerDetail}
         />
-        <p className="v-chat__disclaimer">
-          Answers can be wrong. Check anything important before you rely on it.
-        </p>
       </div>
     </div>
   );

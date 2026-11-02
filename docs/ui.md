@@ -619,6 +619,11 @@ not rearrange itself mid-answer, and two adjacent controls must not look alike.
 The reference's black action button is rendered in the brand violet, for the same
 reason the reference's blue was not adopted.
 
+Under the composer there is nothing. The `Answers can be wrong…` line that used to
+sit there is gone by request: the field's bottom edge is the last thing on the
+screen, 12 px clear of the window edge at both 390 px and 1440 px, which is the
+composer's own footer padding rather than a placeholder for removed copy.
+
 What is wired: `POST /api/reasoning/runs` (profile `workspace`), the previous
 turns sent as conversation context, `GET /runs/:id` polled every 900 ms until a
 terminal state, and `POST /runs/:id/cancel` from the stop control. A failed run

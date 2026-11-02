@@ -438,14 +438,6 @@
   white-space: nowrap;
 }
 
-.v-chat__disclaimer {
-  max-width: 720px;
-  margin: var(--v-space-1) auto 0;
-  font-size: var(--v-text-2xs);
-  color: var(--v-text-faint);
-  text-align: center;
-}
-
 @media (max-width: 560px) {
   .v-chat__scroll {
     padding: var(--v-space-4) var(--v-space-3) var(--v-space-4);
