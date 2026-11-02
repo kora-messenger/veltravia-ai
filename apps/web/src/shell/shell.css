@@ -274,6 +274,12 @@
 
 /* Icon-only account control: same 20px glyph box as the reference icons, with
  * the hit area grown to 32px around it (8px of slop on every side). */
+/* Clearance stroke behind the monitor so the document reads as sitting behind
+ * it. It is painted in the bar's own surface, so it works in both themes. */
+.v-topbar__icon-knockout {
+  stroke: var(--v-surface);
+}
+
 .v-topbar__account-icon {
   display: inline-flex;
   align-items: center;

@@ -205,6 +205,33 @@ describe('AppShell', () => {
     expect(slot?.getAttribute('aria-hidden')).toBe('true');
   });
 
+  it('draws the account control as the reference glyph: document over a monitor', () => {
+    const { container } = renderShell();
+
+    const icon = container.querySelector('.v-topbar__account-icon');
+    expect(icon).not.toBeNull();
+    const svg = icon?.querySelector('svg');
+    expect(svg).not.toBeNull();
+
+    // Two rounded panels: the document (upper right) and the monitor (lower
+    // left, in front of it). The knockout copy is what makes the overlap read.
+    const panels = Array.from(svg?.querySelectorAll('rect') ?? []).map((rect) => ({
+      x: Number(rect.getAttribute('x')),
+      y: Number(rect.getAttribute('y')),
+    }));
+    expect(panels).toHaveLength(3);
+    const document = panels[0];
+    const monitor = panels[1];
+    if (!document || !monitor) throw new Error('missing panels');
+    expect(document.x).toBeGreaterThan(monitor.x);
+    expect(document.y).toBeLessThan(monitor.y);
+    expect(svg?.querySelector('.v-topbar__icon-knockout')).not.toBeNull();
+
+    // Decorative: the button's own name carries the meaning.
+    expect(svg?.getAttribute('aria-hidden')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Account menu' })).toBeDefined();
+  });
+
   it('keeps the premium slot empty and reaches notifications from the account menu', () => {
     const { container } = renderShell();
 

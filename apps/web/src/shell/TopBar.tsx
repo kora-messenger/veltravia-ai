@@ -109,28 +109,43 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
           items={accountItems}
           trigger={
             <span className="v-topbar__account-icon">
+              {/* The reference glyph: a document with three ruled lines in the
+                  upper right, and a monitor standing in front of its lower-left
+                  corner. The monitor is drawn over a surface-coloured copy of
+                  itself so the document's corner reads as behind it instead of
+                  two strokes crossing. */}
               <svg viewBox="0 0 20 20" className="v-icon" aria-hidden="true">
-                <path
-                  d="M6.5 2.5h5l2 2h-5l-2-2Z"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinejoin="round"
-                />
-                <rect
-                  x="2.75"
-                  y="7.25"
-                  width="14.5"
-                  height="9.5"
-                  rx="1.5"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                />
-                <path
-                  d="M8 13.75h4"
+                <g
+                  fill="none"
                   stroke="currentColor"
                   strokeWidth="1.4"
                   strokeLinecap="round"
-                />
+                  strokeLinejoin="round"
+                >
+                  <rect x="8.25" y="1.6" width="10" height="8.7" rx="1.5" />
+                  <path d="M10.9 4.3h4.4M10.9 6.3h4.4M13.4 8.3h1.9" />
+                </g>
+                <g
+                  className="v-topbar__icon-knockout"
+                  fill="none"
+                  strokeWidth="3.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="1.8" y="7.8" width="11" height="8" rx="1.5" />
+                  <path d="M7.3 15.8v1.6M5.1 17.8h4.4" />
+                </g>
+                <g
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="1.8" y="7.8" width="11" height="8" rx="1.5" />
+                  <path d="M7.3 15.8v1.6M5.1 17.8h4.4" />
+                </g>
               </svg>
             </span>
           }

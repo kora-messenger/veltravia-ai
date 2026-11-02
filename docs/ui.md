@@ -76,6 +76,11 @@ pattern; toasts announce through a polite live region.
   crown returns when there is a real subscription behind it, and until then
   the bar carries no decorative status mark. Verified in-browser at 390px and
   1280px (bar height 56px, title 18px/500, no horizontal overflow).
+  The account control is the reference glyph redrawn inline: a document with
+  three ruled lines in the upper right and a monitor standing in front of its
+  lower-left corner. The monitor is stamped twice, once in the bar's surface
+  colour, so the corner reads as behind it rather than as crossing strokes;
+  that knockout follows the theme because it uses the surface token.
 - `useHashRoute.ts` — minimal hash routing (`#/dashboard`, `#/projects`,
   `#/projects/<id>`, `#/settings`); unknown hashes fall back to the
   dashboard. `RouteState` carries route parameters (e.g. the project id)
