@@ -697,16 +697,22 @@ screen; the two ways in are the same plain lines, shortened (`Build something
 new`), above the type box, with the deliberate whitespace above them, and the
 composer floats clear of the gesture bar on a 16 px gutter.
 
-The ways in carry no decoration at all. They used to be cards with a fill, a
-border, a 12 px radius, an icon chip, a second violet label and a dismiss
-control; all of it is gone by request, on both layouts, so an empty conversation
-reads as two sentences instead of two boxes. Each line is still a real button
-with a 44 px hit height, its own text as its accessible name, and a hover state
-that changes colour and underlines it, so it never becomes text that looks dead
-while accepting a tap. Measured in the browser at 390 px and 1440 px: two lines,
-`border-top-width: 0px`, `background: transparent`, `border-radius: 0px`,
-`box-shadow: none`, zero `svg`/`img` descendants. Clicking the second line lands
-on `#/documents`.
+The ways in carry no box. Each is one small line: a 16 px thin-stroke icon, the
+sentence in the muted colour, the destination in the brand colour, and a close
+control at the far right, all at 13 px (`--v-text-sm`), with 12 px between lines
+and a 32 px row. The words are deliberately the smallest type in the composer's
+area so the greeting stays the loudest thing on an empty screen.
+
+One shared `SuggestionList` draws the rows for both layouts, so the website and
+the packaged app cannot drift apart. Left and right edges are the composer's own:
+measured at 1440 px the list starts at 480 px and the close control ends at
+1200 px, exactly the type box's edges; at 390 px both are 12 px and 378 px. The
+box itself reports `border-top-width: 0px`, `background: transparent`,
+`box-shadow: none`; the icons are `stroke-width: 1.7` inheriting `currentColor`.
+Contrast on `--v-bg`: sentence 6.4:1, destination 6.0:1, close control 6.4:1 (an
+icon-only control needs 3:1, so the faint tone was not used). Dismissing hides
+the line for the session and survives a reload; clicking a destination lands on
+`#/documents` or `#/builder`.
 
 Where this build departs from the phone reference, and why:
 

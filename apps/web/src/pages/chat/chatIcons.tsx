@@ -63,6 +63,33 @@ export function TuneIcon({ size = 18 }: IconProps) {
   );
 }
 
+export function CloseIcon({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)} strokeWidth={1.7}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
+export function PencilIcon({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M4 20l1-4.2L15.6 5.2a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.2 19 4 20Z" />
+      <path d="M14.2 6.6l3.2 3.2" />
+    </svg>
+  );
+}
+
+export function DocumentIcon({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M6 3h7l5 5v13H6z" />
+      <path d="M13 3v5h5" />
+      <path d="M9 13h6M9 17h4" />
+    </svg>
+  );
+}
+
 export function PhoneIcon({ size = 18 }: IconProps) {
   return (
     <svg {...base(size)}>

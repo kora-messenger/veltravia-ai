@@ -75,18 +75,14 @@ afterEach(() => {
 });
 
 describe('the website layout', () => {
-  it('centres a greeting behind the mark and lists the ways in as plain text', () => {
+  it('centres a greeting behind the mark and lists each way in on one line', () => {
     renderPage();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Hey there');
-    expect(
-      screen.getByRole('button', { name: 'Start something new from an empty project' }),
-    ).toBeDefined();
-    expect(
-      screen.getByRole('button', { name: 'Ask questions about your own documents' }),
-    ).toBeDefined();
-    // Plain lines: no close control, no icon chip, no second label.
-    expect(screen.queryByRole('button', { name: /^Dismiss suggestion/ })).toBeNull();
-    expect(document.querySelector('.v-chat__suggestion-icon')).toBeNull();
+    expect(screen.getByText('Start something new from an empty project')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Open the app builder' })).toBeDefined();
+    // The reference's row: an icon, the sentence, the destination, a close control.
+    expect(document.querySelectorAll('.v-chat__suggestion-icon')).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /^Dismiss suggestion/ })).toHaveLength(2);
   });
 
   it('does not render the app-only new-conversation circle', () => {
@@ -101,8 +97,8 @@ describe('the packaged app layout', () => {
     renderPage();
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
     expect(screen.queryByText(/Hey there/)).toBeNull();
-    expect(screen.getByRole('button', { name: /Build something new/ })).toBeDefined();
-    expect(screen.getByRole('button', { name: /Ask about your documents/ })).toBeDefined();
+    expect(screen.getByText(/Start something new from an empty project/)).toBeDefined();
+    expect(screen.getByText(/Ask questions about your own documents/)).toBeDefined();
   });
 
   it('offers the new-conversation circle the reference has', () => {
@@ -120,18 +116,18 @@ describe('the packaged app layout', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDefined();
   });
 
-  it('lets a prompt row start a conversation on the shared engine', () => {
+  it('lets a suggestion start a real navigation on the shared engine', () => {
     runAsPackagedApp();
     renderPage();
-    fireEvent.click(screen.getByRole('button', { name: /Build something new/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open the app builder' }));
     // Navigation is the whole action: the hash carries the destination.
     expect(window.location.hash).toBe('#/builder');
   });
 
-  it('draws the ways in as plain text, without a pill or an icon', () => {
+  it('draws the same rows the website uses', () => {
     runAsPackagedApp();
     renderPage();
-    expect(document.querySelector('.v-chat__prompt-icon')).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Dismiss suggestion/ })).toBeNull();
+    expect(document.querySelectorAll('.v-chat__suggestion-icon')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Open the app builder' })).toBeDefined();
   });
 });

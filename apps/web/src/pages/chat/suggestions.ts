@@ -4,23 +4,27 @@
  */
 export interface Suggestion {
   readonly id: string;
+  readonly icon: 'pencil' | 'document';
+  /** The plain sentence, in the muted colour. */
   readonly title: string;
-  /** The short form the app layout uses, where the title would wrap. */
-  readonly short: string;
+  /** The coloured words that name the destination. */
+  readonly actionLabel: string;
   readonly hash: string;
 }
 
 export const SUGGESTIONS: readonly Suggestion[] = [
   {
     id: 'builder',
+    icon: 'pencil',
     title: 'Start something new from an empty project',
-    short: 'Build something new',
+    actionLabel: 'Open the app builder',
     hash: '#/builder',
   },
   {
     id: 'documents',
+    icon: 'document',
     title: 'Ask questions about your own documents',
-    short: 'Ask about your documents',
+    actionLabel: 'Open document intelligence',
     hash: '#/documents',
   },
 ];
