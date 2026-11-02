@@ -242,72 +242,15 @@
   gap: var(--v-space-3);
 }
 
-.v-topbar__notify-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  /* 24px mark + 4px each side keeps a 32px hit target. */
-  padding: 0.25rem;
-  border: none;
-  border-radius: var(--v-radius-sm);
-  background: transparent;
-  cursor: pointer;
-}
-
-.v-topbar__notify-button:hover,
-.v-topbar__notify-button:focus-visible {
-  background: var(--v-surface-hover);
-}
-
-.v-topbar__notify-panel {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 0.5rem);
-  width: min(20rem, 78vw);
-  padding: var(--v-space-4);
-  border: 1px solid var(--v-border);
-  border-radius: var(--v-radius-md);
-  background: var(--v-surface);
-  box-shadow: var(--v-shadow-3);
-  z-index: 40;
-}
-
-.v-topbar__notify-head {
-  display: flex;
-  align-items: center;
-  gap: var(--v-space-2);
-  margin-bottom: var(--v-space-2);
-}
-
-.v-topbar__notify-close {
-  margin-left: auto;
-  border: none;
-  background: transparent;
-  color: var(--v-text-faint);
-  font-size: var(--v-text-lg);
-  line-height: 1;
-  cursor: pointer;
-}
+/* Notifications moved to the account menu, so the bar carries no badge. The
+   slot the reference fills with a premium crown is left empty on purpose until
+   there is a real subscription to show. */
 
 .v-topbar__notify-empty {
   margin: 0;
   color: var(--v-text-muted);
   font-size: var(--v-text-sm);
   line-height: 1.5;
-}
-
-/* The notification panel is anchored to the bell, which on a phone sits beside
- * the account menu, so its left edge hung 39px off a 390px viewport. Below
- * 900px pin it to the gutters under the bar. Kept last so it wins over the
- * base rule above. */
-@media (max-width: 900px) {
-  .v-topbar__notify-panel {
-    position: fixed;
-    top: calc(3.5rem + 0.5rem);
-    left: auto;
-    right: var(--v-space-4);
-    width: min(20rem, calc(100vw - var(--v-space-4) * 2));
-  }
 }
 
 /* ---------------------------------------------------------------------------

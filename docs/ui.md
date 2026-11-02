@@ -684,3 +684,13 @@ Where this build departs from the phone reference, and why:
 The new-conversation circle is outside the chat page's tree, so it announces
 itself with a `veltravia:new-chat` window event that `useChatSession` listens
 for. One engine still owns the reset.
+
+### The header carries no status badge
+
+The reference puts a crown in the top-right corner as a premium indicator. This
+build has no subscription behind that crown, so the slot is deliberately empty
+rather than decorative: the bar shows the menu, the agent name and the account
+menu, and nothing else. The notifications entry point moved into the account
+menu (same honest empty state, now in a dialog), so removing the badge did not
+remove the feature. When premium is real, the badge goes back into that slot with
+something true behind it.

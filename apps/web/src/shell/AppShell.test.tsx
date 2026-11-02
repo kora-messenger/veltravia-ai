@@ -178,27 +178,20 @@ describe('AppShell', () => {
     expect(screen.getByTestId('page-settings')).toBeDefined();
   });
 
-  it('prepares the branded notification mark but shows nothing until opened', () => {
+  it('keeps the premium slot empty and reaches notifications from the account menu', () => {
     const { container } = renderShell();
-    const trigger = screen.getByRole('button', { name: 'Notifications' });
-    expect(trigger.getAttribute('aria-expanded')).toBe('false');
-    expect(screen.queryByRole('dialog', { name: 'Notification centre' })).toBeNull();
-    const marks = container.querySelectorAll('.v-topbar__notifications .v-brand-mark');
-    expect(marks).toHaveLength(1);
-  });
 
-  it('sizes the notification mark 24px in the bar and 28px in the panel heading', () => {
-    const { container } = renderShell();
-    const barImage = container.querySelector('.v-topbar__notify-button .v-brand-mark img');
-    expect(barImage?.getAttribute('width')).toBe('24');
-    expect(barImage?.getAttribute('height')).toBe('24');
+    // No status mark sits in the bar at all: the crown slot stays empty until
+    // there is a real subscription behind it.
+    expect(container.querySelector('.v-topbar__notify-button')).toBeNull();
+    expect(container.querySelectorAll('.v-topbar__actions img')).toHaveLength(0);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
-    const headImage = container.querySelector('.v-topbar__notify-head .v-brand-mark img');
-    expect(headImage?.getAttribute('width')).toBe('28');
-    expect(headImage?.getAttribute('height')).toBe('28');
-    // The heading keeps its own 16px scale, so the mark never outgrows the title.
-    const heading = screen.getByRole('heading', { name: 'Notifications', level: 2 });
-    expect(heading.className).toContain('v-heading-3');
+    expect(screen.queryByRole('dialog', { name: 'Notifications' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Notifications' }));
+
+    // The honest empty state is unchanged, it simply lives in a dialog now.
+    const dialog = screen.getByRole('dialog', { name: 'Notifications' });
+    expect(dialog.textContent).toContain('no notification source connected');
   });
 });
