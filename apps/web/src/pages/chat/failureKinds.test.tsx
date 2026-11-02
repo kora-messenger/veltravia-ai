@@ -20,6 +20,12 @@ describe('a host that is not the API', () => {
     expect(failureReason(failure.kind)).toBe('No backend is connected to this page');
   });
 
+  it('reads the 405 a static host returns for POST as a missing backend', () => {
+    // GitHub Pages refuses POST outright, so the run request never reaches any
+    // code that could accept it.
+    expect(classifySendFailure(new ApiError(405, 'METHOD_NOT_ALLOWED', '')).kind).toBe('missing');
+  });
+
   it('still calls a 400 a rejected request', () => {
     expect(classifySendFailure(new ApiError(400, 'BAD_REQUEST', 'nope')).kind).toBe('rejected');
   });

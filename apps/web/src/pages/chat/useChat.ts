@@ -111,10 +111,12 @@ export function classifySendFailure(error: unknown): SendFailure {
     if (error.status >= 500 || name.includes('UNAVAILABLE')) {
       return { kind: 'unavailable', message: errorMessage(error) };
     }
-    // A 404 means the host at this address serves something that is not the
-    // API: a static build with no backend behind it. That is a configuration
-    // fact, not a rejection of what was asked, and retrying cannot change it.
-    if (error.status === 404) {
+    // A host that serves the bundle but is not the API answers 404, or 405
+    // because a static file host refuses POST outright (GitHub Pages does). Both
+    // mean the same thing: there is no backend behind this page. That is a
+    // configuration fact, not a rejection of what was asked, and retrying cannot
+    // change it. Veltravia's own routes never answer 404/405 for a run request.
+    if (error.status === 404 || error.status === 405 || error.status === 501) {
       return {
         kind: 'missing',
         message: 'This page is not connected to a Veltravia backend.',
