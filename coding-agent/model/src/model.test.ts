@@ -23,6 +23,8 @@ function context(overrides: Partial<CodingDecisionContext> = {}): CodingDecision
     workspaceRevision: 7,
     sandboxId: null,
     untrustedFiles: [],
+    workspaceListing: [],
+    repeatedAction: null,
     untrustedToolResults: [],
     validationResults: [],
     changedFiles: [],
@@ -293,7 +295,11 @@ describe('model decision source', () => {
 
   it('leaves non-plan decisions exactly as the model wrote them', () => {
     const action = { type: 'action', action: { type: 'read_file', path: 'src/a.ts' } };
-    expect(normaliseDecisionShape(action)).toEqual({ value: action, coercedLists: [] });
+    expect(normaliseDecisionShape(action)).toEqual({
+      value: action,
+      coercedLists: [],
+      droppedPathEntries: [],
+    });
   });
 });
 
@@ -317,5 +323,67 @@ describe('output-token ceiling', () => {
     expect(ceilings[0]).toBe(4000);
     expect(ceilings[1]).toBe(2000);
     expect(ceilings[2]).toBe(1000);
+  });
+});
+
+describe('plan path lists', () => {
+  it('drops entries that name no file instead of failing the plan', async () => {
+    const plan = JSON.parse(PLAN) as {
+      plan: Record<string, unknown>;
+    };
+    plan.plan.filesToDelete = ['', '   ', null, 'src/legacy.ts'];
+    const source = createModelCodingDecisionSource({ client: client([JSON.stringify(plan)]) });
+    const decision = await source.nextDecision(context());
+    expect(decision.type).toBe('plan');
+    if (decision.type !== 'plan') throw new Error('expected a plan');
+    expect(decision.plan.filesToDelete).toEqual(['src/legacy.ts']);
+  });
+
+  it('leaves a meaningful path untouched for the validator to judge', () => {
+    const plan = JSON.parse(PLAN) as { plan: Record<string, unknown> };
+    plan.plan.filesToDelete = ['src/legacy.ts'];
+    const normalised = normaliseDecisionShape(plan);
+    expect((normalised.value as typeof plan).plan.filesToDelete).toEqual(['src/legacy.ts']);
+    expect(normalised.droppedPathEntries).toEqual([]);
+  });
+
+  it('reports which path fields it cleaned up', () => {
+    const plan = JSON.parse(PLAN) as { plan: Record<string, unknown> };
+    plan.plan.filesToDelete = ['', 'src/ok.ts'];
+    expect(normaliseDecisionShape(plan).droppedPathEntries).toEqual([
+      { field: 'filesToDelete', dropped: 1 },
+    ]);
+  });
+});
+
+describe('loop warning', () => {
+  it('names the repeated call so the model can change course', () => {
+    const built = buildDecisionPrompt(
+      context({ repeatedAction: { toolId: 'project.inspect', count: 4 } }),
+    );
+    const text = built.messages.map((message) => message.content).join('\n');
+    expect(text).toMatch(/REPEATED ACTION/);
+    expect(text).toMatch(/project\.inspect with the same input 4 times/);
+  });
+
+  it('says nothing when the run is not repeating itself', () => {
+    const built = buildDecisionPrompt(context());
+    expect(built.messages.map((message) => message.content).join('\n')).not.toMatch(
+      /REPEATED ACTION/,
+    );
+  });
+});
+
+describe('action envelope', () => {
+  it('adds the missing envelope when the action arrives top level', () => {
+    const normalised = normaliseDecisionShape({
+      type: 'patch_file',
+      path: 'src/greet.ts',
+      patch: 'x',
+    });
+    expect(normalised.value).toEqual({
+      type: 'action',
+      action: { type: 'patch_file', path: 'src/greet.ts', patch: 'x' },
+    });
   });
 });

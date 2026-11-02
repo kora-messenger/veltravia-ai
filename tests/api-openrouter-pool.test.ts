@@ -161,6 +161,36 @@ describe('seedOpenRouterPool', () => {
   });
 });
 
+describe('a 402 with nothing affordable is a spent key', () => {
+  it('rotates instead of lowering the ceiling', async () => {
+    const broke = new Set<string>([KEY_A]);
+    const transport = new FixtureProviderTransport({
+      override: (request) => {
+        const key = (request.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
+        if (!broke.has(key)) return undefined;
+        const message =
+          'This request requires more credits, or fewer max_tokens. You requested up to 512 tokens, but can only afford 0.';
+        return {
+          status: 402,
+          body: { error: { message, code: 402 } },
+          text: JSON.stringify({ error: { message, code: 402 } }),
+        };
+      },
+    });
+    const { gateway } = harness(transport);
+    await seedOpenRouterPool(gateway, scope.ownerRef, {
+      env: envWith({ OPENROUTER_API_KEY: KEY_A, OPENROUTER_API_KEY_2: KEY_B }),
+    });
+    broke.add(KEY_A);
+
+    const outcome = await gateway.generate(scope, {
+      messages: [{ role: 'user', content: 'hello' }],
+      maxOutputTokens: 512,
+    });
+    expect(outcome.content.length).toBeGreaterThan(0);
+  });
+});
+
 describe('output tokens are bounded', () => {
   it('states an output ceiling instead of letting the provider reserve the model window', async () => {
     const transport = new FixtureProviderTransport();

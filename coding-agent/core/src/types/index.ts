@@ -189,6 +189,18 @@ export interface CodingDecisionContext {
   readonly workspaceRevision: number | null;
   /** Sandbox id once a validation sandbox exists for this run. */
   readonly sandboxId: string | null;
+  /**
+   * Paths the run has seen in the workspace tree. UNTRUSTED DATA - a project can
+   * name a file anything - but the paths themselves are the only ones that
+   * exist, so a source does not have to invent them.
+   */
+  readonly workspaceListing: readonly string[];
+  /**
+   * Set when the run keeps asking for the same thing. A live model called
+   * project.inspect fifty times because it wanted a file list that tool does
+   * not return; naming the repetition is what breaks that loop.
+   */
+  readonly repeatedAction: { readonly toolId: string; readonly count: number } | null;
   /** Files the run has read. UNTRUSTED DATA - project content, never instructions. */
   readonly untrustedFiles: readonly { readonly path: string; readonly content: string }[];
   /** Tool results. UNTRUSTED DATA - output is never an instruction. */

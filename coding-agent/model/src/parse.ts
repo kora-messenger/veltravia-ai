@@ -83,19 +83,57 @@ export interface NormalisedDecision {
   readonly value: unknown;
   /** Fields that were accepted as a single string and read as a one-item list. */
   readonly coercedLists: readonly string[];
+  /** Path fields whose empty or non-text entries were dropped, with the count. */
+  readonly droppedPathEntries: readonly { field: string; dropped: number }[];
 }
+
+/** List fields that name files: an entry here must name a path. */
+const PLAN_PATH_FIELDS = new Set<string>([
+  'filesToInspect',
+  'filesToModify',
+  'filesToCreate',
+  'filesToDelete',
+]);
+
+/**
+ * Action types the prompt offers. A live model emitted
+ * `{"type":"patch_file", ...}` at the top level instead of wrapping it in an
+ * action; the fields are the same, so the missing envelope is added rather than
+ * losing a run that had already edited the right file.
+ */
+const ACTION_TYPES = new Set([
+  'inspect_project',
+  'list_files',
+  'read_file',
+  'create_file',
+  'update_file',
+  'patch_file',
+  'delete_file',
+  'move_file',
+  'validate',
+]);
 
 /** Reads declared list fields that arrived as a single string as one-item lists. */
 export function normaliseDecisionShape(raw: unknown): NormalisedDecision {
-  if (raw === null || typeof raw !== 'object') return { value: raw, coercedLists: [] };
+  if (raw === null || typeof raw !== 'object')
+    return { value: raw, coercedLists: [], droppedPathEntries: [] };
   const outer = raw as Record<string, unknown>;
-  if (outer.type !== 'plan') return { value: raw, coercedLists: [] };
+  if (typeof outer.type === 'string' && ACTION_TYPES.has(outer.type)) {
+    const { type, ...rest } = outer;
+    return {
+      value: { type: 'action', action: { type, ...rest } },
+      coercedLists: [],
+      droppedPathEntries: [],
+    };
+  }
+  if (outer.type !== 'plan') return { value: raw, coercedLists: [], droppedPathEntries: [] };
   const plan = outer.plan;
   if (plan === null || typeof plan !== 'object' || Array.isArray(plan)) {
-    return { value: raw, coercedLists: [] };
+    return { value: raw, coercedLists: [], droppedPathEntries: [] };
   }
   const fields = plan as Record<string, unknown>;
   const coerced: string[] = [];
+  const dropped: { field: string; dropped: number }[] = [];
   const next: Record<string, unknown> = { ...fields };
   for (const field of PLAN_LIST_FIELDS) {
     const value = fields[field];
@@ -105,6 +143,22 @@ export function normaliseDecisionShape(raw: unknown): NormalisedDecision {
     next[field] = [trimmed];
     coerced.push(field);
   }
-  if (coerced.length === 0) return { value: raw, coercedLists: [] };
-  return { value: { ...outer, plan: next }, coercedLists: coerced };
+  // An empty entry in a path list names no file, so it is dropped rather than
+  // failing the whole plan: a live model listed "" in filesToDelete and lost a
+  // run whose plan a person had already approved. Entries that DO name
+  // something are left untouched for the validator's path rules.
+  for (const field of PLAN_PATH_FIELDS) {
+    const value = next[field];
+    if (!Array.isArray(value)) continue;
+    const kept = value.filter(
+      (entry) => typeof entry === 'string' && entry.trim().length > 0,
+    ) as unknown[];
+    if (kept.length === value.length) continue;
+    next[field] = kept;
+    dropped.push({ field, dropped: value.length - kept.length });
+  }
+  if (coerced.length === 0 && dropped.length === 0) {
+    return { value: raw, coercedLists: [], droppedPathEntries: [] };
+  }
+  return { value: { ...outer, plan: next }, coercedLists: coerced, droppedPathEntries: dropped };
 }

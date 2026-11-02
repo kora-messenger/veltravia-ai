@@ -50,6 +50,10 @@ import {
 } from '../types/index.js';
 
 const MAX_UNTRUSTED_CONTEXT_ITEMS = 10;
+/** Ceiling on remembered workspace paths handed to a decision source. */
+const MAX_LISTED_PATHS = 200;
+/** How many recent tool calls the loop warning looks at. */
+const MAX_RECENT_ACTIONS = 6;
 
 interface ManagedRun {
   readonly request: CodingRunRequest;
@@ -69,6 +73,9 @@ interface ManagedRun {
   pendingApproval: CodingPendingApproval | null;
   resumeState: CodingRunState | null;
   untrustedFiles: { path: string; content: string }[];
+  listedPaths: string[];
+  /** Fingerprints of the most recent tool calls, newest last. */
+  recentActions: string[];
   /** The most recent failed tool invocation, for precise failure causes. */
   lastFailure: { toolId: string; errorCode: string } | null;
   /**
@@ -167,6 +174,8 @@ export class CodingAgentManager {
       pendingApproval: null,
       resumeState: null,
       untrustedFiles: [],
+      listedPaths: [],
+      recentActions: [],
       fileRevisions: new Map(),
       lastFailure: null,
       untrustedToolResults: [],
@@ -262,6 +271,7 @@ export class CodingAgentManager {
       run.state = transition(run.state, 'inspecting');
       run.phase = 'inspecting';
       run.updatedAt = this.now();
+      await this.seedWorkspaceListing(run);
       return this.drive(run);
     }
 
@@ -603,6 +613,8 @@ export class CodingAgentManager {
     input: Record<string, unknown>,
     result: ToolInvocationResult,
   ): Promise<DriveOutcome> {
+    // eslint-disable-next-line no-console -- temporary live-QA trace
+    console.error('[qa] tool', toolId, result.status, JSON.stringify(input).slice(0, 120));
     if (toolId === CODING_TOOL_IDS.sandboxExecute) {
       return this.applyValidationResult(run, String(input.command ?? ''), result);
     }
@@ -629,6 +641,23 @@ export class CodingAgentManager {
       }
       const revision = typeof output.revision === 'number' ? output.revision : undefined;
       switch (toolId) {
+        case CODING_TOOL_IDS.listFiles: {
+          // The tree is what tells a source which paths exist. Without it a
+          // live model guessed package.json / src/greet.js and spent every tool
+          // call reading files that were never there.
+          const nodes = Array.isArray((output as { nodes?: unknown }).nodes)
+            ? ((output as { nodes: { path?: unknown; type?: unknown }[] }).nodes ?? [])
+            : [];
+          for (const node of nodes) {
+            if (typeof node?.path !== 'string' || node.path.length === 0) continue;
+            const label = node.type === 'directory' ? `${node.path}/` : node.path;
+            if (!run.listedPaths.includes(label)) run.listedPaths.push(label);
+          }
+          if (run.listedPaths.length > MAX_LISTED_PATHS) {
+            run.listedPaths = run.listedPaths.slice(-MAX_LISTED_PATHS);
+          }
+          break;
+        }
         case CODING_TOOL_IDS.readFile:
           if (path !== undefined) {
             if (revision !== undefined) run.fileRevisions.set(path, revision);
@@ -865,6 +894,30 @@ export class CodingAgentManager {
     }
   }
 
+  /**
+   * Reads the workspace root once, before the model's first post-approval
+   * decision.
+   *
+   * A live model spent all fifty tool calls calling project.inspect - which
+   * returns project metadata and never a file list - because it had no way to
+   * learn which paths exist. Listing the root is a read-only tool the run is
+   * already allowed to use. It is infrastructure, so it is NOT charged to the
+   * model's tool budget and does not count toward failure streaks.
+   */
+  private async seedWorkspaceListing(run: ManagedRun): Promise<void> {
+    if (run.listedPaths.length > 0 || run.state !== 'inspecting') return;
+    const toolCalls = run.toolCalls;
+    const failures = run.consecutiveFailures;
+    const recent = [...run.recentActions];
+    const input = { workspaceId: run.request.workspaceId };
+    const listing = await this.invokeTool(run, CODING_TOOL_IDS.listFiles, input, undefined);
+    if (listing !== null)
+      await this.processToolOutcome(run, CODING_TOOL_IDS.listFiles, input, listing);
+    run.toolCalls = toolCalls;
+    run.consecutiveFailures = failures;
+    run.recentActions = recent;
+  }
+
   private assertDuration(run: ManagedRun): void {
     const pausedNow =
       run.pausedAt === null ? 0 : Math.max(0, this.now().getTime() - run.pausedAt.getTime());
@@ -891,6 +944,14 @@ export class CodingAgentManager {
       workspaceRevision: run.workspaceRevision,
       sandboxId: run.sandboxId,
       untrustedFiles: [...run.untrustedFiles],
+      workspaceListing: [...run.listedPaths],
+      repeatedAction: (() => {
+        const last = run.recentActions[run.recentActions.length - 1];
+        if (last === undefined) return null;
+        const count = run.recentActions.filter((entry) => entry === last).length;
+        if (count < 2) return null;
+        return { toolId: last.split('|')[0] ?? last, count };
+      })(),
       untrustedToolResults: [...run.untrustedToolResults],
       validationResults: [...run.validationResults],
       changedFiles: [...run.changedFiles.keys()],

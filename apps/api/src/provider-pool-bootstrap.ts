@@ -18,8 +18,12 @@ import type { AIProviderGateway } from '@veltravia/ai-gateway';
 /** Names accepted: OPENROUTER_API_KEY, OPENROUTER_API_KEY_2, ... */
 export const OPENROUTER_ENV_PATTERN = /^OPENROUTER_API_KEY(?:_\d+)?$/;
 
-/** Fast verified default. Cheap, strong enough for coding plans, ~1.5s. */
-export const OPENROUTER_DEFAULT_MODEL = 'openai/gpt-5-mini';
+/**
+ * Default model. A reasoning model (gpt-5-mini) spends its whole output budget
+ * on reasoning before writing any content, so on a small balance it returns an
+ * empty completion; a direct model answers a JSON decision inside 600 tokens.
+ */
+export const OPENROUTER_DEFAULT_MODEL = 'openai/gpt-4o-mini';
 
 /**
  * Models offered on the connection, heaviest last. gpt-5 is the escalation when
@@ -28,6 +32,7 @@ export const OPENROUTER_DEFAULT_MODEL = 'openai/gpt-5-mini';
  */
 export const OPENROUTER_MODEL_SHORTLIST = [
   OPENROUTER_DEFAULT_MODEL,
+  'openai/gpt-5-mini',
   'google/gemini-2.5-flash',
   'openai/gpt-5',
 ] as const;

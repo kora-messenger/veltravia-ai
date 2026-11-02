@@ -211,8 +211,14 @@ async function requestCompletion(
     } catch (error) {
       const message = String((error as Error)?.message ?? '');
       const unaffordable = /output tokens|max_tokens|reserve/i.test(message);
-      if (!unaffordable || attempt >= 2 || ceiling <= 512) throw error;
-      ceiling = Math.max(512, Math.floor(ceiling / 2));
+      if (!unaffordable || attempt >= 3 || ceiling <= 256) throw error;
+      // When the provider says exactly what the balance can afford, ask for
+      // that instead of guessing: the same key served 512 tokens happily.
+      const affordable = Number(/can only afford (\d+)/i.exec(message)?.[1] ?? '0');
+      ceiling =
+        Number.isFinite(affordable) && affordable > 0
+          ? Math.max(256, Math.min(ceiling - 1, Math.floor(affordable * 0.9)))
+          : Math.max(256, Math.floor(ceiling / 2));
     }
   }
 }

@@ -58,7 +58,11 @@ function normalizedFor(status: number, rawMessage: string, body?: unknown): Gate
   if (status === 402) {
     // A provider that names max_tokens in a 402 is refusing the RESERVATION, not
     // reporting a dead account: the same key will serve a smaller request.
-    if (/fewer max_tokens|max_tokens/i.test(rawMessage)) {
+    // "…can only afford 0" is a spent key wearing the same wording: nothing
+    // can be reserved, so the pool must move on rather than retry smaller.
+    const affordable = Number(/can only afford (\d+)/i.exec(rawMessage)?.[1] ?? '-1');
+    const spent = Number.isFinite(affordable) && affordable === 0;
+    if (!spent && /fewer max_tokens|max_tokens/i.test(rawMessage)) {
       return new GatewayError(
         'GATEWAY_INVALID_REQUEST',
         'The provider cannot reserve that many output tokens on this balance. Ask for a lower maxOutputTokens.',

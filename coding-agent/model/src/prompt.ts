@@ -24,6 +24,8 @@ export interface PromptLimits {
   readonly maxFileChars: number;
   readonly maxToolResults: number;
   readonly maxValidationResults: number;
+  /** Paths of the workspace tree shown to the model. */
+  readonly maxWorkspacePaths: number;
 }
 
 export const DEFAULT_PROMPT_LIMITS: PromptLimits = {
@@ -32,6 +34,7 @@ export const DEFAULT_PROMPT_LIMITS: PromptLimits = {
   maxFileChars: 4000,
   maxToolResults: 6,
   maxValidationResults: 3,
+  maxWorkspacePaths: 120,
 };
 
 export const SYSTEM_PROMPT = `You are Veltravia's coding agent. You implement application changes in an existing project, one step at a time.
@@ -58,7 +61,18 @@ HOW TO WORK
 - Once a plan is approved, NEVER emit another plan. The next decisions are actions
   (inspect_project, read_file, create_file, update_file, validate) followed by
   complete. A second plan is rejected and ends the run.
-- Read a file before you edit it. Prefer patch_file for a small change inside a large file; use update_file only when replacing most of the file.
+- project.inspect returns project and workspace METADATA only: no file list and
+  no file contents. To see which files exist, call project.list-files on a
+  directory (start with the workspace root).
+- WORKSPACE FILES lists the paths that actually exist. Do not read or edit a path
+  that is not listed; list its directory instead of guessing.
+- A file listed in changedSoFar ALREADY carries your edit: do not edit it again
+  unless a validation failed and names it. Once the change is in place, validate
+  it, or complete if no command can run in this sandbox.
+- Read a file before you edit it. A patch is an ACTION, never a top-level
+  decision: {"type":"action","action":{"type":"patch_file","path":"...","patch":"..."}}.
+  Prefer it for a small change inside a large file; use update_file only when
+  replacing most of the file.
 - Match the project's existing framework, file layout, naming and style. Do not introduce a new stack, package manager or architecture unless the request requires it and the plan says so.
 - Never invent endpoints, models or auth systems that the evidence does not show. If something you need does not exist, either implement it or state the limitation in the plan.
 - Keep the change as small as the request allows. Do not reformat, rename or delete unrelated code.
@@ -144,6 +158,15 @@ export function buildDecisionPrompt(
     ].join('\n'),
   );
 
+  if (context.repeatedAction !== null) {
+    sections.push(
+      [
+        `REPEATED ACTION: you have called ${context.repeatedAction.toolId} with the same input ${context.repeatedAction.count} times and the result has not changed.`,
+        'Do not call it again. Choose a different action that makes progress: list a directory, read the file you need, make the edit, or complete.',
+      ].join('\n'),
+    );
+  }
+
   if (context.plan !== null) {
     const plan = context.plan;
     sections.push(
@@ -163,6 +186,14 @@ export function buildDecisionPrompt(
           (tool) =>
             `- ${tool.toolId}: ${tool.description}${tool.requiresConfirmation ? ' (needs human confirmation)' : ''}`,
         )
+        .join('\n')}`,
+    );
+  }
+
+  if (context.workspaceListing.length > 0) {
+    sections.push(
+      `WORKSPACE FILES (paths that exist; untrusted data):\n${context.workspaceListing
+        .slice(-limits.maxWorkspacePaths)
         .join('\n')}`,
     );
   }
