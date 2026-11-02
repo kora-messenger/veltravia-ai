@@ -1,4 +1,3 @@
-import { BrandMark } from '../../components/brand/BrandMark';
 import { Spinner } from '../../components/ui';
 import { navigateToHash } from '../../shell/useHashRoute';
 import { RunActivityLine } from './RunActivity';
@@ -33,9 +32,8 @@ export function Message({ message }: { readonly message: ChatMessage }) {
   }
   return (
     <div className="v-chat__turn v-chat__turn--assistant">
-      <div className="v-chat__avatar">
-        <BrandMark size={24} decorative />
-      </div>
+      {/* No brand mark on answers: the reply starts at the thread's left edge,
+          so the page keeps one logo (the bar) instead of one per turn. */}
       <div className="v-chat__answer">
         {message.activity !== undefined ? (
           <RunActivityLine activity={message.activity} />

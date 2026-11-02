@@ -203,13 +203,6 @@
   overflow-wrap: anywhere;
 }
 
-.v-chat__avatar {
-  flex: 0 0 auto;
-  /* Matches BrandMark's 24px chip so the mark keeps its dark backing. */
-  width: 24px;
-  height: 24px;
-}
-
 .v-chat__answer {
   flex: 1 1 auto;
   min-width: 0;

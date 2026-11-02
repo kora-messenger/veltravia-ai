@@ -162,6 +162,21 @@ describe('the chat landing page', () => {
     expect(startRun).toHaveBeenCalledTimes(1);
   });
 
+  it('answers without repeating the brand mark on the turn', async () => {
+    startRun.mockResolvedValue(run());
+    const { container } = renderPage();
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Hello' } });
+    fireEvent.keyDown(screen.getByLabelText('Message'), { key: 'Enter' });
+    await screen.findByText('Here is what I found.');
+
+    // One logo on the page is the bar's; the reply itself carries none.
+    expect(container.querySelector('.v-chat__avatar')).toBeNull();
+    const turn = container.querySelector('.v-chat__turn--assistant');
+    // The status tick in the activity line is not branding; the brand mark is.
+    expect(turn?.querySelector('img, .v-brand-mark')).toBeNull();
+    expect(screen.queryByAltText(/veltravia/i)).toBeNull();
+  });
+
   it('keeps a failed run failed and offers to ask again', async () => {
     startRun.mockResolvedValue(
       run({

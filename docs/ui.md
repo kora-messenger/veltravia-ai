@@ -712,6 +712,13 @@ The new-conversation circle is outside the chat page's tree, so it announces
 itself with a `veltravia:new-chat` window event that `useChatSession` listens
 for. One engine still owns the reset.
 
+### Answers carry no brand mark
+
+Every assistant turn used to open with a 24px logo chip. It is gone. The reply
+now starts at the thread's left edge on both layouts, which keeps the version
+and the conversation legible with one logo on the page rather than one per turn.
+A test fails if a `.v-brand-mark` or `img` reappears inside an assistant turn.
+
 ### The header carries no premium crown yet
 
 The reference puts a crown in the top-right corner as the Premium indicator. That
@@ -743,8 +750,10 @@ The expansion lists the steps with their status (`Done`, `Failed`, `Refused`,
 `Waiting for approval`) and duration. At most twelve are kept. Durations round in
 integers first, so 1450 ms reads `1.5 s` rather than `1.4 s`.
 
-Only the spinner moves. The brand mark above the answer stays static per the
-standing rule, and `prefers-reduced-motion` drops the chevron transition.
+Only the spinner moves, and `prefers-reduced-motion` drops the chevron
+transition. No brand mark sits on a turn: answers start at the thread's left
+edge, so the page carries one logo (the bar's) instead of one per reply. The
+mark that remains, in the bar, stays static per the standing rule.
 
 **Known gap, stated plainly:** the engine publishes tool steps only when a
 provider is connected and the run actually calls tools. With no provider
