@@ -182,4 +182,20 @@ describe('Tooltip', () => {
     expect(describedBy).toBeTruthy();
     expect(document.getElementById(describedBy ?? '')?.textContent).toBe('Extra context');
   });
+
+  it('closes on Escape from the document, not only inside the panel', () => {
+    render(
+      <Menu
+        triggerLabel="Panel menu"
+        trigger={<span>open</span>}
+        items={[{ id: 'a', label: 'Notes', onSelect: () => {} }]}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Panel menu' }));
+    expect(screen.getByRole('menu')).toBeDefined();
+    // Focus stays on the trigger, which is exactly where a covered menu would
+    // otherwise trap the user.
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
 });

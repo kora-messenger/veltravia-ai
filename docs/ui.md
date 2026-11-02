@@ -85,7 +85,10 @@ pattern; toasts announce through a polite live region.
   glyphs) with exactly two rows, as the reference shows: Notes and Computer.
   Neither surface exists in this release, so both rows are disabled and carry a
   muted "Soon" note instead of pretending to work; wiring one is a line of
-  `onSelect` plus removing `disabled`. Removing these rows also removed the
+  `onSelect` plus removing `disabled`. The card opens over the control that
+  opened it (its top edge sits on the icon, not below it), so Escape and a tap
+  outside are the ways out: Escape is handled at the document because focus
+  stays on the trigger. Removing these rows also removed the
   theme control from the UI (it lived in that menu), so the app now follows
   the operating system's preference until a theme control is placed elsewhere.
 - `useHashRoute.ts` — minimal hash routing (`#/dashboard`, `#/projects`,

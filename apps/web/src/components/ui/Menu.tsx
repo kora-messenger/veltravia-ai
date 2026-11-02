@@ -56,9 +56,21 @@ export function Menu({ trigger, triggerLabel, items }: MenuProps) {
         setOpen(false);
       }
     };
+    // Escape is handled at the document, not only inside the panel: the trigger
+    // keeps focus when the menu opens, and a panel that covers its own trigger
+    // leaves the keyboard user with no way back otherwise.
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      close(true);
+    };
     document.addEventListener('pointerdown', onPointerDown, true);
-    return () => document.removeEventListener('pointerdown', onPointerDown, true);
-  }, [open]);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open, close]);
 
   const handleTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {

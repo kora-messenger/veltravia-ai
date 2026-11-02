@@ -289,9 +289,12 @@
 
 /* The account popup is a small card, not a page menu: 10.5rem wide, 14px rows
  * with an 18px glyph, so it drops in under the icon the way the reference does. */
+/* The card opens over the control that opened it: its top edge sits on the
+ * icon rather than below it, so the panel reads as one surface replacing the
+ * trigger. Escape, a second tap outside, or picking a row closes it. */
 .v-topbar__actions .v-menu__panel {
   min-width: 11rem;
-  margin-top: 0.5rem;
+  top: 0;
   padding: 0.25rem;
   border-radius: var(--v-radius-md);
 }
