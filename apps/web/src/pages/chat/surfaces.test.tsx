@@ -75,13 +75,18 @@ afterEach(() => {
 });
 
 describe('the website layout', () => {
-  it('centres a greeting behind the mark and puts each action on its card', () => {
+  it('centres a greeting behind the mark and lists the ways in as plain text', () => {
     renderPage();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Hey there');
-    expect(screen.getByRole('button', { name: 'Open the app builder' })).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Open document intelligence' })).toBeDefined();
-    // Website cards can be dismissed for the session.
-    expect(screen.getAllByRole('button', { name: /^Dismiss suggestion/ })).toHaveLength(2);
+    expect(
+      screen.getByRole('button', { name: 'Start something new from an empty project' }),
+    ).toBeDefined();
+    expect(
+      screen.getByRole('button', { name: 'Ask questions about your own documents' }),
+    ).toBeDefined();
+    // Plain lines: no close control, no icon chip, no second label.
+    expect(screen.queryByRole('button', { name: /^Dismiss suggestion/ })).toBeNull();
+    expect(document.querySelector('.v-chat__suggestion-icon')).toBeNull();
   });
 
   it('does not render the app-only new-conversation circle', () => {
@@ -123,9 +128,10 @@ describe('the packaged app layout', () => {
     expect(window.location.hash).toBe('#/builder');
   });
 
-  it('does not offer per-card dismissal, unlike the website', () => {
+  it('draws the ways in as plain text, without a pill or an icon', () => {
     runAsPackagedApp();
     renderPage();
+    expect(document.querySelector('.v-chat__prompt-icon')).toBeNull();
     expect(screen.queryByRole('button', { name: /^Dismiss suggestion/ })).toBeNull();
   });
 });

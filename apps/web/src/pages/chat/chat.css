@@ -72,46 +72,29 @@
   text-align: left;
 }
 
+/* A plain line of text that happens to be a destination: no fill, no border,
+   no radius, no icon. Only the colour and the underline change on hover, so it
+   still reads as something you can press. */
 .v-chat__suggestion {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: var(--v-space-3);
-  padding: var(--v-space-4);
-  border: 1px solid var(--v-border);
-  border-radius: var(--v-radius-lg);
-  background: var(--v-surface-raised);
-  box-shadow: var(--v-shadow-1);
-}
-
-.v-chat__suggestion-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--v-radius-full);
-  background: var(--v-surface-muted);
-  color: var(--v-text-muted);
-}
-
-.v-chat__suggestion-action {
-  white-space: nowrap;
-}
-
-.v-chat__suggestion-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--v-space-1);
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.v-chat__suggestion-title {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font: inherit;
   font-size: var(--v-text-md);
-  color: var(--v-text);
   line-height: 1.45;
+  color: var(--v-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.v-chat__suggestion:hover {
+  color: var(--v-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .v-chat__link {
@@ -534,31 +517,28 @@
   list-style: none;
 }
 
+/* Plain text here too: the phone rows used to be outlined pills with an icon.
+   44px of height keeps the thumb target without drawing anything. */
 .v-chat__prompt {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--v-space-2);
-  /* 44px: comfortable for a thumb, above the 40px the reference implies. */
+  display: block;
+  /* 44px: comfortable for a thumb, above the 40px a pill would imply. */
   min-height: 44px;
-  padding: 0 var(--v-space-4) 0 var(--v-space-3);
-  border: 1px solid var(--v-border);
-  border-radius: var(--v-radius-full);
-  background: var(--v-surface-raised);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
   font: inherit;
   font-size: var(--v-text-md);
   font-weight: var(--v-weight-medium);
-  color: var(--v-text);
+  color: var(--v-text-muted);
   text-align: left;
   cursor: pointer;
 }
 
 .v-chat__prompt:hover {
-  background: var(--v-surface-hover);
-}
-
-.v-chat__prompt-icon {
-  display: inline-flex;
-  color: var(--v-text-muted);
+  color: var(--v-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* The type box floats clear of the gesture bar rather than sitting on it. */

@@ -1,5 +1,5 @@
 import { navigateToHash } from '../../shell/useHashRoute';
-import { DocumentIcon, NewChatIcon, PencilIcon } from './chatIcons';
+import { NewChatIcon } from './chatIcons';
 import type { Suggestion } from './suggestions';
 
 export interface MobileLandingProps {
@@ -8,9 +8,9 @@ export interface MobileLandingProps {
 }
 
 /**
- * The packaged app's empty state, laid out the way the phone reference is: no
- * hero mark competing for a small screen, the two ways in as pill rows above
- * the type box, and the whitespace above them left empty on purpose.
+ * The packaged app's empty state: no hero mark competing for a small screen,
+ * the two ways in as plain lines above the type box, and the whitespace above
+ * them left empty on purpose.
  *
  * The menu control is the shell's (top-left); this row supplies the other
  * circle the reference has, which starts a fresh conversation.
@@ -40,9 +40,6 @@ export function MobileLanding({ suggestions, onNewChat }: MobileLandingProps) {
                 className="v-chat__prompt"
                 onClick={() => navigateToHash(suggestion.hash)}
               >
-                <span className="v-chat__prompt-icon" aria-hidden="true">
-                  {suggestion.icon === 'pencil' ? <PencilIcon /> : <DocumentIcon />}
-                </span>
                 {suggestion.short}
               </button>
             </li>

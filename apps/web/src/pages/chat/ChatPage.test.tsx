@@ -96,7 +96,10 @@ describe('the chat landing page', () => {
     expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Hey there');
     expect(await screen.findByText('Start something new from an empty project')).toBeDefined();
     expect(screen.getByText('Ask questions about your own documents')).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Open the app builder' })).toBeDefined();
+    // Each line is its own destination, named by the text it shows.
+    expect(
+      screen.getByRole('button', { name: 'Start something new from an empty project' }),
+    ).toBeDefined();
   });
 
   it('uses the name the owner gave, and no name when they gave none', async () => {
@@ -128,17 +131,15 @@ describe('the chat landing page', () => {
     expect(await screen.findByText(/Hey Ijezie/)).toBeDefined();
   });
 
-  it('dismisses a suggestion and keeps it dismissed', async () => {
+  it('offers the ways in as plain text with nothing to dismiss', async () => {
     renderPage();
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: 'Dismiss suggestion: Start something new from an empty project',
-      }),
-    );
-    expect(screen.queryByText('Start something new from an empty project')).toBeNull();
     expect(
-      JSON.parse(window.sessionStorage.getItem('veltravia.chat.dismissed-suggestions') ?? '[]'),
-    ).toEqual(['builder']);
+      screen.getByRole('button', { name: 'Start something new from an empty project' }),
+    ).toBeDefined();
+    // Nothing draws a box or a close control around them any more.
+    expect(screen.queryByRole('button', { name: /^Dismiss suggestion/ })).toBeNull();
+    expect(document.querySelector('.v-chat__suggestion-icon')).toBeNull();
+    expect(screen.queryByText('Open the app builder')).toBeNull();
   });
 
   it('says answers are simulated when no provider is connected', async () => {

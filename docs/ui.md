@@ -594,14 +594,14 @@ pixels:
 | composer border `#D1D1D1`, radius 16  | `--v-border-strong`, 16 px                                                             |
 | send button `#4250F4`, ~34 px         | `--v-primary` (the brand violet; the reference's blue is not adopted), 32 px, radius 8 |
 | placeholder `#8C8C8C`, 16 px          | `--v-text-faint`, `--v-text-lg`                                                        |
-| suggestion card radius 12, padding 16 | `--v-radius-lg`, `--v-space-4`                                                         |
+| suggestion card radius 12, padding 16 | not drawn: the ways in are plain lines (see below)                                     |
 | greeting ~30 px                       | `--v-text-3xl` (30 px), 24 px under 560 px                                             |
 
 Three deliberate departures from the reference:
 
 1. **No phone suggestion.** The reference offers "let your agent call people".
-   This build has no calling channel, so the card is omitted rather than shown
-   as a dead end. The remaining two suggestions navigate somewhere real.
+   This build has no calling channel, so it is omitted rather than shown as a
+   dead end. The remaining two ways in navigate somewhere real.
 2. **No name is invented.** The greeting reads `Hey <name>,` only when the
    owner has given their own name in the agent-name dialog; otherwise
    `Hey there,`.
@@ -689,14 +689,24 @@ stays the app. Both read their state from one `useChatSession` hook, so the
 provider wording, the send rules and the placeholder rules cannot drift; both
 use the same `ChatComposer`.
 
-**Website** (`v-chat--web`): the brand mark, a centred greeting, then one card
-per way in, carrying its icon, its title, its action on the right and a dismiss
-control. The composer sits in a 720 px column.
+**Website** (`v-chat--web`): the brand mark, a centred greeting, then one plain
+line per way in. The composer sits in a 720 px column.
 
 **Packaged app** (`v-chat--app`): no hero mark and no greeting competing for the
-screen; the two ways in become pill rows (44 px tall, thumb-sized) above the type
-box, with the deliberate whitespace above them, and the composer floats clear of
-the gesture bar on a 16 px gutter.
+screen; the two ways in are the same plain lines, shortened (`Build something
+new`), above the type box, with the deliberate whitespace above them, and the
+composer floats clear of the gesture bar on a 16 px gutter.
+
+The ways in carry no decoration at all. They used to be cards with a fill, a
+border, a 12 px radius, an icon chip, a second violet label and a dismiss
+control; all of it is gone by request, on both layouts, so an empty conversation
+reads as two sentences instead of two boxes. Each line is still a real button
+with a 44 px hit height, its own text as its accessible name, and a hover state
+that changes colour and underlines it, so it never becomes text that looks dead
+while accepting a tap. Measured in the browser at 390 px and 1440 px: two lines,
+`border-top-width: 0px`, `background: transparent`, `border-radius: 0px`,
+`box-shadow: none`, zero `svg`/`img` descendants. Clicking the second line lands
+on `#/documents`.
 
 Where this build departs from the phone reference, and why:
 

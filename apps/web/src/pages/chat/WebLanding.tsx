@@ -1,20 +1,20 @@
 import { BrandMark } from '../../components/brand/BrandMark';
 import { navigateToHash } from '../../shell/useHashRoute';
-import { CloseIcon, DocumentIcon, PencilIcon } from './chatIcons';
 import type { Suggestion } from './suggestions';
 
 export interface WebLandingProps {
   readonly name: string | null;
   readonly suggestions: readonly Suggestion[];
-  readonly onDismiss: (id: string) => void;
 }
 
 /**
- * The website's empty state: the mark, a greeting, and two cards that each go
- * somewhere real. The card carries its action on the right, the way the
- * reference does, and can be dismissed for the session.
+ * The website's empty state: the mark, a greeting, and two ways in.
+ *
+ * The ways in are plain lines of text that go somewhere real. No box, no icon,
+ * no close control: an empty conversation should read as an invitation, not as
+ * a pair of cards competing with the composer.
  */
-export function WebLanding({ name, suggestions, onDismiss }: WebLandingProps) {
+export function WebLanding({ name, suggestions }: WebLandingProps) {
   return (
     <div className="v-chat__hero">
       <BrandMark size={56} decorative />
@@ -25,25 +25,13 @@ export function WebLanding({ name, suggestions, onDismiss }: WebLandingProps) {
       {suggestions.length > 0 && (
         <ul className="v-chat__suggestions">
           {suggestions.map((suggestion) => (
-            <li className="v-chat__suggestion" key={suggestion.id}>
-              <span className="v-chat__suggestion-icon" aria-hidden="true">
-                {suggestion.icon === 'pencil' ? <PencilIcon /> : <DocumentIcon />}
-              </span>
-              <span className="v-chat__suggestion-title">{suggestion.title}</span>
+            <li key={suggestion.id}>
               <button
                 type="button"
-                className="v-chat__link v-chat__suggestion-action"
+                className="v-chat__suggestion"
                 onClick={() => navigateToHash(suggestion.hash)}
               >
-                {suggestion.actionLabel}
-              </button>
-              <button
-                type="button"
-                className="v-chat__dismiss"
-                aria-label={`Dismiss suggestion: ${suggestion.title}`}
-                onClick={() => onDismiss(suggestion.id)}
-              >
-                <CloseIcon />
+                {suggestion.title}
               </button>
             </li>
           ))}
