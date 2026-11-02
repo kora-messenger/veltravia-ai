@@ -24,8 +24,16 @@ export interface RuntimeConfig {
 
 export const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = { apiBaseUrl: '' };
 
-/** Where the packaged application expects to find its configuration. */
-export const RUNTIME_CONFIG_PATH = '/runtime-config.json';
+/**
+ * Where the application expects to find its configuration.
+ *
+ * Relative, deliberately: the same bundle is served from a domain root, from a
+ * sub-path (GitHub Pages serves a project site under `/<repo>/`) and from the
+ * Capacitor WebView. A root-absolute path would fetch the host's root instead of
+ * the app's own directory and silently fall back to "same origin" on any host
+ * that is not the API.
+ */
+export const RUNTIME_CONFIG_PATH = 'runtime-config.json';
 
 let current: RuntimeConfig = DEFAULT_RUNTIME_CONFIG;
 

@@ -1,0 +1,127 @@
+name: Deploy web app
+
+# The browser application, published to GitHub Pages.
+#
+# Pages serves static files from github.io, which is enough for the web bundle
+# and nothing else: the Veltravia API needs Node, streaming responses and a
+# writable disk, so it is hosted elsewhere and this page points at it through
+# `runtime-config.json`. A page here is therefore *the client*, not the product.
+#
+# The site is a project site, served under `/<repo>/`, so the bundle is built
+# with a relative base. A root-absolute build would 404 every asset and, worse,
+# look like a broken app rather than a misconfigured build, which is why the
+# step below fails loudly if the output is not relative.
+#
+# Nothing secret is involved: a public API base URL is the only configuration,
+# it comes from a repository *variable* (never a secret), and it is validated
+# before it is written.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'packages/**'
+      - 'scripts/write-runtime-config.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/pages.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One publish at a time; a newer commit supersedes a queued publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the web bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve the API base URL
+        id: api
+        env:
+          REPO_URL: ${{ vars.VELTRAVIA_API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          URL="${REPO_URL:-}"
+          if [ -z "$URL" ]; then
+            echo "::warning::No API URL configured. The page will deploy but cannot reach Veltravia: set the repository variable VELTRAVIA_API_BASE_URL (https, no trailing slash) and re-run."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            case "$URL" in
+              https://*) ;;
+              *) echo "::error::VELTRAVIA_API_BASE_URL must start with https:// (got a non-https value)."; exit 1 ;;
+            esac
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "url=$URL" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The web bundle imports the workspace packages, which ship as compiled
+      # dist output: a clean checkout has none, so the root build runs first,
+      # exactly as CI and the APK workflow do.
+      - name: Build packages and the application
+        run: npm run build
+
+      - name: Write the public runtime configuration
+        if: steps.api.outputs.configured == 'true'
+        run: node scripts/write-runtime-config.mjs "${URL}"
+        env:
+          URL: ${{ steps.api.outputs.url }}
+
+      - name: Build the bundle for a project-site sub-path
+        run: npm run build --workspace @veltravia/web -- --base=./
+
+      - name: Verify the bundle can be served from a sub-path
+        run: |
+          set -euo pipefail
+          DIST=apps/web/dist
+          test -f "$DIST/index.html" || { echo "::error::the build produced no index.html"; exit 1; }
+          test -f "$DIST/runtime-config.json" || { echo "::error::runtime-config.json is missing from the bundle"; exit 1; }
+          if grep -oE '(src|href)="/[^"]*"' "$DIST/index.html" | grep -v '^\(src\|href\)="//' >/dev/null; then
+            echo "::error::index.html still points at root-absolute assets and would 404 under /<repo>/"
+            grep -oE '(src|href)="/[^"]*"' "$DIST/index.html" | head -5
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json
+          config = json.load(open('apps/web/dist/runtime-config.json'))
+          assert list(config) == ['apiBaseUrl'], f"unexpected keys: {list(config)}"
+          url = config['apiBaseUrl']
+          assert url == '' or url.startswith('https://'), f"apiBaseUrl must be https or empty, got {url!r}"
+          print('runtime-config:', 'configured' if url else 'empty (the page will show its offline notice)')
+          PY
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/dist
+
+  deploy:
+    name: Publish to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
