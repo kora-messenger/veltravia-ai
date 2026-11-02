@@ -467,12 +467,22 @@
 
 /* The picture preview sits above the field, inside the same container, and is
    absent entirely when nothing is attached. */
+.v-chat-composer__attachments {
+  display: flex;
+  gap: var(--v-space-2);
+  /* Ten pictures would otherwise push the input off a phone screen. */
+  overflow-x: auto;
+  padding-bottom: var(--v-space-2);
+  margin: 0;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
 .v-chat-composer__attachment {
   position: relative;
-  align-self: flex-start;
+  flex: 0 0 auto;
   width: 76px;
   height: 76px;
-  margin-bottom: var(--v-space-2);
   border-radius: var(--v-radius-md);
   overflow: visible;
 }

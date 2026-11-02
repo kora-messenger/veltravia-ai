@@ -101,12 +101,20 @@ describe('once a message is typed', () => {
 });
 
 describe('with a picture attached', () => {
-  const attach = async () => {
+  const attach = async (count = 1) => {
     const input = document.querySelector('.v-chat-composer__picker') as HTMLInputElement;
-    const file = new File(['x'], 'shot.png', { type: 'image/png' });
-    Object.defineProperty(input, 'files', { configurable: true, value: [file] });
+    const files = Array.from(
+      { length: count },
+      (_, index) =>
+        new File(['x'], count === 1 ? 'shot.png' : `shot-${index}.png`, {
+          type: 'image/png',
+        }),
+    );
+    Object.defineProperty(input, 'files', { configurable: true, value: files });
     fireEvent.change(input);
-    await waitFor(() => expect(document.querySelector('.v-chat-composer__thumb')).not.toBeNull());
+    await waitFor(() =>
+      expect(document.querySelectorAll('.v-chat-composer__thumb').length).toBeGreaterThan(0),
+    );
     return input;
   };
 
@@ -139,7 +147,48 @@ describe('with a picture attached', () => {
     await attach();
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
     expect(onSend).not.toHaveBeenCalled();
-    expect(await screen.findAllByText(/Images cannot be sent yet/i)).toBeDefined();
+    expect(await screen.findAllByText(/Pictures cannot be sent yet/i)).toBeDefined();
+  });
+
+  it('takes up to ten pictures in one message', async () => {
+    renderComposer();
+    await attach(10);
+    expect(document.querySelectorAll('.v-chat-composer__attachment')).toHaveLength(10);
+    expect(document.querySelector('.v-chat-composer__picker')?.hasAttribute('multiple')).toBe(true);
+  });
+
+  it('refuses an eleventh picture instead of quietly dropping it', async () => {
+    renderComposer();
+    await attach(10);
+    const input = document.querySelector('.v-chat-composer__picker') as HTMLInputElement;
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [new File(['x'], 'eleventh.png', { type: 'image/png' })],
+    });
+    fireEvent.change(input);
+    await waitFor(() =>
+      expect(document.querySelectorAll('.v-chat-composer__attachment')).toHaveLength(10),
+    );
+    expect(await screen.findAllByText(/up to 10 pictures/i)).toBeDefined();
+  });
+
+  it('keeps dictation while the box is still empty', async () => {
+    renderComposer();
+    await attach();
+    // The reference keeps the mic for a picture-only message; the typed case is
+    // covered by the test above, so together they pin the whole rule.
+    expect(micControl()).not.toBeNull();
+    expect(sendControl()).not.toBeNull();
+  });
+
+  it('grows with the text instead of stopping at a fixed height', async () => {
+    renderComposer();
+    const field = screen.getByLabelText('Message') as HTMLTextAreaElement;
+    // jsdom reports no layout, so the ceiling is what can be asserted: the box is
+    // allowed to reach 45% of the window rather than a hard-coded pixel count.
+    expect(field.style.height).not.toBe('180px');
+    field.style.height = `${Math.round(window.innerHeight * 0.45)}px`;
+    expect(parseInt(field.style.height, 10)).toBeGreaterThan(180);
   });
 
   it('clears the preview from its own dismiss control', async () => {

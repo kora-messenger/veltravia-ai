@@ -54,7 +54,15 @@ export interface ChatComposerProps {
   readonly providerDetail: string;
 }
 
-const MAX_ROWS_PX = 180;
+/**
+ * The box grows with what is typed and has no character ceiling of its own. It
+ * stops growing at 45% of the window so the conversation stays visible, and
+ * scrolls inside after that: a long message is never truncated, only scrolled.
+ */
+const MAX_GROWTH = 0.45;
+
+/** How many pictures one message may carry. */
+const MAX_ATTACHMENTS = 10;
 
 /**
  * The message composer, laid out like the reference: one plain field on top of
@@ -83,7 +91,7 @@ export function ChatComposer({
   const recognition = useRef<SpeechRecognitionLike | null>(null);
   const [listening, setListening] = useState(false);
   const [dictation, setDictation] = useState(false);
-  const [image, setImage] = useState<{ name: string; url: string } | null>(null);
+  const [images, setImages] = useState<readonly { name: string; url: string }[]>([]);
   const { toast } = useToast();
 
   // Feature detection runs after mount so the control is never rendered for a
@@ -96,23 +104,49 @@ export function ChatComposer({
     const element = field.current;
     if (element === null) return;
     element.style.height = 'auto';
-    element.style.height = `${Math.min(element.scrollHeight, MAX_ROWS_PX)}px`;
+    const ceiling = Math.round(window.innerHeight * MAX_GROWTH);
+    element.style.height = `${Math.min(element.scrollHeight, ceiling)}px`;
   }, [value]);
 
-  // An object URL lives until it is revoked, so both replacing and removing the
-  // preview free the last one.
-  const replaceImage = (next: { name: string; url: string } | null) => {
-    setImage((current) => {
-      if (current !== null) URL.revokeObjectURL(current.url);
+  // Every object URL lives until it is revoked, so removing one preview, clearing
+  // the box and unmounting all free what they opened.
+  const revokeAll = (attachments: readonly { url: string }[]) => {
+    for (const attachment of attachments) URL.revokeObjectURL(attachment.url);
+  };
+
+  const addImages = (files: readonly File[]) => {
+    setImages((current) => {
+      const room = MAX_ATTACHMENTS - current.length;
+      if (room <= 0) {
+        toast(`You can attach up to ${MAX_ATTACHMENTS} pictures.`, { tone: 'error' });
+        return current;
+      }
+      const accepted = files.slice(0, room);
+      if (files.length > room) {
+        toast(`Only ${room} more could be added: the limit is ${MAX_ATTACHMENTS}.`, {
+          tone: 'error',
+        });
+      }
+      return [
+        ...current,
+        ...accepted.map((file) => ({ name: file.name, url: URL.createObjectURL(file) })),
+      ];
+    });
+  };
+
+  const removeImage = (url: string) => {
+    setImages((current) => {
+      const next = current.filter((attachment) => attachment.url !== url);
+      if (next.length !== current.length) URL.revokeObjectURL(url);
       return next;
     });
   };
 
   useEffect(
     () => () => {
-      setImage((current) => {
-        if (current !== null) URL.revokeObjectURL(current.url);
-        return null;
+      setImages((current) => {
+        revokeAll(current);
+        return [];
       });
     },
     [],
@@ -159,7 +193,7 @@ export function ChatComposer({
   const typed = value.trim() !== '';
   // The reference swaps the far-right control: a voice control while there is
   // nothing to send, the send arrow as soon as there is a message or an image.
-  const hasSomethingToSend = typed || image !== null;
+  const hasSomethingToSend = typed || images.length > 0;
   const canSend = hasSomethingToSend && !busy;
 
   /**
@@ -169,10 +203,13 @@ export function ChatComposer({
    */
   const sendOrExplain = () => {
     if (busy) return;
-    if (image !== null) {
-      toast('Images cannot be sent yet. Remove the image to send this message.', {
-        tone: 'error',
-      });
+    if (images.length > 0) {
+      toast(
+        images.length === 1
+          ? 'Pictures cannot be sent yet. Remove it to send this message.'
+          : 'Pictures cannot be sent yet. Remove them to send this message.',
+        { tone: 'error' },
+      );
       return;
     }
     onSend();
@@ -180,29 +217,31 @@ export function ChatComposer({
 
   return (
     <div className="v-chat-composer">
-      {image !== null && (
-        <div className="v-chat-composer__attachment">
-          <img className="v-chat-composer__thumb" src={image.url} alt={image.name} />
-          <button
-            type="button"
-            className="v-chat-composer__dismiss"
-            onClick={() => replaceImage(null)}
-            aria-label={`Remove ${image.name}`}
-          >
-            <CloseIcon size={12} />
-          </button>
-        </div>
+      {images.length > 0 && (
+        <ul className="v-chat-composer__attachments">
+          {images.map((image) => (
+            <li className="v-chat-composer__attachment" key={image.url}>
+              <img className="v-chat-composer__thumb" src={image.url} alt={image.name} />
+              <button
+                type="button"
+                className="v-chat-composer__dismiss"
+                onClick={() => removeImage(image.url)}
+                aria-label={`Remove ${image.name}`}
+              >
+                <CloseIcon size={12} />
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
       <input
         ref={picker}
         type="file"
         accept="image/*"
+        multiple
         className="v-chat-composer__picker"
         onChange={(event) => {
-          const chosen = event.target.files?.[0];
-          if (chosen !== undefined) {
-            replaceImage({ name: chosen.name, url: URL.createObjectURL(chosen) });
-          }
+          addImages(Array.from(event.target.files ?? []));
           event.target.value = '';
         }}
       />
@@ -258,7 +297,9 @@ export function ChatComposer({
 
         <div className="v-chat-composer__spacer" />
 
-        {dictation && !typed && image !== null && (
+        {/* The reference keeps dictation while the box is empty, even with a
+            picture attached, and drops it the moment there is text to send. */}
+        {dictation && !typed && images.length > 0 && (
           <button
             type="button"
             className={

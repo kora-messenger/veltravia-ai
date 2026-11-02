@@ -7,7 +7,11 @@ import {
   InMemoryUsageStore,
   InMemoryVaultRecordStore,
   loadVaultKeyring,
+  type ConnectionStore,
+  type PreferenceStore,
+  type UsageStore,
   type VaultKeyring,
+  type VaultRecordStore,
 } from '@veltravia/ai-gateway';
 
 import {
@@ -65,6 +69,16 @@ export interface GatewayServiceOptions {
   readonly env?: NodeJS.ProcessEnv;
   /** Owner the startup seed runs for. */
   readonly bootstrapOwnerRef?: string;
+  /**
+   * Durable replacements for the four in-memory stores. Omitted means the
+   * defaults stay in memory, which is what tests and local work rely on.
+   */
+  readonly stores?: {
+    readonly vault?: VaultRecordStore;
+    readonly connections?: ConnectionStore;
+    readonly preferences?: PreferenceStore;
+    readonly usage?: UsageStore;
+  };
 }
 
 const NOTHING: PoolSeedResult = {
@@ -105,14 +119,14 @@ export function createGatewayService(options: GatewayServiceOptions = {}): Gatew
   const now = options.now ?? (() => new Date());
   const vault = new CredentialVault({
     keyring,
-    store: new InMemoryVaultRecordStore(),
+    store: options.stores?.vault ?? new InMemoryVaultRecordStore(),
     now,
   });
   const gateway = new AIProviderGateway({
     vault,
-    connections: new InMemoryConnectionStore(),
-    preferences: new InMemoryPreferenceStore(),
-    usage: new InMemoryUsageStore(),
+    connections: options.stores?.connections ?? new InMemoryConnectionStore(),
+    preferences: options.stores?.preferences ?? new InMemoryPreferenceStore(),
+    usage: options.stores?.usage ?? new InMemoryUsageStore(),
     transport: options.transport ?? new FetchProviderTransport(),
     ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
     ...(options.rateLimitFloorMs !== undefined

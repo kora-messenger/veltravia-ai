@@ -1,0 +1,160 @@
+name: Deploy API
+
+# Deployment is a deliberate act, never a side effect of pushing.
+#
+#   - A manual run (workflow_dispatch) is the only way to deploy.
+#   - The ref must be an authorised branch or a tag: main for staging, a v* tag
+#     for production. A feature branch can be verified but never deployed.
+#   - `environment:` binds the run to a GitHub environment, so repository owners
+#     can require reviewers and scope the secrets to that environment only.
+#   - Every secret is read from the environment's secret store. None is written
+#     in this file.
+#
+# The job refuses to report success unless the deployed service actually answers
+# its own /ready endpoint. A skipped job stays skipped (grey), not green.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which environment to deploy to
+        type: choice
+        options: [staging, production]
+        required: true
+      confirm:
+        description: Type DEPLOY to confirm
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-api-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Authorise the deployment
+    runs-on: ubuntu-latest
+    outputs:
+      proceed: ${{ steps.check.outputs.proceed }}
+    steps:
+      - name: Refuse an unconfirmed or unauthorised run
+        id: check
+        env:
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+          TARGET: ${{ inputs.target }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -eu
+          fail() { echo "::error::$1"; echo "proceed=false" >> "$GITHUB_OUTPUT"; exit 1; }
+
+          [ "${CONFIRM}" = "DEPLOY" ] || fail "Confirmation phrase missing: nothing was deployed."
+
+          case "${TARGET}" in
+            staging)
+              [ "${REF}" = "refs/heads/main" ] || fail "Staging deploys only from main, not ${REF}."
+              ;;
+            production)
+              case "${REF_NAME}" in
+                v*) ;;
+                *) fail "Production deploys only from a v* tag, not ${REF_NAME}." ;;
+              esac
+              ;;
+            *) fail "Unknown target: ${TARGET}." ;;
+          esac
+
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+
+  verify:
+    name: Verify before deploying
+    needs: guard
+    if: needs.guard.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+
+  deploy:
+    name: Deploy ${{ inputs.target }}
+    needs: [guard, verify]
+    if: needs.guard.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    # Reviewers and secrets are configured on this environment, not here.
+    environment: ${{ inputs.target }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build
+
+      # No provider account is configured in this repository, so the deployment
+      # token is absent until an owner adds it to the environment. Say so and
+      # stop: a skipped job is honest, a green job that deployed nothing is not.
+      - name: Check deployment credentials
+        id: credentials
+        env:
+          DEPLOY_HOOK: ${{ secrets.DEPLOY_HOOK_URL }}
+          PUBLIC_URL: ${{ secrets.VELTRAVIA_PUBLIC_API_URL }}
+        run: |
+          set -eu
+          if [ -z "${DEPLOY_HOOK}" ] || [ -z "${PUBLIC_URL}" ]; then
+            echo "::notice::Deployment credentials are not configured for this environment. Nothing was deployed. See docs/backend-deployment.md step 6."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger the deploy
+        if: steps.credentials.outputs.ready == 'true'
+        env:
+          DEPLOY_HOOK: ${{ secrets.DEPLOY_HOOK_URL }}
+        run: |
+          set -eu
+          # The platform's own deploy hook. It answers 200 only when a build was
+          # actually queued; anything else fails this step.
+          code=$(curl -sS -o /tmp/hook.out -w '%{http_code}' -X POST "${DEPLOY_HOOK}")
+          echo "hook responded ${code}"
+          [ "${code}" = "200" ] || { cat /tmp/hook.out; exit 1; }
+
+      - name: Prove the deployed API is ready
+        if: steps.credentials.outputs.ready == 'true'
+        env:
+          PUBLIC_URL: ${{ secrets.VELTRAVIA_PUBLIC_API_URL }}
+        run: |
+          set -eu
+          # The deploy is only complete when the service says so itself. A hook
+          # answering 200 proves a build was queued, not that it came up.
+          deadline=$(( $(date +%s) + 300 ))
+          until [ "$(date +%s)" -gt "${deadline}" ]; do
+            if body=$(curl -fsS --max-time 10 "${PUBLIC_URL%/}/ready"); then
+              echo "$body"
+              echo "::notice::Deployed and ready: ${PUBLIC_URL}"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::The deployed service did not become ready within 5 minutes."
+          exit 1

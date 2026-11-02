@@ -20,6 +20,7 @@ import { createAppBuilderManager } from './app-builder-service.js';
 import type { RouteSelectorRequest } from '@veltravia/ai-gateway';
 import { createAiExecutionService } from './ai-execution-service.js';
 import type { AiExecutionService } from './ai-execution-service.js';
+import type { GatewayServiceOptions } from './ai-gateway-service.js';
 import { registerReasoningRoutes } from './routes/reasoning.js';
 import { registerAgentProfileRoutes } from './routes/agent-profile.js';
 import { AgentProfileStore } from './agent-profile.js';
@@ -36,6 +37,9 @@ import {
 } from './document-service.js';
 import { createConnectionService } from './connections-service.js';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { fastifyLimits, registerSecurity } from './deployment/security.js';
+import { resolveDeploymentConfig, type DeploymentConfig } from './deployment/config.js';
+import { registerHealthRoutes } from './routes/health.js';
 import type { AICore } from '@veltravia/ai-core';
 import type { ConnectorManager } from '@veltravia/connector-core';
 import type { AgentManager } from '@veltravia/agent-core';
@@ -51,8 +55,6 @@ import type { CodebaseIntelligenceManager } from '@veltravia/codebase-core';
 import type { RuntimeManager } from '@veltravia/runtime-core';
 import type { VersionControlManager } from '@veltravia/version-core';
 import type { FileIntelligenceManager } from '@veltravia/file-intelligence-core';
-import { formatTimestamp } from '@veltravia/shared';
-import { VELTRAVIA_NAME, VELTRAVIA_VERSION, type HealthCheckResponse } from '@veltravia/types';
 import { createAICore } from './ai.js';
 import { createConnectorManager } from './connectors.js';
 import { createAgentManager } from './agents.js';
@@ -134,6 +136,12 @@ export interface BuildAppOptions {
   readonly runtimeManager?: RuntimeManager;
   /** Version Control manager (Step 18). Defaults to an in-process manager. */
   readonly versionManager?: VersionControlManager;
+  /** Resolved deployment configuration. A test never has to supply one. */
+  readonly deployment?: DeploymentConfig;
+  /** Marketplace of durable gateway stores, when file storage is configured. */
+  readonly gatewayStores?: NonNullable<GatewayServiceOptions['stores']>;
+  /** Proves durable storage works; wired by main.ts when a data directory exists. */
+  readonly verifyStorage?: () => Promise<void>;
   /** File Intelligence manager (Step 19). Defaults to process-local mock storage. */
   readonly fileManager?: FileIntelligenceManager;
   /** Audio Intelligence manager (Step 20). Defaults to the mock provider. */
@@ -154,19 +162,26 @@ export interface BuildAppOptions {
  * Tests use this entry point via fastify.inject(); main.ts starts the listener.
  */
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
+  const config = options.deployment ?? resolveDeploymentConfig();
   const app = Fastify({
     logger: false,
+    ...fastifyLimits(config),
     // Strict validation: unknown properties are rejected (400), not silently
     // stripped - the API contract stays exact.
     ajv: { customOptions: { removeAdditional: false } },
   });
 
-  app.get('/health', async (): Promise<HealthCheckResponse> => ({
-    status: 'ok',
-    service: `${VELTRAVIA_NAME} API`,
-    version: VELTRAVIA_VERSION,
-    timestamp: formatTimestamp(),
-  }));
+  // Deployment plumbing comes first: it decides who may call, how much they may
+  // send and what an error may say, so no route can answer before it applies.
+  registerSecurity(app, { config });
+
+  // Liveness for the load balancer, readiness for traffic. Readiness verifies
+  // durable storage only when the deployment claims to have some.
+  registerHealthRoutes(app, {
+    config,
+    dependencies:
+      options.verifyStorage === undefined ? {} : { verifyStorage: options.verifyStorage },
+  });
 
   const aiCore = options.aiCore ?? createAICore();
   registerAIRoutes(app, aiCore);
@@ -215,7 +230,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // versioned AES-256-GCM key from the environment; when no key is configured
   // the service reports `ready: false` and refuses to store anything rather
   // than falling back to plaintext.
-  const aiGateway = options.aiGateway ?? createGatewayService({});
+  const aiGateway =
+    options.aiGateway ??
+    createGatewayService(
+      options.gatewayStores === undefined ? {} : { stores: options.gatewayStores },
+    );
 
   // Step 28: one model-selection seam for the whole platform. The router reads
   // the owner's connections from the same gateway that will make the call, so a
