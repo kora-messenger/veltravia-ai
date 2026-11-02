@@ -76,6 +76,8 @@ pattern; toasts announce through a polite live region.
   crown returns when there is a real subscription behind it, and until then
   the bar carries no decorative status mark. Verified in-browser at 390px and
   1280px (bar height 56px, title 18px/500, no horizontal overflow).
+  It is drawn at 22px with a 1.6 stroke (the shell default is a 16px icon),
+  so it reads as dark as the title rather than as a thin outline.
   The account control is the reference glyph redrawn inline: a document with
   three ruled lines in the upper right and a monitor standing in front of its
   lower-left corner. The monitor is stamped twice, once in the bar's surface
@@ -85,7 +87,9 @@ pattern; toasts announce through a polite live region.
   glyphs) with exactly two rows, as the reference shows: Notes and Computer.
   Neither surface exists in this release, so both rows are disabled and carry a
   muted "Soon" note instead of pretending to work; wiring one is a line of
-  `onSelect` plus removing `disabled`. The card opens over the control that
+  `onSelect` plus removing `disabled`. Disabled rows keep full contrast (20px
+  glyph, `--v-text`), because the reference popup is solid black; the Soon note
+  and the not-allowed cursor carry the unavailable state. The card opens over the control that
   opened it (its top edge sits on the icon, not below it), so Escape and a tap
   outside are the ways out: Escape is handled at the document because focus
   stays on the trigger. Removing these rows also removed the

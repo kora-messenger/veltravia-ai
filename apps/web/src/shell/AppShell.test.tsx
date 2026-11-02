@@ -227,6 +227,14 @@ describe('AppShell', () => {
     expect(document.y).toBeLessThan(monitor.y);
     expect(svg?.querySelector('.v-topbar__icon-knockout')).not.toBeNull();
 
+    // Drawn solid: a 1.6 stroke at 22px, not the shell's thin 16px default, so
+    // it reads as dark as the title beside it.
+    const strokes = Array.from(svg?.querySelectorAll('g') ?? []).map((group) =>
+      Number(group.getAttribute('stroke-width')),
+    );
+    expect(strokes).toEqual([1.6, 3.6, 1.6]);
+    expect(container.querySelector('.v-topbar__account-icon .v-icon')).not.toBeNull();
+
     // Decorative: the button's own name carries the meaning.
     expect(svg?.getAttribute('aria-hidden')).toBe('true');
     expect(screen.getByRole('button', { name: 'Panel menu' })).toBeDefined();

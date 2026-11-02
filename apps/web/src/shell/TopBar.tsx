@@ -17,7 +17,7 @@ const MenuIcon = ({ children }: { children: ReactNode }) => (
     <g
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.4"
+      strokeWidth="1.6"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
@@ -134,7 +134,7 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
                 <g
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="1.4"
+                  strokeWidth="1.6"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
@@ -155,7 +155,7 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
                 <g
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="1.4"
+                  strokeWidth="1.6"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >

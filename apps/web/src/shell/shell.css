@@ -282,6 +282,12 @@
   margin: -6px;
   color: var(--v-text);
 }
+/* The reference draws this glyph larger than the shell's default 16px icon, so
+ * it reads as a solid dark mark next to the title rather than a thin outline. */
+.v-topbar__account-icon .v-icon {
+  width: 22px;
+  height: 22px;
+}
 
 /* Notifications moved to the account menu, so the bar carries no badge. The
    slot the reference fills with a premium crown is left empty on purpose until
@@ -307,10 +313,20 @@
   border-radius: var(--v-radius-sm);
 }
 .v-menu__glyph {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   flex: none;
   display: block;
+}
+/* These rows are unavailable, not faint: the label and glyph keep full
+ * contrast (the reference popup is solid black) and the "Soon" note plus the
+ * not-allowed cursor carry the unavailable state instead of a dim wash. */
+.v-topbar__actions .v-menu__item:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+}
+.v-topbar__actions .v-menu__hint {
+  color: var(--v-text-muted);
 }
 .v-topbar__actions .v-menu__item-icon {
   display: inline-flex;
