@@ -15,6 +15,7 @@ import {
   ReasoningError,
   GatewayReasoningProvider,
   getReasoningProfile,
+  buildActivitySnapshot,
   listReasoningProfiles,
   reasoningUsageRecord,
   type ProviderFallback,
@@ -26,6 +27,7 @@ import {
   type ReasoningRun,
 } from '@veltravia/reasoning-core';
 import { SimulatedReasoningProvider } from '@veltravia/reasoning-mock';
+import type { AgentActivitySnapshot } from '@veltravia/shared';
 import type { ToolManager } from '@veltravia/tool-core';
 
 import { createToolManager } from './tools.js';
@@ -402,6 +404,24 @@ export class ReasoningService {
       buffer.splice(0, buffer.length - this.maxBufferedEvents);
     this.events.set(runId, buffer);
     for (const listener of this.listeners.get(runId) ?? []) listener(record);
+  }
+
+  /**
+   * The normalised activity timeline for a run, optionally from a sequence.
+   *
+   * This is the only place a browser is told what a run is doing. It is derived
+   * from the run the service already owns, so a reconnecting client gets the
+   * same rows a streaming one saw - and a run that is still working reports
+   * `terminal: false` rather than a made-up ending.
+   */
+  async activitySnapshot(input: {
+    ownerRef: string;
+    runId: string;
+    after?: number;
+  }): Promise<AgentActivitySnapshot | undefined> {
+    const run = await this.getRun({ ownerRef: input.ownerRef, runId: input.runId });
+    if (run === undefined) return undefined;
+    return buildActivitySnapshot(run, input.after ?? 0);
   }
 
   /** Replays buffered events, then follows the run live. */

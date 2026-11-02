@@ -523,3 +523,121 @@ describe('reasoning API: a step reaches the browser in a shape it can draw', () 
     expect(JSON.stringify(steps)).not.toContain('stepId');
   });
 });
+
+describe('reasoning API: activity timeline', () => {
+  it('serves the validated timeline for a finished run, with a report', async () => {
+    const { app } = appWithSimulated();
+    const started = await app.inject({
+      method: 'POST',
+      url: '/api/reasoning/runs',
+      headers: ownerA,
+      payload: { task: 'hello', mode: 'simulated', profile: 'workspace' },
+    });
+    const runId = started.json().run.id as string;
+    await waitForRun(app, runId);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/reasoning/runs/${runId}/activity`,
+      headers: ownerA,
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body).toMatchObject({ runId, terminal: true, runStatus: 'completed' });
+    expect(Array.isArray(body.activities)).toBe(true);
+    // A run with no tool steps still reports one real row, and it says it thought.
+    expect(body.activities).toHaveLength(1);
+    expect(body.activities[0]).toMatchObject({
+      category: 'thinking',
+      status: 'succeeded',
+      sequence: 1,
+    });
+    expect(body.report).toMatchObject({ status: 'completed', validation: { tests: 'not_run' } });
+    // Nothing sensitive on the wire.
+    expect(response.body).not.toMatch(/sk-|AIza|Bearer /);
+  });
+
+  it('returns only rows after the sequence the caller already holds', async () => {
+    const { app } = appWithSimulated();
+    const started = await app.inject({
+      method: 'POST',
+      url: '/api/reasoning/runs',
+      headers: ownerA,
+      payload: { task: 'hello', mode: 'simulated' },
+    });
+    const runId = started.json().run.id as string;
+    await waitForRun(app, runId);
+
+    const all = await app.inject({
+      method: 'GET',
+      url: `/api/reasoning/runs/${runId}/activity`,
+      headers: ownerA,
+    });
+    const sequence = all.json().sequence as number;
+    const resumed = await app.inject({
+      method: 'GET',
+      url: `/api/reasoning/runs/${runId}/activity?after=${sequence}`,
+      headers: ownerA,
+    });
+    expect(resumed.statusCode).toBe(200);
+    expect(resumed.json().activities).toEqual([]);
+    expect(resumed.json().sequence).toBe(sequence);
+  });
+
+  it('keeps another owner out, and rejects a nonsense cursor', async () => {
+    const { app } = appWithSimulated();
+    const started = await app.inject({
+      method: 'POST',
+      url: '/api/reasoning/runs',
+      headers: ownerA,
+      payload: { task: 'hello', mode: 'simulated' },
+    });
+    const runId = started.json().run.id as string;
+    await waitForRun(app, runId);
+
+    const foreign = await app.inject({
+      method: 'GET',
+      url: `/api/reasoning/runs/${runId}/activity`,
+      headers: ownerB,
+    });
+    expect(foreign.statusCode).toBe(404);
+
+    const nonsense = await app.inject({
+      method: 'GET',
+      url: `/api/reasoning/runs/${runId}/activity?after=-3`,
+      headers: ownerA,
+    });
+    expect(nonsense.statusCode).toBe(400);
+  });
+
+  it('streams activity rows then a final event, and refuses a foreign run', async () => {
+    const { app } = appWithSimulated();
+    const started = await app.inject({
+      method: 'POST',
+      url: '/api/reasoning/runs',
+      headers: ownerA,
+      payload: { task: 'hello', mode: 'simulated' },
+    });
+    const runId = started.json().run.id as string;
+    await waitForRun(app, runId);
+
+    const streamed = await app.inject({
+      method: 'GET',
+      url: `/api/reasoning/runs/${runId}/activity/events`,
+      headers: ownerA,
+    });
+    expect(streamed.statusCode).toBe(200);
+    expect(streamed.headers['content-type']).toContain('text/event-stream');
+    const events = streamed.payload.split('\n\n').filter((chunk) => chunk.trim() !== '');
+    const named = events.map((chunk) => /event: (.*)/.exec(chunk)?.[1]);
+    expect(named).toContain('activity');
+    expect(named).toContain('final');
+
+    const foreign = await app.inject({
+      method: 'GET',
+      url: `/api/reasoning/runs/${runId}/activity/events`,
+      headers: ownerB,
+    });
+    expect(foreign.statusCode).toBe(404);
+  });
+});

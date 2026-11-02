@@ -186,10 +186,13 @@ export async function startRun(input: {
   projectId?: string;
   conversation?: readonly { role: 'user' | 'assistant'; content: string }[];
   idempotencyKey?: string;
+  /** How long to wait for the server to accept the run. */
+  timeoutMs?: number;
 }): Promise<ReasoningRunView> {
   const response = await apiRequest<{ run: ReasoningRunView }>(`${base}/runs`, {
     method: 'POST',
-    body: input,
+    body: { ...input, timeoutMs: undefined },
+    ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
   });
   return response.run;
 }

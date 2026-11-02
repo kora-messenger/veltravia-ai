@@ -128,6 +128,16 @@ build-time secret. With no backend URL configured the app says so plainly instea
 pretending to work; it needs a deployed API and a physical-device pass before it is
 usable by anyone else.
 
+## Watching a run work
+
+[Live agent activity](docs/live-agent-activity.md) replaces the single spinner with
+the run's own record: a normalised event, a snapshot endpoint and an SSE stream, rows
+derived server-side from the tools that actually ran, an expandable `Command` /
+`Output` inside each row, and a final report that separates what was done from what
+failed and what is still open. The browser never invents a phase, a finished row can
+never be reopened by a late event, and a dropped stream resumes from the last
+sequence it saw.
+
 ## Security rules
 
 The full policy lives in [docs/security.md](docs/security.md). The non-negotiables:

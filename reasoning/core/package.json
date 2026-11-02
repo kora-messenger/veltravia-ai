@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@veltravia/ai-core": "0.1.0",
-    "@veltravia/tool-core": "0.1.0"
+    "@veltravia/tool-core": "0.1.0",
+    "@veltravia/shared": "0.1.0"
   }
 }

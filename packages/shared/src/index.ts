@@ -31,3 +31,5 @@ export function safeJsonParse<T>(raw: string): Result<T, Error> {
     return failure(error instanceof Error ? error : new Error(String(error)));
   }
 }
+
+export * from './agent-activity.js';

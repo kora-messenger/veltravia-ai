@@ -275,6 +275,134 @@ export function registerReasoningRoutes(app: FastifyInstance, service: Reasoning
   );
 
   /**
+   * The activity timeline for a run, from a sequence onward.
+   *
+   * This is what a reconnecting page calls: everything it missed, in order, plus
+   * the run's current standing. Owner-scoped like every other run route, so an
+   * unknown run and someone else's run are both a 404.
+   */
+  app.get('/api/reasoning/runs/:runId/activity', async (request, reply) => {
+    const { runId } = request.params as { runId: string };
+    const raw = (request.query as { after?: string }).after;
+    const after = raw === undefined ? 0 : Number(raw);
+    if (!Number.isInteger(after) || after < 0) {
+      return reply.status(400).send({
+        error: { code: 'REASONING_INVALID_REQUEST', message: '`after` must be a whole number.' },
+      });
+    }
+    const snapshot = await service.activitySnapshot({ ownerRef: ownerOf(request), runId, after });
+    if (snapshot === undefined) {
+      return reply.status(404).send({
+        error: { code: 'REASONING_RUN_NOT_FOUND', message: 'That reasoning run does not exist.' },
+      });
+    }
+    return reply.send(snapshot);
+  });
+
+  /**
+   * Server-sent events for the activity timeline.
+   *
+   * The stream carries only rows the client has not already been given: the
+   * server derives the timeline from the run every beat, compares it with what
+   * it has sent, and emits the difference. A reconnect therefore resumes from
+   * `after` (or the browser's `Last-Event-ID`) without replaying, and without
+   * asking the client to work out which status is newer. The run itself is never
+   * restarted by a reconnect: this endpoint only reads.
+   */
+  app.get('/api/reasoning/runs/:runId/activity/events', async (request, reply) => {
+    const { runId } = request.params as { runId: string };
+    const ownerRef = ownerOf(request);
+    if (!service.ownsRun(runId, ownerRef)) {
+      return reply.status(404).send({
+        error: { code: 'REASONING_RUN_NOT_FOUND', message: 'That reasoning run does not exist.' },
+      });
+    }
+    const queryAfter = Number((request.query as { after?: string }).after ?? 0);
+    const headerId = Number(request.headers['last-event-id'] ?? 0);
+    let after = Math.max(
+      Number.isFinite(queryAfter) && queryAfter > 0 ? queryAfter : 0,
+      Number.isFinite(headerId) && headerId > 0 ? headerId : 0,
+    );
+
+    reply.raw.writeHead(200, {
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-store, no-cache, must-revalidate',
+      connection: 'keep-alive',
+      'x-accel-buffering': 'no',
+    });
+    reply.raw.write('retry: 2000\n\n');
+
+    const sent = new Map<string, string>();
+    let closed = false;
+
+    const close = (): void => {
+      if (closed) return;
+      closed = true;
+      clearInterval(beat);
+      clearInterval(watch);
+      try {
+        reply.raw.end();
+      } catch {
+        /* already closed */
+      }
+    };
+
+    const flush = async (): Promise<void> => {
+      if (closed) return;
+      const snapshot = await service.activitySnapshot({ ownerRef, runId, after: 0 });
+      if (snapshot === undefined) {
+        write('ended', { runId, reason: 'run_not_found' });
+        close();
+        return;
+      }
+      for (const activity of snapshot.activities) {
+        if (activity.sequence <= after) continue;
+        const seen = sent.get(activity.activityId);
+        if (seen === activity.status) continue;
+        sent.set(activity.activityId, activity.status);
+        after = Math.max(after, activity.sequence);
+        write('activity', activity, activity.sequence);
+      }
+      if (snapshot.terminal) {
+        write('final', {
+          runId,
+          runStatus: snapshot.runStatus,
+          terminal: true,
+          report: snapshot.report,
+        });
+        close();
+      }
+    };
+
+    function write(event: string, data: unknown, id?: number): void {
+      try {
+        if (id !== undefined) reply.raw.write(`id: ${id}\n`);
+        reply.raw.write(`event: ${event}\n`);
+        reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
+      } catch {
+        close();
+      }
+    }
+
+    // The run is derived, not pushed, so a beat is cheap and cannot miss work
+    // between two polls of the same run.
+    void flush();
+    const watch = setInterval(() => void flush(), 500);
+    const beat = setInterval(() => {
+      try {
+        reply.raw.write(': keep-alive\n\n');
+      } catch {
+        close();
+      }
+    }, 15_000);
+    if (typeof watch.unref === 'function') watch.unref();
+    if (typeof beat.unref === 'function') beat.unref();
+    request.raw.on('close', close);
+
+    return reply;
+  });
+
+  /**
    * Server-sent events for one run: buffered events replay first, then live
    * ones follow. Clients reconnect with `Last-Event-ID` and receive only what
    * they have not seen, so no delta is duplicated.

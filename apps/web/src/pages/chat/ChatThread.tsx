@@ -1,6 +1,7 @@
 import { Spinner } from '../../components/ui';
 import { navigateToHash } from '../../shell/useHashRoute';
-import { RunActivityLine } from './RunActivity';
+import { AgentActivityTimeline } from './AgentActivityTimeline';
+import { FinalReportCard } from './FinalReportCard';
 import { UserAvatar } from './UserAvatar';
 import type { ChatMessage } from './useChat';
 
@@ -23,6 +24,13 @@ export function Note({ message }: { readonly message: ChatMessage }) {
   return <p className="v-chat__note">{message.note}</p>;
 }
 
+/**
+ * One turn of the conversation.
+ *
+ * While the request is still on its way (`thinking`) the turn shows a spinner and
+ * the word for it, and nothing else: no timeline, because no run exists yet. Once
+ * the server has a run, the turn shows that run's activity and then its report.
+ */
 export function Message({
   message,
   ownerName,
@@ -38,24 +46,39 @@ export function Message({
       </div>
     );
   }
+
+  const thinking = message.phase === 'thinking';
+  const hasActivity = message.activities.length > 0;
+
   return (
     <div className="v-chat__turn v-chat__turn--assistant">
       {/* No brand mark on answers: the reply starts at the thread's left edge,
           so the page keeps one logo (the bar) instead of one per turn. */}
       <div className="v-chat__answer">
-        {message.activity !== undefined ? (
-          <RunActivityLine activity={message.activity} />
-        ) : (
-          message.state === 'pending' && (
-            <p className="v-chat__thinking">
-              <Spinner size="sm" aria-label="Waiting for an answer" />
-              <span>Working on it</span>
-            </p>
-          )
-        )}
-        {message.state !== 'pending' && message.text !== '' && (
-          <p className="v-chat__text">{message.text}</p>
-        )}
+        {thinking ? (
+          <p className="v-chat__thinking">
+            <Spinner size="sm" aria-label="Sending your message" />
+            <span>Thinking</span>
+          </p>
+        ) : hasActivity ? (
+          <AgentActivityTimeline
+            activities={message.activities}
+            runStatus={message.runStatus}
+            connection={message.connection ?? 'closed'}
+          />
+        ) : message.phase === 'running' ? (
+          <p className="v-chat__thinking">
+            <Spinner size="sm" aria-label="Waiting for the first step" />
+            <span>Working on it</span>
+          </p>
+        ) : null}
+
+        {message.text !== '' && !thinking && <p className="v-chat__text">{message.text}</p>}
+
+        {message.report !== null && message.phase === 'finished' ? (
+          <FinalReportCard report={message.report} />
+        ) : null}
+
         <Note message={message} />
       </div>
     </div>

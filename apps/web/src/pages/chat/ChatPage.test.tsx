@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { ApiError, TransportError } from '../../api/client';
 import { ToastProvider } from '../../components/ui';
 import { AgentProfileProvider } from '../../agent/AgentProfileProvider';
 
@@ -8,6 +9,10 @@ const startRun = vi.fn();
 const getCapabilities = vi.fn();
 const getRun = vi.fn();
 const cancelRun = vi.fn();
+const getActivitySnapshot = vi.fn();
+const openActivityStream = vi.fn((_runId: string, _after: number, _handlers: unknown) => ({
+  close: () => undefined,
+}));
 
 vi.mock('../../api/reasoning', () => ({
   startRun: (input: unknown) => startRun(input),
@@ -19,6 +24,14 @@ vi.mock('../../api/reasoning', () => ({
     status === 'failed' ||
     status === 'cancelled' ||
     status === 'limit_reached',
+}));
+
+// The timeline's own transport is mocked too: the page is what is under test
+// here, and a real EventSource does not exist in jsdom.
+vi.mock('../../api/activity', () => ({
+  getActivitySnapshot: (runId: string, after: number) => getActivitySnapshot(runId, after),
+  openActivityStream: (runId: string, after: number, handlers: unknown) =>
+    openActivityStream(runId, after, handlers),
 }));
 
 const { ChatPage } = await import('./ChatPage');
@@ -80,6 +93,9 @@ beforeEach(() => {
   getCapabilities.mockReset();
   getRun.mockReset();
   cancelRun.mockReset();
+  getActivitySnapshot.mockReset();
+  openActivityStream.mockClear();
+  getActivitySnapshot.mockResolvedValue(null);
   getCapabilities.mockResolvedValue(capabilities(false));
   window.sessionStorage.clear();
   window.localStorage.clear();
@@ -232,31 +248,47 @@ describe('the chat landing page', () => {
     expect(await screen.findByText('You stopped this answer.')).toBeDefined();
   });
 
-  it('follows the run’s own steps while the answer is still being written', async () => {
+  it('follows the activity the server reports while the answer is written', async () => {
     startRun.mockResolvedValue(run({ status: 'running', answer: undefined }));
-    getRun.mockResolvedValue(
-      run({
-        status: 'running',
-        answer: undefined,
-        steps: [
-          {
-            id: 's1',
-            toolId: 'codebase.search',
-            intent: 'read the failing test tail',
-            status: 'success',
-            durationMs: 410,
-          },
-        ],
-      }),
-    );
+    getActivitySnapshot.mockResolvedValue({
+      runId: 'run-1',
+      sequence: 1,
+      runStatus: 'running',
+      terminal: false,
+      report: null,
+      activities: [
+        {
+          eventId: 'a1:succeeded',
+          runId: 'run-1',
+          sequence: 1,
+          activityId: 'a1',
+          parentActivityId: null,
+          category: 'searching',
+          title: 'Searched the codebase',
+          status: 'succeeded',
+          safeSummary: 'Searched the codebase.',
+          startedAt: '2026-11-02T10:00:00.000Z',
+          completedAt: '2026-11-02T10:00:00.410Z',
+          durationMs: 410,
+          safeInput: 'codebase.search\n{"query":"tail"}',
+          safeOutput: '49 passed',
+          error: null,
+          retryCount: 0,
+        },
+      ],
+    });
     renderPage();
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Find the bug' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
 
-    // The line carries the step the server reported, not a canned phrase.
-    expect(await screen.findByText('Read the failing test tail')).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { expanded: false, name: /1 step/ }));
-    expect(screen.getByRole('listitem').textContent).toContain('Done');
+    // The headline carries the row the server reported, not a canned phrase.
+    expect(await screen.findByText('Searched the codebase')).toBeDefined();
+    // The row itself, not the headline above it: the headline reads "Working on
+    // it" here because the reported step has already finished.
+    const row = screen.getByRole('button', { name: /Searched the codebase/ });
+    fireEvent.click(row);
+    expect(screen.getByText('Command')).toBeDefined();
+    expect(screen.getByText('Output')).toBeDefined();
   });
 
   it('starts with a plain working line before any step is published', async () => {
@@ -365,5 +397,132 @@ describe("the owner's picture beside their own turns", () => {
     await screen.findByText('Here is what I found.');
     const assistant = container.querySelector('.v-chat__turn--assistant');
     expect(assistant?.querySelector('.v-chat__avatar')).toBeNull();
+  });
+});
+
+describe('a message that does not reach the server', () => {
+  const type = (text: string) => {
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: text } });
+  };
+
+  it('shows Thinking before the server has accepted, with no timeline', async () => {
+    let resolveRun: (value: unknown) => void = () => undefined;
+    startRun.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRun = resolve;
+      }),
+    );
+    renderPage();
+    type('Find the bug');
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(await screen.findByText('Thinking')).toBeDefined();
+    expect(document.querySelector('.v-act')).toBeNull();
+    await act(async () => {
+      resolveRun(run({ status: 'completed' }));
+    });
+    expect(await screen.findByText('Here is what I found.')).toBeDefined();
+  });
+
+  it('puts the text back in the box when the device is offline', async () => {
+    startRun.mockRejectedValue(
+      new TransportError('offline', 'You are offline. Your message was not sent.'),
+    );
+    renderPage();
+    type('Find the bug');
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(
+      await screen.findByText(/You are offline. Your message is back in the box./),
+    ).toBeDefined();
+    // The message the person wrote is in the composer, unedited, and the thread
+    // does not pretend it was sent.
+    expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe('Find the bug');
+    expect(screen.queryByText('Find the bug', { selector: '.v-chat__bubble' })).toBeNull();
+    expect(screen.getByLabelText('Message').getAttribute('placeholder')).toBe(
+      "What's on your mind",
+    );
+  });
+
+  it('does not resend by itself when the request timed out', async () => {
+    startRun.mockRejectedValue(
+      new TransportError('timeout', 'The service did not answer in time.'),
+    );
+    renderPage();
+    type('Summarise the repo');
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(await screen.findByText(/did not answer in time/)).toBeDefined();
+    expect(startRun).toHaveBeenCalledTimes(1);
+    expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe(
+      'Summarise the repo',
+    );
+  });
+
+  it('reports a refusal as a refusal and keeps the text', async () => {
+    startRun.mockRejectedValue(
+      new ApiError(503, 'PROVIDER_UNAVAILABLE', 'No provider is connected.'),
+    );
+    renderPage();
+    type('Anything');
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(await screen.findByText(/service is unavailable right now/)).toBeDefined();
+    expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe('Anything');
+  });
+
+  it('says so when it is not authorised, without blaming the network', async () => {
+    startRun.mockRejectedValue(new ApiError(401, 'UNAUTHORIZED', 'No session.'));
+    renderPage();
+    type('Anything');
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(await screen.findByText(/not authorised to run here/)).toBeDefined();
+    expect(screen.queryByText(/back in the box/)).toBeNull();
+  });
+
+  it('sends once, however many times the send control is tapped', async () => {
+    startRun.mockResolvedValue(run({ status: 'running', answer: undefined }));
+    renderPage();
+    type('Find the bug');
+    const send = screen.getByRole('button', { name: 'Send message' });
+    fireEvent.click(send);
+    fireEvent.click(send);
+    fireEvent.click(send);
+    await screen.findByText('Working on it');
+    expect(startRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the message gone once the server has the run, even if it fails', async () => {
+    startRun.mockResolvedValue(
+      run({
+        status: 'failed',
+        answer: undefined,
+        error: { code: 'PROVIDER_ERROR', message: 'Upstream refused.' },
+      }),
+    );
+    renderPage();
+    type('Find the bug');
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    // Accepted means sent: the text stays out of the composer, and asking again
+    // is the person's choice, not the page's.
+    expect(await screen.findByText('Upstream refused.')).toBeDefined();
+    expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe('');
+    expect(screen.queryByText(/back in the box/)).toBeNull();
+  });
+
+  it('adds nothing to a message already in the box', async () => {
+    startRun.mockRejectedValue(new TransportError('network', 'Cannot reach the service.'));
+    renderPage();
+    type('First thought');
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    await screen.findByText(/back in the box/);
+
+    type('Second thought');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss this message' }));
+    });
+    expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe('Second thought');
   });
 });

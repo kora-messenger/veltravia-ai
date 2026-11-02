@@ -580,109 +580,38 @@
 }
 
 /* ---------------------------------------------------------------------------
-   The live status line
+   The activity timeline
 
-   One line above the answer, carrying the run's own current intent, with the
-   steps behind it one click away. It stays after the run finishes so the work
-   can still be read. Only the spinner moves: the brand mark is static.
+   The run's own record, drawn as rows. Two levels only: a run row that opens,
+   and the rows inside it. Sizes are measured from the reference recording (a
+   42.7dp pitch, an 18dp mark in a 29dp gutter, labels starting at 60dp), then
+   expressed in this page's own type scale.
+
+   Only two things ever animate: the spinner while work is happening, and the
+   chevron on open. The brand mark elsewhere on the screen stays static.
    --------------------------------------------------------------------------- */
 
-.v-chat__activity {
-  display: flex;
-  flex-direction: column;
-  gap: var(--v-space-2);
-  margin-bottom: var(--v-space-3);
-}
-
-.v-chat__activity-row {
-  display: flex;
-  align-items: center;
-  gap: var(--v-space-2);
-  min-height: 24px;
-}
-
-.v-chat__activity-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  color: var(--v-success);
-}
-
-.v-chat__activity-label {
-  min-width: 0;
-  font-size: var(--v-text-sm);
-  color: var(--v-text-muted);
-  /* One line: a long intent is trimmed by describeActivity, and the layout
-     keeps its height stable as labels change mid-run. */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.v-chat__activity.is-done .v-chat__activity-label {
-  color: var(--v-text-faint);
-}
-
-.v-chat__activity-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--v-space-1);
-  /* 8dp of slop around a 16px chevron keeps the target comfortable. */
-  padding: 4px 6px;
-  margin-left: auto;
-  border: none;
-  border-radius: var(--v-radius-sm);
-  background: transparent;
-  font: inherit;
-  font-size: var(--v-text-xs);
-  color: var(--v-text-faint);
-  cursor: pointer;
-  /* Never shrink: at 390px a squeezed toggle wrapped "3 steps" onto two lines
-     and made the whole line 45px tall. */
-  flex: none;
-  white-space: nowrap;
-}
-
-.v-chat__activity-toggle:hover {
-  background: var(--v-surface-hover);
-  color: var(--v-text-muted);
-}
-
-.v-chat__chevron {
-  display: inline-flex;
-  transition: transform 120ms ease;
-}
-
-.v-chat__chevron.is-open {
-  transform: rotate(90deg);
-}
-
-.v-chat__steps {
+.v-act {
   display: flex;
   flex-direction: column;
   gap: var(--v-space-1);
-  margin: 0;
-  padding: 0 0 0 var(--v-space-4);
-  list-style: none;
-  border-left: 1px solid var(--v-border);
+  margin: 0 0 var(--v-space-3);
 }
 
-.v-chat__step {
-  font-size: var(--v-text-xs);
-  color: var(--v-text-muted);
+.v-act__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-/* The whole row is the target: 32px tall with the text, so a tap anywhere on the
-   line opens the step rather than only on a small chevron. */
-.v-chat__step-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+.v-act__head-button {
+  display: flex;
   align-items: center;
   gap: var(--v-space-2);
-  width: 100%;
+  /* The whole header is the target, and it keeps the row height stable as the
+     headline changes mid-run. */
   min-height: 32px;
+  width: 100%;
   padding: 2px 4px 2px 0;
   border: 0;
   border-radius: var(--v-radius-sm);
@@ -693,60 +622,310 @@
   cursor: pointer;
 }
 
-.v-chat__step-row:hover {
+.v-act__head-button:hover {
   background: var(--v-surface-hover);
 }
 
-.v-chat__step-mark {
+.v-act__head-mark {
   display: inline-flex;
-  color: var(--v-text-faint);
-}
-
-.v-chat__step.is-success .v-chat__step-mark {
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
   color: var(--v-success);
 }
 
-.v-chat__step.is-failed .v-chat__step-mark,
-.v-chat__step.is-rejected .v-chat__step-mark {
-  color: var(--v-danger);
-}
-
-.v-chat__step-label {
+.v-act__head-label {
   min-width: 0;
-  /* The step is the detail, so it wraps rather than hiding its tail on a phone. */
-  overflow-wrap: anywhere;
-}
-
-.v-chat__step-meta {
+  font-size: var(--v-text-sm);
+  font-weight: var(--v-weight-medium);
+  color: var(--v-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.v-act:not(.is-live) .v-act__head-label {
+  color: var(--v-text-muted);
+}
+
+.v-act__head-count {
+  margin-left: auto;
+  flex: none;
+  white-space: nowrap;
+  font-size: var(--v-text-xs);
   color: var(--v-text-faint);
 }
 
-/* Refused is not failed: the tool never ran, so it wears the muted chip rather
-   than the red one. Only a command that ran and came back broken gets red. */
-.v-chat__step.is-rejected .v-chat__step-mark {
+.v-act__connection {
+  margin: 0 0 0 26px;
+  font-size: var(--v-text-xs);
   color: var(--v-text-faint);
 }
 
-.v-chat__step-detail {
+.v-act__rows {
   display: flex;
   flex-direction: column;
-  gap: var(--v-space-3);
-  margin: var(--v-space-2) 0 var(--v-space-3) 0;
+  gap: 1px;
+  margin: 0;
+  padding: 0 0 0 26px;
+  list-style: none;
+  border-left: 1px solid var(--v-border);
+}
+
+.v-act__rows--nested {
+  padding-left: var(--v-space-4);
+  margin-top: 1px;
+}
+
+.v-act__row,
+.v-act__group {
+  list-style: none;
+}
+
+.v-act__button {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto 14px;
+  align-items: center;
+  gap: var(--v-space-2);
+  width: 100%;
+  /* 32dp, not the 42.7dp of the reference: that pitch came from a device at a
+     larger text size, and matching it here would make the thread feel sparse. */
+  min-height: 32px;
+  padding: 3px 4px 3px 0;
+  border: 0;
+  border-radius: var(--v-radius-sm);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.v-act__button:hover {
+  background: var(--v-surface-hover);
+}
+
+.v-act__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--v-text-faint);
+}
+
+/* A command that ran is the normal case, so it is the quietest. */
+.v-act__row.is-done .v-act__mark {
+  color: var(--v-text-muted);
+}
+
+.v-act__code {
+  display: inline-flex;
+  color: var(--v-text-muted);
+}
+
+/* The failure chip: a near-black block with the mark punched out of it. Red is
+   spent elsewhere, and this reads as "this ran and broke" rather than as a
+   warning about something that did not. The ring keeps it legible on a dark
+   surface, where a near-black block alone would disappear. */
+.v-act__row.is-failed .v-act__mark {
+  color: var(--v-failure-chip, #121014);
+  border-radius: var(--v-radius-sm);
+  box-shadow: 0 0 0 1px var(--v-border);
+}
+
+.v-act__pause {
+  display: inline-flex;
+  color: var(--v-text-muted);
+}
+
+.v-act__tick {
+  display: inline-flex;
+  color: var(--v-success);
+}
+
+.v-act__title {
+  min-width: 0;
+  font-size: var(--v-text-sm);
+  color: var(--v-text-muted);
+  /* One line per row: the reference trims rather than wraps, and a wrapped row
+     of a long path is unreadable anyway. The full text is in the panel. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v-act__row.is-done .v-act__title,
+.v-act__group .v-act__title {
+  color: var(--v-text);
+}
+
+.v-act__row.is-failed .v-act__title {
+  color: var(--v-text);
+  font-weight: var(--v-weight-medium);
+}
+
+.v-act__row.is-nested .v-act__title {
+  font-size: var(--v-text-xs);
+}
+
+.v-act__time {
+  flex: none;
+  white-space: nowrap;
+  font-size: var(--v-text-xs);
+  color: var(--v-text-faint);
+}
+
+.v-act__chevron {
+  display: inline-flex;
+  color: var(--v-text-faint);
+  transition: transform 120ms ease;
+}
+
+.v-act__chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.v-act__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  margin: 2px 0 var(--v-space-3);
   padding: var(--v-space-3);
   border: 1px solid var(--v-border);
   border-radius: var(--v-radius-md);
   background: var(--v-surface-muted);
 }
 
-.v-chat__detail-block {
+.v-act__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-3);
+  margin: 0;
+}
+
+.v-act__meta div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.v-act__meta dt {
+  font-size: var(--v-text-2xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--v-text-faint);
+}
+
+.v-act__meta dd {
+  margin: 0;
+  font-size: var(--v-text-xs);
+  color: var(--v-text);
+}
+
+.v-act__error {
+  margin: 0;
+  font-size: var(--v-text-xs);
+  color: var(--v-text);
+  overflow-wrap: anywhere;
+}
+
+.v-act__block {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
 }
 
-.v-chat__detail-label {
+.v-act__block-label {
+  font-size: var(--v-text-2xs);
+  font-weight: var(--v-weight-medium);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--v-text-faint);
+}
+
+.v-act__pre {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: var(--v-space-2);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-sm);
+  background: var(--v-surface);
+  font-family: var(--v-font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--v-text);
+  /* A tool's output keeps its own newlines, and a long path breaks instead of
+     pushing the thread sideways. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-overflow-scrolling: touch;
+}
+
+.v-act__empty {
+  margin: 0;
+  font-size: var(--v-text-xs);
+  color: var(--v-text-faint);
+}
+
+/* ---------------------------------------------------------------------------
+   The final report
+
+   A statement about the run, not another list of steps: it says how it ended,
+   what changed, which checks really ran, and what is still open.
+   --------------------------------------------------------------------------- */
+
+.v-report {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  margin: var(--v-space-3) 0 0;
+  padding: var(--v-space-3) var(--v-space-4);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface-muted);
+}
+
+.v-report__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.v-report__status {
+  font-size: var(--v-text-xs);
+  font-weight: var(--v-weight-semibold, 600);
+  letter-spacing: 0.02em;
+  color: var(--v-text);
+}
+
+.v-report.is-warn .v-report__status {
+  color: var(--v-warning, #8a5a00);
+}
+
+.v-report.is-failed .v-report__status {
+  color: var(--v-danger);
+}
+
+.v-report__summary {
+  margin: 0;
+  font-size: var(--v-text-sm);
+  color: var(--v-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.v-report__section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.v-report__section h3 {
   margin: 0;
   font-size: var(--v-text-2xs);
   font-weight: var(--v-weight-medium);
@@ -755,39 +934,57 @@
   color: var(--v-text-faint);
 }
 
-.v-chat__detail-text {
+.v-report__section ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin: 0;
-  max-height: 260px;
-  overflow: auto;
-  padding: var(--v-space-2);
-  border-radius: var(--v-radius-sm);
-  background: var(--v-surface);
-  border: 1px solid var(--v-border);
-  font-family: var(--v-font-mono);
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--v-text);
-  /* A tool's output is unwrapped text: keep its own newlines, and break a long
-     path rather than pushing the thread sideways. */
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  -webkit-overflow-scrolling: touch;
+  padding: 0;
+  list-style: none;
 }
 
-.v-chat__detail-empty {
+.v-report__section li {
+  font-size: var(--v-text-xs);
+  color: var(--v-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.v-report__checks li.is-failed {
+  color: var(--v-danger);
+}
+
+.v-report__files {
   margin: 0;
   font-size: var(--v-text-xs);
+  color: var(--v-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.v-report__files span {
   color: var(--v-text-faint);
 }
 
-.v-chat__detail-note {
-  margin: 0;
-  font-size: var(--v-text-2xs);
-  color: var(--v-text-faint);
+/* The line above the composer when a send never left the device. */
+.v-chat__senderror {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  margin: 0 0 var(--v-space-2);
+  padding: var(--v-space-2) var(--v-space-3);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface-muted);
+  font-size: var(--v-text-xs);
+  color: var(--v-text-muted);
+}
+
+.v-chat__senderror span {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .v-chat__chevron {
+  .v-act__chevron {
     transition: none;
   }
 }

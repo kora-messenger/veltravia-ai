@@ -8,11 +8,13 @@
  * the Tool System before it can affect anything.
  */
 
+export * from './activity.js';
 export * from './context.js';
 export * from './engine.js';
 export * from './errors.js';
 export * from './profiles.js';
 export * from './provider.js';
+export * from './report.js';
 export * from './schema.js';
 export * from './step-view.js';
 export * from './usage.js';

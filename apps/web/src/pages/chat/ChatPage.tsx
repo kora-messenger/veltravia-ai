@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAgentProfile } from '../../agent/AgentProfileProvider';
 import { isPackagedApp } from '../../config/runtime-config';
 import { ChatComposer } from './ChatComposer';
@@ -35,6 +35,32 @@ function readDismissed(): readonly string[] {
  */
 export function ChatPage() {
   const session = useChatSession();
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const followBottom = useRef(true);
+
+  /**
+   * Follows new activity only while the person is already at the bottom.
+   *
+   * A timeline that grows under someone reading an earlier step is the worst
+   * kind of live: it moves the paragraph they are on. So the page tracks whether
+   * they were at the bottom before the update and only scrolls when they were.
+   */
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (node === null) return;
+    const onScroll = () => {
+      const distance = node.scrollHeight - node.scrollTop - node.clientHeight;
+      followBottom.current = distance < 80;
+    };
+    node.addEventListener('scroll', onScroll, { passive: true });
+    return () => node.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (node === null || !followBottom.current) return;
+    node.scrollTop = node.scrollHeight;
+  }, [session.chat.messages]);
   const profile = useAgentProfile();
   const [dismissed, setDismissed] = useState<readonly string[]>(readDismissed);
   const app = isPackagedApp();
@@ -58,7 +84,7 @@ export function ChatPage() {
 
   return (
     <div className={app ? 'v-chat v-chat--app' : 'v-chat v-chat--web'}>
-      <div className="v-chat__scroll">
+      <div className="v-chat__scroll" ref={scrollRef}>
         {session.started ? (
           <ChatThread
             messages={session.chat.messages}
@@ -76,6 +102,19 @@ export function ChatPage() {
       </div>
 
       <div className="v-chat__footer">
+        {session.sendError !== null ? (
+          <p className="v-chat__senderror" role="status">
+            <span>{session.sendError}</span>
+            <button
+              type="button"
+              className="v-chat__link"
+              onClick={session.dismissSendError}
+              aria-label="Dismiss this message"
+            >
+              Dismiss
+            </button>
+          </p>
+        ) : null}
         <ChatComposer
           value={session.draft}
           onChange={session.setDraft}

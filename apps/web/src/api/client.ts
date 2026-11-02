@@ -25,6 +25,33 @@ export class ApiError extends Error {
 
 const NETWORK_ERROR = new ApiError(0, 'NETWORK', 'Cannot reach the Veltravia AI service.');
 
+/**
+ * How a request failed *before* the server accepted it.
+ *
+ * These are the states the chat has to tell apart, because each one gets a
+ * different answer: `offline` means the device knows it has no connection, so
+ * the message goes back to the composer untouched; `timeout` means the request
+ * left but nothing came back in time, so it may or may not have arrived;
+ * `network` means it never reached the service. Everything else is the server's
+ * own answer, which already names itself.
+ */
+export type TransportFailure = 'offline' | 'timeout' | 'network';
+
+export class TransportError extends Error {
+  readonly failure: TransportFailure;
+
+  constructor(failure: TransportFailure, message: string) {
+    super(message);
+    this.name = 'TransportError';
+    this.failure = failure;
+  }
+}
+
+/** True when the browser says it has no connection at all. */
+export function isOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
 interface ErrorBody {
   readonly error?: {
     readonly code?: unknown;
@@ -60,6 +87,12 @@ export async function apiRequest<T>(
     baseUrl?: string;
     fetchImpl?: typeof fetch;
     headers?: Readonly<Record<string, string>>;
+    /**
+     * Ceiling for the whole request. The chat sets one so "Thinking" cannot sit
+     * there for ever when a request is accepted and then silently dropped -
+     * which is exactly what a captive portal or a dropped tunnel does.
+     */
+    timeoutMs?: number;
   } = {},
 ): Promise<T> {
   const {
@@ -68,7 +101,21 @@ export async function apiRequest<T>(
     baseUrl = runtimeConfig().apiBaseUrl,
     fetchImpl = fetch,
     headers,
+    timeoutMs,
   } = options;
+
+  // An offline device is told so immediately: waiting out a timeout to say
+  // "you are offline" is the slowest possible way to say something known.
+  if (isOffline()) {
+    throw new TransportError('offline', 'You are offline. Your message was not sent.');
+  }
+
+  const controller = timeoutMs === undefined ? null : new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  if (controller !== null && timeoutMs !== undefined) {
+    timer = setTimeout(() => controller.abort(), timeoutMs);
+  }
+
   let response: Response;
   try {
     response = await fetchImpl(`${baseUrl}${path}`, {
@@ -78,9 +125,25 @@ export async function apiRequest<T>(
           ? undefined
           : { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...headers },
       body: body === undefined ? undefined : JSON.stringify(body),
+      ...(controller === null ? {} : { signal: controller.signal }),
     });
-  } catch {
+  } catch (error) {
+    const aborted = controller !== null && controller.signal.aborted;
+    if (aborted) {
+      throw new TransportError(
+        'timeout',
+        'The service did not answer in time. Your message may not have been sent.',
+      );
+    }
+    if (isOffline()) {
+      throw new TransportError('offline', 'You are offline. Your message was not sent.');
+    }
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new TransportError('timeout', 'The request was stopped before an answer arrived.');
+    }
     throw NETWORK_ERROR;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 
   if (response.status === 204) {
@@ -107,6 +170,7 @@ export async function apiRequest<T>(
 
 /** Maps a raw error to text that is safe and useful to show a user. */
 export function errorMessage(error: unknown): string {
+  if (error instanceof TransportError) return error.message;
   if (error instanceof ApiError) {
     return error.message || friendlyMessage(error.status, error.code);
   }
