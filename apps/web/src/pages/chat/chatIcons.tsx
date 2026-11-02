@@ -240,3 +240,51 @@ export function StatusChip({ state, size = 16 }: IconProps & { readonly state: C
     </svg>
   );
 }
+
+/** Two offset sheets: the copy mark, the same shape the reference uses. */
+export function CopyIcon({ size = 17 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <rect x="9" y="9" width="11" height="11" rx="2.4" />
+      <path d="M15 5.6A1.6 1.6 0 0 0 13.4 4H5.6A1.6 1.6 0 0 0 4 5.6v7.8A1.6 1.6 0 0 0 5.6 15" />
+    </svg>
+  );
+}
+
+/** A thumbs-up outline: one answer was useful. */
+export function ThumbUpIcon({ size = 17 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M7 10.5V20M7 10.5 10.6 3a2.4 2.4 0 0 1 2.4 2.4V9h4.4a2 2 0 0 1 2 2.4l-1.2 6.6a2 2 0 0 1-2 1.6H7" />
+    </svg>
+  );
+}
+
+/** The same thumb, turned over. */
+export function ThumbDownIcon({ size = 17 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M17 13.5V4M17 13.5 13.4 21a2.4 2.4 0 0 1-2.4-2.4V15H6.6a2 2 0 0 1-2-2.4l1.2-6.6a2 2 0 0 1 2-1.6H17" />
+    </svg>
+  );
+}
+
+/** A speaker with two arcs: read this aloud. */
+export function SpeakerIcon({ size = 17 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M4 9.5h3.2L12 5.5v13L7.2 14.5H4z" />
+      <path d="M15.5 9.2a4 4 0 0 1 0 5.6M18 6.8a7.4 7.4 0 0 1 0 10.4" />
+    </svg>
+  );
+}
+
+/** An arrow leaving an open box: hand this answer to another app. */
+export function ShareIcon({ size = 17 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M12 3.5v10M8.5 7 12 3.5 15.5 7" />
+      <path d="M5 13v5.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V13" />
+    </svg>
+  );
+}

@@ -906,3 +906,33 @@ name, as in the thread). The list fades out beneath them instead of being cut
 off. While closed the panel is `inert` and `aria-hidden`, so it cannot be tabbed
 into or read out. Reduced-motion users get no slide. The desktop sidebar and its
 backdrop are not drawn on a phone.
+
+## Controls under an answer
+
+A finished answer carries one row of muted controls directly beneath it: copy,
+one opinion, read aloud, share. The layout is the reference's, the honesty rules
+are ours:
+
+- **Copy** writes the answer exactly as shown. It confirms with one quiet word in
+  the row (`Copied`) rather than a toast, so the message being copied does not get
+  covered by the confirmation.
+- **Thumbs** record one opinion per answer and are stored in this browser only.
+  The tooltip says so ("Kept in this browser only"); the buttons do not imply that
+  the owner is training a model, because nothing is sent anywhere.
+- **Read aloud** uses the browser's own speech synthesis and stops on a second
+  press. Where the browser has no synthesis the control is not drawn.
+- **Share** appears only where the platform exposes a share sheet. Nothing else
+  pretends to share.
+
+The row is absent under a turn that is still working, a turn that failed, and a
+turn that stopped at its budget: none of them has an answer to act on.
+
+Two controls from the reference are deliberately NOT drawn:
+
+- **Edit** (the pencil) edits a conversation's earlier message in the reference.
+  There is no message editing here, so a pencil would only rename the agent under
+  a label that means something else.
+- **More** (the vertical dots under a message) opens per-message actions that do
+  not exist yet. The agent-wide menu already lives in the top bar.
+
+The composer is unchanged by this work: the row is the only addition.

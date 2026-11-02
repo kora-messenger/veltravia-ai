@@ -1,6 +1,7 @@
 import { Spinner } from '../../components/ui';
 import { navigateToHash } from '../../shell/useHashRoute';
 import { AgentActivityTimeline } from './AgentActivityTimeline';
+import { ChatAnswerActions } from './ChatAnswerActions';
 import { ChatErrorState, failureReason } from './ChatErrorState';
 import { FinalReportCard } from './FinalReportCard';
 import { UserAvatar } from './UserAvatar';
@@ -180,6 +181,12 @@ export function Message({
 
         {message.report !== null && message.phase === 'finished' ? (
           <FinalReportCard report={message.report} />
+        ) : null}
+
+        {/* A finished answer can be copied, judged, heard or passed on. A run
+            still working, or one that never answered, cannot. */}
+        {message.text !== '' && !thinking && message.phase === 'finished' ? (
+          <ChatAnswerActions messageId={message.id} text={message.text} />
         ) : null}
 
         <Note message={message} />

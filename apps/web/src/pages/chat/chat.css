@@ -1248,3 +1248,41 @@
   opacity: 0.55;
   cursor: progress;
 }
+
+/* Under a finished answer: copy, judge, hear, pass on. Muted and one row, so it
+   reads as an attachment to the reply rather than another message. */
+.v-chat-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: var(--v-space-1);
+  color: var(--v-text-muted);
+}
+
+.v-chat-actions__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--v-radius-md);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.v-chat-actions__button:hover {
+  background: var(--v-surface-hover);
+  color: var(--v-text);
+}
+
+.v-chat-actions__button--on {
+  color: var(--v-primary);
+}
+
+.v-chat-actions__status {
+  padding-left: var(--v-space-1);
+  font-size: var(--v-text-xs);
+  color: var(--v-text-muted);
+}
