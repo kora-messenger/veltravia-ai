@@ -63,6 +63,7 @@ export function ChatPage() {
           <ChatThread
             messages={session.chat.messages}
             agentName={profile.agentName}
+            ownerName={name}
             canRetry={session.chat.canRetry}
             onRetry={session.chat.retry}
             onNewChat={session.newChat}

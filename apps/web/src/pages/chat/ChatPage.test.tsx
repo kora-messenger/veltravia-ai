@@ -172,8 +172,8 @@ describe('the chat landing page', () => {
     await screen.findByText('Here is what I found.');
 
     // One logo on the page is the bar's; the reply itself carries none.
-    expect(container.querySelector('.v-chat__avatar')).toBeNull();
     const turn = container.querySelector('.v-chat__turn--assistant');
+    expect(turn?.querySelector('.v-chat__avatar')).toBeNull();
     // The status tick in the activity line is not branding; the brand mark is.
     expect(turn?.querySelector('img, .v-brand-mark')).toBeNull();
     expect(screen.queryByAltText(/veltravia/i)).toBeNull();
@@ -299,5 +299,71 @@ describe('the chat landing page', () => {
     });
     expect(screen.queryByText('Here is what I found.')).toBeNull();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Hey there');
+  });
+});
+
+describe("the owner's picture beside their own turns", () => {
+  const renderAs = (ownerName: string | null) => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            profile: {
+              agentName: 'My Engineer',
+              ownerName,
+              isDefault: ownerName === null,
+              updatedAt: '2026-11-02T10:00:00.000Z',
+            },
+            limits: { maxLength: 40 },
+            persistence: { durable: false, note: '' },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    );
+    return render(
+      <ToastProvider>
+        <AgentProfileProvider
+          client={{ fetchImpl: fetchImpl as unknown as typeof fetch, ownerRef: 'owner-1' }}
+        >
+          <ChatPage />
+        </AgentProfileProvider>
+      </ToastProvider>,
+    );
+  };
+
+  const send = async () => {
+    startRun.mockResolvedValue(run());
+    const field = await screen.findByLabelText('Message');
+    fireEvent.change(field, { target: { value: 'Hello there' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+    await screen.findByText('Hello there');
+  };
+
+  it('draws a circle with the initials of the name the owner gave', async () => {
+    const { container } = renderAs('Ijezie Nwosu');
+    await screen.findByLabelText('Message');
+    await send();
+    const avatar = container.querySelector('.v-chat__turn--user .v-chat__avatar');
+    expect(avatar?.textContent).toBe('IN');
+    expect(avatar?.getAttribute('data-empty')).toBeNull();
+  });
+
+  it('falls back to a person glyph when they have given no name', async () => {
+    const { container } = renderAs(null);
+    await screen.findByLabelText('Message');
+    await send();
+    const avatar = container.querySelector('.v-chat__turn--user .v-chat__avatar');
+    expect(avatar?.getAttribute('data-empty')).toBe('true');
+    expect(avatar?.querySelector('svg')).not.toBeNull();
+    expect(avatar?.textContent).toBe('');
+  });
+
+  it('never puts a picture on the assistant turn', async () => {
+    const { container } = renderAs('Ijezie Nwosu');
+    await screen.findByLabelText('Message');
+    await send();
+    await screen.findByText('Here is what I found.');
+    const assistant = container.querySelector('.v-chat__turn--assistant');
+    expect(assistant?.querySelector('.v-chat__avatar')).toBeNull();
   });
 });

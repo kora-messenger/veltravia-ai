@@ -747,6 +747,29 @@ now starts at the thread's left edge on both layouts, which keeps the version
 and the conversation legible with one logo on the page rather than one per turn.
 A test fails if a `.v-brand-mark` or `img` reappears inside an assistant turn.
 
+### The owner's turns carry their picture
+
+Every user turn ends with a 28px circle at the right, beside the bubble and
+aligned with its first line (2px down), with 8px between the bubble and the
+circle and the circle's outer edge on the composer's gutter. It is the owner's
+turn, so it is theirs to be marked with; the assistant turn still carries
+nothing.
+
+The circle is decorative (`aria-hidden`, no `alt`) because announcing "you" on
+every message the owner just sent adds noise. It draws, in order of preference:
+
+1. the account photograph (`src`), clipped to the circle with `object-fit: cover`;
+2. the initials of the name given in the agent dialog, first and last word,
+   upper-cased by code point so a name starting with an emoji still works;
+3. a thin person glyph when no name has been given.
+
+**This build has no accounts, so there is no photograph to show yet.** The
+initials are the honest fallback, not a placeholder pretending to be a photo;
+`UserAvatar` already accepts `src`, so an account picture only needs that value
+wired in. Measured at 390, 1440 and 390-dark: 28 x 28, `border-radius: 50%`,
+initials `IN` on `--v-brand-100` at 6.4:1, glyph 5.9:1 on `--v-surface-muted`, no
+horizontal overflow, and no circle inside `.v-chat__turn--assistant`.
+
 ### The header carries no premium crown yet
 
 The reference puts a crown in the top-right corner as the Premium indicator. That

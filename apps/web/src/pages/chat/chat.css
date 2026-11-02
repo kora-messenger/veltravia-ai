@@ -195,6 +195,40 @@
 
 .v-chat__turn--user {
   justify-content: flex-end;
+  /* The circle sits with the first line of the bubble, not its last. */
+  align-items: flex-start;
+  gap: var(--v-space-2);
+}
+
+/* The owner's own picture: a 28px circle on the right of their turn. It is not
+   branding and it never animates. */
+.v-chat__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: var(--v-brand-100);
+  color: var(--v-brand-700);
+  font-size: var(--v-text-2xs);
+  font-weight: var(--v-weight-semibold);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  overflow: hidden;
+  user-select: none;
+}
+
+.v-chat__avatar[data-empty='true'] {
+  background: var(--v-surface-muted);
+  color: var(--v-text-muted);
+}
+
+.v-chat__avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .v-chat__bubble {

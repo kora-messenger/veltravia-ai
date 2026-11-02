@@ -1,6 +1,7 @@
 import { Spinner } from '../../components/ui';
 import { navigateToHash } from '../../shell/useHashRoute';
 import { RunActivityLine } from './RunActivity';
+import { UserAvatar } from './UserAvatar';
 import type { ChatMessage } from './useChat';
 
 export function Note({ message }: { readonly message: ChatMessage }) {
@@ -22,11 +23,18 @@ export function Note({ message }: { readonly message: ChatMessage }) {
   return <p className="v-chat__note">{message.note}</p>;
 }
 
-export function Message({ message }: { readonly message: ChatMessage }) {
+export function Message({
+  message,
+  ownerName,
+}: {
+  readonly message: ChatMessage;
+  readonly ownerName: string | null;
+}) {
   if (message.role === 'user') {
     return (
       <div className="v-chat__turn v-chat__turn--user">
         <div className="v-chat__bubble">{message.text}</div>
+        <UserAvatar name={ownerName} />
       </div>
     );
   }
@@ -57,13 +65,22 @@ export function Message({ message }: { readonly message: ChatMessage }) {
 export interface ChatThreadProps {
   readonly messages: readonly ChatMessage[];
   readonly agentName: string;
+  /** The owner's own name, so their turns can carry their picture. */
+  readonly ownerName: string | null;
   readonly canRetry: boolean;
   readonly onRetry: () => void;
   readonly onNewChat: () => void;
 }
 
 /** The turns themselves, identical on both layouts. */
-export function ChatThread({ messages, agentName, canRetry, onRetry, onNewChat }: ChatThreadProps) {
+export function ChatThread({
+  messages,
+  agentName,
+  ownerName,
+  canRetry,
+  onRetry,
+  onNewChat,
+}: ChatThreadProps) {
   return (
     <div className="v-chat__thread">
       <div className="v-chat__thread-head">
@@ -74,7 +91,7 @@ export function ChatThread({ messages, agentName, canRetry, onRetry, onNewChat }
       </div>
       <div className="v-chat__turns" role="log" aria-live="polite" aria-relevant="additions">
         {messages.map((message) => (
-          <Message key={message.id} message={message} />
+          <Message key={message.id} message={message} ownerName={ownerName} />
         ))}
       </div>
       {canRetry && (
