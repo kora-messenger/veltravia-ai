@@ -12,6 +12,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  workflows:
+    name: Lint workflow files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # GitHub rejects the whole file when an expression is invalid - the APK run
+      # once started zero jobs for exactly that reason. This checks the syntax and
+      # the context rules before a real run can be lost to it.
+      - name: actionlint
+        uses: raven-actions/actionlint@v2
+
   verify:
     name: Lint, test & build
     runs-on: ubuntu-latest

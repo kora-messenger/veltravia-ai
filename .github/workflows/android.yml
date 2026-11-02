@@ -102,14 +102,24 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('apps/mobile/android/**/*.gradle', 'apps/mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ runner.os }}-
 
-      - name: Decode signing keystore
+      # A step-level `if:` may not read `secrets`, so the keystore is decoded here
+      # into the runner's temp directory and the rest of the job only sees whether
+      # it exists. Nothing is written into the workspace, so it cannot be packaged
+      # with the artefacts.
+      - name: Prepare signing keystore
         id: signing
-        if: ${{ inputs.build_release != false && secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/veltravia-release.jks"
-          echo "path=$RUNNER_TEMP/veltravia-release.jks" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "path=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No signing keystore configured; the release APK will be UNSIGNED."
+            exit 0
+          fi
+          KEYSTORE_PATH="$RUNNER_TEMP/veltravia-release.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
+          echo "path=$KEYSTORE_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Build debug APK
         working-directory: apps/mobile/android
@@ -168,14 +178,31 @@ jobs:
           retention-days: 30
 
       - name: Summary
+        env:
+          BACKEND_URL: ${{ steps.backend.outputs.url }}
+          DEBUG_APK: ${{ steps.inspect.outputs.debug }}
+          RELEASE_APK: ${{ steps.inspect.outputs.release }}
+          SIGNED: ${{ steps.signing.outputs.path }}
         run: |
           {
             echo "### Veltravia AI APK"
             echo ""
-            echo "- Backend URL: ${{ steps.backend.outputs.url || 'NOT CONFIGURED (build cannot reach the API)' }}"
-            echo "- Debug APK: \`$(basename "${{ steps.inspect.outputs.debug }}")\`"
-            echo "- Release APK: ${{ steps.inspect.outputs.release != '' && format('`{0}`', basename(steps.inspect.outputs.release)) || 'not built' }}"
-            echo "- Signed release: ${{ steps.signing.outputs.path != '' }}"
+            if [ -n "$BACKEND_URL" ]; then
+              echo "- Backend URL: $BACKEND_URL"
+            else
+              echo "- Backend URL: NOT CONFIGURED (this build cannot reach the API)"
+            fi
+            echo "- Debug APK: \`$(basename "$DEBUG_APK")\`"
+            if [ -n "$RELEASE_APK" ]; then
+              echo "- Release APK: \`$(basename "$RELEASE_APK")\`"
+            else
+              echo "- Release APK: not built"
+            fi
+            if [ -n "$SIGNED" ]; then
+              echo "- Release signing: signed with the configured keystore"
+            else
+              echo "- Release signing: none (the release APK is unsigned and not installable)"
+            fi
             echo ""
             echo "Install with: \`adb install -r <file>.apk\`"
           } >> "$GITHUB_STEP_SUMMARY"

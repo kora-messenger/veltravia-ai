@@ -184,6 +184,17 @@ describe('the APK workflow', () => {
     }
   });
 
+  it('never reads the secrets context from a step condition', () => {
+    // GitHub rejects the entire workflow file when a step `if:` names `secrets`,
+    // which silently turns the build into a run with zero jobs.
+    const conditionalSecrets = workflow
+      .split('\n')
+      .filter((line) => /^\s+if:/.test(line) && /secrets\./.test(line));
+    expect(conditionalSecrets).toEqual([]);
+    // The secrets are read as step environment instead, which is allowed.
+    expect(workflow).toMatch(/KEYSTORE_BASE64: \$\{\{ secrets\.ANDROID_KEYSTORE_BASE64 \}\}/);
+  });
+
   it('fails the run when no APK was produced', () => {
     expect(workflow).toMatch(
       /if \[ -z "\$DEBUG_APK" \]; then echo "::error::No debug APK was produced"; exit 1; fi/,
