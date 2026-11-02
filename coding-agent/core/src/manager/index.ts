@@ -613,8 +613,13 @@ export class CodingAgentManager {
     input: Record<string, unknown>,
     result: ToolInvocationResult,
   ): Promise<DriveOutcome> {
-    // eslint-disable-next-line no-console -- temporary live-QA trace
-    console.error('[qa] tool', toolId, result.status, JSON.stringify(input).slice(0, 120));
+    // Remember the shape of this call, so a model that keeps issuing the same
+    // request can be told it is repeating itself. The cap keeps the context
+    // bounded; only the last few calls matter for that warning.
+    run.recentActions = [
+      ...run.recentActions,
+      `${toolId}|${JSON.stringify(input).slice(0, 200)}`,
+    ].slice(-MAX_RECENT_ACTIONS);
     if (toolId === CODING_TOOL_IDS.sandboxExecute) {
       return this.applyValidationResult(run, String(input.command ?? ''), result);
     }

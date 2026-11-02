@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Veltravia navy: the same surface the web application uses. -->
+    <color name="ic_launcher_background">#05060A</color>
+    <color name="splash_background">#05060A</color>
+    <color name="colorPrimary">#6C63FF</color>
+    <color name="colorPrimaryDark">#05060A</color>
+    <color name="colorAccent">#4A90D9</color>
+</resources>

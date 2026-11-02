@@ -53,9 +53,7 @@ function normalizedFor(status: number, rawMessage: string, body?: unknown): Gate
   // "rate limiting" hides the one thing the owner can act on: the bill.
   const noCredit =
     status === 429 &&
-    /insufficient_quota|no credits remaining|exceeded your current quota|billing/i.test(
-      rawMessage,
-    );
+    /insufficient_quota|no credits remaining|exceeded your current quota|billing/i.test(rawMessage);
   if (noCredit) {
     return new GatewayError(
       'GATEWAY_LIMIT_EXCEEDED',

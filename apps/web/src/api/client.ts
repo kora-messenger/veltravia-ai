@@ -1,3 +1,4 @@
+import { runtimeConfig } from '../config/runtime-config.js';
 /**
  * Frontend API client foundation.
  *
@@ -47,8 +48,9 @@ function parseErrorBody(raw: unknown): { code?: string; message?: string } {
 /**
  * Performs a JSON request against the API.
  *
- * `baseUrl` is '' by default (same origin); the dev server proxies `/api` to
- * the backend, and deployments can override it with `VITE_API_BASE_URL`.
+ * `baseUrl` defaults to the runtime configuration: '' for the browser build
+ * (same origin, proxied by the dev server or the host), or the configured
+ * absolute URL inside the Android application, which has no same-origin API.
  */
 export async function apiRequest<T>(
   path: string,
@@ -59,7 +61,7 @@ export async function apiRequest<T>(
     fetchImpl?: typeof fetch;
   } = {},
 ): Promise<T> {
-  const { method = 'GET', body, baseUrl = '', fetchImpl = fetch } = options;
+  const { method = 'GET', body, baseUrl = runtimeConfig().apiBaseUrl, fetchImpl = fetch } = options;
   let response: Response;
   try {
     response = await fetchImpl(`${baseUrl}${path}`, {

@@ -26,9 +26,6 @@ import type { ModelRouterService } from '../apps/api/src/model-router-service.js
  * answered.
  */
 
-const FAKE_KEY_PREFIX = 'sk-or-' + 'v1-';
-const KEY_A = FAKE_KEY_PREFIX + 'a'.repeat(64);
-
 function idFor(url: string): 'openai' | 'groq' | 'openrouter' {
   if (url.includes('api.openai.com')) return 'openai';
   if (url.includes('api.groq.com')) return 'groq';

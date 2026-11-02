@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Veltravia AI</string>
+    <string name="title_activity_main">Veltravia AI</string>
+    <string name="package_name">com.veltravia.ai</string>
+    <string name="custom_url_scheme">com.veltravia.ai</string>
+</resources>

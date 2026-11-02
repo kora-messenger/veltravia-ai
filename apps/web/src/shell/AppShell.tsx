@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { BackendNotice } from '../components/BackendNotice';
+import { OfflineBanner } from '../components/OfflineBanner';
 import { useHashRoute, type RouteState } from './useHashRoute';
 
 export interface AppShellProps {
@@ -49,6 +51,8 @@ export function AppShell({ renderPage }: AppShellProps) {
         onMobileClose={() => setMobileOpen(false)}
       />
       <div className="v-shell__main">
+        <BackendNotice />
+        <OfflineBanner />
         <TopBar route={route} onOpenMobileNav={() => setMobileOpen(true)} />
         <main className={contentClassName} id="main-content">
           {renderPage(route)}

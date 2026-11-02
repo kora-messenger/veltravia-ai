@@ -10,6 +10,7 @@
   "workspaces": [
     "packages/*",
     "apps/*",
+    "apps/mobile",
     "ai/core",
     "ai/providers/mock",
     "ai/providers/gemini",

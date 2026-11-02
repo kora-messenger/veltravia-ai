@@ -1,0 +1,181 @@
+name: Android APK
+
+# Builds the installable APK from the SAME web application the browser runs.
+#
+# Two artefacts are produced:
+#   veltravia-ai-debug-apk    - versionName suffixed "-test", applicationId
+#                               com.veltravia.ai.debug, installs beside a release
+#   veltravia-ai-release-apk  - only signed when the signing secrets are present;
+#                               unsigned otherwise and labelled as such
+#
+# No provider credential is ever passed to this workflow: the APK talks to the
+# backend, which holds the keys in its encrypted vault.
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: 'Backend base URL baked into the APK (https, e.g. https://api.example.com)'
+        required: false
+        type: string
+      build_release:
+        description: 'Also build the release APK'
+        required: false
+        default: true
+        type: boolean
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - 'apps/web/**'
+      - 'scripts/write-runtime-config.mjs'
+      - '.github/workflows/android.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+    env:
+      VELTRAVIA_VERSION_NAME: 0.1.0-step36-${{ github.run_number }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve backend base URL
+        id: backend
+        env:
+          INPUT_URL: ${{ inputs.api_base_url }}
+          REPO_URL: ${{ vars.VELTRAVIA_API_BASE_URL }}
+        run: |
+          URL="${INPUT_URL:-$REPO_URL}"
+          if [ -z "$URL" ]; then
+            echo "::warning::No backend URL configured. The APK will build but cannot reach Veltravia; set the repository variable VELTRAVIA_API_BASE_URL or pass api_base_url."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "url=$URL" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write runtime configuration
+        run: node scripts/write-runtime-config.mjs "${URL}"
+        env:
+          URL: ${{ steps.backend.outputs.url }}
+
+      - name: Build the web application
+        run: npm run build --workspace @veltravia/web
+
+      - name: Sync the web build into the Android project
+        working-directory: apps/mobile
+        run: npx cap sync android
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('apps/mobile/android/**/*.gradle', 'apps/mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Decode signing keystore
+        id: signing
+        if: ${{ inputs.build_release != false && secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/veltravia-release.jks"
+          echo "path=$RUNNER_TEMP/veltravia-release.jks" >> "$GITHUB_OUTPUT"
+
+      - name: Build debug APK
+        working-directory: apps/mobile/android
+        env:
+          VELTRAVIA_VERSION_CODE: ${{ github.run_number }}
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Build release APK
+        if: ${{ inputs.build_release != false }}
+        working-directory: apps/mobile/android
+        env:
+          VELTRAVIA_VERSION_CODE: ${{ github.run_number }}
+          VELTRAVIA_KEYSTORE_PATH: ${{ steps.signing.outputs.path }}
+          VELTRAVIA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          VELTRAVIA_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          VELTRAVIA_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Inspect the built APKs
+        id: inspect
+        env:
+          SIGNED: ${{ steps.signing.outputs.path != '' }}
+        run: |
+          set -euo pipefail
+          DEBUG_APK=$(find apps/mobile/android/app/build/outputs/apk/debug -name '*.apk' | head -1)
+          if [ -z "$DEBUG_APK" ]; then echo "::error::No debug APK was produced"; exit 1; fi
+          echo "debug=$DEBUG_APK" >> "$GITHUB_OUTPUT"
+          sha256sum "$DEBUG_APK" | tee debug.sha256 || true
+          ls -l "$DEBUG_APK"
+          RELEASE_APK=$(find apps/mobile/android/app/build/outputs/apk/release -name '*.apk' | head -1 || true)
+          echo "release=$RELEASE_APK" >> "$GITHUB_OUTPUT"
+          if [ -n "$RELEASE_APK" ]; then
+            ls -l "$RELEASE_APK"
+            if [ "$SIGNED" = "true" ]; then
+              echo "::notice::Release APK signed with the configured keystore."
+            else
+              echo "::warning::Release APK built UNSIGNED: no signing secrets configured, so it cannot be installed until it is signed."
+            fi
+          fi
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: veltravia-ai-debug-apk
+          path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload release APK
+        if: ${{ steps.inspect.outputs.release != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: veltravia-ai-release-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          {
+            echo "### Veltravia AI APK"
+            echo ""
+            echo "- Backend URL: ${{ steps.backend.outputs.url || 'NOT CONFIGURED (build cannot reach the API)' }}"
+            echo "- Debug APK: \`$(basename "${{ steps.inspect.outputs.debug }}")\`"
+            echo "- Release APK: ${{ steps.inspect.outputs.release != '' && format('`{0}`', basename(steps.inspect.outputs.release)) || 'not built' }}"
+            echo "- Signed release: ${{ steps.signing.outputs.path != '' }}"
+            echo ""
+            echo "Install with: \`adb install -r <file>.apk\`"
+          } >> "$GITHUB_STEP_SUMMARY"

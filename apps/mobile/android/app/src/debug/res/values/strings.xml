@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Only the debug APK gets this label, so a testing build is obvious on the
+         launcher and cannot be mistaken for a release. -->
+    <string name="app_name">Veltravia AI (test)</string>
+    <string name="title_activity_main">Veltravia AI (test)</string>
+</resources>
