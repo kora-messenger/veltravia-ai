@@ -77,8 +77,11 @@ jobs:
         env:
           URL: ${{ steps.backend.outputs.url }}
 
+      # The web bundle imports the workspace packages, which ship as compiled
+      # dist output: a clean checkout has none, so they are built first. Running
+      # the root build keeps the APK on exactly the same code path as CI.
       - name: Build the web application
-        run: npm run build --workspace @veltravia/web
+        run: npm run build
 
       - name: Sync the web build into the Android project
         working-directory: apps/mobile

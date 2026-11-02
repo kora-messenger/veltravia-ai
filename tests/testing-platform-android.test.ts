@@ -145,7 +145,8 @@ describe('the APK workflow', () => {
   });
 
   it('builds the real web application and syncs it', () => {
-    expect(workflow).toMatch(/npm run build --workspace @veltravia\/web/);
+    // The workspace packages must be compiled first: the web bundle imports them.
+    expect(workflow).toMatch(/run: npm run build$/m);
     expect(workflow).toMatch(/npx cap sync android/);
   });
 
