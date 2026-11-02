@@ -339,12 +339,12 @@ describe("the owner's picture beside their own turns", () => {
     await screen.findByText('Hello there');
   };
 
-  it('draws a circle with the initials of the name the owner gave', async () => {
+  it('draws a circle with the first letter of the name the owner gave', async () => {
     const { container } = renderAs('Ijezie Nwosu');
     await screen.findByLabelText('Message');
     await send();
     const avatar = container.querySelector('.v-chat__turn--user .v-chat__avatar');
-    expect(avatar?.textContent).toBe('IN');
+    expect(avatar?.textContent).toBe('I');
     expect(avatar?.getAttribute('data-empty')).toBeNull();
   });
 

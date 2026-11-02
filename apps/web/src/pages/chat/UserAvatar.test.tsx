@@ -1,22 +1,26 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
-import { UserAvatar, initialsFrom } from './UserAvatar';
+import { UserAvatar, initialFrom } from './UserAvatar';
 
-describe('the initials in the owner circle', () => {
-  it('uses the first and last word, upper-cased', () => {
-    expect(initialsFrom('Ijezie Nwosu')).toBe('IN');
-    expect(initialsFrom('ijezie')).toBe('I');
-    expect(initialsFrom('Ada  Lovelace Byron')).toBe('AB');
+describe('the letter in the owner circle', () => {
+  it('takes the first letter of the name and nothing else', () => {
+    expect(initialFrom('Ijezie Nwosu')).toBe('I');
+    expect(initialFrom('ijezie')).toBe('I');
+    expect(initialFrom('Ada  Lovelace Byron')).toBe('A');
   });
 
-  it('returns nothing when there is no name to take letters from', () => {
-    expect(initialsFrom(null)).toBeNull();
-    expect(initialsFrom('   ')).toBeNull();
+  it('ignores leading spaces before deciding the first letter', () => {
+    expect(initialFrom('   Nwosu')).toBe('N');
+  });
+
+  it('returns nothing when there is no name to take a letter from', () => {
+    expect(initialFrom(null)).toBeNull();
+    expect(initialFrom('   ')).toBeNull();
   });
 
   it('counts code points, so a name starting with an emoji still works', () => {
-    expect(initialsFrom('🎯 Goals')).toBe('🎯G');
+    expect(initialFrom('🎯 Goals')).toBe('🎯');
   });
 });
 
@@ -30,8 +34,8 @@ describe('the owner circle', () => {
     expect(avatar?.textContent).toBe('');
   });
 
-  it('draws the initials when there is no picture', () => {
+  it('draws one letter when there is no picture', () => {
     const { container } = render(<UserAvatar name="Ada Lovelace" />);
-    expect(container.querySelector('.v-chat__avatar')?.textContent).toBe('AL');
+    expect(container.querySelector('.v-chat__avatar')?.textContent).toBe('A');
   });
 });

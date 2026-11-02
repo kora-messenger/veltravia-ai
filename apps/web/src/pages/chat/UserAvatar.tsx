@@ -2,9 +2,10 @@
  * The owner's picture, as the circle beside their own turns.
  *
  * There are no accounts in this build, so there is no photograph to fetch: the
- * circle falls back to the initials of the name they gave in the agent dialog,
- * and to a person glyph when they have given no name. When an account photo
- * exists later, `src` is the only thing that has to change.
+ * circle falls back to the first letter of the name they gave in the agent
+ * dialog, and to a person glyph when they have given no name. One letter, not
+ * two: "Ijezie Nwosu" is I. When an account photo exists later, `src` is the only
+ * thing that has to change.
  */
 
 export interface UserAvatarProps {
@@ -13,18 +14,16 @@ export interface UserAvatarProps {
   readonly size?: number;
 }
 
-/** First and last initial, by code point so a name starting with an emoji works. */
-export function initialsFrom(name: string | null): string | null {
+/**
+ * The first letter of the name, by code point so a name starting with an emoji
+ * works. One letter only: the circle marks who sent the turn, and a second
+ * letter made "Ijezie Nwosu" read like two people.
+ */
+export function initialFrom(name: string | null): string | null {
   if (name === null) return null;
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter((part) => part !== '');
-  if (parts.length === 0) return null;
-  const first = [...(parts[0] ?? '')][0] ?? '';
-  const last = parts.length > 1 ? ([...parts[parts.length - 1]!][0] ?? '') : '';
-  const initials = (first + last).toUpperCase();
-  return initials === '' ? null : initials;
+  const first = [...name.trim()][0] ?? '';
+  if (first === '' || /\s/.test(first)) return null;
+  return first.toUpperCase();
 }
 
 function PersonGlyph({ size }: { readonly size: number }) {
@@ -48,7 +47,7 @@ function PersonGlyph({ size }: { readonly size: number }) {
 }
 
 export function UserAvatar({ name, src = null, size = 28 }: UserAvatarProps) {
-  const initials = initialsFrom(name);
+  const initial = initialFrom(name);
   return (
     <span
       className="v-chat__avatar"
@@ -56,12 +55,12 @@ export function UserAvatar({ name, src = null, size = 28 }: UserAvatarProps) {
       /* Decorative: the turn is already the owner's, so announcing "you" again
          on every message would only add noise. */
       aria-hidden="true"
-      data-empty={initials === null ? 'true' : undefined}
+      data-empty={initial === null ? 'true' : undefined}
     >
       {src !== null ? (
         <img className="v-chat__avatar-image" src={src} alt="" decoding="async" />
-      ) : initials !== null ? (
-        initials
+      ) : initial !== null ? (
+        initial
       ) : (
         <PersonGlyph size={Math.round(size * 0.55)} />
       )}

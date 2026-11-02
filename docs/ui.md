@@ -759,15 +759,16 @@ The circle is decorative (`aria-hidden`, no `alt`) because announcing "you" on
 every message the owner just sent adds noise. It draws, in order of preference:
 
 1. the account photograph (`src`), clipped to the circle with `object-fit: cover`;
-2. the initials of the name given in the agent dialog, first and last word,
-   upper-cased by code point so a name starting with an emoji still works;
+2. the **first letter only** of the name given in the agent dialog,
+   upper-cased by code point so a name starting with an emoji still works
+   ("Ijezie Nwosu" is `I`, not `IN`: two letters read like two people);
 3. a thin person glyph when no name has been given.
 
 **This build has no accounts, so there is no photograph to show yet.** The
 initials are the honest fallback, not a placeholder pretending to be a photo;
 `UserAvatar` already accepts `src`, so an account picture only needs that value
 wired in. Measured at 390, 1440 and 390-dark: 28 x 28, `border-radius: 50%`,
-initials `IN` on `--v-brand-100` at 6.4:1, glyph 5.9:1 on `--v-surface-muted`, no
+letter `I` on `--v-brand-100` at 6.4:1, glyph 5.9:1 on `--v-surface-muted`, no
 horizontal overflow, and no circle inside `.v-chat__turn--assistant`.
 
 ### The header carries no premium crown yet
