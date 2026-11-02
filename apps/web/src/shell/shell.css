@@ -294,6 +294,34 @@
    slot the reference fills with a premium crown is left empty on purpose until
    there is a real subscription to show. */
 
+/* The account popup is a small card, not a page menu: 10.5rem wide, 14px rows
+ * with an 18px glyph, so it drops in under the icon the way the reference does. */
+.v-topbar__actions .v-menu__panel {
+  min-width: 11rem;
+  margin-top: 0.5rem;
+  padding: 0.25rem;
+  border-radius: var(--v-radius-md);
+}
+.v-topbar__actions .v-menu__item {
+  gap: 0.625rem;
+  padding: 0.5rem 0.625rem;
+  min-height: 2.25rem;
+  font-size: 0.875rem;
+  font-weight: var(--v-weight-medium);
+  border-radius: var(--v-radius-sm);
+}
+.v-menu__glyph {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  display: block;
+}
+.v-topbar__actions .v-menu__item-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--v-text);
+}
+
 .v-topbar__notify-empty {
   margin: 0;
   color: var(--v-text-muted);

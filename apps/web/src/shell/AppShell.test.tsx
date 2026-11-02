@@ -232,6 +232,30 @@ describe('AppShell', () => {
     expect(screen.getByRole('button', { name: 'Account menu' })).toBeDefined();
   });
 
+  it('opens a small popup of icon rows from the account control', () => {
+    renderShell();
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
+
+    const panel = screen.getByRole('menu', { name: 'Account menu' });
+    const rows = screen.getAllByRole('menuitem');
+    expect(rows).toHaveLength(4);
+
+    // Every row is an icon plus a label, the way the reference popup reads, and
+    // the glyphs are decorative because the label already names the action.
+    for (const row of rows) {
+      const glyph = row.querySelector('.v-menu__glyph');
+      expect(glyph).not.toBeNull();
+      expect(glyph?.getAttribute('aria-hidden')).toBe('true');
+    }
+    expect(rows.map((row) => row.textContent)).toEqual([
+      'Theme: System',
+      'Notifications',
+      'Account',
+      'Sign out',
+    ]);
+    expect(panel.contains(rows[0] as Node)).toBe(true);
+  });
+
   it('keeps the premium slot empty and reaches notifications from the account menu', () => {
     const { container } = renderShell();
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Dialog, Menu, type MenuItemDef } from '../components/ui';
 import { BrandMark } from '../components/brand/BrandMark';
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider';
@@ -11,8 +11,54 @@ export interface TopBarProps {
   onOpenMobileNav(): void;
 }
 
+/** Small 18px glyphs for the popup rows, drawn on one 20-unit grid so the
+ *  stroke weight matches the bar's own icons. */
+const MenuIcon = ({ children }: { children: ReactNode }) => (
+  <svg viewBox="0 0 20 20" className="v-menu__glyph" aria-hidden="true">
+    <g
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {children}
+    </g>
+  </svg>
+);
+
+const THEME_GLYPH = (
+  <MenuIcon>
+    <circle cx="10" cy="10" r="6.6" />
+    <path d="M10 3.4a6.6 6.6 0 0 0 0 13.2Z" fill="currentColor" stroke="none" />
+  </MenuIcon>
+);
+
+const BELL_GLYPH = (
+  <MenuIcon>
+    <path d="M5.4 8.2a4.6 4.6 0 0 1 9.2 0c0 3 .9 4 1.4 4.6H4c.5-.6 1.4-1.6 1.4-4.6Z" />
+    <path d="M8.4 15.4a1.7 1.7 0 0 0 3.2 0" />
+  </MenuIcon>
+);
+
+const PERSON_GLYPH = (
+  <MenuIcon>
+    <circle cx="10" cy="6.9" r="3.1" />
+    <path d="M4.2 16.4c0-2.6 2.6-4.2 5.8-4.2s5.8 1.6 5.8 4.2" />
+  </MenuIcon>
+);
+
+const EXIT_GLYPH = (
+  <MenuIcon>
+    <path d="M11.4 3.6H5.4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h6" />
+    <path d="M13.2 6.9 16.6 10l-3.4 3.1M16.2 10H8.6" />
+  </MenuIcon>
+);
+
 const THEME_LABEL: Record<ThemePreference, string> = {
-  system: 'Match system',
+  // Short enough to stay on one popup row at 390px; it still says plainly
+  // that the theme follows the operating system.
+  system: 'System',
   light: 'Light',
   dark: 'Dark',
 };
@@ -32,6 +78,7 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
     {
       id: 'theme',
       label: `Theme: ${THEME_LABEL[preference]}`,
+      icon: THEME_GLYPH,
       onSelect: () => {
         const order: ThemePreference[] = ['system', 'light', 'dark'];
         const index = order.indexOf(preference);
@@ -42,12 +89,13 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
     {
       id: 'notifications',
       label: 'Notifications',
+      icon: BELL_GLYPH,
       onSelect: () => setNotificationsOpen(true),
     },
     {
       id: 'account',
       label: 'Account',
-      icon: undefined,
+      icon: PERSON_GLYPH,
       onSelect: () => {
         /* Account management arrives with authentication (a later step). */
       },
@@ -56,6 +104,7 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
     {
       id: 'sign-out',
       label: 'Sign out',
+      icon: EXIT_GLYPH,
       onSelect: () => {
         /* Sign-out arrives with authentication (a later step). */
       },
