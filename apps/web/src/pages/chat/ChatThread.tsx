@@ -1,6 +1,7 @@
 import { Spinner } from '../../components/ui';
 import { navigateToHash } from '../../shell/useHashRoute';
 import { AgentActivityTimeline } from './AgentActivityTimeline';
+import { ChatErrorState, failureReason } from './ChatErrorState';
 import { FinalReportCard } from './FinalReportCard';
 import { UserAvatar } from './UserAvatar';
 import type { ChatMessage } from './useChat';
@@ -34,9 +35,13 @@ export function Note({ message }: { readonly message: ChatMessage }) {
 export function Message({
   message,
   ownerName,
+  onRetry,
+  retrying,
 }: {
   readonly message: ChatMessage;
   readonly ownerName: string | null;
+  readonly onRetry: () => void;
+  readonly retrying: boolean;
 }) {
   if (message.role === 'user') {
     return (
@@ -49,6 +54,28 @@ export function Message({
 
   const thinking = message.phase === 'thinking';
   const hasActivity = message.activities.length > 0;
+
+  // A turn that never got an answer shows its own state and its own retry, in
+  // the place the answer would have been.
+  if (message.state === 'failed') {
+    return (
+      <div className="v-chat__turn v-chat__turn--assistant">
+        <div className="v-chat__answer">
+          <ChatErrorState
+            reason={
+              // A send that never left uses the plain word for it; a run that
+              // came back failed keeps whatever the server said went wrong.
+              message.failure
+                ? failureReason(message.failure.kind)
+                : (message.note ?? 'The run did not produce an answer')
+            }
+            retrying={retrying}
+            onRetry={onRetry}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="v-chat__turn v-chat__turn--assistant">
@@ -114,14 +141,15 @@ export function ChatThread({
       </div>
       <div className="v-chat__turns" role="log" aria-live="polite" aria-relevant="additions">
         {messages.map((message) => (
-          <Message key={message.id} message={message} ownerName={ownerName} />
+          <Message
+            key={message.id}
+            message={message}
+            ownerName={ownerName}
+            onRetry={onRetry}
+            retrying={!canRetry}
+          />
         ))}
       </div>
-      {canRetry && (
-        <button type="button" className="v-chat__retry" onClick={onRetry}>
-          Ask again
-        </button>
-      )}
     </div>
   );
 }

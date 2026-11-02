@@ -103,7 +103,7 @@ export function ChatPage() {
             agentName={profile.agentName}
             ownerName={name}
             canRetry={session.chat.canRetry}
-            onRetry={session.chat.retry}
+            onRetry={session.retry}
             onNewChat={session.newChat}
           />
         ) : app ? (
@@ -119,19 +119,6 @@ export function ChatPage() {
           awayFromBottom={awayFromBottom}
           onReturn={returnToLive}
         />
-        {session.sendError !== null ? (
-          <p className="v-chat__senderror" role="status">
-            <span>{session.sendError}</span>
-            <button
-              type="button"
-              className="v-chat__link"
-              onClick={session.dismissSendError}
-              aria-label="Dismiss this message"
-            >
-              Dismiss
-            </button>
-          </p>
-        ) : null}
         <ChatComposer
           value={session.draft}
           onChange={session.setDraft}

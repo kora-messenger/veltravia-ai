@@ -44,6 +44,15 @@ export function MicIcon({ size = 20 }: IconProps) {
  * the send position while there is nothing to send, so the control is a voice
  * control rather than a dead send button.
  */
+/** The retry mark: an open circular arrow, used by the failed-turn control. */
+export function RetryIcon({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v4.5h-4.5" />
+    </svg>
+  );
+}
+
 export function WaveIcon({ size = 18 }: IconProps) {
   return (
     <svg {...base(size)} strokeWidth={2}>

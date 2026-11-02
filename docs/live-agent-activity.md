@@ -69,7 +69,12 @@ what ran; they do not narrate what the model was thinking.
 ## What the page shows
 
 - **Before the server answers**: "Thinking". No timeline, because nothing has
-  happened yet. If the request fails there, the text goes back in the box.
+  happened yet. That first request needs the network, so if it fails there the
+  failed question comes off the screen, the words go back into the box exactly as
+  typed, and the warning takes its place: a pale tile with no brand mark,
+  "Something went wrong", one plain reason line ("Network Error" when the device
+  is offline) and a Retry control. Retry sends the words it kept, so nothing typed
+  is lost; editing them in the box and pressing send is the ordinary path.
 - **While it works**: a spinner and the current row's words, with the count of
   steps beside it. The rows are listed underneath and the whole list collapses
   behind one toggle.

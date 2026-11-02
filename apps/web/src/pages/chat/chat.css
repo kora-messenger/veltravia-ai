@@ -1172,3 +1172,65 @@
     animation: none;
   }
 }
+
+/* A turn that did not get an answer. Values measured from the reference at its
+   own scale: a 50dp tile, 16dp below it to the headline, 9dp to the reason, and
+   26dp before the retry control. No logo appears anywhere in this block. */
+.v-chat-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--v-space-5) var(--v-space-4);
+}
+
+.v-chat-error__tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  background: #fdf2f2;
+  color: #c22c2f;
+}
+
+.v-chat-error__title {
+  margin: 16px 0 0;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--v-text);
+}
+
+.v-chat-error__reason {
+  margin: 9px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--v-text-muted);
+}
+
+.v-chat-error__retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 26px;
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--v-border-strong);
+  border-radius: 999px;
+  background: var(--v-surface);
+  color: var(--v-text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.v-chat-error__retry:hover:not(:disabled) {
+  background: var(--v-surface-hover);
+}
+
+.v-chat-error__retry:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}

@@ -195,7 +195,7 @@ describe('the chat landing page', () => {
     expect(screen.queryByAltText(/veltravia/i)).toBeNull();
   });
 
-  it('keeps a failed run failed and offers to ask again', async () => {
+  it('keeps a failed run failed and offers a retry', async () => {
     startRun.mockResolvedValue(
       run({
         status: 'failed',
@@ -206,8 +206,11 @@ describe('the chat landing page', () => {
     renderPage();
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Anything' } });
     fireEvent.keyDown(screen.getByLabelText('Message'), { key: 'Enter' });
-    expect(await screen.findByText('Upstream refused.')).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Ask again' })).toBeDefined();
+    // The run's own words are the reason line, and the retry sits with it
+    // rather than in the footer.
+    expect(await screen.findByText('Something went wrong')).toBeDefined();
+    expect(screen.getByText('Upstream refused.')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeDefined();
     expect(screen.queryByText(/^Here is/)).toBeNull();
   });
 
@@ -495,7 +498,7 @@ describe('a message that does not reach the server', () => {
     expect(await screen.findByText('Here is what I found.')).toBeDefined();
   });
 
-  it('puts the text back in the box when the device is offline', async () => {
+  it('shows only the warning, with the words back in the box', async () => {
     startRun.mockRejectedValue(
       new TransportError('offline', 'You are offline. Your message was not sent.'),
     );
@@ -503,16 +506,77 @@ describe('a message that does not reach the server', () => {
     type('Find the bug');
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
 
-    expect(
-      await screen.findByText(/You are offline. Your message is back in the box./),
-    ).toBeDefined();
-    // The message the person wrote is in the composer, unedited, and the thread
-    // does not pretend it was sent.
-    expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe('Find the bug');
+    // The warning is the whole of what the failed send puts on screen: a pale
+    // tile with no brand mark, a headline, one plain reason line and Retry.
+    expect(await screen.findByText('Something went wrong')).toBeDefined();
+    expect(screen.getByText('Network Error')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeDefined();
+
+    // Nothing pretends the question was sent: no bubble at all.
     expect(screen.queryByText('Find the bug', { selector: '.v-chat__bubble' })).toBeNull();
-    expect(screen.getByLabelText('Message').getAttribute('placeholder')).toBe(
-      "What's on your mind",
-    );
+
+    // And nothing typed is lost: it is back in the box, unedited. (The handback
+    // lands one effect after the warning, so this waits for it.)
+    await waitFor(() => {
+      expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe('Find the bug');
+    });
+    // The warning is on screen, so the box asks for a message rather than
+    // offering the opening question again.
+    expect(screen.getByLabelText('Message').getAttribute('placeholder')).toBe('Type a message…');
+  });
+
+  it('puts no brand mark inside the error state', async () => {
+    startRun.mockRejectedValue(new TransportError('offline', 'You are offline.'));
+    renderPage();
+    type('Find the bug');
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    const card = await screen.findByRole('alert');
+    expect(card.querySelector('img')).toBeNull();
+    expect(card.querySelector('.v-brand-mark')).toBeNull();
+  });
+
+  it('retries with the words it kept, and puts exactly one question back', async () => {
+    startRun
+      .mockRejectedValueOnce(new TransportError('offline', 'You are offline.'))
+      .mockResolvedValueOnce(run({ status: 'completed' }));
+    renderPage();
+    type('Find the bug');
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    await screen.findByText('Something went wrong');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(await screen.findByText('Here is what I found.')).toBeDefined();
+    // One bubble, not two: the retry replaced the warning rather than adding to it.
+    expect(screen.getAllByText('Find the bug', { selector: '.v-chat__bubble' })).toHaveLength(1);
+    expect(screen.queryByText('Something went wrong')).toBeNull();
+    // Retried with the same words, and the box no longer holds a live copy.
+    expect(startRun).toHaveBeenLastCalledWith(expect.objectContaining({ task: 'Find the bug' }));
+    expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe('');
+  });
+
+  it('retries the edited words from the box, not the abandoned ones', async () => {
+    startRun
+      .mockRejectedValueOnce(new TransportError('offline', 'You are offline.'))
+      .mockResolvedValueOnce(run({ status: 'completed' }));
+    renderPage();
+    type('Find the bu');
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    await screen.findByText('Something went wrong');
+    await waitFor(() => {
+      expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe('Find the bu');
+    });
+
+    // Editing the handed-back text and pressing Send is the ordinary path; the
+    // warning must not also fire its own copy of the old words.
+    type('Find the bug');
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(await screen.findByText('Here is what I found.')).toBeDefined();
+    expect(screen.getAllByText('Find the bug', { selector: '.v-chat__bubble' })).toHaveLength(1);
+    expect(screen.queryByText('Find the bu', { selector: '.v-chat__bubble' })).toBeNull();
+    expect(startRun).toHaveBeenLastCalledWith(expect.objectContaining({ task: 'Find the bug' }));
+    expect(startRun).toHaveBeenCalledTimes(2);
   });
 
   it('does not resend by itself when the request timed out', async () => {
@@ -523,14 +587,11 @@ describe('a message that does not reach the server', () => {
     type('Summarise the repo');
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
 
-    expect(await screen.findByText(/did not answer in time/)).toBeDefined();
+    expect(await screen.findByText('The service took too long to answer')).toBeDefined();
     expect(startRun).toHaveBeenCalledTimes(1);
-    expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe(
-      'Summarise the repo',
-    );
   });
 
-  it('reports a refusal as a refusal and keeps the text', async () => {
+  it('names an unavailable service as unavailable', async () => {
     startRun.mockRejectedValue(
       new ApiError(503, 'PROVIDER_UNAVAILABLE', 'No provider is connected.'),
     );
@@ -538,8 +599,7 @@ describe('a message that does not reach the server', () => {
     type('Anything');
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
 
-    expect(await screen.findByText(/service is unavailable right now/)).toBeDefined();
-    expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe('Anything');
+    expect(await screen.findByText('The service is unavailable')).toBeDefined();
   });
 
   it('says so when it is not authorised, without blaming the network', async () => {
@@ -548,8 +608,8 @@ describe('a message that does not reach the server', () => {
     type('Anything');
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
 
-    expect(await screen.findByText(/not authorised to run here/)).toBeDefined();
-    expect(screen.queryByText(/back in the box/)).toBeNull();
+    expect(await screen.findByText('Not authorised to run here')).toBeDefined();
+    expect(screen.queryByText('Network Error')).toBeNull();
   });
 
   it('sends once, however many times the send control is tapped', async () => {
@@ -578,22 +638,7 @@ describe('a message that does not reach the server', () => {
 
     // Accepted means sent: the text stays out of the composer, and asking again
     // is the person's choice, not the page's.
-    expect(await screen.findByText('Upstream refused.')).toBeDefined();
+    expect(await screen.findByText('Something went wrong')).toBeDefined();
     expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe('');
-    expect(screen.queryByText(/back in the box/)).toBeNull();
-  });
-
-  it('adds nothing to a message already in the box', async () => {
-    startRun.mockRejectedValue(new TransportError('network', 'Cannot reach the service.'));
-    renderPage();
-    type('First thought');
-    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
-    await screen.findByText(/back in the box/);
-
-    type('Second thought');
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Dismiss this message' }));
-    });
-    expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe('Second thought');
   });
 });

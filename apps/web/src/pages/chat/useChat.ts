@@ -56,6 +56,10 @@ export interface ChatMessage {
   readonly note?: string;
   /** The server's run, once it exists. Null while still thinking. */
   readonly runId: string | null;
+  /** Set when the send itself failed, so the turn can say why and offer retry. */
+  readonly failure?: SendFailure | null;
+  /** The words that never left, kept so a retry does not need them on screen. */
+  readonly failedQuestion?: string | null;
   readonly activities: readonly AgentActivityEvent[];
   readonly report: FinalAgentReport | null;
   readonly runStatus: string | null;
@@ -101,24 +105,6 @@ export function classifySendFailure(error: unknown): SendFailure {
     return { kind: 'offline', message: 'You are offline. Your message was not sent.' };
   }
   return { kind: 'unknown', message: errorMessage(error) };
-}
-
-/** What the composer shows above itself after a send did not take. */
-export function failureNote(failure: SendFailure): string {
-  switch (failure.kind) {
-    case 'offline':
-      return 'You are offline. Your message is back in the box.';
-    case 'timeout':
-      return 'The service did not answer in time. Your message is back in the box.';
-    case 'unavailable':
-      return 'The service is unavailable right now. Your message is back in the box.';
-    case 'auth':
-      return failure.message;
-    case 'rejected':
-      return failure.message;
-    default:
-      return 'That message could not be sent. It is back in the box.';
-  }
 }
 
 /**
@@ -183,9 +169,9 @@ export interface UseChatResult {
   readonly retry: () => void;
   readonly reset: () => void;
   readonly canRetry: boolean;
-  /** Set when a send did not reach the server, with the text to put back. */
-  readonly restore: { readonly text: string; readonly note: string; readonly token: number } | null;
-  /** Acknowledges a restore once the composer has taken the text back. */
+  /** Set when a send did not reach the server: the words to hand back. */
+  readonly restore: { readonly text: string; readonly token: number } | null;
+  /** Acknowledges a restore once the composer has taken the words back. */
   readonly clearRestore: () => void;
 }
 
@@ -351,38 +337,23 @@ export function useChat(): UseChatResult {
       .catch(() => undefined);
   }, []);
 
-  const send = useCallback(
-    (raw: string) => {
-      const text = raw.trim();
-      // One send at a time: a second tap while thinking would run the request
-      // twice and produce two runs for one message.
-      if (text === '' || busy) return;
-
+  /**
+   * Runs one question into one answer turn.
+   *
+   * The question and answer turns are excluded from the history it sends: a retry
+   * reuses the same two turns, and without this the model would see the failed
+   * question twice (once in the history, once as the task).
+   */
+  const runAnswer = useCallback(
+    (text: string, questionId: string, answerId: string) => {
       const history = messages
-        .filter((message) => message.state === 'done')
+        .filter(
+          (message) =>
+            message.state === 'done' && message.id !== questionId && message.id !== answerId,
+        )
         .slice(-HISTORY_TURNS * 2)
         .map((message) => ({ role: message.role, content: message.text }));
-
       lastQuestion.current = text;
-      setRestore(null);
-      const questionId = nextId();
-      const answerId = nextId();
-      setMessages((current) => [
-        ...current,
-        {
-          id: questionId,
-          role: 'user',
-          text,
-          state: 'done',
-          phase: 'finished',
-          runId: null,
-          activities: [],
-          report: null,
-          runStatus: null,
-          connection: null,
-        },
-        emptyTurn(answerId),
-      ]);
       setBusy(true);
 
       const mode =
@@ -418,16 +389,52 @@ export function useChat(): UseChatResult {
         .catch((error: unknown) => {
           if (!mounted.current) return;
           const failure = classifySendFailure(error);
-          // Nothing was accepted, so nothing should look sent: both bubbles go
-          // and the text returns to the composer, unedited and unsent.
-          setMessages((current) =>
-            current.filter((message) => message.id !== questionId && message.id !== answerId),
-          );
+          // Nothing reached the server, so nothing is left looking sent: the
+          // question comes off the screen and the words go back into the box,
+          // exactly as typed. What stays is the warning in the answer slot, so
+          // the failure is visible rather than silent.
+          setMessages((current) => current.filter((message) => message.id !== questionId));
+          patch(answerId, {
+            state: 'failed',
+            phase: 'finished',
+            failure,
+            failedQuestion: text,
+            text: '',
+          });
+          setRestore({ text, token: Date.now() });
           setBusy(false);
-          setRestore({ text, note: failureNote(failure), token: Date.now() });
         });
     },
-    [busy, capabilities, finish, follow, loadTimeline, messages, patch],
+    [capabilities, finish, follow, loadTimeline, messages, patch],
+  );
+
+  const send = useCallback(
+    (raw: string) => {
+      const text = raw.trim();
+      // One send at a time: a second tap while thinking would run the request
+      // twice and produce two runs for one message.
+      if (text === '' || busy) return;
+      const questionId = nextId();
+      const answerId = nextId();
+      setMessages((current) => [
+        ...current,
+        {
+          id: questionId,
+          role: 'user',
+          text,
+          state: 'done',
+          phase: 'finished',
+          runId: null,
+          activities: [],
+          report: null,
+          runStatus: null,
+          connection: null,
+        },
+        emptyTurn(answerId),
+      ]);
+      runAnswer(text, questionId, answerId);
+    },
+    [busy, runAnswer],
   );
 
   const stop = useCallback(() => {
@@ -451,12 +458,39 @@ export function useChat(): UseChatResult {
     cancelQuietly(runId);
   }, []);
 
+  /**
+   * Retries the last failed turn.
+   *
+   * A send that never left has no question on screen: the warning is standing
+   * where the question would have been. Retrying therefore takes the warning
+   * away and sends the words it kept, which puts one question back in the thread
+   * and one answer under it. A run that failed after being accepted still has its
+   * question, and that one is retried in place so it is not duplicated.
+   */
   const retry = useCallback(() => {
-    const question = lastQuestion.current;
-    if (question === null) return;
-    setMessages((current) => current.filter((message) => message.state !== 'failed'));
-    send(question);
-  }, [send]);
+    if (busy) return;
+    const failed = [...messages]
+      .reverse()
+      .find((message) => message.role === 'assistant' && message.state === 'failed');
+    if (failed === undefined) return;
+
+    const kept = failed.failedQuestion ?? null;
+    if (kept !== null) {
+      setMessages((current) => current.filter((message) => message.id !== failed.id));
+      send(kept);
+      return;
+    }
+
+    const index = messages.findIndex((message) => message.id === failed.id);
+    const question = [...messages.slice(0, index)]
+      .reverse()
+      .find((message) => message.role === 'user');
+    if (question === undefined) return;
+    patch(failed.id, { ...emptyTurn(failed.id) });
+    runAnswer(question.text, question.id, failed.id);
+  }, [busy, messages, patch, runAnswer, send]);
+
+  const clearRestore = useCallback(() => setRestore(null), []);
 
   const reset = useCallback(() => {
     follower.current?.stop();
@@ -468,8 +502,6 @@ export function useChat(): UseChatResult {
     setRestore(null);
     setBusy(false);
   }, []);
-
-  const clearRestore = useCallback(() => setRestore(null), []);
 
   const canRetry =
     !busy && messages.some((message) => message.role === 'assistant' && message.state === 'failed');
