@@ -180,20 +180,6 @@ export function ChatComposer({
 
   return (
     <div className="v-chat-composer">
-      <label className="v-chat-composer__label" htmlFor="veltravia-chat-input">
-        Message
-      </label>
-      <textarea
-        id="veltravia-chat-input"
-        ref={field}
-        className="v-chat-composer__input"
-        value={value}
-        rows={1}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={onKeyDown}
-        aria-describedby="veltravia-chat-hint"
-      />
       {image !== null && (
         <div className="v-chat-composer__attachment">
           <img className="v-chat-composer__thumb" src={image.url} alt={image.name} />
@@ -219,6 +205,20 @@ export function ChatComposer({
           }
           event.target.value = '';
         }}
+      />
+      <label className="v-chat-composer__label" htmlFor="veltravia-chat-input">
+        Message
+      </label>
+      <textarea
+        id="veltravia-chat-input"
+        ref={field}
+        className="v-chat-composer__input"
+        value={value}
+        rows={1}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={onKeyDown}
+        aria-describedby="veltravia-chat-hint"
       />
       <div className="v-chat-composer__row">
         <Menu

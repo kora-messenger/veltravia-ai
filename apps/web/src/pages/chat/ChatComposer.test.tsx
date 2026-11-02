@@ -118,6 +118,15 @@ describe('with a picture attached', () => {
     expect(voiceControl()).toBeNull();
   });
 
+  it('puts the preview at the top of the box, above the field', async () => {
+    renderComposer();
+    await attach();
+    const thumb = document.querySelector('.v-chat-composer__thumb') as HTMLElement;
+    const field = screen.getByLabelText('Message');
+    // Document order is what places it: above the typed line, not below it.
+    expect(thumb.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('takes the microphone away as soon as text joins the picture', async () => {
     renderComposer({ value: 'Look at this' });
     await attach();
