@@ -747,6 +747,15 @@ now starts at the thread's left edge on both layouts, which keeps the version
 and the conversation legible with one logo on the page rather than one per turn.
 A test fails if a `.v-brand-mark` or `img` reappears inside an assistant turn.
 
+### The greeting is quiet, not a headline
+
+The reference landing puts the greeting at roughly 1.75x the suggestion rows. An
+h1 at 30px bold against 13px rows was 2.3x, which made the empty screen shout.
+It is now 22px at weight 600 on both layouts: 22 / 13 = 1.69, the closest whole
+pixel to the reference, where the 20px and 24px scale tokens land at 1.54 and
+1.85. Measured live at 390 and 1440: 22px, weight 600, two lines, ratio 1.69, no
+horizontal overflow.
+
 ### The owner's turns carry their picture
 
 Every user turn ends with a 28px circle at the right, beside the bubble and
