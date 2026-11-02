@@ -670,12 +670,31 @@
 }
 
 .v-chat__step {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--v-space-2);
   font-size: var(--v-text-xs);
   color: var(--v-text-muted);
+}
+
+/* The whole row is the target: 32px tall with the text, so a tap anywhere on the
+   line opens the step rather than only on a small chevron. */
+.v-chat__step-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--v-space-2);
+  width: 100%;
+  min-height: 32px;
+  padding: 2px 4px 2px 0;
+  border: 0;
+  border-radius: var(--v-radius-sm);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.v-chat__step-row:hover {
+  background: var(--v-surface-hover);
 }
 
 .v-chat__step-mark {
@@ -700,6 +719,70 @@
 
 .v-chat__step-meta {
   white-space: nowrap;
+  color: var(--v-text-faint);
+}
+
+/* Refused is not failed: the tool never ran, so it wears the muted chip rather
+   than the red one. Only a command that ran and came back broken gets red. */
+.v-chat__step.is-rejected .v-chat__step-mark {
+  color: var(--v-text-faint);
+}
+
+.v-chat__step-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  margin: var(--v-space-2) 0 var(--v-space-3) 0;
+  padding: var(--v-space-3);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface-muted);
+}
+
+.v-chat__detail-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.v-chat__detail-label {
+  margin: 0;
+  font-size: var(--v-text-2xs);
+  font-weight: var(--v-weight-medium);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--v-text-faint);
+}
+
+.v-chat__detail-text {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: var(--v-space-2);
+  border-radius: var(--v-radius-sm);
+  background: var(--v-surface);
+  border: 1px solid var(--v-border);
+  font-family: var(--v-font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--v-text);
+  /* A tool's output is unwrapped text: keep its own newlines, and break a long
+     path rather than pushing the thread sideways. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-overflow-scrolling: touch;
+}
+
+.v-chat__detail-empty {
+  margin: 0;
+  font-size: var(--v-text-xs);
+  color: var(--v-text-faint);
+}
+
+.v-chat__detail-note {
+  margin: 0;
+  font-size: var(--v-text-2xs);
   color: var(--v-text-faint);
 }
 

@@ -454,3 +454,72 @@ describe('reasoning API: streaming', () => {
     expect(stream.statusCode).toBe(404);
   });
 });
+
+describe('reasoning API: a step reaches the browser in a shape it can draw', () => {
+  // The engine names its steps one way (`stepId`, `failure`, `denied`); the page
+  // draws another (`id`, `failed`, `rejected`). This test pins the boundary: what
+  // the route sends is what the chat renders, including the two blocks a person
+  // opens a step to read.
+  const engineRun = {
+    id: 'run-view-1',
+    profile: 'workspace',
+    task: 'Fix the failing test',
+    status: 'failed',
+    steps: [
+      {
+        stepId: 'step-1',
+        toolId: 'sandbox.execute',
+        intent: 'run the test suite',
+        status: 'failure',
+        input: { command: 'npm test', token: 'sk-abcdefghijklmnop' },
+        error: { code: 'TOOL_FAILED', message: 'The command exited with code 1.' },
+        requestedAt: '2026-11-02T15:00:00.000Z',
+        completedAt: '2026-11-02T15:00:01.250Z',
+      },
+      {
+        stepId: 'step-2',
+        toolId: 'project.delete-file',
+        intent: 'delete the stale fixture',
+        status: 'denied',
+        requestedAt: '2026-11-02T15:00:02.000Z',
+        completedAt: '2026-11-02T15:00:02.010Z',
+      },
+    ],
+    decisions: [],
+    usage: {
+      iterations: 1,
+      toolCalls: 2,
+      modelCalls: 1,
+      inputTokens: null,
+      outputTokens: null,
+      providerLatencyMs: 0,
+      latencyMs: 0,
+    },
+    provenance: [],
+    contextDropped: [],
+    limitations: [],
+    createdAt: '2026-11-02T15:00:00.000Z',
+  };
+
+  it('renames the statuses, keeps the id, and sends command and output', async () => {
+    const { app, service } = appWithSimulated();
+    (service as unknown as { getRun: () => Promise<unknown> }).getRun = async () => engineRun;
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/reasoning/runs/run-view-1',
+      headers: ownerA,
+    });
+    expect(response.statusCode).toBe(200);
+    const steps = response.json().run.steps as Array<Record<string, unknown>>;
+
+    expect(steps[0]).toMatchObject({ id: 'step-1', status: 'failed', durationMs: 1250 });
+    expect(steps[0]?.command).toContain('sandbox.execute');
+    expect(steps[0]?.command).toContain('npm test');
+    expect(steps[0]?.output).toContain('The command exited with code 1.');
+    expect(steps[1]).toMatchObject({ id: 'step-2', status: 'rejected', durationMs: 10 });
+    // A credential-shaped argument never leaves the server, even inside a step.
+    expect(JSON.stringify(steps)).not.toContain('sk-abcdefghijklmnop');
+    expect(JSON.stringify(steps)).not.toContain('stepId');
+  });
+});

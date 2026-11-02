@@ -486,6 +486,13 @@ See [ai-providers.md](ai-providers.md).
     instead of rendering a guessed state. A missing field degrades the display, it
     never blanks the page.
 
+15. A step's arguments and result leave the engine only as a narrowed view. The
+    route maps every run through `toRunView()`, which sends `command` and `output`
+    as plain text, scrubbed with `scrubReasoningText()` and cut to 1200 and 4000
+    characters. The raw `input` and `output` records the engine holds (file
+    contents, absolute paths) are never serialised to a client, and a step that
+    produced nothing sends `null` rather than an empty-looking stand-in.
+
 See [reasoning.md](reasoning.md).
 
 ## 5s. Model routing (Step 28)

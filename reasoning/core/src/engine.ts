@@ -114,6 +114,12 @@ export interface ReasoningToolStep {
   readonly toolId: string;
   readonly intent: string;
   readonly status: 'success' | 'failure' | 'denied' | 'awaiting_confirmation';
+  /**
+   * The arguments the tool was called with. Kept so a person can see what a step
+   * actually did; the browser receives a scrubbed, bounded rendering of it, never
+   * this raw record.
+   */
+  readonly input?: Readonly<Record<string, unknown>>;
   readonly output?: Readonly<Record<string, unknown>>;
   readonly error?: { readonly code: string; readonly message: string };
   readonly requestedAt: string;
@@ -393,7 +399,14 @@ export class ReasoningEngine {
         ...(decision === 'approved' ? { confirmationId } : {}),
       },
     );
-    this.recordStep(state, pendingState.stepId, pendingState.toolId, pendingState.intent, result);
+    this.recordStep(
+      state,
+      pendingState.stepId,
+      pendingState.toolId,
+      pendingState.intent,
+      { ...pendingState.input },
+      result,
+    );
     if (decision === 'rejected') {
       state.run = patch(
         state.run,
@@ -923,7 +936,7 @@ export class ReasoningEngine {
       return 'paused';
     }
 
-    this.recordStep(state, stepId, toolId, intent, result);
+    this.recordStep(state, stepId, toolId, intent, input, result);
     return 'ran';
   }
 
@@ -932,6 +945,7 @@ export class ReasoningEngine {
     stepId: string,
     toolId: string,
     intent: string,
+    input: Record<string, unknown>,
     result: Awaited<ReturnType<ToolManager['invoke']>>,
   ): void {
     const step: ReasoningToolStep = {
@@ -946,6 +960,7 @@ export class ReasoningEngine {
             : result.status === 'awaiting_confirmation'
               ? 'awaiting_confirmation'
               : 'failure',
+      input,
       ...(result.output !== undefined ? { output: result.output } : {}),
       ...(result.error !== undefined ? { error: result.error } : {}),
       requestedAt: result.requestedAt,

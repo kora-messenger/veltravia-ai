@@ -3,6 +3,7 @@ import { readEnv } from '@veltravia/config';
 import {
   REASONING_PROFILES,
   isReasoningError,
+  toRunView,
   reasoningHttpStatus,
   type ReasoningProfileId,
 } from '@veltravia/reasoning-core';
@@ -207,7 +208,7 @@ export function registerReasoningRoutes(app: FastifyInstance, service: Reasoning
         ...(body.context !== undefined ? { context: body.context } : {}),
         ...(body.limits !== undefined ? { limits: body.limits } : {}),
       } as Parameters<ReasoningService['start']>[0]);
-      return reply.status(202).send({ run });
+      return reply.status(202).send({ run: toRunView(run) });
     } catch (error) {
       const mapped = toError(error);
       return reply.status(mapped.status).send(mapped.body);
@@ -223,14 +224,16 @@ export function registerReasoningRoutes(app: FastifyInstance, service: Reasoning
         error: { code: 'REASONING_RUN_NOT_FOUND', message: 'That reasoning run does not exist.' },
       });
     }
-    return { run };
+    return { run: toRunView(run) };
   });
 
   /** Cancels a run. Cancellation is one-way; nothing resumes it. */
   app.post('/api/reasoning/runs/:runId/cancel', async (request, reply) => {
     const { runId } = request.params as { runId: string };
     try {
-      return { run: await service.cancel({ runId, ownerRef: ownerOf(request) }) };
+      return {
+        run: toRunView(await service.cancel({ runId, ownerRef: ownerOf(request) })),
+      };
     } catch (error) {
       const mapped = toError(error);
       return reply.status(mapped.status).send(mapped.body);
@@ -263,7 +266,7 @@ export function registerReasoningRoutes(app: FastifyInstance, service: Reasoning
           confirmationId: body.confirmationId,
           decision: body.decision,
         });
-        return { run };
+        return { run: toRunView(run) };
       } catch (error) {
         const mapped = toError(error);
         return reply.status(mapped.status).send(mapped.body);

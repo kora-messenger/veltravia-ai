@@ -817,6 +817,53 @@ The expansion lists the steps with their status (`Done`, `Failed`, `Refused`,
 `Waiting for approval`) and duration. At most twelve are kept. Durations round in
 integers first, so 1450 ms reads `1.5 s` rather than `1.4 s`.
 
+### Opening a step
+
+A step row is the whole target: 32px tall, tap anywhere. Opening one reveals two
+labelled blocks, `Command` and `Output`, both in the mono face at 12px/1.5 on a
+bordered surface. This mirrors the reference (a Base44 run, recorded on a phone):
+the rows there wear a `</>` and the opened step shows the command above its
+output, with the label in small caps above each block.
+
+Neither block is written by the page. Both come from the server's step view
+(`reasoning/core/src/step-view.ts`), which turns the engine's tool record into:
+
+| Block     | Source                                         | Ceiling    |
+| --------- | ---------------------------------------------- | ---------- |
+| `Command` | the tool id, then its arguments as pretty JSON | 1200 chars |
+| `Output`  | what the tool returned, or the failure reason  | 4000 chars |
+
+Both are passed through `scrubReasoningText()` first, so a tool that echoes a
+credential cannot put one on screen. When either is cut, the panel says
+`Longer text was trimmed to fit.` rather than ending mid-sentence silently. A
+step with nothing to show says `This step ran no command.` or `This step
+returned nothing.`, which is different from a box that merely looks empty.
+
+The raw records never reach the browser: the route narrows every run through
+`toRunView()`, which also renames the engine's statuses (`failure` → `failed`,
+`denied` → `rejected`) and computes the duration from the two timestamps. Before
+this, the page read `step.id` and `step.status` from a payload that carried
+`stepId` and `failure`, so a step's status and key were undefined in the DOM.
+
+### The marks on a step
+
+The left mark states what happened, and it is a real knockout: a solid block with
+the glyph punched out through an SVG mask, so the page behind shows through the
+mark instead of a second colour being painted over the block. Measured on the
+rendered page: the failed chip fills `#c2404a` and the pixels inside the cross are
+the page background.
+
+| Case                           | Mark                                              |
+| ------------------------------ | ------------------------------------------------- |
+| command succeeded              | `</>`, the mark it ran under                      |
+| step succeeded, nothing to run | tick chip, ink block, tick knocked out            |
+| command failed                 | the failed chip replaces `</>`                    |
+| refused                        | the same chip, muted, not red: the tool never ran |
+| waiting for approval           | pause glyph                                       |
+
+Red is reserved for work that ran and came back broken. A refusal is not a
+failure, and colouring it red would say the tool attempted something.
+
 Only the spinner moves, and `prefers-reduced-motion` drops the chevron
 transition. No brand mark sits on a turn: answers start at the thread's left
 edge, so the page carries one logo (the bar's) instead of one per reply. The

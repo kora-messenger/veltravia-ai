@@ -14,4 +14,5 @@ export * from './errors.js';
 export * from './profiles.js';
 export * from './provider.js';
 export * from './schema.js';
+export * from './step-view.js';
 export * from './usage.js';

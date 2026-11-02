@@ -1,14 +1,30 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { RunActivityLine } from './RunActivity';
-import type { ChatActivity } from './activity';
+import type { ActivityStep, ChatActivity } from './activity';
+
+const step = (over: Partial<ActivityStep> = {}): ActivityStep => ({
+  id: 's1',
+  label: 'Read the failing test tail',
+  status: 'success',
+  durationMs: 420,
+  command: 'project.read-file\n{\n  "path": "src/chat.test.ts"\n}',
+  output: 'Test Files  5 passed\nTests  49 passed',
+  truncated: false,
+  ...over,
+});
 
 const running = (steps: ChatActivity['steps'] = []): ChatActivity => ({
   label: steps.length > 0 ? steps[steps.length - 1]!.label : 'Working on it',
   steps,
   running: true,
 });
+
+const openSteps = (steps: readonly ActivityStep[]): void => {
+  render(<RunActivityLine activity={running(steps)} />);
+  fireEvent.click(screen.getByRole('button', { expanded: false }));
+};
 
 afterEach(cleanup);
 
@@ -22,21 +38,11 @@ describe('the live status line', () => {
   });
 
   it('keeps the steps collapsed until asked, then lists them with status', () => {
-    render(
-      <RunActivityLine
-        activity={running([
-          { id: 's1', label: 'Read the failing test tail', status: 'success', durationMs: 420 },
-          { id: 's2', label: 'Wrote the patch', status: 'failed', durationMs: 1200 },
-        ])}
-      />,
-    );
+    openSteps([
+      step(),
+      step({ id: 's2', label: 'Wrote the patch', status: 'failed', durationMs: 1200 }),
+    ]);
 
-    const toggle = screen.getByRole('button', { expanded: false });
-    expect(toggle.textContent).toContain('2 steps');
-    expect(screen.queryByRole('list')).toBeNull();
-
-    fireEvent.click(toggle);
-    expect(screen.getByRole('button', { expanded: true })).toBeDefined();
     const items = screen.getAllByRole('listitem');
     expect(items).toHaveLength(2);
     expect(items[0]?.textContent).toContain('Read the failing test tail');
@@ -51,9 +57,7 @@ describe('the live status line', () => {
       <RunActivityLine
         activity={{
           label: 'Read the failing test tail',
-          steps: [
-            { id: 's1', label: 'Read the failing test tail', status: 'success', durationMs: 10 },
-          ],
+          steps: [step({ durationMs: 10 })],
           running: false,
         }}
       />,
@@ -64,23 +68,82 @@ describe('the live status line', () => {
   });
 
   it('says a step is waiting for approval rather than calling it done', () => {
-    render(
-      <RunActivityLine
-        activity={{
-          label: 'Purge the sandbox',
-          steps: [
-            {
-              id: 's1',
-              label: 'Purge the sandbox',
-              status: 'pending_confirmation',
-              durationMs: null,
-            },
-          ],
-          running: false,
-        }}
-      />,
-    );
-    fireEvent.click(screen.getByRole('button'));
+    openSteps([
+      step({ label: 'Purge the sandbox', status: 'pending_confirmation', durationMs: null }),
+    ]);
     expect(screen.getByRole('listitem').textContent).toContain('Waiting for approval');
+  });
+});
+
+describe('opening a step shows what it ran', () => {
+  it('reveals Command and Output only when the step is opened', () => {
+    openSteps([step()]);
+    expect(screen.queryByText('Command')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { expanded: false, name: /failing test tail/i }));
+    expect(screen.getByText('Command')).toBeDefined();
+    expect(screen.getByText('Output')).toBeDefined();
+    expect(screen.getByText(/src\/chat\.test\.ts/)).toBeDefined();
+    expect(screen.getByText(/49 passed/)).toBeDefined();
+  });
+
+  it('closes the step again on a second tap', () => {
+    openSteps([step()]);
+    const row = screen.getByRole('button', { expanded: false, name: /failing test tail/i });
+    fireEvent.click(row);
+    expect(screen.getByText('Command')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { expanded: true, name: /failing test tail/i }));
+    expect(screen.queryByText('Command')).toBeNull();
+  });
+
+  it('says so plainly when a step returned nothing', () => {
+    openSteps([step({ command: null, output: null })]);
+    fireEvent.click(screen.getByRole('button', { expanded: false, name: /failing test tail/i }));
+    expect(screen.getByText('This step ran no command.')).toBeDefined();
+    expect(screen.getByText('This step returned nothing.')).toBeDefined();
+  });
+
+  it('admits when the server trimmed the text', () => {
+    openSteps([step({ truncated: true })]);
+    fireEvent.click(screen.getByRole('button', { expanded: false, name: /failing test tail/i }));
+    expect(screen.getByText('Longer text was trimmed to fit.')).toBeDefined();
+  });
+
+  it('keeps each step’s own detail to itself', () => {
+    openSteps([
+      step({ id: 'a', label: 'Read the file', command: 'project.read-file', output: 'first' }),
+      step({ id: 'b', label: 'Write the file', command: 'project.update-file', output: 'second' }),
+    ]);
+    fireEvent.click(screen.getByRole('button', { expanded: false, name: /read the file/i }));
+    const opened = screen.getAllByRole('listitem')[0]!;
+    expect(within(opened).getByText('first')).toBeDefined();
+    expect(within(opened).queryByText('second')).toBeNull();
+  });
+});
+
+describe('the mark on a step tells the truth about it', () => {
+  const marksOf = (): { command: boolean; chip: boolean } => {
+    const item = screen.getAllByRole('listitem')[0]!;
+    const mark = item.querySelector('.v-chat__step-mark')!;
+    return {
+      command: mark.querySelector('svg path')?.getAttribute('d')?.includes('16 8l4 4') === true,
+      chip: mark.querySelector('rect') !== null,
+    };
+  };
+
+  it('gives a command that succeeded the code mark it ran under', () => {
+    openSteps([step()]);
+    expect(marksOf()).toEqual({ command: true, chip: false });
+  });
+
+  it('replaces that mark with the failed chip when the command failed', () => {
+    openSteps([step({ status: 'failed' })]);
+    expect(marksOf()).toEqual({ command: false, chip: true });
+    expect(screen.getAllByRole('listitem')[0]!.className).toContain('is-failed');
+  });
+
+  it('wears the tick chip when a step had no command to run', () => {
+    openSteps([step({ command: null })]);
+    expect(marksOf()).toEqual({ command: false, chip: true });
   });
 });

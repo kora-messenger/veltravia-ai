@@ -14,6 +14,12 @@ export interface ActivityStep {
   readonly label: string;
   readonly status: 'success' | 'failed' | 'rejected' | 'pending_confirmation';
   readonly durationMs: number | null;
+  /** The tool and arguments the step ran with, shown when the step is opened. */
+  readonly command: string | null;
+  /** What the tool returned, or why it failed. */
+  readonly output: string | null;
+  /** True when the server cut either block to fit its ceiling. */
+  readonly truncated: boolean;
 }
 
 export interface ChatActivity {
@@ -61,6 +67,9 @@ export function describeActivity(run: ReasoningRunView): ChatActivity {
     label: shorten(titleCase(step.intent)),
     status: step.status,
     durationMs: step.durationMs ?? null,
+    command: step.command,
+    output: step.output,
+    truncated: step.truncated,
   }));
 
   const last = steps[steps.length - 1];

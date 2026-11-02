@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 /**
  * Icons for the chat surface. Thin single-stroke line work, drawn inline so the
  * bundle carries no icon font and every mark inherits `currentColor`.
@@ -153,6 +155,66 @@ export function PauseIcon({ size = 14 }: IconProps) {
   return (
     <svg {...base(size)}>
       <path d="M9 5v14M15 5v14" />
+    </svg>
+  );
+}
+
+/**
+ * A code mark: the `</>` a command step wears. Thin strokes, inherits colour, so
+ * it sits in the same optical weight as the rest of the thread.
+ */
+export function CodeIcon({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M8 8l-4 4 4 4M16 8l4 4-4 4" />
+    </svg>
+  );
+}
+
+export type ChipState = 'done' | 'failed' | 'refused';
+
+/**
+ * A status chip: a solid block with the mark punched out of it, not drawn on top.
+ * The reference does the same, and it matters: a mark drawn over a fill reads as
+ * two shapes, while a knockout reads as one object that has a hole in it.
+ *
+ * The hole is a real hole. The block is filled with `currentColor` through an SVG
+ * mask whose glyph is black, so whatever sits behind the chip - the page, a hover
+ * tint - shows through the mark instead of being covered by a second colour.
+ */
+export function StatusChip({ state, size = 16 }: IconProps & { readonly state: ChipState }) {
+  const maskId = `v-chip-${useId().replace(/:/g, '')}`;
+  const glyph =
+    state === 'done' ? (
+      <path d="M6.9 12.4l3.2 3.2 7-7.4" />
+    ) : (
+      <path d="M8.4 8.4l7.2 7.2M15.6 8.4l-7.2 7.2" />
+    );
+  return (
+    <svg {...base(size)} aria-hidden="true">
+      <defs>
+        <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+          <rect x="0" y="0" width="24" height="24" fill="#fff" />
+          <g
+            stroke="#000"
+            strokeWidth={2.6}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          >
+            {glyph}
+          </g>
+        </mask>
+      </defs>
+      <rect
+        x="2.5"
+        y="2.5"
+        width="19"
+        height="19"
+        rx="5"
+        fill="currentColor"
+        mask={`url(#${maskId})`}
+      />
     </svg>
   );
 }

@@ -66,9 +66,13 @@ export interface ReasoningToolStepView {
   readonly toolId: string;
   readonly intent: string;
   readonly status: 'success' | 'failed' | 'rejected' | 'pending_confirmation';
-  readonly durationMs?: number;
+  readonly durationMs: number | null;
+  /** The tool and the arguments it ran with, as text. Null when none recorded. */
+  readonly command: string | null;
+  /** What came back, or why it failed. Null when there was nothing. */
+  readonly output: string | null;
+  readonly truncated: boolean;
   readonly error?: { readonly code: string; readonly message: string };
-  readonly outputPreview?: string;
 }
 
 export interface ReasoningRunView {
