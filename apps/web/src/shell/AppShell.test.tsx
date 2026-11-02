@@ -29,18 +29,26 @@ describe('AppShell', () => {
     expect(screen.getByTestId('topbar')).toBeDefined();
   });
 
-  it('starts on the dashboard route', () => {
+  it('starts on the assistant chat route', () => {
     renderShell();
-    expect(screen.getByTestId('page-dashboard')).toBeDefined();
-    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeDefined();
+    expect(screen.getByTestId('page-chat')).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Chat' })).toBeDefined();
   });
 
   it('marks the active navigation item with aria-current', () => {
     renderShell();
-    const active = screen.getByRole('link', { name: /Dashboard/ });
+    const active = screen.getByRole('link', { name: /^Chat/ });
     expect(active.getAttribute('aria-current')).toBe('page');
     const inactive = screen.getByRole('link', { name: /Projects/ });
     expect(inactive.getAttribute('aria-current')).toBeNull();
+  });
+
+  it('keeps the dashboard reachable as its own route', () => {
+    renderShell();
+    fireEvent.click(screen.getByRole('link', { name: /Dashboard/ }));
+    expect(window.location.hash).toBe('#/dashboard');
+    expect(screen.getByTestId('page-dashboard')).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeDefined();
   });
 
   it('navigates between routes and updates the hash, title, and active state', () => {
@@ -98,18 +106,18 @@ describe('AppShell', () => {
     expect(screen.getByTestId('page-project-detail')).toBeDefined();
   });
 
-  it('falls back to the dashboard for non-workspace project subpaths', () => {
+  it('falls back to the chat for non-workspace project subpaths', () => {
     renderShell();
     window.location.hash = '#/projects/prj-42/not-a-route';
     fireEvent(window, new HashChangeEvent('hashchange'));
-    expect(screen.getByTestId('page-dashboard')).toBeDefined();
+    expect(screen.getByTestId('page-chat')).toBeDefined();
   });
 
-  it('falls back to the dashboard for unknown hashes', () => {
+  it('falls back to the chat for unknown hashes', () => {
     renderShell();
     window.location.hash = '#/nonsense';
     fireEvent(window, new HashChangeEvent('hashchange'));
-    expect(screen.getByTestId('page-dashboard')).toBeDefined();
+    expect(screen.getByTestId('page-chat')).toBeDefined();
   });
 
   it('collapses and expands the sidebar', () => {

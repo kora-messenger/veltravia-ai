@@ -2,6 +2,7 @@ import { AppShell } from './shell/AppShell';
 import { ThemeProvider } from './theme/ThemeProvider';
 import { ToastProvider } from './components/ui';
 import {
+  ChatPage,
   DashboardPage,
   IntegrationsPage,
   FilesPage,
@@ -32,6 +33,8 @@ export function App() {
         <AppShell
           renderPage={(route) => {
             switch (route.id) {
+              case 'chat':
+                return <ChatPage />;
               case 'dashboard':
                 return <DashboardPage />;
               case 'projects':
@@ -75,7 +78,7 @@ export function App() {
               case 'settings':
                 return <SettingsPage />;
               default:
-                return <DashboardPage />;
+                return <ChatPage />;
             }
           }}
         />

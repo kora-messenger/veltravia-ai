@@ -36,7 +36,7 @@ export function AppShell({ renderPage }: AppShellProps) {
   // The workspace is a full-bleed, three-panel surface: it manages its own
   // padding and scrolling, so the shell content area steps aside.
   const contentClassName =
-    route.id === 'project-workspace'
+    route.id === 'project-workspace' || route.id === 'chat'
       ? 'v-shell__content v-shell__content--flush'
       : 'v-shell__content';
 

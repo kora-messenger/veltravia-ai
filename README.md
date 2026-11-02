@@ -153,7 +153,7 @@ Veltravia AI will evolve step by step (details in [docs/architecture.md](docs/ar
 7. **Project & Workspace Engine** _(done)_ — projects, workspaces, virtual file trees, path security, revision protection, snapshots, integration references, strict API (`project-engine/core`, `project-engine/mock`)
 8. **Sandbox Engine** _(done)_ — secure code-execution abstraction (`security/sandbox`, `security/sandbox-mock`): lifecycle, allowlist command policy, environment/network isolation, resource ceilings, cancellation, scrubbed output, sandbox tools via the Tool System
 9. **Real connectors** _(done)_ — first real connector: scoped GitHub source control (`connectors/github`), executed only through the Tool System (Step 10)
-10. **Web UI** _(done)_ — dashboard, projects, and the live AI workspace: runs, human confirmations, tool activity, real project context (Steps 11A–11C-5)
+10. **Web UI** _(done)_ — an assistant chat at `#/chat` (the front door: greeting, suggestions, a composer wired to the reasoning engine), plus dashboard, projects and the live AI workspace: runs, human confirmations, tool activity, real project context (Steps 11A–11C-5)
 11. **Integrations & connections** _(done)_ — the user-facing integration layer: manifest catalog, owner-scoped connections with explicit scope grants, Tool-System-gated runtime (`integrations/core`, `connectors/integration-mocks`, Step 12)
 12. **Self-development** — propose → test → review → deploy pipeline, behind approval gates (`security/`)
 

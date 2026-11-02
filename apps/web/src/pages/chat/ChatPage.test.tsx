@@ -1,0 +1,192 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { ToastProvider } from '../../components/ui';
+
+const startRun = vi.fn();
+const getCapabilities = vi.fn();
+const getRun = vi.fn();
+const cancelRun = vi.fn();
+
+vi.mock('../../api/reasoning', () => ({
+  startRun: (input: unknown) => startRun(input),
+  getCapabilities: () => getCapabilities(),
+  getRun: (id: string) => getRun(id),
+  cancelRun: (id: string) => cancelRun(id),
+  isTerminal: (status: string) =>
+    status === 'completed' ||
+    status === 'failed' ||
+    status === 'cancelled' ||
+    status === 'limit_reached',
+}));
+
+const { ChatPage } = await import('./ChatPage');
+
+const capabilities = (connected: boolean) => ({
+  profiles: [],
+  limits: {
+    maxIterations: 8,
+    maxToolCalls: 8,
+    maxDurationMs: 60000,
+    maxProviderRetries: 1,
+    contextBudgetChars: 8000,
+  },
+  ceilings: {
+    maxIterations: 50,
+    maxToolCalls: 50,
+    maxDurationMs: 600000,
+    maxProviderRetries: 3,
+    contextBudgetChars: 32000,
+  },
+  provider: { connected, reason: null, modes: ['gateway', 'simulated'] },
+  tools: [],
+  simulatedReasoningAllowed: true,
+});
+
+const run = (overrides: Record<string, unknown> = {}) => ({
+  id: 'run-1',
+  profile: 'workspace',
+  task: 'question',
+  status: 'completed',
+  steps: [],
+  decisions: [],
+  answer: 'Here is what I found.',
+  usage: {
+    iterations: 1,
+    toolCalls: 0,
+    modelCalls: 1,
+    inputTokens: 10,
+    outputTokens: 5,
+    providerLatencyMs: 120,
+    latencyMs: 150,
+  },
+  provenance: [],
+  contextDropped: [],
+  limitations: [],
+  createdAt: new Date().toISOString(),
+  ...overrides,
+});
+
+const renderPage = () =>
+  render(
+    <ToastProvider>
+      <ChatPage />
+    </ToastProvider>,
+  );
+
+beforeEach(() => {
+  startRun.mockReset();
+  getCapabilities.mockReset();
+  getRun.mockReset();
+  cancelRun.mockReset();
+  getCapabilities.mockResolvedValue(capabilities(false));
+  window.sessionStorage.clear();
+  window.localStorage.clear();
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+describe('the chat landing page', () => {
+  it('greets without inventing a name and offers real destinations', async () => {
+    renderPage();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Hey there');
+    expect(await screen.findByText('Start something new from an empty project')).toBeDefined();
+    expect(screen.getByText('Ask questions about your own documents')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Open the app builder' })).toBeDefined();
+  });
+
+  it('uses a stored display name only when one exists', async () => {
+    window.localStorage.setItem('veltravia.display-name', 'Ijezie');
+    renderPage();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Hey Ijezie');
+  });
+
+  it('dismisses a suggestion and keeps it dismissed', async () => {
+    renderPage();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Dismiss suggestion: Start something new from an empty project',
+      }),
+    );
+    expect(screen.queryByText('Start something new from an empty project')).toBeNull();
+    expect(
+      JSON.parse(window.sessionStorage.getItem('veltravia.chat.dismissed-suggestions') ?? '[]'),
+    ).toEqual(['builder']);
+  });
+
+  it('says answers are simulated when no provider is connected', async () => {
+    renderPage();
+    expect(await screen.findByText('Simulated')).toBeDefined();
+  });
+
+  it('reports the provider as Auto once one is connected', async () => {
+    getCapabilities.mockResolvedValue(capabilities(true));
+    renderPage();
+    expect(await screen.findByText('Auto')).toBeDefined();
+  });
+
+  it('shows the answer the server returned, never a guess', async () => {
+    startRun.mockResolvedValue(run());
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'What is Veltravia?' } });
+    fireEvent.keyDown(screen.getByLabelText('Message'), { key: 'Enter' });
+    expect(await screen.findByText('Here is what I found.')).toBeDefined();
+    expect(screen.getByText('What is Veltravia?')).toBeDefined();
+    expect(startRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a failed run failed and offers to ask again', async () => {
+    startRun.mockResolvedValue(
+      run({
+        status: 'failed',
+        answer: undefined,
+        error: { code: 'X', message: 'Upstream refused.' },
+      }),
+    );
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Anything' } });
+    fireEvent.keyDown(screen.getByLabelText('Message'), { key: 'Enter' });
+    expect(await screen.findByText('Upstream refused.')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Ask again' })).toBeDefined();
+    expect(screen.queryByText(/^Here is/)).toBeNull();
+  });
+
+  it('does not send an empty question', async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    expect(startRun).not.toHaveBeenCalled();
+  });
+
+  it('stops a running answer and says who stopped it', async () => {
+    startRun.mockResolvedValue(run({ status: 'running', answer: undefined }));
+    getRun.mockResolvedValue(run({ status: 'running', answer: undefined }));
+    cancelRun.mockResolvedValue(run({ status: 'cancelled' }));
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Long job' } });
+    fireEvent.keyDown(screen.getByLabelText('Message'), { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop the answer' }));
+    expect(cancelRun).toHaveBeenCalledWith('run-1');
+    expect(await screen.findByText('You stopped this answer.')).toBeDefined();
+  });
+
+  it('omits the microphone when the browser cannot dictate', () => {
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Dictate a message' })).toBeNull();
+  });
+
+  it('starts a new conversation without a page reload', async () => {
+    startRun.mockResolvedValue(run());
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Hello' } });
+    fireEvent.keyDown(screen.getByLabelText('Message'), { key: 'Enter' });
+    await screen.findByText('Here is what I found.');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Start a new conversation' }));
+    });
+    expect(screen.queryByText('Here is what I found.')).toBeNull();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Hey there');
+  });
+});

@@ -14,6 +14,7 @@ export interface RouteDef {
 }
 
 export const ROUTES: readonly RouteDef[] = [
+  { id: 'chat', hash: '#/chat', title: 'Chat' },
   { id: 'dashboard', hash: '#/dashboard', title: 'Dashboard' },
   { id: 'projects', hash: '#/projects', title: 'Projects' },
   { id: 'integrations', hash: '#/integrations', title: 'Integrations' },
@@ -33,6 +34,7 @@ export const ROUTES: readonly RouteDef[] = [
 ] as const;
 
 export type RouteId =
+  | 'chat'
   | 'dashboard'
   | 'projects'
   | 'integrations'
@@ -69,7 +71,11 @@ const BACKEND_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/backend$/;
 const APP_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/app$/;
 
 function routeForHash(hash: string): RouteState {
-  if (hash === '' || hash === '#' || hash === '#/dashboard') {
+  // The assistant is the front door: an empty hash lands on the chat.
+  if (hash === '' || hash === '#' || hash === '#/chat') {
+    return { id: 'chat', title: 'Chat', projectId: null };
+  }
+  if (hash === '#/dashboard') {
     return { id: 'dashboard', title: 'Dashboard', projectId: null };
   }
   if (hash === '#/projects') {
@@ -155,7 +161,7 @@ function routeForHash(hash: string): RouteState {
       projectId: projectMatch[1] ?? null,
     };
   }
-  return { id: 'dashboard', title: 'Dashboard', projectId: null };
+  return { id: 'chat', title: 'Chat', projectId: null };
 }
 
 export function useHashRoute() {

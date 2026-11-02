@@ -3,6 +3,17 @@ import { BrandMark } from '../components/brand/BrandMark';
 import { ROUTES, type RouteDef } from './useHashRoute';
 
 const ICONS: Record<string, ReactNode> = {
+  chat: (
+    <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
+      <path
+        d="M2.5 7.2c0-2.2 2.2-4 4.9-4h1.2c2.7 0 4.9 1.8 4.9 4s-2.2 4-4.9 4H7l-3 2.1v-2.5c-.9-.7-1.5-1.9-1.5-3.6z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ),
   dashboard: (
     <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
       <rect
@@ -177,7 +188,7 @@ export function Sidebar({
         data-testid="sidebar"
       >
         <div className="v-sidebar__header">
-          <a className="v-sidebar__brand" href="#/dashboard" onClick={onMobileClose}>
+          <a className="v-sidebar__brand" href="#/chat" onClick={onMobileClose}>
             <BrandMark size={collapsed ? 36 : 38} decorative />
             {!collapsed && <span className="v-sidebar__brand-name">Veltravia AI</span>}
           </a>

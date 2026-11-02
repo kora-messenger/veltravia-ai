@@ -1,0 +1,441 @@
+/*
+ * The chat surface, measured against the reference screenshot (a 412dp-wide
+ * phone capture) and converted to CSS pixels at 1:1.
+ *
+ *   reference                       here
+ *   background #F9F9F9              --v-bg (#fafafd), within 1/255 per channel
+ *   composer border #D1D1D1         --v-border-strong
+ *   composer radius 16px            16px
+ *   composer shadow                 --v-shadow-1 (faint, matches the lift)
+ *   send button 34x34, radius 8     --v-space-6 (32px) box, radius 8px
+ *   send button #4250F4             --v-primary (violet-indigo brand, not the
+ *                                   reference's blue: the brand colour wins)
+ *   placeholder #8C8C8C, 16px       --v-text-faint, --v-text-lg
+ *   card radius 12, padding 16      --v-radius-lg, --v-space-4
+ *   icon chip 36px                  --v-space-6 + 4px
+ *   greeting ~30px / 1.25           --v-text-3xl, line-height 1.22
+ *
+ * Type sizes are the reference's where they land on an existing token; where
+ * they do not, the nearest token wins rather than adding a one-off value.
+ */
+
+.v-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  /* The shell hands over a flushed, full-height content area (see
+     .v-shell__content--flush); the thread scrolls, the composer does not. */
+  min-height: 0;
+  height: 100%;
+  background: var(--v-bg);
+}
+
+.v-chat__scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: var(--v-space-6) var(--v-space-4) var(--v-space-5);
+}
+
+/* ---------- Landing state ---------- */
+
+.v-chat__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 640px;
+  margin: 0 auto;
+  padding-top: clamp(var(--v-space-5), 9vh, var(--v-space-8));
+  text-align: center;
+}
+
+.v-chat__greeting {
+  margin: var(--v-space-5) 0 var(--v-space-6);
+  font-size: var(--v-text-3xl);
+  font-weight: var(--v-weight-bold);
+  line-height: 1.22;
+  letter-spacing: -0.015em;
+  color: var(--v-text);
+}
+
+.v-chat__greeting-line {
+  display: block;
+}
+
+.v-chat__suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.v-chat__suggestion {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--v-space-3);
+  padding: var(--v-space-4);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-lg);
+  background: var(--v-surface-raised);
+  box-shadow: var(--v-shadow-1);
+}
+
+.v-chat__suggestion-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--v-radius-full);
+  background: var(--v-surface-muted);
+  color: var(--v-text-muted);
+}
+
+.v-chat__suggestion-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-1);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.v-chat__suggestion-title {
+  font-size: var(--v-text-md);
+  color: var(--v-text);
+  line-height: 1.45;
+}
+
+.v-chat__link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--v-text-sm);
+  font-weight: var(--v-weight-semibold);
+  color: var(--v-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.v-chat__link:hover {
+  color: var(--v-primary-hover);
+  text-decoration: underline;
+}
+
+.v-chat__dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  /* 32px box around a 16px glyph: a comfortable target, not a hairline. */
+  width: 32px;
+  height: 32px;
+  margin: -6px -8px 0 0;
+  border: 0;
+  border-radius: var(--v-radius-md);
+  background: none;
+  color: var(--v-text-faint);
+  cursor: pointer;
+}
+
+.v-chat__dismiss:hover {
+  background: var(--v-surface-hover);
+  color: var(--v-text);
+}
+
+/* ---------- Conversation ---------- */
+
+.v-chat__thread {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.v-chat__thread-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--v-space-3);
+  padding-bottom: var(--v-space-4);
+  border-bottom: 1px solid var(--v-border-muted);
+}
+
+.v-chat__thread-title {
+  margin: 0;
+  font-size: var(--v-text-lg);
+  font-weight: var(--v-weight-semibold);
+  color: var(--v-text);
+}
+
+.v-chat__turns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-5);
+  padding: var(--v-space-5) 0;
+}
+
+.v-chat__turn {
+  display: flex;
+  gap: var(--v-space-3);
+}
+
+.v-chat__turn--user {
+  justify-content: flex-end;
+}
+
+.v-chat__bubble {
+  max-width: min(85%, 520px);
+  padding: 10px var(--v-space-4);
+  border-radius: var(--v-radius-lg) var(--v-radius-lg) var(--v-radius-xs) var(--v-radius-lg);
+  background: var(--v-primary-muted);
+  color: var(--v-text);
+  font-size: var(--v-text-lg);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.v-chat__avatar {
+  flex: 0 0 auto;
+  /* Matches BrandMark's 24px chip so the mark keeps its dark backing. */
+  width: 24px;
+  height: 24px;
+}
+
+.v-chat__answer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.v-chat__text {
+  margin: 0;
+  font-size: var(--v-text-lg);
+  line-height: 1.6;
+  color: var(--v-text);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.v-chat__thinking {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  margin: 0;
+  font-size: var(--v-text-md);
+  color: var(--v-text-muted);
+}
+
+.v-chat__note {
+  margin: var(--v-space-2) 0 0;
+  font-size: var(--v-text-sm);
+  line-height: 1.5;
+  color: var(--v-text-muted);
+}
+
+.v-chat__retry {
+  align-self: flex-start;
+  margin-top: var(--v-space-2);
+  padding: var(--v-space-2) var(--v-space-4);
+  border: 1px solid var(--v-border-strong);
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface-raised);
+  font: inherit;
+  font-size: var(--v-text-sm);
+  font-weight: var(--v-weight-semibold);
+  color: var(--v-text);
+  cursor: pointer;
+}
+
+.v-chat__retry:hover {
+  background: var(--v-surface-hover);
+}
+
+/* ---------- Composer ---------- */
+
+.v-chat__footer {
+  flex: 0 0 auto;
+  padding: var(--v-space-2) var(--v-space-4) var(--v-space-3);
+  background: linear-gradient(to top, var(--v-bg) 72%, transparent);
+}
+
+.v-chat-composer {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 6px 6px var(--v-space-2) var(--v-space-4);
+  border: 1px solid var(--v-border-strong);
+  border-radius: 16px;
+  background: var(--v-surface-raised);
+  box-shadow: var(--v-shadow-1);
+}
+
+.v-chat-composer:focus-within {
+  border-color: var(--v-brand-400);
+  box-shadow: var(--v-shadow-2);
+}
+
+/* Visible to screen readers only: the field is identified by its placeholder
+   visually, but a textarea still needs a programmatic label. */
+.v-chat-composer__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.v-chat-composer__input {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  padding: var(--v-space-2) var(--v-space-2) var(--v-space-1) 0;
+  border: 0;
+  background: none;
+  resize: none;
+  font: inherit;
+  font-size: var(--v-text-lg);
+  line-height: 1.5;
+  color: var(--v-text);
+}
+
+.v-chat-composer__input::placeholder {
+  color: var(--v-text-faint);
+}
+
+.v-chat-composer__input:focus {
+  outline: none;
+}
+
+.v-chat-composer__row {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  padding-top: var(--v-space-1);
+}
+
+.v-chat-composer__spacer {
+  flex: 1 1 auto;
+}
+
+.v-chat-composer__mode {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--v-space-1);
+  /* 30px tall control: the reference's chip, kept above the 28px touch floor. */
+  height: 30px;
+  padding: 0 var(--v-space-2) 0 var(--v-space-1);
+  border: 0;
+  border-radius: var(--v-radius-full);
+  background: none;
+  font: inherit;
+  font-size: var(--v-text-sm);
+  font-weight: var(--v-weight-medium);
+  color: var(--v-text-muted);
+  cursor: pointer;
+}
+
+.v-chat-composer__mode:hover {
+  background: var(--v-surface-hover);
+  color: var(--v-text);
+}
+
+.v-chat-composer__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--v-radius-md);
+  background: none;
+  color: var(--v-text-muted);
+  cursor: pointer;
+}
+
+.v-chat-composer__icon:hover {
+  background: var(--v-surface-hover);
+  color: var(--v-text);
+}
+
+.v-chat-composer__icon--active {
+  color: var(--v-primary);
+  background: var(--v-primary-muted);
+}
+
+.v-chat-composer__send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--v-radius-md);
+  background: var(--v-primary);
+  color: var(--v-primary-fg);
+  cursor: pointer;
+}
+
+.v-chat-composer__send:hover:not(:disabled) {
+  background: var(--v-primary-hover);
+}
+
+.v-chat-composer__send:disabled {
+  background: var(--v-primary);
+  color: var(--v-primary-fg);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.v-chat-composer__send--stop {
+  background: var(--v-text);
+  color: var(--v-bg);
+}
+
+.v-chat-composer__hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.v-chat__disclaimer {
+  max-width: 720px;
+  margin: var(--v-space-1) auto 0;
+  font-size: var(--v-text-2xs);
+  color: var(--v-text-faint);
+  text-align: center;
+}
+
+@media (max-width: 560px) {
+  .v-chat__scroll {
+    padding: var(--v-space-4) var(--v-space-3) var(--v-space-4);
+  }
+
+  .v-chat__hero {
+    padding-top: var(--v-space-6);
+  }
+
+  .v-chat__greeting {
+    font-size: var(--v-text-2xl);
+  }
+
+  .v-chat__footer {
+    padding: var(--v-space-2) var(--v-space-3) var(--v-space-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v-chat-composer,
+  .v-chat__suggestion {
+    transition: none;
+  }
+}

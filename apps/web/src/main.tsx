@@ -8,6 +8,7 @@ import './components/ui/ui.css';
 import './components/brand/brand.css';
 import './shell/shell.css';
 import './pages/pages.css';
+import './pages/chat/chat.css';
 import './pages/workspace/workspace.css';
 import './pages/builder/builder.css';
 import './pages/backend/backend.css';

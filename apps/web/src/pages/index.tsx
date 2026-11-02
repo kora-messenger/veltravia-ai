@@ -1,3 +1,4 @@
+export { ChatPage } from './chat/ChatPage';
 export { DashboardPage } from './DashboardPage';
 export { FilesPage } from './FilesPage';
 export { AudioPage } from './AudioPage';

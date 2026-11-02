@@ -553,3 +553,42 @@ both themes because the artwork mixes deep violet with white highlights: a light
 surface would swallow the highlights, a mid surface would soften the violet
 edges. The mark is static: `brand.css` has no keyframes, animation or
 transform, and the test asserts that.
+
+## Assistant chat surface (Step 36 follow-up)
+
+`#/chat` is the application's front door: an empty hash and every unrecognised
+hash land here (the dashboard keeps its own route and its sidebar entry). The
+page is the reference layout, measured at a 412 dp capture and converted to CSS
+pixels:
+
+| Reference                             | Here                                                                                   |
+| ------------------------------------- | -------------------------------------------------------------------------------------- |
+| background `#F9F9F9`                  | `--v-bg` (`#fafafd`)                                                                   |
+| composer border `#D1D1D1`, radius 16  | `--v-border-strong`, 16 px                                                             |
+| send button `#4250F4`, ~34 px         | `--v-primary` (the brand violet; the reference's blue is not adopted), 32 px, radius 8 |
+| placeholder `#8C8C8C`, 16 px          | `--v-text-faint`, `--v-text-lg`                                                        |
+| suggestion card radius 12, padding 16 | `--v-radius-lg`, `--v-space-4`                                                         |
+| greeting ~30 px                       | `--v-text-3xl` (30 px), 24 px under 560 px                                             |
+
+Three deliberate departures from the reference:
+
+1. **No phone suggestion.** The reference offers "let your agent call people".
+   This build has no calling channel, so the card is omitted rather than shown
+   as a dead end. The remaining two suggestions navigate somewhere real.
+2. **No name is invented.** The greeting reads `Hey <name>,` only when
+   `localStorage['veltravia.display-name']` holds one; otherwise `Hey there,`.
+3. **The mode chip reports a fact.** It reads `Auto` when a provider is
+   connected and `Simulated` when none is, and its tooltip quotes the server's
+   own reason. It links to model settings.
+
+What is wired: `POST /api/reasoning/runs` (profile `workspace`), the previous
+turns sent as conversation context, `GET /runs/:id` polled every 900 ms until a
+terminal state, and `POST /runs/:id/cancel` from the stop control. A failed run
+stays failed with the server's message and an "Ask again" action; a run that
+pauses for tool approval says so and links to the reasoning workspace; a
+cancelled run says who stopped it. Answers are rendered as plain text.
+
+What is not wired: attachments, `/` shortcuts, streaming tokens, and any
+speech-to-text fallback. Dictation uses the browser's own `SpeechRecognition`
+and the microphone control is omitted entirely when it is unavailable, so it is
+never a decorative button. Every control in the composer does something.
