@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { describeActivity, formatDuration, shorten } from './activity';
 import type { ReasoningRunView } from '../../api/reasoning';
+import { readCapabilities } from './useChat';
 
 const run = (overrides: Partial<ReasoningRunView> = {}): ReasoningRunView => ({
   id: 'run-1',
@@ -119,5 +120,21 @@ describe('durations', () => {
     expect(formatDuration(null)).toBeNull();
     expect(formatDuration(Number.NaN)).toBeNull();
     expect(formatDuration(-5)).toBeNull();
+  });
+});
+
+describe('a malformed capabilities reply', () => {
+  it('is ignored instead of taking the screen down', () => {
+    expect(readCapabilities(undefined)).toBeNull();
+    expect(readCapabilities(null)).toBeNull();
+    expect(readCapabilities({})).toBeNull();
+    expect(readCapabilities({ provider: null })).toBeNull();
+    expect(readCapabilities({ provider: { connected: 'yes', reason: null } })).toBeNull();
+    expect(readCapabilities({ provider: { connected: false, reason: 42 } })).toBeNull();
+  });
+
+  it('is kept when the shape the page reads is there', () => {
+    const value = { provider: { connected: false, reason: 'No provider connected.' }, tools: [] };
+    expect(readCapabilities(value)).toBe(value);
   });
 });

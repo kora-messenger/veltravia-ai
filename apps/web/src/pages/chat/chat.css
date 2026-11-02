@@ -645,6 +645,10 @@
   font-size: var(--v-text-xs);
   color: var(--v-text-faint);
   cursor: pointer;
+  /* Never shrink: at 390px a squeezed toggle wrapped "3 steps" onto two lines
+     and made the whole line 45px tall. */
+  flex: none;
+  white-space: nowrap;
 }
 
 .v-chat__activity-toggle:hover {
@@ -696,9 +700,8 @@
 
 .v-chat__step-label {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* The step is the detail, so it wraps rather than hiding its tail on a phone. */
+  overflow-wrap: anywhere;
 }
 
 .v-chat__step-meta {

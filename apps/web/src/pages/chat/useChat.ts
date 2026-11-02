@@ -42,6 +42,25 @@ export interface ChatMessage {
   readonly activity?: ChatActivity;
 }
 
+/**
+ * Keeps a capabilities payload only if it is the shape the page reads.
+ *
+ * The page asks five questions of this object, so a short or malformed reply
+ * from an older or misconfigured server must not take the whole screen down: an
+ * unusable answer is treated as "not known yet", which shows the simulated
+ * state honestly instead of crashing.
+ */
+export function readCapabilities(value: unknown): ReasoningCapabilities | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const provider = (value as { provider?: unknown }).provider;
+  if (typeof provider !== 'object' || provider === null) return null;
+  const connected = (provider as { connected?: unknown }).connected;
+  const reason = (provider as { reason?: unknown }).reason;
+  if (typeof connected !== 'boolean') return null;
+  if (reason !== null && typeof reason !== 'string') return null;
+  return value as ReasoningCapabilities;
+}
+
 const POLL_MS = 900;
 /** Roughly six minutes of polling before the page stops following a run. */
 const MAX_POLLS = 400;
@@ -99,7 +118,7 @@ export function useChat(): UseChatResult {
     let live = true;
     getCapabilities()
       .then((result) => {
-        if (live) setCapabilities(result);
+        if (live) setCapabilities(readCapabilities(result));
       })
       .catch(() => undefined);
     return () => {
