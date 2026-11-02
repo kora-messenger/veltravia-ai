@@ -380,3 +380,26 @@ describe('a pool of keys never waits', () => {
     expect(Date.now() - started).toBeLessThan(1000);
   });
 });
+
+describe('a key the owner added themselves', () => {
+  it('is never mixed with the environment key', async () => {
+    const { gateway } = harness();
+    const own = await gateway.createConnection(scope, {
+      providerId: 'openrouter',
+      apiKey: KEY_B,
+      displayName: 'My own OpenRouter',
+    });
+
+    const result = await seedOpenRouterPool(gateway, scope.ownerRef, {
+      env: envWith({ OPENROUTER_API_KEY: KEY_A }),
+    });
+
+    expect(result.keysAdded).toBe(0);
+    expect(result.connectionId).toBe(own.id);
+    expect(result.problems.join(' ')).toMatch(/left untouched/);
+
+    const entries = await gateway.listConnections(scope);
+    const connection = entries.find((entry) => entry.connection.id === own.id);
+    expect(connection?.connection.keys).toHaveLength(1);
+  });
+});

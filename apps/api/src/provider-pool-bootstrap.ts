@@ -1,4 +1,4 @@
-import type { AIProviderGateway } from '@veltravia/ai-gateway';
+import { credentialHint, type AIProviderGateway } from '@veltravia/ai-gateway';
 
 /**
  * Seeds the owner's OpenRouter pool from the environment (Step 36).
@@ -172,6 +172,27 @@ export async function seedOpenRouterPool(
   let connectionId: string;
   let keysAdded = 0;
   let consumed = 0;
+  // A connection the owner added in Settings is THEIR key: never inject the
+  // environment key into it. Only a pool that already holds this environment key
+  // is topped up, which is how a restart restores the same pool.
+  const seededAlready =
+    existing !== undefined &&
+    keys.some((key) =>
+      existing.connection.keys.some((stored) => stored.hint === credentialHint(key)),
+    );
+  if (existing && !seededAlready) {
+    return {
+      connectionId: existing.connection.id,
+      keysAdded,
+      keysSkipped: skipped,
+      keysAlreadyPresent: 0,
+      problems: [
+        ...problems,
+        'A connection you added yourself is left untouched; the environment key was not added to it.',
+      ],
+      defaultModelId: null,
+    };
+  }
   if (existing) {
     connectionId = existing.connection.id;
   } else {
