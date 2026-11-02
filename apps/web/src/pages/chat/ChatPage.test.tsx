@@ -354,6 +354,7 @@ describe('the way back to the live edge', () => {
   };
 
   const control = () => screen.queryByRole('button', { name: /still working/i });
+  const view_dots = () => document.querySelectorAll('.v-live-edge__dot');
 
   it('appears when the reader scrolls up during a run, and not while they are at the bottom', async () => {
     const scroller = await startLongRun();
@@ -381,7 +382,7 @@ describe('the way back to the live edge', () => {
     await waitFor(() => expect(control()).toBeNull());
   });
 
-  it('is absent when no run is going, however far up the reader is', async () => {
+  it('offers the way back after an answer has landed, since that is when a reader who scrolled up needs it', async () => {
     startRun.mockResolvedValue(run());
     const view = renderPage();
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Quick one' } });
@@ -389,7 +390,18 @@ describe('the way back to the live edge', () => {
     await screen.findByText('Here is what I found.');
     const scroller = view.container.querySelector('.v-chat__scroll') as HTMLElement;
     act(() => giveGeometry(scroller, 100));
-    expect(control()).toBeNull();
+    const back = await screen.findByRole('button', { name: /jump to the latest message/i });
+    // Nothing is running, so the mark is a still chevron rather than the dots.
+    expect(back.getAttribute('data-state')).toBe('idle');
+    expect(view.container.querySelectorAll('.v-live-edge__dot')).toHaveLength(0);
+  });
+
+  it('uses the working mark while a run is going and the still one after it', async () => {
+    const scroller = await startLongRun();
+    act(() => giveGeometry(scroller, 200));
+    const working = await screen.findByRole('button', { name: /still working/i });
+    expect(working.getAttribute('data-state')).toBe('working');
+    expect(view_dots()).toHaveLength(3);
   });
 });
 

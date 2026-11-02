@@ -1071,6 +1071,11 @@
   animation-delay: 0.32s;
 }
 
+.v-live-edge__chevron {
+  /* Slightly above the geometric centre: a chevron's visual mass sits high. */
+  margin-top: -1px;
+}
+
 /* Each dot drops and returns once per loop; the rest of the loop it holds. The
    travel is the clip's 3.7px of 182px, scaled to this circle. */
 @keyframes v-live-edge-wave {
