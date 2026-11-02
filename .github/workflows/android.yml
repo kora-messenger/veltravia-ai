@@ -87,14 +87,53 @@ jobs:
         working-directory: apps/mobile
         run: npx cap sync android
 
+      - name: Verify the packaged bundle carries no credential
+        run: |
+          set -euo pipefail
+          BUNDLE=apps/mobile/android/app/src/main/assets/public
+          if [ ! -d "$BUNDLE" ]; then echo "::error::cap sync produced no bundle"; exit 1; fi
+          echo "Scanning $BUNDLE for provider credentials"
+          FOUND=0
+          for pattern in 'sk-or-v1-[A-Za-z0-9]\{8,\}' 'sk-proj-[A-Za-z0-9]\{8,\}' 'sk-[A-Za-z0-9]\{40,\}' 'gsk_[A-Za-z0-9]\{8,\}' 'OPENROUTER_API_KEY' 'OPENAI_API_KEY' 'GROQ_API_KEY' 'MISTRAL_API_KEY' 'ANTHROPIC_API_KEY' 'VELTRAVIA_CREDENTIAL_KEY'; do
+            if grep -RIlE "$pattern" "$BUNDLE" >/dev/null 2>&1; then
+              echo "::error::The packaged bundle contains a provider credential matching /$pattern/"
+              FOUND=1
+            fi
+          done
+          [ "$FOUND" -eq 0 ] || exit 1
+          python3 - <<'PY2'
+          import json, sys
+          config = json.load(open('apps/mobile/android/app/src/main/assets/public/runtime-config.json'))
+          assert list(config) == ['apiBaseUrl'], f"unexpected runtime-config keys: {list(config)}"
+          url = config['apiBaseUrl']
+          assert url == '' or url.startswith('https://'), f"apiBaseUrl must be https or empty, got {url!r}"
+          print('runtime-config is public-only and', 'configured' if url else 'empty (same-origin)')
+          PY2
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # The runner image already ships the Android SDK with the compile SDK this
+      # project targets. `android-actions/setup-android` breaks on that image (it
+      # rejects the preinstalled sdkmanager and then fails installing the obsolete
+      # `tools` package), so the preinstalled SDK is used directly and its licences
+      # are accepted, which also lets Gradle fetch anything genuinely missing.
+      - name: Prepare the Android SDK
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_HOME:-}" ]; then echo "::error::ANDROID_HOME is not set"; exit 1; fi
+          echo "Using Android SDK at $ANDROID_HOME"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+            "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0" > /dev/null 2>&1 || true
+          else
+            echo "::warning::sdkmanager not found at $SDKMANAGER; relying on the preinstalled platform"
+          fi
+          ls "$ANDROID_HOME/platforms" || true
 
       - name: Cache Gradle
         uses: actions/cache@v4

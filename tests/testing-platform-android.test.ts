@@ -95,39 +95,50 @@ describe('android project configuration', () => {
   });
 
   it('carries no provider credential in the packaged bundle', () => {
+    // The APK payload is a build of the web application, so the sources that end
+    // up in it are what must stay clean. The workflow repeats this scan against
+    // the synced assets, where the real bundle exists.
     const forbidden = [
       /sk-or-v1-[A-Za-z0-9]{8,}/,
       /sk-proj-[A-Za-z0-9]{8,}/,
+      /sk-[A-Za-z0-9]{20,}/,
       /gsk_[A-Za-z0-9]{8,}/,
       /OPENROUTER_API_KEY/,
       /OPENAI_API_KEY/,
       /GROQ_API_KEY/,
       /MISTRAL_API_KEY/,
       /VELTRAVIA_CREDENTIAL_KEY/,
+      /ANTHROPIC_API_KEY/,
     ];
+    const roots = ['apps/web/src', 'apps/web/public', 'apps/mobile/android/app/src/main'];
     const files: string[] = [];
-    const walk = (dir: string) => {
+    const walkAbs = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const full = join(dir, entry.name);
-        if (entry.isDirectory()) walk(full);
+        if (entry.isDirectory()) walkAbs(full);
         else files.push(full);
       }
     };
-    walk(join(android, 'assets'));
-    expect(files.length).toBeGreaterThan(0);
+    for (const relative of roots) {
+      const dir = join(root, relative);
+      if (existsSync(dir)) walkAbs(dir);
+    }
+    expect(files.length).toBeGreaterThan(20);
     for (const file of files) {
-      if (!/\.(js|json|html|css|txt|xml)$/i.test(file)) continue;
+      if (!/\.(js|jsx|ts|tsx|json|html|css|txt|xml)$/i.test(file)) continue;
+      // Test files legitimately contain fake keys and the names of these
+      // variables; they are not part of the bundle.
+      if (/\.test\.(t|j)sx?$/.test(file) || /__fixtures__/.test(file)) continue;
       const source = readFileSync(file, 'utf8');
       for (const pattern of forbidden) {
+        if (pattern.source === 'sk-[A-Za-z0-9]{20,}' && /sk-or-v1-|sk-proj-/.test(source)) continue;
         expect(source, `${file} matched ${pattern}`).not.toMatch(pattern);
       }
     }
   });
 
   it('publishes only a public backend URL, never a secret', () => {
-    const config = JSON.parse(
-      readFileSync(join(android, 'assets/public/runtime-config.json'), 'utf8'),
-    );
+    const config = JSON.parse(read('apps/web/public/runtime-config.json'));
     expect(Object.keys(config)).toEqual(['apiBaseUrl']);
     expect(typeof config.apiBaseUrl).toBe('string');
     expect(config.apiBaseUrl === '' || config.apiBaseUrl.startsWith('https://')).toBe(true);
@@ -153,7 +164,11 @@ describe('the APK workflow', () => {
   it('sets up the Android build environment', () => {
     expect(workflow).toMatch(/actions\/setup-java@v4/);
     expect(workflow).toMatch(/java-version: '21'/);
-    expect(workflow).toMatch(/android-actions\/setup-android@v3/);
+    // The runner image ships the SDK; setup-android is deliberately not used
+    // because it fails on that image while installing the obsolete tools package.
+    expect(workflow).not.toMatch(/uses: android-actions\/setup-android/);
+    expect(workflow).toMatch(/ANDROID_HOME/);
+    expect(workflow).toMatch(/--licenses/);
   });
 
   it('builds both APKs and uploads them as artifacts', () => {
@@ -175,14 +190,38 @@ describe('the APK workflow', () => {
   });
 
   it('never forwards a provider credential into the build', () => {
-    for (const pattern of [
-      /OPENROUTER_API_KEY/,
-      /OPENAI_API_KEY/,
-      /GROQ_API_KEY/,
-      /MISTRAL_API_KEY/,
-    ]) {
-      expect(workflow).not.toMatch(pattern);
+    // The workflow mentions those names only as patterns to scan for. What must
+    // never happen is one being passed in as a secret or an environment value.
+    const assignments = workflow
+      .split('\n')
+      .filter((line) => /^\s+(env|[A-Z_]+):/.test(line) || /\$\{\{\s*secrets\./.test(line));
+    for (const line of assignments) {
+      for (const name of [
+        'OPENROUTER_API_KEY',
+        'OPENAI_API_KEY',
+        'GROQ_API_KEY',
+        'MISTRAL_API_KEY',
+      ]) {
+        expect(line, line).not.toContain(name);
+      }
     }
+    const secretNames = [...workflow.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((match) => match[1]);
+    expect(new Set(secretNames)).toEqual(
+      new Set([
+        'ANDROID_KEYSTORE_BASE64',
+        'ANDROID_KEYSTORE_PASSWORD',
+        'ANDROID_KEY_ALIAS',
+        'ANDROID_KEY_PASSWORD',
+      ]),
+    );
+  });
+
+  it('refuses to ship a bundle that contains a provider credential', () => {
+    // The real gate: after cap sync the actual packaged assets are scanned.
+    expect(workflow).toMatch(/Verify the packaged bundle carries no credential/);
+    expect(workflow).toMatch(/assets\/public/);
+    expect(workflow).toMatch(/sk-or-v1-/);
+    expect(workflow).toMatch(/gsk_/);
   });
 
   it('never reads the secrets context from a step condition', () => {
