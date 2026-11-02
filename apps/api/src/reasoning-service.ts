@@ -464,6 +464,19 @@ export class ReasoningService {
     throw new ReasoningError('REASONING_RUN_NOT_FOUND', 'That reasoning run does not exist.');
   }
 
+  /**
+   * Gives a run that stopped at its budget a fresh one. Owner-scoped exactly like
+   * cancel: a run belonging to someone else is "not found", never "forbidden".
+   */
+  async continue(input: { runId: string; ownerRef: string }): Promise<ReasoningRun> {
+    this.assertOwned(input.runId, input.ownerRef);
+    for (const entry of this.engines.values()) {
+      const run = entry.engine.getRun(input.runId);
+      if (run !== undefined) return entry.engine.continueRun(input.runId);
+    }
+    throw new ReasoningError('REASONING_RUN_NOT_FOUND', 'That reasoning run does not exist.');
+  }
+
   async decide(input: {
     runId: string;
     ownerRef: string;

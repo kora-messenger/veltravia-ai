@@ -103,6 +103,7 @@ export function ChatPage() {
             ownerName={name}
             canRetry={session.chat.canRetry}
             onRetry={session.retry}
+            onContinue={session.chat.continueAnswer}
           />
         ) : app ? (
           <MobileLanding suggestions={visible} onDismiss={dismiss} onNewChat={session.newChat} />

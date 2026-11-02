@@ -9,6 +9,7 @@ const startRun = vi.fn();
 const getCapabilities = vi.fn();
 const getRun = vi.fn();
 const cancelRun = vi.fn();
+const continueRun = vi.fn();
 const getActivitySnapshot = vi.fn();
 const openActivityStream = vi.fn((_runId: string, _after: number, _handlers: unknown) => ({
   close: () => undefined,
@@ -19,6 +20,7 @@ vi.mock('../../api/reasoning', () => ({
   getCapabilities: () => getCapabilities(),
   getRun: (id: string) => getRun(id),
   cancelRun: (id: string) => cancelRun(id),
+  continueRun: (id: string) => continueRun(id),
   isTerminal: (status: string) =>
     status === 'completed' ||
     status === 'failed' ||

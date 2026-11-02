@@ -55,6 +55,11 @@ export interface ReasoningLimits {
   readonly maxPlanSteps: number;
   /** Provider attempts per model call (1 = no retry). */
   readonly providerAttempts: number;
+  /**
+   * How many times a run that stopped at its budget may carry on with a fresh
+   * one. Zero means the ceiling is final.
+   */
+  readonly maxContinuations: number;
 }
 
 export const DEFAULT_REASONING_LIMITS: ReasoningLimits = {
@@ -66,6 +71,7 @@ export const DEFAULT_REASONING_LIMITS: ReasoningLimits = {
   contextBudgetChars: 12_000,
   maxPlanSteps: 6,
   providerAttempts: 2,
+  maxContinuations: 2,
 };
 
 /** Hard ceilings: no caller can raise a limit past these. */
@@ -78,6 +84,7 @@ export const REASONING_LIMIT_CEILINGS: ReasoningLimits = {
   contextBudgetChars: 40_000,
   maxPlanSteps: LIMITS.maxPlanSteps,
   providerAttempts: 3,
+  maxContinuations: 4,
 };
 
 export type ReasoningPhase =
@@ -144,6 +151,19 @@ export interface ReasoningUsage {
   readonly modelCalls: number;
 }
 
+export type ReasoningLimitKind = 'iterations' | 'tool_calls' | 'duration' | 'output_tokens';
+
+export interface ReasoningLimitInfo {
+  readonly kind: ReasoningLimitKind;
+  /** How much of the ceiling was consumed. */
+  readonly used: number;
+  readonly ceiling: number;
+  /** Why it stopped, in words that are safe to show a caller. */
+  readonly reason: string;
+  /** Continuations already granted when it stopped. */
+  readonly continuations: number;
+}
+
 export interface ReasoningRun {
   readonly id: string;
   readonly profile: ReasoningProfileId;
@@ -169,6 +189,16 @@ export interface ReasoningRun {
     readonly expiresAt?: string;
   };
   readonly error?: { readonly code: string; readonly message: string };
+  /**
+   * Set when the run stopped at a budget rather than finishing or failing. It
+   * records which ceiling was hit and how much of it was used, so the caller can
+   * say "5 of 5 tool calls" instead of a bare failure.
+   */
+  readonly limit?: ReasoningLimitInfo;
+  /** How many fresh budgets this run has already been given. */
+  readonly continuations?: number;
+  /** True when the run may carry on with a fresh budget. */
+  readonly canContinue?: boolean;
   readonly deduplicated?: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -216,6 +246,7 @@ export interface ReasoningAuditEvent {
     | 'run_failed'
     | 'run_cancelled'
     | 'run_limit_reached'
+    | 'run_continued'
     | 'run_deduplicated'
     | 'tool_requested'
     | 'tool_completed'
@@ -248,7 +279,8 @@ function clampLimits(input?: Partial<ReasoningLimits>): ReasoningLimits {
   for (const key of Object.keys(DEFAULT_REASONING_LIMITS) as (keyof ReasoningLimits)[]) {
     const value = requested[key];
     const candidate = Number.isFinite(value) ? Math.floor(value) : DEFAULT_REASONING_LIMITS[key];
-    out[key] = Math.min(Math.max(candidate, 1), REASONING_LIMIT_CEILINGS[key]);
+    const floor = key === 'maxContinuations' ? 0 : 1;
+    out[key] = Math.min(Math.max(candidate, floor), REASONING_LIMIT_CEILINGS[key]);
   }
   return out as unknown as ReasoningLimits;
 }
@@ -270,6 +302,8 @@ interface RunState {
   iterations: number;
   modelCalls: number;
   toolCalls: number;
+  /** Fresh budgets granted so far; survives a counter reset. */
+  continuations: number;
   outputTokens: number;
   inputTokens: number;
   providerLatencyMs: number;
@@ -518,6 +552,8 @@ export class ReasoningEngine {
         this.provider.live === true
           ? []
           : ['This run used the offline reasoning mock. No AI model was called.'],
+      continuations: 0,
+      canContinue: false,
       createdAt: at.toISOString(),
       updatedAt: at.toISOString(),
     };
@@ -533,6 +569,7 @@ export class ReasoningEngine {
       iterations: 0,
       modelCalls: 0,
       toolCalls: 0,
+      continuations: 0,
       outputTokens: 0,
       inputTokens: 0,
       providerLatencyMs: 0,
@@ -635,6 +672,80 @@ export class ReasoningEngine {
     } catch (error) {
       return this.fail(state, error);
     }
+  }
+
+  /**
+   * Gives a run that stopped at its budget a fresh one and carries on.
+   *
+   * The point is that the work is not thrown away: the completed steps, the
+   * decisions and the plan stay, so the model resumes where it stopped instead of
+   * starting the task again. Only a run that stopped at a budget qualifies, and
+   * the continuation count is capped, so a caller cannot loop it forever.
+   */
+  async continueRun(
+    runId: string,
+    options: { readonly onEvent?: ReasoningEventSink } = {},
+  ): Promise<ReasoningRun> {
+    const state = this.runs.get(runId);
+    if (state === undefined) {
+      return Promise.reject(
+        new ReasoningError('REASONING_RUN_NOT_FOUND', 'That reasoning run does not exist.'),
+      );
+    }
+    if (state.run.status !== 'limit_reached') {
+      return Promise.reject(
+        new ReasoningError(
+          'REASONING_RUN_NOT_CONTINUABLE',
+          `Only a run that stopped at its budget can continue; this one is ${state.run.status}.`,
+        ),
+      );
+    }
+    if (state.continuations >= state.limits.maxContinuations) {
+      return Promise.reject(
+        new ReasoningError(
+          'REASONING_CONTINUATION_EXHAUSTED',
+          'This run has used every continuation it is allowed. Start a new run to go further.',
+        ),
+      );
+    }
+
+    const at = this.now();
+    state.continuations += 1;
+    state.iterations = 0;
+    state.toolCalls = 0;
+    state.modelCalls = 0;
+    state.outputTokens = 0;
+    state.startedAt = at.getTime();
+    state.controller = new AbortController();
+    state.cancelled = false;
+    if (options.onEvent !== undefined) state.sink = options.onEvent;
+
+    // `error` and `limit` describe a state this run is leaving, so they go rather
+    // than being set to undefined.
+    const carried: Record<string, unknown> = { ...state.run };
+    delete carried.error;
+    delete carried.limit;
+    state.run = patch(
+      carried as unknown as ReasoningRun,
+      {
+        status: 'running',
+        continuations: state.continuations,
+        canContinue: false,
+        decisions: [
+          ...state.run.decisions,
+          `Continued with a fresh budget (${state.continuations} of ${state.limits.maxContinuations}), keeping ${state.run.steps.length} completed steps.`,
+        ],
+      },
+      at,
+    );
+    this.audit(state, 'run_continued', `continuation ${state.continuations}`);
+    this.emit(state, {
+      type: 'phase',
+      phase: 'thinking',
+      at: at.toISOString(),
+      detail: `continuing with a fresh budget (${state.continuations} of ${state.limits.maxContinuations})`,
+    });
+    return this.answerLoop(state);
   }
 
   /** Continues a run after a human decision resolved the paused tool call. */
@@ -1245,14 +1356,74 @@ export class ReasoningEngine {
     return state.run;
   }
 
-  private finishLimit(state: RunState, reason = 'reasoning limit reached'): ReasoningRun {
+  private finishLimit(
+    state: RunState,
+    reason = 'reasoning limit reached',
+    explicitKind?: ReasoningLimitKind,
+  ): ReasoningRun {
+    // The caller that stopped the run knows which ceiling it hit; when it does not
+    // say, the reason's own words decide, and only then the counters.
+    const kind: ReasoningLimitKind =
+      explicitKind ??
+      (reason.includes('tool call')
+        ? 'tool_calls'
+        : reason.includes('duration')
+          ? 'duration'
+          : reason.includes('output-token')
+            ? 'output_tokens'
+            : (this.limitBreach(state)?.kind ?? 'iterations'));
+    const used =
+      kind === 'tool_calls'
+        ? state.toolCalls
+        : kind === 'duration'
+          ? Math.max(0, this.now().getTime() - state.startedAt)
+          : kind === 'output_tokens'
+            ? state.outputTokens
+            : state.iterations;
+    const ceiling =
+      kind === 'tool_calls'
+        ? state.limits.maxToolCalls
+        : kind === 'duration'
+          ? state.limits.maxDurationMs
+          : kind === 'output_tokens'
+            ? state.limits.maxTotalOutputTokens
+            : state.limits.maxIterations;
+    // A run that stopped on the clock may continue: time is not work already
+    // spent, and the steps it completed are still there.
+    const canContinue = state.continuations < state.limits.maxContinuations;
+    const limit: ReasoningLimitInfo = {
+      kind,
+      used,
+      ceiling,
+      reason,
+      continuations: state.continuations,
+    };
     state.run = patch(
       state.run,
       {
         status: 'limit_reached',
         error: { code: 'REASONING_LIMIT_EXCEEDED', message: reason },
         usage: this.usageSnapshot(state),
-        decisions: [...state.run.decisions, `Stopped early: ${reason}.`],
+        limit,
+        continuations: state.continuations,
+        canContinue,
+        decisions: [
+          ...state.run.decisions,
+          `Stopped early: ${reason}.`,
+          ...(canContinue
+            ? [
+                `This run can continue with a fresh budget (${state.continuations} of ${state.limits.maxContinuations} used). Its ${state.run.steps.length} completed steps are kept.`,
+              ]
+            : [
+                'This run has used every continuation it is allowed. Start a new run to go further.',
+              ]),
+        ],
+        limitations: [
+          ...state.run.limitations,
+          canContinue
+            ? `The run stopped at its ${kind.replace('_', ' ')} budget (${used} of ${ceiling}). It can continue where it stopped.`
+            : `The run stopped at its ${kind.replace('_', ' ')} budget (${used} of ${ceiling}) with no continuations left.`,
+        ],
       },
       this.now(),
     );
@@ -1306,11 +1477,43 @@ export class ReasoningEngine {
   }
 
   private limitHit(state: RunState): boolean {
-    return (
-      state.iterations >= state.limits.maxIterations ||
-      state.modelCalls >= state.limits.maxIterations * 3 ||
-      state.outputTokens >= state.limits.maxTotalOutputTokens
-    );
+    return this.limitBreach(state) !== null;
+  }
+
+  /**
+   * Which budget is spent, and by how much. Naming it is the difference between
+   * "the run stopped" and "the run used 5 of its 5 tool calls", which is the only
+   * version a person can act on.
+   */
+  private limitBreach(state: RunState): {
+    readonly kind: ReasoningLimitKind;
+    readonly used: number;
+    readonly ceiling: number;
+  } | null {
+    if (state.outputTokens >= state.limits.maxTotalOutputTokens) {
+      return {
+        kind: 'output_tokens',
+        used: state.outputTokens,
+        ceiling: state.limits.maxTotalOutputTokens,
+      };
+    }
+    if (state.modelCalls >= state.limits.maxIterations * 3) {
+      // Model calls beyond three per iteration mean the loop is spinning, not
+      // working: that is an iteration budget in practice.
+      return {
+        kind: 'iterations',
+        used: state.modelCalls,
+        ceiling: state.limits.maxIterations * 3,
+      };
+    }
+    if (state.iterations >= state.limits.maxIterations) {
+      return {
+        kind: 'iterations',
+        used: state.iterations,
+        ceiling: state.limits.maxIterations,
+      };
+    }
+    return null;
   }
 
   private timedOut(state: RunState): boolean {

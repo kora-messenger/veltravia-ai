@@ -4,7 +4,63 @@ import { AgentActivityTimeline } from './AgentActivityTimeline';
 import { ChatErrorState, failureReason } from './ChatErrorState';
 import { FinalReportCard } from './FinalReportCard';
 import { UserAvatar } from './UserAvatar';
-import type { ChatMessage } from './useChat';
+import type { ChatBudget, ChatMessage } from './useChat';
+
+/** "5 of 5 tool calls", in the words the engine used. */
+export function budgetLine(budget: ChatBudget): string {
+  const noun =
+    budget.kind === 'tool_calls'
+      ? 'tool call'
+      : budget.kind === 'duration'
+        ? 'minute'
+        : budget.kind === 'output_tokens'
+          ? 'output token'
+          : 'step';
+  const plural = budget.ceiling === 1 ? noun : `${noun}s`;
+  if (budget.kind === 'duration') {
+    const used = Math.max(1, Math.round(budget.used / 60000));
+    const ceiling = Math.max(1, Math.round(budget.ceiling / 60000));
+    return `${used} of ${ceiling} minutes used`;
+  }
+  return `${budget.used} of ${budget.ceiling} ${plural} used`;
+}
+
+/** A run that stopped at its budget: not a fault, and it can usually carry on. */
+export function BudgetState({
+  budget,
+  canContinue,
+  continuing,
+  onContinue,
+}: {
+  readonly budget: ChatBudget | null;
+  readonly canContinue: boolean;
+  readonly continuing: boolean;
+  readonly onContinue: () => void;
+}) {
+  return (
+    <div className="v-chat__budget">
+      <p className="v-chat__note">
+        The run stopped at its budget{budget === null ? '' : `: ${budgetLine(budget)}`}. Its
+        finished steps are kept.
+      </p>
+      {canContinue ? (
+        <button
+          type="button"
+          className="v-chat__link"
+          onClick={onContinue}
+          disabled={continuing}
+          aria-label="Continue this run with a fresh budget"
+        >
+          {continuing ? 'Continuing…' : 'Continue'}
+        </button>
+      ) : (
+        <p className="v-chat__note">
+          It has no continuations left. Ask again to start a fresh run.
+        </p>
+      )}
+    </div>
+  );
+}
 
 export function Note({ message }: { readonly message: ChatMessage }) {
   if (message.note === undefined) return null;
@@ -37,11 +93,13 @@ export function Message({
   ownerName,
   onRetry,
   retrying,
+  onContinue,
 }: {
   readonly message: ChatMessage;
   readonly ownerName: string | null;
   readonly onRetry: () => void;
   readonly retrying: boolean;
+  readonly onContinue: () => void;
 }) {
   if (message.role === 'user') {
     return (
@@ -54,6 +112,23 @@ export function Message({
 
   const thinking = message.phase === 'thinking';
   const hasActivity = message.activities.length > 0;
+
+  // A run that stopped at its budget did not break: it ran out. Showing it as a
+  // failure would be a lie, and the fix is to continue, not to start over.
+  if (message.runStatus === 'limit_reached' && message.state === 'failed') {
+    return (
+      <div className="v-chat__turn v-chat__turn--assistant">
+        <div className="v-chat__answer">
+          <BudgetState
+            budget={message.budget ?? null}
+            canContinue={message.canContinue === true}
+            continuing={message.phase === 'thinking'}
+            onContinue={onContinue}
+          />
+        </div>
+      </div>
+    );
+  }
 
   // A turn that never got an answer shows its own state and its own retry, in
   // the place the answer would have been.
@@ -118,6 +193,8 @@ export interface ChatThreadProps {
   readonly ownerName: string | null;
   readonly canRetry: boolean;
   readonly onRetry: () => void;
+  /** Carries a stopped run on with a fresh budget. */
+  readonly onContinue: () => void;
 }
 
 /**
@@ -127,7 +204,13 @@ export interface ChatThreadProps {
  * bar, and starting over lives in the chrome too, so repeating either above the
  * conversation would only push the words down the screen.
  */
-export function ChatThread({ messages, ownerName, canRetry, onRetry }: ChatThreadProps) {
+export function ChatThread({
+  messages,
+  ownerName,
+  canRetry,
+  onRetry,
+  onContinue,
+}: ChatThreadProps) {
   return (
     <div className="v-chat__thread">
       <div className="v-chat__turns" role="log" aria-live="polite" aria-relevant="additions">
@@ -138,6 +221,7 @@ export function ChatThread({ messages, ownerName, canRetry, onRetry }: ChatThrea
             ownerName={ownerName}
             onRetry={onRetry}
             retrying={!canRetry}
+            onContinue={onContinue}
           />
         ))}
       </div>

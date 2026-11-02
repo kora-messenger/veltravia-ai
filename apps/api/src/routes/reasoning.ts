@@ -240,6 +240,24 @@ export function registerReasoningRoutes(app: FastifyInstance, service: Reasoning
     }
   });
 
+  /**
+   * Carries a run that stopped at its step budget on with a fresh one.
+   *
+   * 409 when the run did not stop at a budget, or when it has already used every
+   * continuation it is allowed: both are states a caller should not retry blindly.
+   */
+  app.post('/api/reasoning/runs/:runId/continue', async (request, reply) => {
+    const { runId } = request.params as { runId: string };
+    try {
+      return {
+        run: toRunView(await service.continue({ runId, ownerRef: ownerOf(request) })),
+      };
+    } catch (error) {
+      const mapped = toError(error);
+      return reply.status(mapped.status).send(mapped.body);
+    }
+  });
+
   /** Records a human decision on a paused tool, then continues the run. */
   app.post(
     '/api/reasoning/runs/:runId/confirmation',

@@ -18,6 +18,8 @@ export const REASONING_ERROR_CODES = [
   'REASONING_RUN_NOT_FOUND',
   'REASONING_RUN_STATE',
   'REASONING_RUN_NOT_CANCELLABLE',
+  'REASONING_RUN_NOT_CONTINUABLE',
+  'REASONING_CONTINUATION_EXHAUSTED',
   'REASONING_CONFIRMATION_INVALID',
   'REASONING_TOOL_UNAVAILABLE',
   'REASONING_TOOL_FAILED',
@@ -70,9 +72,15 @@ const CLIENT_CODES: ReadonlySet<ReasoningErrorCode> = new Set([
   'REASONING_SECRET_REJECTED',
   'REASONING_DUPLICATE_REQUEST',
   'REASONING_UNKNOWN_PROFILE',
+  'REASONING_RUN_NOT_CONTINUABLE',
+  'REASONING_CONTINUATION_EXHAUSTED',
 ]);
 
 export function reasoningHttpStatus(code: ReasoningErrorCode): number {
+  // A run that cannot continue is a fixable state, not a malformed request, so it
+  // is checked before the generic client-code branch returns 400.
+  if (code === 'REASONING_RUN_NOT_CONTINUABLE') return 409;
+  if (code === 'REASONING_CONTINUATION_EXHAUSTED') return 409;
   if (CLIENT_CODES.has(code)) {
     return code === 'REASONING_RUN_NOT_FOUND' ? 404 : 400;
   }

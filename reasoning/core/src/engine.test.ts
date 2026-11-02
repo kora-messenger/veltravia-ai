@@ -565,3 +565,173 @@ describe('reasoning: context budget', () => {
     expect(bundle.totalChars).toBeGreaterThan(0);
   });
 });
+
+describe('a run that stops at its budget', () => {
+  /**
+   * A provider that replays queued replies in order and records what it was
+   * asked, so a test can see that a continuation resumes rather than restarts.
+   */
+  class ScriptedProvider implements ReasoningProvider {
+    readonly id = 'scripted';
+    readonly live = true;
+    readonly streams = false;
+    readonly requests: ProviderRequest[] = [];
+    /** Systems the engine used when asking for the final wording. */
+    readonly compositions: string[] = [];
+    private readonly queue: string[];
+    constructor(replies: unknown[]) {
+      this.queue = replies.map((reply) => JSON.stringify(reply));
+    }
+    async complete(request: ProviderRequest): Promise<ProviderResult> {
+      this.requests.push(request);
+      const next = this.queue.shift();
+      if (next === undefined) {
+        // Nothing scripted is left, so this is the engine asking for the final
+        // wording: the one turn that must answer in prose, not JSON.
+        this.compositions.push(request.system);
+        return { content: FINAL_WORDING, usage: { inputTokens: 1, outputTokens: 1 } };
+      }
+      return { content: next, usage: { inputTokens: 1, outputTokens: 1 } };
+    }
+  }
+
+  const classification = { taskType: 'research', needsTools: true, rationale: 'r' };
+  const plan = {
+    goal: 'Read twice',
+    steps: [
+      { intent: 'one', toolId: 'mock.summarize', input: { items: ['a'] } },
+      { intent: 'two', toolId: 'mock.summarize', input: { items: ['b'] } },
+    ],
+  };
+  const secondStep = {
+    type: 'tool',
+    intent: 'two',
+    toolId: 'mock.summarize',
+    input: { items: ['b'] },
+  };
+  const done = { type: 'answer', answer: 'Both halves read.', complete: true, summary: 'Done.' };
+  const FINAL_WORDING = 'Both halves read.';
+
+  function budgetEngine(provider: ScriptedProvider) {
+    const tools = makeTools();
+    tools.grantPermission('mock.summarize', 'mock.read');
+    return new ReasoningEngine({ provider, tools, now: NOW });
+  }
+
+  it('says which budget it used, and how much of it', async () => {
+    const provider = new ScriptedProvider([classification, plan]);
+    const engine = budgetEngine(provider);
+    const run = await engine.run({
+      profile: 'agent',
+      task: 'read twice',
+      availableTools: ['mock.summarize'],
+      limits: { maxToolCalls: 1 },
+    });
+    expect(run.status).toBe('limit_reached');
+    expect(run.limit).toMatchObject({ kind: 'tool_calls', used: 1, ceiling: 1 });
+    expect(run.canContinue).toBe(true);
+    expect(run.continuations).toBe(0);
+    expect(run.limitations.join(' ')).toContain('continue where it stopped');
+  });
+
+  it('resumes where it stopped and finishes with a real answer', async () => {
+    // The queue is padded with the same final answer: the engine is allowed to
+    // take an extra turn, and this test is about resumption, not turn counts.
+    const provider = new ScriptedProvider([classification, plan, secondStep, done]);
+    const engine = budgetEngine(provider);
+
+    const stopped = await engine.run({
+      profile: 'agent',
+      task: 'read twice',
+      availableTools: ['mock.summarize'],
+      limits: { maxToolCalls: 1 },
+    });
+    expect(stopped.status).toBe('limit_reached');
+    expect(stopped.steps).toHaveLength(1);
+
+    const continued = await engine.continueRun(stopped.id);
+
+    expect(continued.status).toBe('completed');
+    expect(continued.continuations).toBe(1);
+    // the second half was read on the new budget...
+    expect(continued.steps).toHaveLength(2);
+    // ...and the first step was not run a second time: the continuation needed
+    // only two model turns (ask for a tool, then answer), not a fresh plan.
+    expect(continued.steps[0]?.toolId).toBe('mock.summarize');
+    expect(continued.steps[0]?.stepId).not.toBe(continued.steps[1]?.stepId);
+    // the answer is prose, not a tool request leaking through
+    expect(continued.answer).toBe(FINAL_WORDING);
+    expect(provider.compositions).toHaveLength(1);
+    expect(JSON.stringify(continued.answer)).not.toContain('toolId');
+  });
+
+  it('refuses to continue a run that did not stop at a budget', async () => {
+    const provider = new ScriptedProvider([
+      { taskType: 'question', needsTools: false, rationale: 'r' },
+      done,
+    ]);
+    const engine = budgetEngine(provider);
+    const run = await engine.run({ profile: 'workspace', task: 'hi' });
+    expect(run.status).toBe('completed');
+    await expect(engine.continueRun(run.id)).rejects.toMatchObject({
+      code: 'REASONING_RUN_NOT_CONTINUABLE',
+    });
+  });
+
+  it('refuses a run it does not have', async () => {
+    const engine = budgetEngine(new ScriptedProvider([]));
+    await expect(engine.continueRun('rsn_missing')).rejects.toMatchObject({
+      code: 'REASONING_RUN_NOT_FOUND',
+    });
+  });
+
+  it('stops granting fresh budgets when the continuations are spent', async () => {
+    const notDone = { type: 'answer', answer: 'partly', complete: false, summary: 'Not finished.' };
+    const provider = new ScriptedProvider([
+      classification,
+      plan,
+      notDone,
+      secondStep,
+      notDone,
+      secondStep,
+      notDone,
+      secondStep,
+      notDone,
+      notDone,
+      notDone,
+    ]);
+    const engine = budgetEngine(provider);
+    let run = await engine.run({
+      profile: 'agent',
+      task: 'read twice',
+      availableTools: ['mock.summarize'],
+      limits: { maxToolCalls: 1, maxContinuations: 1 },
+    });
+    expect(run.status).toBe('limit_reached');
+
+    run = await engine.continueRun(run.id);
+    expect(run.status).toBe('limit_reached');
+    expect(run.continuations).toBe(1);
+    expect(run.canContinue).toBe(false);
+    expect(run.limitations.join(' ')).toContain('no continuations left');
+
+    await expect(engine.continueRun(run.id)).rejects.toMatchObject({
+      code: 'REASONING_CONTINUATION_EXHAUSTED',
+    });
+  });
+
+  it('can be told that the ceiling is final', async () => {
+    const provider = new ScriptedProvider([classification, plan]);
+    const engine = budgetEngine(provider);
+    const run = await engine.run({
+      profile: 'agent',
+      task: 'read twice',
+      availableTools: ['mock.summarize'],
+      limits: { maxToolCalls: 1, maxContinuations: 0 },
+    });
+    expect(run.canContinue).toBe(false);
+    await expect(engine.continueRun(run.id)).rejects.toMatchObject({
+      code: 'REASONING_CONTINUATION_EXHAUSTED',
+    });
+  });
+});

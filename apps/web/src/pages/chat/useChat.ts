@@ -29,6 +29,7 @@ import {
 import { ApiError, TransportError, errorMessage, isOffline } from '../../api/client';
 import {
   cancelRun,
+  continueRun,
   getCapabilities,
   getRun,
   isTerminal,
@@ -64,6 +65,17 @@ export interface ChatMessage {
   readonly report: FinalAgentReport | null;
   readonly runStatus: string | null;
   readonly connection: FollowConnection | null;
+  /** What budget a stopped run used, so the turn can say "5 of 5 tool calls". */
+  readonly budget?: ChatBudget | null;
+  /** Whether the stopped run may carry on with a fresh budget. */
+  readonly canContinue?: boolean;
+}
+
+/** A budget a run spent, in the words the engine used. */
+export interface ChatBudget {
+  readonly kind: string;
+  readonly used: number;
+  readonly ceiling: number;
 }
 
 /** How a send failed, which decides what the page does next. */
@@ -167,8 +179,11 @@ export interface UseChatResult {
   readonly send: (text: string) => void;
   readonly stop: () => void;
   readonly retry: () => void;
+  /** Carries a run that stopped at its budget on with a fresh one. */
+  readonly continueAnswer: () => void;
   readonly reset: () => void;
   readonly canRetry: boolean;
+  readonly canContinue: boolean;
   /** Set when a send did not reach the server: the words to hand back. */
   readonly restore: { readonly text: string; readonly token: number } | null;
   /** Acknowledges a restore once the composer has taken the words back. */
@@ -217,7 +232,16 @@ export function useChat(): UseChatResult {
 
   /** Applies a finished run to its turn: answer, note and report, all final. */
   const finish = useCallback(
-    (id: string, run: { status: string; answer?: string; error?: { message: string } }) => {
+    (
+      id: string,
+      run: {
+        status: string;
+        answer?: string;
+        error?: { message: string };
+        limit?: { kind: string; used: number; ceiling: number };
+        canContinue?: boolean;
+      },
+    ) => {
       if (run.status === 'completed') {
         patch(id, {
           text: run.answer ?? '',
@@ -246,6 +270,21 @@ export function useChat(): UseChatResult {
           phase: 'finished',
           runStatus: run.status,
           note: 'You stopped this answer.',
+        });
+        return;
+      }
+      if (run.status === 'limit_reached') {
+        // Stopping at a budget is not a fault: nothing broke, the work is kept,
+        // and saying which ceiling was spent is the useful part.
+        patch(id, {
+          state: 'failed',
+          phase: 'finished',
+          runStatus: run.status,
+          note: undefined,
+          budget: run.limit
+            ? { kind: run.limit.kind, used: run.limit.used, ceiling: run.limit.ceiling }
+            : null,
+          canContinue: run.canContinue === true,
         });
         return;
       }
@@ -490,6 +529,54 @@ export function useChat(): UseChatResult {
     runAnswer(question.text, question.id, failed.id);
   }, [busy, messages, patch, runAnswer, send]);
 
+  /**
+   * Carries a stopped run on with a fresh budget.
+   *
+   * It resumes the same run, so the steps it already took are kept and the model
+   * picks up where it stopped instead of starting the task again.
+   */
+  const continueAnswer = useCallback(() => {
+    if (busy) return;
+    const stopped = [...messages]
+      .reverse()
+      .find(
+        (message) =>
+          message.role === 'assistant' &&
+          message.runStatus === 'limit_reached' &&
+          message.canContinue === true &&
+          message.runId !== null,
+      );
+    if (stopped?.runId == null) return;
+
+    const runId = stopped.runId;
+    patch(stopped.id, {
+      state: 'pending',
+      phase: 'thinking',
+      note: undefined,
+      budget: null,
+      canContinue: false,
+    });
+    setBusy(true);
+    activeRun.current = runId;
+    void continueRun(runId)
+      .then((run) => {
+        if (!mounted.current) return;
+        follow(runId, stopped.id, run);
+      })
+      .catch(() => {
+        if (!mounted.current) return;
+        patch(stopped.id, {
+          state: 'failed',
+          phase: 'finished',
+          note: 'The run could not carry on. Send the message again to start fresh.',
+        });
+      })
+      .finally(() => {
+        if (activeRun.current === runId) activeRun.current = null;
+        if (mounted.current) setBusy(false);
+      });
+  }, [busy, follow, messages, patch]);
+
   const clearRestore = useCallback(() => setRestore(null), []);
 
   const reset = useCallback(() => {
@@ -503,6 +590,15 @@ export function useChat(): UseChatResult {
     setBusy(false);
   }, []);
 
+  const canContinueRun =
+    !busy &&
+    messages.some(
+      (message) =>
+        message.role === 'assistant' &&
+        message.runStatus === 'limit_reached' &&
+        message.canContinue === true,
+    );
+
   const canRetry =
     !busy && messages.some((message) => message.role === 'assistant' && message.state === 'failed');
 
@@ -513,6 +609,8 @@ export function useChat(): UseChatResult {
     send,
     stop,
     retry,
+    continueAnswer,
+    canContinue: canContinueRun,
     reset,
     canRetry,
     restore,

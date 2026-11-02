@@ -85,6 +85,18 @@ export interface ReasoningRunView {
   readonly steps: readonly ReasoningToolStepView[];
   readonly decisions: readonly string[];
   readonly answer?: string;
+  /** Present when the run stopped at a budget rather than finishing or failing. */
+  readonly limit?: {
+    readonly kind: 'iterations' | 'tool_calls' | 'duration' | 'output_tokens';
+    readonly used: number;
+    readonly ceiling: number;
+    readonly reason: string;
+    readonly continuations: number;
+  };
+  /** Fresh budgets this run has already been given. */
+  readonly continuations?: number;
+  /** True when the run may carry on with a fresh budget. */
+  readonly canContinue?: boolean;
   readonly provider?: ReasoningProviderDisclosure;
   readonly usage: {
     readonly iterations: number;
@@ -204,6 +216,15 @@ export async function getRun(runId: string): Promise<ReasoningRunView> {
 
 export async function cancelRun(runId: string): Promise<ReasoningRunView> {
   const response = await apiRequest<{ run: ReasoningRunView }>(`${base}/runs/${runId}/cancel`, {
+    method: 'POST',
+    body: {},
+  });
+  return response.run;
+}
+
+/** Gives a run that stopped at its budget a fresh one and resumes it. */
+export async function continueRun(runId: string): Promise<ReasoningRunView> {
+  const response = await apiRequest<{ run: ReasoningRunView }>(`${base}/runs/${runId}/continue`, {
     method: 'POST',
     body: {},
   });

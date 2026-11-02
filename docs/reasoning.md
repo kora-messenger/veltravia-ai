@@ -52,8 +52,29 @@ Limits (defaults, with hard ceilings enforced server-side):
 | Wall clock       | 60 s    | 10 min  |
 | Provider retries | 3       | 10      |
 | Context chars    | 24 000  | 200 000 |
+| Continuations    | 2       | 4       |
 
-Exhaustion is reported as `limit_reached`, never as a successful answer.
+Exhaustion is reported as `limit_reached`, never as a successful answer. The run
+also records which ceiling it spent (`limit: { kind, used, ceiling, reason }`) and
+whether it may carry on (`canContinue`).
+
+## Continuing a stopped run
+
+A run that runs out of budget is not a failure and does not have to start over.
+`POST /api/reasoning/runs/:runId/continue` gives it a fresh budget and resumes it:
+the completed steps, the plan and the decisions are kept, so the model picks up
+where it stopped instead of repeating work that already succeeded.
+
+- Only a run in `limit_reached` can continue; anything else is
+  `REASONING_RUN_NOT_CONTINUABLE` (409).
+- The continuation count is capped by `maxContinuations` (default 2, ceiling 4).
+  A cap of 0 makes the ceiling final. Past the cap the call is
+  `REASONING_CONTINUATION_EXHAUSTED` (409) and the answer is to start a new run.
+- Each continuation is recorded as a `run_continued` audit event and as a decision
+  on the run, so the history shows that a second budget was granted rather than
+  hiding it.
+- In the chat, a stopped turn shows the budget it spent ("5 of 5 tool calls used")
+  and a Continue control, not the connection-failure card.
 
 ## Provider disclosure
 
