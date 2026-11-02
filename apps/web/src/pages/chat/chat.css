@@ -4,9 +4,9 @@
  *
  *   reference                       here
  *   background #F9F9F9              --v-bg (#fafafd), within 1/255 per channel
- *   composer border #D1D1D1         --v-border-strong
- *   composer radius 16px            16px
- *   composer shadow                 --v-shadow-1 (faint, matches the lift)
+ *   composer border #D1D1D1         removed: the box is plain by request
+ *   composer radius 16px            kept only for the focus ring
+ *   composer shadow                 removed with the box
  *   send button 34x34, radius 8     --v-space-6 (32px) box, radius 8px
  *   send button #4250F4             --v-primary (violet-indigo brand, not the
  *                                   reference's blue: the brand colour wins)
@@ -259,20 +259,23 @@
   background: linear-gradient(to top, var(--v-bg) 72%, transparent);
 }
 
-/* The reference's box: a light grey fill inside a thin grey border, one field
-   over a control row, and no drop shadow. Radius stays the measured 16px. */
+/* The type box is plain: no fill, no border, no shadow. Nothing draws a line
+   around the message you are writing, so the empty screen and a thread look the
+   same at the bottom. The controls sit on the page like the text does. */
 .v-chat-composer {
   max-width: 720px;
   margin: 0 auto;
-  padding: var(--v-space-2) var(--v-space-2) var(--v-space-2) var(--v-space-3);
-  border: 1px solid var(--v-border-strong);
-  border-radius: 16px;
-  background: var(--v-surface-muted);
+  padding: 0;
+  border: 0;
+  background: none;
 }
 
+/* Keyboard users still need to see where they are. A soft ring appears only
+   inside the composer while it has focus, so nothing is drawn at rest and the
+   text field is never left without an indicator. */
 .v-chat-composer:focus-within {
-  border-color: var(--v-brand-400);
-  box-shadow: var(--v-shadow-2);
+  box-shadow: var(--v-focus-ring);
+  border-radius: 16px;
 }
 
 /* Visible to screen readers only: the field is identified by its placeholder
@@ -292,7 +295,7 @@
   display: block;
   width: 100%;
   max-height: 180px;
-  padding: var(--v-space-1) var(--v-space-2) var(--v-space-1) 0;
+  padding: 0 0 var(--v-space-1);
   border: 0;
   background: none;
   resize: none;
