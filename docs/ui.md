@@ -646,3 +646,41 @@ The conversation title while chatting is the agent's name too, so the assistant
 being addressed is never ambiguous. `ChatPage` reads both names from the shared
 `AgentProfileProvider`, which is why the header, the greeting and the thread
 title can never disagree.
+
+## Two layouts, one engine (Step 36 follow-up)
+
+The website and the packaged Android application are deliberately different
+arrangements over the same chat engine. The choice is made by
+`isPackagedApp()` (Capacitor, or the `capacitor:` protocol) in `ChatPage`, not by
+window width, so a narrow browser window stays the website and the phone app
+stays the app. Both read their state from one `useChatSession` hook, so the
+provider wording, the send rules and the placeholder rules cannot drift; both
+use the same `ChatComposer`.
+
+**Website** (`v-chat--web`): the brand mark, a centred greeting, then one card
+per way in, carrying its icon, its title, its action on the right and a dismiss
+control. The composer sits in a 720 px column.
+
+**Packaged app** (`v-chat--app`): no hero mark and no greeting competing for the
+screen; the two ways in become pill rows (44 px tall, thumb-sized) above the type
+box, with the deliberate whitespace above them, and the composer floats clear of
+the gesture bar on a 16 px gutter.
+
+Where this build departs from the phone reference, and why:
+
+1. **One circle, not two.** The reference's top row has a menu circle on the left
+   and a new-conversation circle on the right. The menu already lives in the app
+   shell's top bar on this surface, so the chat screen supplies only the
+   new-conversation circle. Two menu controls would be worse than one.
+2. **The far-right button sends.** The reference's accented far-right control is
+   voice mode; this build has no voice mode, so that slot is the send control in
+   the brand colour. It is never a decorative waveform.
+3. **The type box is identical on both**, as asked. Its placeholder is
+   `What's on your mind` on a fresh conversation and `Type a message…` in a
+   thread, which is a deliberate departure from the reference's branded wording.
+4. **Cards can be dismissed on the website only.** The app's pill rows are two
+   lines of plain text, so a dismiss control would crowd them.
+
+The new-conversation circle is outside the chat page's tree, so it announces
+itself with a `veltravia:new-chat` window event that `useChatSession` listens
+for. One engine still owns the reset.

@@ -95,3 +95,32 @@ export function SendIcon({ size = 16 }: IconProps) {
     </svg>
   );
 }
+
+export function PencilIcon({ size = 20 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M4 20l1-4.2L15.6 5.2a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.2 19 4 20Z" />
+      <path d="M14.2 6.6l3.2 3.2" />
+    </svg>
+  );
+}
+
+export function DocumentIcon({ size = 20 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M6 3h7l5 5v13H6z" />
+      <path d="M13 3v5h5" />
+      <path d="M9 13h6M9 17h4" />
+    </svg>
+  );
+}
+
+/** Two strokes turning back on themselves: a fresh conversation. */
+export function NewChatIcon({ size = 20 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M20 12a8 8 0 1 1-3.2-6.4" />
+      <path d="M20 4v5h-5" />
+    </svg>
+  );
+}

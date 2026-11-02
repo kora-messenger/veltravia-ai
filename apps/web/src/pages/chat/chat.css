@@ -73,8 +73,9 @@
 }
 
 .v-chat__suggestion {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
   gap: var(--v-space-3);
   padding: var(--v-space-4);
   border: 1px solid var(--v-border);
@@ -93,6 +94,10 @@
   border-radius: var(--v-radius-full);
   background: var(--v-surface-muted);
   color: var(--v-text-muted);
+}
+
+.v-chat__suggestion-action {
+  white-space: nowrap;
 }
 
 .v-chat__suggestion-body {
@@ -471,4 +476,111 @@
   .v-chat__suggestion {
     transition: none;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   The packaged app's layout
+
+   Selected by `isPackagedApp()`, not by width, so the website on a small window
+   keeps the website layout. The phone gets its own arrangement: nothing centred
+   behind a hero mark, the two ways in as pill rows above the type box, and the
+   box itself floating clear of the system gesture bar.
+   --------------------------------------------------------------------------- */
+
+.v-chat--app {
+  /* The phone screen is the whole surface: no desktop max-width column. */
+  --v-chat-gutter: var(--v-space-4);
+}
+
+.v-chat--app .v-chat__scroll {
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--v-chat-gutter);
+}
+
+.v-chat__app {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 100%;
+  padding-bottom: var(--v-space-3);
+}
+
+.v-chat__appbar {
+  display: flex;
+  align-items: center;
+  /* The shell's menu control sits top-left, so this row only adds the other
+     circle the reference has. */
+  justify-content: flex-end;
+  padding: var(--v-space-2) 0;
+}
+
+.v-chat__round {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-full);
+  background: var(--v-surface-raised);
+  color: var(--v-text);
+  cursor: pointer;
+}
+
+.v-chat__round:hover {
+  background: var(--v-surface-hover);
+}
+
+/* The whitespace above the prompts is intentional: it is what makes the screen
+   read as a fresh conversation rather than an empty one. */
+.v-chat__app-spacer {
+  flex: 1 1 auto;
+  min-height: var(--v-space-8);
+}
+
+.v-chat__prompts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--v-space-3);
+  margin: 0 0 var(--v-space-4);
+  padding: 0;
+  list-style: none;
+}
+
+.v-chat__prompt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  /* 44px: comfortable for a thumb, above the 40px the reference implies. */
+  min-height: 44px;
+  padding: 0 var(--v-space-4) 0 var(--v-space-3);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-full);
+  background: var(--v-surface-raised);
+  font: inherit;
+  font-size: var(--v-text-md);
+  font-weight: var(--v-weight-medium);
+  color: var(--v-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.v-chat__prompt:hover {
+  background: var(--v-surface-hover);
+}
+
+.v-chat__prompt-icon {
+  display: inline-flex;
+  color: var(--v-text-muted);
+}
+
+/* The type box floats clear of the gesture bar rather than sitting on it. */
+.v-chat--app .v-chat__footer {
+  padding: var(--v-space-2) var(--v-chat-gutter) var(--v-space-3);
+}
+
+.v-chat--app .v-chat__thread {
+  max-width: none;
 }
