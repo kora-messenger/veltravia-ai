@@ -696,3 +696,33 @@ The bar now shows the menu, the agent name and the account menu, and nothing
 else. The notification control that also lived in that slot moved into the
 account menu (same honest empty state, now in a dialog), so nothing was lost
 while the slot is empty. When premium is real, the crown goes back there.
+
+## The live status line
+
+Above a working answer the chat shows one line: a spinner and the thing the run
+says it is doing, with the steps behind it one click away. It stays after the
+answer arrives, minus the spinner, so the work is still readable.
+
+Everything on that line comes from the server's own run view, derived by
+`describeActivity()` in `pages/chat/activity.ts`:
+
+1. the last executed step's `intent`, which is the only thing actually happening,
+2. otherwise the plan's first intent, prefixed `Next: ` so planned work is never
+   mistaken for work already done,
+3. otherwise `Working on it`, because a run that has published no steps has told
+   the page nothing more specific.
+
+The expansion lists the steps with their status (`Done`, `Failed`, `Refused`,
+`Waiting for approval`) and duration. At most twelve are kept. Durations round in
+integers first, so 1450 ms reads `1.5 s` rather than `1.4 s`.
+
+Only the spinner moves. The brand mark above the answer stays static per the
+standing rule, and `prefers-reduced-motion` drops the chevron transition.
+
+**Known gap, stated plainly:** the engine publishes tool steps only when a
+provider is connected and the run actually calls tools. With no provider
+configured (`VELTRAVIA_CREDENTIAL_KEY` unset) every run is the offline
+simulation, which answers without tools, so the line correctly reads
+`Working on it` and offers nothing to expand. The step-by-step line is verified
+in tests against real run payloads; seeing it fill in inside a browser needs a
+connected provider.

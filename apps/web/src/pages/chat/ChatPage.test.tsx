@@ -215,6 +215,42 @@ describe('the chat landing page', () => {
     expect(await screen.findByText('You stopped this answer.')).toBeDefined();
   });
 
+  it('follows the run’s own steps while the answer is still being written', async () => {
+    startRun.mockResolvedValue(run({ status: 'running', answer: undefined }));
+    getRun.mockResolvedValue(
+      run({
+        status: 'running',
+        answer: undefined,
+        steps: [
+          {
+            id: 's1',
+            toolId: 'codebase.search',
+            intent: 'read the failing test tail',
+            status: 'success',
+            durationMs: 410,
+          },
+        ],
+      }),
+    );
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Find the bug' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    // The line carries the step the server reported, not a canned phrase.
+    expect(await screen.findByText('Read the failing test tail')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { expanded: false, name: /1 step/ }));
+    expect(screen.getByRole('listitem').textContent).toContain('Done');
+  });
+
+  it('starts with a plain working line before any step is published', async () => {
+    startRun.mockResolvedValue(run({ status: 'running', answer: undefined }));
+    getRun.mockResolvedValue(run({ status: 'running', answer: undefined }));
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Find the bug' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    expect(await screen.findByText('Working on it')).toBeDefined();
+  });
+
   it('keeps the send control in place while stopping is offered', async () => {
     startRun.mockResolvedValue(run({ status: 'running', answer: undefined }));
     getRun.mockResolvedValue(run({ status: 'running', answer: undefined }));

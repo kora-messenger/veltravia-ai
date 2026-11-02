@@ -124,3 +124,35 @@ export function NewChatIcon({ size = 20 }: IconProps) {
     </svg>
   );
 }
+
+export function ChevronIcon({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M9 5l6 7-6 7" />
+    </svg>
+  );
+}
+
+export function CheckIcon({ size = 14 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M5 12.5l4.5 4.5L19 6.5" />
+    </svg>
+  );
+}
+
+export function CrossIcon({ size = 14 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
+export function PauseIcon({ size = 14 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M9 5v14M15 5v14" />
+    </svg>
+  );
+}

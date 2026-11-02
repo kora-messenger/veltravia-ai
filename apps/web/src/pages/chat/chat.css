@@ -584,3 +584,130 @@
 .v-chat--app .v-chat__thread {
   max-width: none;
 }
+
+/* ---------------------------------------------------------------------------
+   The live status line
+
+   One line above the answer, carrying the run's own current intent, with the
+   steps behind it one click away. It stays after the run finishes so the work
+   can still be read. Only the spinner moves: the brand mark is static.
+   --------------------------------------------------------------------------- */
+
+.v-chat__activity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  margin-bottom: var(--v-space-3);
+}
+
+.v-chat__activity-row {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  min-height: 24px;
+}
+
+.v-chat__activity-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--v-success);
+}
+
+.v-chat__activity-label {
+  min-width: 0;
+  font-size: var(--v-text-sm);
+  color: var(--v-text-muted);
+  /* One line: a long intent is trimmed by describeActivity, and the layout
+     keeps its height stable as labels change mid-run. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v-chat__activity.is-done .v-chat__activity-label {
+  color: var(--v-text-faint);
+}
+
+.v-chat__activity-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--v-space-1);
+  /* 8dp of slop around a 16px chevron keeps the target comfortable. */
+  padding: 4px 6px;
+  margin-left: auto;
+  border: none;
+  border-radius: var(--v-radius-sm);
+  background: transparent;
+  font: inherit;
+  font-size: var(--v-text-xs);
+  color: var(--v-text-faint);
+  cursor: pointer;
+}
+
+.v-chat__activity-toggle:hover {
+  background: var(--v-surface-hover);
+  color: var(--v-text-muted);
+}
+
+.v-chat__chevron {
+  display: inline-flex;
+  transition: transform 120ms ease;
+}
+
+.v-chat__chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.v-chat__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-1);
+  margin: 0;
+  padding: 0 0 0 var(--v-space-4);
+  list-style: none;
+  border-left: 1px solid var(--v-border);
+}
+
+.v-chat__step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--v-space-2);
+  font-size: var(--v-text-xs);
+  color: var(--v-text-muted);
+}
+
+.v-chat__step-mark {
+  display: inline-flex;
+  color: var(--v-text-faint);
+}
+
+.v-chat__step.is-success .v-chat__step-mark {
+  color: var(--v-success);
+}
+
+.v-chat__step.is-failed .v-chat__step-mark,
+.v-chat__step.is-rejected .v-chat__step-mark {
+  color: var(--v-danger);
+}
+
+.v-chat__step-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v-chat__step-meta {
+  white-space: nowrap;
+  color: var(--v-text-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v-chat__chevron {
+    transition: none;
+  }
+}

@@ -1,6 +1,7 @@
 import { BrandMark } from '../../components/brand/BrandMark';
 import { Spinner } from '../../components/ui';
 import { navigateToHash } from '../../shell/useHashRoute';
+import { RunActivityLine } from './RunActivity';
 import type { ChatMessage } from './useChat';
 
 export function Note({ message }: { readonly message: ChatMessage }) {
@@ -36,13 +37,18 @@ export function Message({ message }: { readonly message: ChatMessage }) {
         <BrandMark size={24} decorative />
       </div>
       <div className="v-chat__answer">
-        {message.state === 'pending' ? (
-          <p className="v-chat__thinking">
-            <Spinner size="sm" aria-label="Waiting for an answer" />
-            <span>Working on it</span>
-          </p>
+        {message.activity !== undefined ? (
+          <RunActivityLine activity={message.activity} />
         ) : (
-          message.text !== '' && <p className="v-chat__text">{message.text}</p>
+          message.state === 'pending' && (
+            <p className="v-chat__thinking">
+              <Spinner size="sm" aria-label="Waiting for an answer" />
+              <span>Working on it</span>
+            </p>
+          )
+        )}
+        {message.state !== 'pending' && message.text !== '' && (
+          <p className="v-chat__text">{message.text}</p>
         )}
         <Note message={message} />
       </div>

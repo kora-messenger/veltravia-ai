@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { errorMessage } from '../../api/client';
+import { describeActivity, type ChatActivity } from './activity';
 import {
   cancelRun,
   getCapabilities,
@@ -34,6 +35,11 @@ export interface ChatMessage {
   readonly state: ChatMessageState;
   /** Plain-language reason, present only when `state` is not `done`. */
   readonly note?: string;
+  /**
+   * What the run reported it was doing, kept once it finishes so the collapsed
+   * line above the answer still explains the work.
+   */
+  readonly activity?: ChatActivity;
 }
 
 const POLL_MS = 900;
@@ -159,6 +165,8 @@ export function useChat(): UseChatResult {
           });
           return;
         }
+        if (!mounted.current) return;
+        patch(messageId, { activity: describeActivity(run) });
         if (isTerminal(run.status) || run.status === 'awaiting_confirmation') {
           if (mounted.current) finish(messageId, run);
           return;
@@ -202,6 +210,7 @@ export function useChat(): UseChatResult {
         .then((run) => {
           if (!mounted.current) return;
           activeRun.current = run.id;
+          patch(answerId, { activity: describeActivity(run) });
           if (isTerminal(run.status) || run.status === 'awaiting_confirmation') {
             finish(answerId, run);
             setBusy(false);
