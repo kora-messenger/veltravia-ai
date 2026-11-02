@@ -591,7 +591,7 @@ pixels:
 | Reference                             | Here                                                                                   |
 | ------------------------------------- | -------------------------------------------------------------------------------------- |
 | background `#F9F9F9`                  | `--v-bg` (`#fafafd`)                                                                   |
-| composer border `#D1D1D1`, radius 16  | not drawn: the type box is plain by request (see below)                                |
+| composer border `#D1D1D1`, radius 16  | `--v-border-strong`, 16 px                                                             |
 | send button `#4250F4`, ~34 px         | `--v-primary` (the brand violet; the reference's blue is not adopted), 32 px, radius 8 |
 | placeholder `#8C8C8C`, 16 px          | `--v-text-faint`, `--v-text-lg`                                                        |
 | suggestion card radius 12, padding 16 | `--v-radius-lg`, `--v-space-4`                                                         |
@@ -611,17 +611,8 @@ Three deliberate departures from the reference:
 
 The composer follows the second reference: one plain field over a control row,
 left to right `+`, the mode chip, the dictation control and the send control in
-the brand colour, all 32 px squares (the chip 30 px).
-
-**The type box draws no box.** There is no grey fill, no `1px` border, no radius
-and no shadow around the message you are writing, so nothing separates the
-composer from the page and the answer text above it starts on the same left edge
-(measured: both at 480 px on a 1440 px window, both at 12 px at 390 px). The
-compiled stylesheet reports `border-top-width: 0px`, `background: transparent`
-and `box-shadow: none` at rest, which is how the change was verified in the
-browser rather than by eye. The field keeps a focus indicator: a soft ring
-(`--v-focus-ring`) appears inside the composer only while it has focus, because
-removing the border would otherwise leave a keyboard user with nowhere to look. The placeholder reads `What's on your mind` in a conversation with no turns, and `Type a message…` once the thread has any.
+the brand colour, all 32 px squares (the chip 30 px) inside a 86 px tall rounded
+grey box with a 16 px inner radius. The placeholder reads `What's on your mind` in a conversation with no turns, and `Type a message…` once the thread has any.
 While an answer is in flight an outlined stop control appears **beside** the send
 control, which dims and disables, rather than swapping in for it: the row must
 not rearrange itself mid-answer, and two adjacent controls must not look alike.
