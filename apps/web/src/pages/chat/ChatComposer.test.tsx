@@ -191,6 +191,14 @@ describe('with a picture attached', () => {
     expect(parseInt(field.style.height, 10)).toBeGreaterThan(180);
   });
 
+  it('puts no ceiling on what can be typed', () => {
+    renderComposer();
+    const field = screen.getByLabelText('Message') as HTMLTextAreaElement;
+    // A limit the user cannot see is worse than no limit: the box must not have
+    // one, so nothing can silently truncate a long instruction.
+    expect(field.getAttribute('maxlength')).toBeNull();
+  });
+
   it('clears the preview from its own dismiss control', async () => {
     renderComposer();
     await attach();
