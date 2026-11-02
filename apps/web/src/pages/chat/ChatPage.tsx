@@ -220,6 +220,12 @@ export function ChatPage() {
           onStop={chat.stop}
           onNewChat={newChat}
           busy={chat.busy}
+          placeholder={
+            // A conversation with nothing in it is a new conversation, so the
+            // box asks an open question; once there are turns it asks for a
+            // message instead.
+            chat.messages.length === 0 ? "What's on your mind" : 'Type a message…'
+          }
           providerLabel={providerLabel}
           providerDetail={providerDetail}
         />

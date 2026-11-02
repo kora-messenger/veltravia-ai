@@ -39,6 +39,8 @@ export interface ChatComposerProps {
   readonly onStop: () => void;
   readonly onNewChat: () => void;
   readonly busy: boolean;
+  /** A fresh conversation asks an open question; a thread asks for a message. */
+  readonly placeholder: string;
   /** What will answer, in plain words. Always a fact, never a guess. */
   readonly providerLabel: string;
   readonly providerDetail: string;
@@ -64,6 +66,7 @@ export function ChatComposer({
   onStop,
   onNewChat,
   busy,
+  placeholder,
   providerLabel,
   providerDetail,
 }: ChatComposerProps) {
@@ -137,7 +140,7 @@ export function ChatComposer({
         className="v-chat-composer__input"
         value={value}
         rows={1}
-        placeholder="Type a message…"
+        placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={onKeyDown}
         aria-describedby="veltravia-chat-hint"

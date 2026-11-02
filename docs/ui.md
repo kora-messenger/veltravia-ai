@@ -585,7 +585,7 @@ Three deliberate departures from the reference:
 The composer follows the second reference: one plain field over a control row,
 left to right `+`, the mode chip, the dictation control and the send control in
 the brand colour, all 32 px squares (the chip 30 px) inside a 86 px tall rounded
-grey box with a 16 px inner radius. The placeholder reads `Type a message…`.
+grey box with a 16 px inner radius. The placeholder reads `What's on your mind` in a conversation with no turns, and `Type a message…` once the thread has any.
 While an answer is in flight an outlined stop control appears **beside** the send
 control, which dims and disables, rather than swapping in for it: the row must
 not rearrange itself mid-answer, and two adjacent controls must not look alike.

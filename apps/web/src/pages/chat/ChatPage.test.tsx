@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ToastProvider } from '../../components/ui';
 import { AgentProfileProvider } from '../../agent/AgentProfileProvider';
 
@@ -176,6 +176,25 @@ describe('the chat landing page', () => {
     expect(await screen.findByText('Upstream refused.')).toBeDefined();
     expect(screen.getByRole('button', { name: 'Ask again' })).toBeDefined();
     expect(screen.queryByText(/^Here is/)).toBeNull();
+  });
+
+  it('asks an open question on a new conversation and for a message in a thread', async () => {
+    startRun.mockResolvedValue(run({ status: 'running', answer: undefined }));
+    getRun.mockResolvedValue(run({ status: 'running', answer: undefined }));
+    renderPage();
+
+    // A conversation with no turns is a new conversation.
+    expect(screen.getByLabelText('Message').getAttribute('placeholder')).toBe(
+      "What's on your mind",
+    );
+
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Hallo' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    // Once there is a turn, the box stops asking an open question.
+    await waitFor(() => {
+      expect(screen.getByLabelText('Message').getAttribute('placeholder')).toBe('Type a message…');
+    });
   });
 
   it('does not send an empty question', async () => {
