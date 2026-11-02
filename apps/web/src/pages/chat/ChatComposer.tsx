@@ -1,15 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Menu, Tooltip, useToast } from '../../components/ui';
 import { navigateToHash } from '../../shell/useHashRoute';
-import {
-  ArrowUpIcon,
-  CloseIcon,
-  MicIcon,
-  PlusIcon,
-  StopIcon,
-  TuneIcon,
-  WaveIcon,
-} from './chatIcons';
+import { ArrowUpIcon, CloseIcon, MicIcon, PlusIcon, StopIcon, TuneIcon } from './chatIcons';
 
 /** The slice of the Web Speech API used here, declared locally. */
 interface SpeechResultLike {
@@ -347,7 +339,7 @@ export function ChatComposer({
             aria-label={listening ? 'Stop dictation' : 'Dictate a message'}
             aria-pressed={listening}
           >
-            <WaveIcon />
+            <MicIcon />
           </button>
         ) : (
           // No dictation in this browser, so the voice mark would be a dead

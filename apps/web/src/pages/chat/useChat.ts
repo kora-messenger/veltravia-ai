@@ -80,7 +80,7 @@ export interface ChatBudget {
 
 /** How a send failed, which decides what the page does next. */
 export type SendFailureKind =
-  'offline' | 'timeout' | 'unavailable' | 'auth' | 'rejected' | 'unknown';
+  'offline' | 'timeout' | 'unavailable' | 'auth' | 'rejected' | 'missing' | 'unknown';
 
 export interface SendFailure {
   readonly kind: SendFailureKind;
@@ -110,6 +110,15 @@ export function classifySendFailure(error: unknown): SendFailure {
     }
     if (error.status >= 500 || name.includes('UNAVAILABLE')) {
       return { kind: 'unavailable', message: errorMessage(error) };
+    }
+    // A 404 means the host at this address serves something that is not the
+    // API: a static build with no backend behind it. That is a configuration
+    // fact, not a rejection of what was asked, and retrying cannot change it.
+    if (error.status === 404) {
+      return {
+        kind: 'missing',
+        message: 'This page is not connected to a Veltravia backend.',
+      };
     }
     if (error.status >= 400) return { kind: 'rejected', message: errorMessage(error) };
   }

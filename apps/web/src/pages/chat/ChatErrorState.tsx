@@ -13,9 +13,19 @@ export interface ChatErrorStateProps {
   readonly reason: string;
   readonly retrying: boolean;
   readonly onRetry: () => void;
+  /**
+   * False when the same request would fail the same way, such as a page with no
+   * backend behind it. Offering Retry there is a promise the page cannot keep.
+   */
+  readonly canRetry?: boolean;
 }
 
-export function ChatErrorState({ reason, retrying, onRetry }: ChatErrorStateProps) {
+export function ChatErrorState({
+  reason,
+  retrying,
+  onRetry,
+  canRetry = true,
+}: ChatErrorStateProps) {
   return (
     <div className="v-chat-error" role="alert">
       <div className="v-chat-error__tile" aria-hidden="true">
@@ -35,10 +45,12 @@ export function ChatErrorState({ reason, retrying, onRetry }: ChatErrorStateProp
       </div>
       <p className="v-chat-error__title">Something went wrong</p>
       <p className="v-chat-error__reason">{reason}</p>
-      <button type="button" className="v-chat-error__retry" onClick={onRetry} disabled={retrying}>
-        <RetryIcon size={16} />
-        <span>{retrying ? 'Retrying' : 'Retry'}</span>
-      </button>
+      {canRetry ? (
+        <button type="button" className="v-chat-error__retry" onClick={onRetry} disabled={retrying}>
+          <RetryIcon size={16} />
+          <span>{retrying ? 'Retrying' : 'Retry'}</span>
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -60,6 +72,8 @@ export function failureReason(kind: string): string {
       return 'Not authorised to run here';
     case 'rejected':
       return 'The request was not accepted';
+    case 'missing':
+      return 'No backend is connected to this page';
     default:
       return 'Network Error';
   }

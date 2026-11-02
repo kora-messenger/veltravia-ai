@@ -146,6 +146,7 @@ export function Message({
             }
             retrying={retrying}
             onRetry={onRetry}
+            canRetry={message.failure ? message.failure.kind !== 'missing' : true}
           />
         </div>
       </div>

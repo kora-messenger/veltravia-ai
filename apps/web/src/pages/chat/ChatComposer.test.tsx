@@ -199,6 +199,14 @@ describe('with a picture attached', () => {
     expect(field.getAttribute('maxlength')).toBeNull();
   });
 
+  it('draws a microphone on the voice control, not a waveform', () => {
+    renderComposer();
+    const voice = screen.getByRole('button', { name: 'Dictate a message' });
+    // The empty-state control has to read as "speak", so it carries the same
+    // microphone mark as the dictation control beside an attachment.
+    expect(voice.querySelector('rect[x="9"][y="3"]')).not.toBeNull();
+  });
+
   it('clears the preview from its own dismiss control', async () => {
     renderComposer();
     await attach();
