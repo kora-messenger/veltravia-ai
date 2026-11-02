@@ -100,11 +100,9 @@ export function ChatPage() {
         {session.started ? (
           <ChatThread
             messages={session.chat.messages}
-            agentName={profile.agentName}
             ownerName={name}
             canRetry={session.chat.canRetry}
             onRetry={session.retry}
-            onNewChat={session.newChat}
           />
         ) : app ? (
           <MobileLanding suggestions={visible} onDismiss={dismiss} onNewChat={session.newChat} />

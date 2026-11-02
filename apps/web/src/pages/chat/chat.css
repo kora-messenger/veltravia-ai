@@ -170,22 +170,6 @@
   margin: 0 auto;
 }
 
-.v-chat__thread-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--v-space-3);
-  padding-bottom: var(--v-space-4);
-  border-bottom: 1px solid var(--v-border-muted);
-}
-
-.v-chat__thread-title {
-  margin: 0;
-  font-size: var(--v-text-lg);
-  font-weight: var(--v-weight-semibold);
-  color: var(--v-text);
-}
-
 .v-chat__turns {
   display: flex;
   flex-direction: column;

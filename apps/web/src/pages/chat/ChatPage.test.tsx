@@ -329,8 +329,12 @@ describe('the chat landing page', () => {
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Hello' } });
     fireEvent.keyDown(screen.getByLabelText('Message'), { key: 'Enter' });
     await screen.findByText('Here is what I found.');
+    // The thread has no header of its own; starting over lives in the box's menu.
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Start a new conversation' }));
+      fireEvent.click(screen.getByRole('button', { name: 'More ways to start' }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'New conversation' }));
     });
     expect(screen.queryByText('Here is what I found.')).toBeNull();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Hey there');
@@ -525,27 +529,28 @@ describe('a message that does not reach the server', () => {
     expect(screen.getByLabelText('Message').getAttribute('placeholder')).toBe('Type a message…');
   });
 
-  it('leaves the warning alone on screen, with no thread header above it', async () => {
+  it('leaves the warning alone on screen', async () => {
     startRun.mockRejectedValue(new TransportError('offline', 'You are offline.'));
     renderPage();
     type('Find the bug');
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
     await screen.findByText('Something went wrong');
 
-    // Nothing was said, so there is no thread to name and nothing to start over.
     expect(screen.queryByText('Start a new conversation')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'My Engineer' })).toBeNull();
   });
 
-  it('puts the header back once a real turn exists', async () => {
+  it('never repeats the agent name above the turns', async () => {
     startRun.mockResolvedValue(run({ status: 'completed' }));
     renderPage();
     type('Find the bug');
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
     await screen.findByText('Here is what I found.');
 
-    expect(screen.getByRole('heading', { name: 'My Engineer' })).toBeDefined();
-    expect(screen.getByText('Start a new conversation')).toBeDefined();
+    // The name lives in the top bar only: no second copy, and no start-over link
+    // taking up a row above the conversation.
+    expect(screen.queryByRole('heading', { name: 'My Engineer' })).toBeNull();
+    expect(screen.queryByText('Start a new conversation')).toBeNull();
   });
 
   it('puts no brand mark inside the error state', async () => {

@@ -114,40 +114,22 @@ export function Message({
 
 export interface ChatThreadProps {
   readonly messages: readonly ChatMessage[];
-  readonly agentName: string;
   /** The owner's own name, so their turns can carry their picture. */
   readonly ownerName: string | null;
   readonly canRetry: boolean;
   readonly onRetry: () => void;
-  readonly onNewChat: () => void;
 }
 
-/** The turns themselves, identical on both layouts. */
-export function ChatThread({
-  messages,
-  agentName,
-  ownerName,
-  canRetry,
-  onRetry,
-  onNewChat,
-}: ChatThreadProps) {
-  // A lone warning is not a conversation: nothing has been said, so the row that
-  // names the thread and offers to start another one would be chrome around a
-  // single error. It appears once there is a real turn to head.
-  const hasRealTurn = messages.some(
-    (message) => message.role === 'user' || message.failedQuestion == null,
-  );
-
+/**
+ * The turns themselves, identical on both layouts.
+ *
+ * There is no thread header here on purpose. The agent is named once, in the top
+ * bar, and starting over lives in the chrome too, so repeating either above the
+ * conversation would only push the words down the screen.
+ */
+export function ChatThread({ messages, ownerName, canRetry, onRetry }: ChatThreadProps) {
   return (
     <div className="v-chat__thread">
-      {hasRealTurn ? (
-        <div className="v-chat__thread-head">
-          <h1 className="v-chat__thread-title">{agentName}</h1>
-          <button type="button" className="v-chat__link" onClick={onNewChat}>
-            Start a new conversation
-          </button>
-        </div>
-      ) : null}
       <div className="v-chat__turns" role="log" aria-live="polite" aria-relevant="additions">
         {messages.map((message) => (
           <Message
