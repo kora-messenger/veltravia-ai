@@ -82,10 +82,12 @@ pattern; toasts announce through a polite live region.
   colour, so the corner reads as behind it rather than as crossing strokes;
   that knockout follows the theme because it uses the surface token.
   Tapping it opens a small right-aligned card (11rem minimum, 14px rows, 18px
-  glyphs) whose four rows are icon plus label: Theme (System/Light/Dark, short
-  enough to stay on one row at 390px), Notifications, Account and Sign out.
-  Account and Sign out stay disabled until authentication exists; the popup
-  carries no rows for features this release does not have.
+  glyphs) with exactly two rows, as the reference shows: Notes and Computer.
+  Neither surface exists in this release, so both rows are disabled and carry a
+  muted "Soon" note instead of pretending to work; wiring one is a line of
+  `onSelect` plus removing `disabled`. Removing these rows also removed the
+  theme control from the UI (it lived in that menu), so the app now follows
+  the operating system's preference until a theme control is placed elsewhere.
 - `useHashRoute.ts` — minimal hash routing (`#/dashboard`, `#/projects`,
   `#/projects/<id>`, `#/settings`); unknown hashes fall back to the
   dashboard. `RouteState` carries route parameters (e.g. the project id)

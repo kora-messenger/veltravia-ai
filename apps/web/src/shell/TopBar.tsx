@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { Dialog, Menu, type MenuItemDef } from '../components/ui';
+import { Menu, type MenuItemDef } from '../components/ui';
 import { BrandMark } from '../components/brand/BrandMark';
-import { useTheme, type ThemePreference } from '../theme/ThemeProvider';
 import { useAgentProfile } from '../agent/AgentProfileProvider';
 import { AgentNameDialog } from './AgentNameDialog';
 import type { RouteState } from './useHashRoute';
@@ -27,46 +26,25 @@ const MenuIcon = ({ children }: { children: ReactNode }) => (
   </svg>
 );
 
-const THEME_GLYPH = (
+/** A page with ruled lines: the reference's Notes row. */
+const NOTES_GLYPH = (
   <MenuIcon>
-    <circle cx="10" cy="10" r="6.6" />
-    <path d="M10 3.4a6.6 6.6 0 0 0 0 13.2Z" fill="currentColor" stroke="none" />
+    <path d="M4.6 2.9h6.6l4.2 4.2v10H4.6Z" />
+    <path d="M11.2 2.9v4.2h4.2" />
+    <path d="M7 10.6h6M7 13.2h6" />
   </MenuIcon>
 );
 
-const BELL_GLYPH = (
+/** A monitor on its stand: the reference's Computer row. */
+const COMPUTER_GLYPH = (
   <MenuIcon>
-    <path d="M5.4 8.2a4.6 4.6 0 0 1 9.2 0c0 3 .9 4 1.4 4.6H4c.5-.6 1.4-1.6 1.4-4.6Z" />
-    <path d="M8.4 15.4a1.7 1.7 0 0 0 3.2 0" />
+    <rect x="2.4" y="4.2" width="15.2" height="9.6" rx="1.4" />
+    <path d="M10 13.8v2.6M6.8 16.8h6.4" />
   </MenuIcon>
 );
-
-const PERSON_GLYPH = (
-  <MenuIcon>
-    <circle cx="10" cy="6.9" r="3.1" />
-    <path d="M4.2 16.4c0-2.6 2.6-4.2 5.8-4.2s5.8 1.6 5.8 4.2" />
-  </MenuIcon>
-);
-
-const EXIT_GLYPH = (
-  <MenuIcon>
-    <path d="M11.4 3.6H5.4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h6" />
-    <path d="M13.2 6.9 16.6 10l-3.4 3.1M16.2 10H8.6" />
-  </MenuIcon>
-);
-
-const THEME_LABEL: Record<ThemePreference, string> = {
-  // Short enough to stay on one popup row at 390px; it still says plainly
-  // that the theme follows the operating system.
-  system: 'System',
-  light: 'Light',
-  dark: 'Dark',
-};
 
 export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
-  const { preference, setPreference } = useTheme();
   const profile = useAgentProfile();
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
 
   // The chat is a conversation with a named assistant, so the header says who
@@ -74,41 +52,30 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
   // own title.
   const showsAgentName = route.id === 'chat';
 
-  const accountItems: MenuItemDef[] = [
+  // Two rows, exactly as the reference shows them. Neither surface exists in
+  // this release, so both read "Soon" and are disabled: a row that looks
+  // tappable and does nothing would be worse than one that says it is not
+  // ready. Drop `disabled` and add `onSelect` when the panels land.
+  const overflowItems: MenuItemDef[] = [
     {
-      id: 'theme',
-      label: `Theme: ${THEME_LABEL[preference]}`,
-      icon: THEME_GLYPH,
-      onSelect: () => {
-        const order: ThemePreference[] = ['system', 'light', 'dark'];
-        const index = order.indexOf(preference);
-        const next = order[(index + 1) % order.length];
-        if (next !== undefined) setPreference(next);
-      },
-    },
-    {
-      id: 'notifications',
-      label: 'Notifications',
-      icon: BELL_GLYPH,
-      onSelect: () => setNotificationsOpen(true),
-    },
-    {
-      id: 'account',
-      label: 'Account',
-      icon: PERSON_GLYPH,
-      onSelect: () => {
-        /* Account management arrives with authentication (a later step). */
-      },
+      id: 'notes',
+      label: 'Notes',
+      icon: NOTES_GLYPH,
+      hint: 'Soon',
       disabled: true,
+      onSelect: () => {
+        /* The notes surface is not built yet. */
+      },
     },
     {
-      id: 'sign-out',
-      label: 'Sign out',
-      icon: EXIT_GLYPH,
-      onSelect: () => {
-        /* Sign-out arrives with authentication (a later step). */
-      },
+      id: 'computer',
+      label: 'Computer',
+      icon: COMPUTER_GLYPH,
+      hint: 'Soon',
       disabled: true,
+      onSelect: () => {
+        /* The computer surface is not built yet. */
+      },
     },
   ];
 
@@ -151,11 +118,11 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
       <div className="v-topbar__actions">
         {/* Reserved, empty, and never filled with a decorative mark: the slot
             the reference puts a premium crown in stays clear until there is a
-            real subscription behind it. Notifications live in the account menu. */}
+            real subscription behind it. */}
         <span className="v-topbar__premium-slot" aria-hidden="true" />
         <Menu
-          triggerLabel="Account menu"
-          items={accountItems}
+          triggerLabel="Panel menu"
+          items={overflowItems}
           trigger={
             <span className="v-topbar__account-icon">
               {/* The reference glyph: a document with three ruled lines in the
@@ -200,16 +167,6 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
           }
         />
       </div>
-      <Dialog
-        open={notificationsOpen}
-        onClose={() => setNotificationsOpen(false)}
-        title="Notifications"
-      >
-        <p className="v-topbar__notify-empty" role="status">
-          Nothing here yet. This release has no notification source connected, so no events are
-          collected or shown.
-        </p>
-      </Dialog>
       {showsAgentName && (
         <AgentNameDialog open={nameDialogOpen} onClose={() => setNameDialogOpen(false)} />
       )}

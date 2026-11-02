@@ -13,6 +13,8 @@ export interface MenuItemDef {
   label: string;
   onSelect(): void;
   icon?: ReactNode;
+  /** Short trailing note, e.g. why an item is not usable yet. Read by AT. */
+  hint?: string;
   disabled?: boolean;
 }
 
@@ -137,7 +139,8 @@ export function Menu({ trigger, triggerLabel, items }: MenuProps) {
               }}
             >
               {item.icon !== undefined && <span className="v-menu__item-icon">{item.icon}</span>}
-              {item.label}
+              <span className="v-menu__item-label">{item.label}</span>
+              {item.hint !== undefined && <span className="v-menu__hint">{item.hint}</span>}
             </button>
           ))}
         </div>

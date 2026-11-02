@@ -229,47 +229,45 @@ describe('AppShell', () => {
 
     // Decorative: the button's own name carries the meaning.
     expect(svg?.getAttribute('aria-hidden')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Account menu' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Panel menu' })).toBeDefined();
   });
 
-  it('opens a small popup of icon rows from the account control', () => {
+  it('opens a two-row popup: Notes and Computer, both marked not built yet', () => {
     renderShell();
-    fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Panel menu' }));
 
-    const panel = screen.getByRole('menu', { name: 'Account menu' });
+    const panel = screen.getByRole('menu', { name: 'Panel menu' });
     const rows = screen.getAllByRole('menuitem');
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(2);
 
-    // Every row is an icon plus a label, the way the reference popup reads, and
-    // the glyphs are decorative because the label already names the action.
+    expect(rows.map((row) => row.querySelector('.v-menu__item-label')?.textContent)).toEqual([
+      'Notes',
+      'Computer',
+    ]);
+
+    // Every row is an icon plus a label plus the honest "Soon" note, and the
+    // glyph is decorative because the label names the row.
     for (const row of rows) {
       const glyph = row.querySelector('.v-menu__glyph');
       expect(glyph).not.toBeNull();
       expect(glyph?.getAttribute('aria-hidden')).toBe('true');
+      expect(row.querySelector('.v-menu__hint')?.textContent).toBe('Soon');
     }
-    expect(rows.map((row) => row.textContent)).toEqual([
-      'Theme: System',
-      'Notifications',
-      'Account',
-      'Sign out',
-    ]);
+
+    // Nothing in the popup pretends to work: both rows are disabled until the
+    // notes and computer surfaces exist.
+    for (const row of rows) {
+      expect((row as HTMLButtonElement).disabled).toBe(true);
+    }
     expect(panel.contains(rows[0] as Node)).toBe(true);
   });
 
-  it('keeps the premium slot empty and reaches notifications from the account menu', () => {
+  it('keeps the premium slot empty', () => {
     const { container } = renderShell();
 
     // No status mark sits in the bar at all: the crown slot stays empty until
     // there is a real subscription behind it.
     expect(container.querySelector('.v-topbar__notify-button')).toBeNull();
     expect(container.querySelectorAll('.v-topbar__actions img')).toHaveLength(0);
-
-    expect(screen.queryByRole('dialog', { name: 'Notifications' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Notifications' }));
-
-    // The honest empty state is unchanged, it simply lives in a dialog now.
-    const dialog = screen.getByRole('dialog', { name: 'Notifications' });
-    expect(dialog.textContent).toContain('no notification source connected');
   });
 });

@@ -609,6 +609,18 @@
   cursor: pointer;
   transition: background-color var(--v-dur-fast) var(--v-ease-out);
 }
+.v-menu__item-label {
+  flex: 1;
+  min-width: 0;
+}
+.v-menu__hint {
+  flex: none;
+  margin-left: var(--v-space-2);
+  color: var(--v-text-faint);
+  font-size: 0.6875rem;
+  font-weight: var(--v-weight-regular);
+  letter-spacing: 0.02em;
+}
 .v-menu__item--active {
   background: var(--v-surface-hover);
 }

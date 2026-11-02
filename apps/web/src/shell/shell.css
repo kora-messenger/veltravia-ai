@@ -248,13 +248,6 @@
 }
 
 /* Notification centre: the supplied status mark, an honest empty state. */
-.v-topbar__notifications {
-  position: relative;
-  /* Flex rather than block: the inline-flex button otherwise sits in a line box
-     with descender space and the mark rides about 1px high. */
-  display: flex;
-  align-items: center;
-}
 
 /* The actions must share one row: as blocks they stacked taller than the bar
    and flex centring pushed both the mark and the account menu half out of it. */
@@ -320,13 +313,6 @@
   display: inline-flex;
   align-items: center;
   color: var(--v-text);
-}
-
-.v-topbar__notify-empty {
-  margin: 0;
-  color: var(--v-text-muted);
-  font-size: var(--v-text-sm);
-  line-height: 1.5;
 }
 
 /* ---------------------------------------------------------------------------
