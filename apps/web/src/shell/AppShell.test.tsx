@@ -32,7 +32,8 @@ describe('AppShell', () => {
   it('starts on the assistant chat route', () => {
     renderShell();
     expect(screen.getByTestId('page-chat')).toBeDefined();
-    expect(screen.getByRole('heading', { name: 'Chat' })).toBeDefined();
+    // The chat header names the assistant instead of repeating the route.
+    expect(screen.getByRole('heading', { name: 'My Engineer' })).toBeDefined();
   });
 
   it('marks the active navigation item with aria-current', () => {

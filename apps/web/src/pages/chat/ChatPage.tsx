@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { BrandMark } from '../../components/brand/BrandMark';
+import { useAgentProfile } from '../../agent/AgentProfileProvider';
 import { Spinner } from '../../components/ui';
 import { navigateToHash } from '../../shell/useHashRoute';
 import { ChatComposer } from './ChatComposer';
 import { CloseIcon, PhoneIcon, TargetIcon } from './chatIcons';
 import { useChat, type ChatMessage } from './useChat';
 
-const NAME_KEY = 'veltravia.display-name';
 const DISMISSED_KEY = 'veltravia.chat.dismissed-suggestions';
 
 interface Suggestion {
@@ -49,15 +49,6 @@ function readDismissed(): readonly string[] {
       : [];
   } catch {
     return [];
-  }
-}
-
-function readName(): string | null {
-  try {
-    const stored = window.localStorage.getItem(NAME_KEY);
-    return stored === null || stored.trim() === '' ? null : stored.trim();
-  } catch {
-    return null;
   }
 }
 
@@ -115,9 +106,12 @@ function Message({ message }: { readonly message: ChatMessage }) {
  */
 export function ChatPage() {
   const chat = useChat();
+  const profile = useAgentProfile();
   const [draft, setDraft] = useState('');
   const [dismissed, setDismissed] = useState<readonly string[]>(readDismissed);
-  const [name] = useState<string | null>(readName);
+  // The name comes from the profile the owner set, not a storage key nothing
+  // ever wrote. Null means they have not told us a name, so no name is invented.
+  const name = profile.ownerName;
 
   const visible = SUGGESTIONS.filter((suggestion) => !dismissed.includes(suggestion.id));
 
@@ -199,7 +193,7 @@ export function ChatPage() {
         ) : (
           <div className="v-chat__thread">
             <div className="v-chat__thread-head">
-              <h1 className="v-chat__thread-title">Conversation</h1>
+              <h1 className="v-chat__thread-title">{profile.agentName}</h1>
               <button type="button" className="v-chat__link" onClick={newChat}>
                 Start a new conversation
               </button>

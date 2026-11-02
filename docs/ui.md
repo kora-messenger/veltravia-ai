@@ -575,8 +575,9 @@ Three deliberate departures from the reference:
 1. **No phone suggestion.** The reference offers "let your agent call people".
    This build has no calling channel, so the card is omitted rather than shown
    as a dead end. The remaining two suggestions navigate somewhere real.
-2. **No name is invented.** The greeting reads `Hey <name>,` only when
-   `localStorage['veltravia.display-name']` holds one; otherwise `Hey there,`.
+2. **No name is invented.** The greeting reads `Hey <name>,` only when the
+   owner has given their own name in the agent-name dialog; otherwise
+   `Hey there,`.
 3. **The mode chip reports a fact.** It reads `Auto` when a provider is
    connected and `Simulated` when none is, and its tooltip quotes the server's
    own reason. It links to model settings.
@@ -592,3 +593,46 @@ What is not wired: attachments, `/` shortcuts, streaming tokens, and any
 speech-to-text fallback. Dictation uses the browser's own `SpeechRecognition`
 and the microphone control is omitted entirely when it is unavailable, so it is
 never a decorative button. Every control in the composer does something.
+
+## Naming the agent (Step 36 follow-up)
+
+Every owner names their own assistant, the way the platform this design follows
+lets a user rename their agent. The name is what the header shows above the
+conversation, and it can be changed at any time.
+
+- **Where it lives.** On `#/chat` the top bar shows the agent's name in place of
+  the route title. The name itself is the control: clicking it opens the editor.
+  There is no pencil button beside it, by request, so the header stays a plain
+  title. `title="Rename your agent"` and the accessible label
+  (`Name your agent (currently called <name>)`) keep it discoverable for a mouse
+  and a screen reader without adding a second hit target.
+- **Two different names.** The agent's name and the owner's account name are not
+  the same thing. The dialog edits only `Agent name` (required, up to 40
+  characters, counted in characters so emoji and non-Latin names fit); naming
+  the agent never touches the account. `Restore the default name` appears only
+  once a custom name exists.
+- **The greeting uses the account name.** `Hey <account name>,` comes from the
+  profile's `ownerName`, which in a deployed build is filled from sign-in. This
+  build has no authentication, so nothing sets it and the greeting says
+  `Hey there,` - the path works and is tested, but no name is invented.
+- **What the server accepts.** `PATCH /api/agent-profile` with `agentName`
+  and/or `ownerName` (the account-name slot the greeting reads). Names are trimmed and inner whitespace collapses to one
+  space; an empty name, a line break or a control character is refused
+  (`AGENT_NAME_INVALID`, 400) rather than silently rewritten, and an over-long
+  one is `AGENT_NAME_TOO_LONG`, 422. The refusal never echoes the rejected value.
+  `DELETE /api/agent-profile/name` puts the default back and keeps the owner's
+  own name.
+- **Scope.** The name is display-only. It never reaches a model, never enters a
+  run's context and never affects authorisation; renaming grants nothing. Each
+  caller names their own agent: the browser sends a stable per-browser owner
+  reference (`localStorage['veltravia.owner-ref']`), which is a documented
+  stand-in for authentication. Two browsers on one server therefore hold two
+  names, and one person across two browsers holds two until real auth exists.
+- **Honest storage.** Names live in the API process's memory (bounded, oldest
+  owner evicted). A restart restores the default, and the API says so in its
+  own `persistence.durable: false` field instead of implying otherwise.
+
+The conversation title while chatting is the agent's name too, so the assistant
+being addressed is never ambiguous. `ChatPage` reads both names from the shared
+`AgentProfileProvider`, which is why the header, the greeting and the thread
+title can never disagree.

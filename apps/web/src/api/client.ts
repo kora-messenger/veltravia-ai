@@ -59,14 +59,24 @@ export async function apiRequest<T>(
     body?: unknown;
     baseUrl?: string;
     fetchImpl?: typeof fetch;
+    headers?: Readonly<Record<string, string>>;
   } = {},
 ): Promise<T> {
-  const { method = 'GET', body, baseUrl = runtimeConfig().apiBaseUrl, fetchImpl = fetch } = options;
+  const {
+    method = 'GET',
+    body,
+    baseUrl = runtimeConfig().apiBaseUrl,
+    fetchImpl = fetch,
+    headers,
+  } = options;
   let response: Response;
   try {
     response = await fetchImpl(`${baseUrl}${path}`, {
       method,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      headers:
+        body === undefined && headers === undefined
+          ? undefined
+          : { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...headers },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {

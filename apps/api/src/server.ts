@@ -21,6 +21,8 @@ import type { RouteSelectorRequest } from '@veltravia/ai-gateway';
 import { createAiExecutionService } from './ai-execution-service.js';
 import type { AiExecutionService } from './ai-execution-service.js';
 import { registerReasoningRoutes } from './routes/reasoning.js';
+import { registerAgentProfileRoutes } from './routes/agent-profile.js';
+import { AgentProfileStore } from './agent-profile.js';
 import { ReasoningService } from './reasoning-service.js';
 import { createIntelligenceService } from './intelligence-service.js';
 import { createVideoIntelligenceService } from './video-service.js';
@@ -534,6 +536,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       },
     });
   registerReasoningRoutes(app, reasoning);
+
+  // Agent identity: each owner names their own assistant. Display-only, and
+  // the name is never part of a run's context or an authorisation decision.
+  registerAgentProfileRoutes(app, { store: new AgentProfileStore() });
 
   // Step 29: real-model execution. Router decides, the gateway executes, events
   // stream over SSE, and usage is recorded once per run.

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Menu, type MenuItemDef } from '../components/ui';
 import { BrandMark } from '../components/brand/BrandMark';
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider';
+import { useAgentProfile } from '../agent/AgentProfileProvider';
+import { AgentNameDialog } from './AgentNameDialog';
 import type { RouteState } from './useHashRoute';
 
 export interface TopBarProps {
@@ -17,7 +19,14 @@ const THEME_LABEL: Record<ThemePreference, string> = {
 
 export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
   const { preference, setPreference } = useTheme();
+  const profile = useAgentProfile();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [nameDialogOpen, setNameDialogOpen] = useState(false);
+
+  // The chat is a conversation with a named assistant, so the header says who
+  // that is instead of repeating the route name. Every other page keeps its
+  // own title.
+  const showsAgentName = route.id === 'chat';
 
   const accountItems: MenuItemDef[] = [
     {
@@ -67,7 +76,19 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
         </svg>
       </button>
       <div className="v-topbar__context">
-        <h1 className="v-heading-2 v-topbar__title">{route.title}</h1>
+        {showsAgentName ? (
+          <button
+            type="button"
+            className="v-topbar__agent"
+            onClick={() => setNameDialogOpen(true)}
+            aria-label={`Name your agent (currently called ${profile.agentName})`}
+            title="Rename your agent"
+          >
+            <h1 className="v-heading-2 v-topbar__title">{profile.agentName}</h1>
+          </button>
+        ) : (
+          <h1 className="v-heading-2 v-topbar__title">{route.title}</h1>
+        )}
       </div>
       <div className="v-topbar__spacer" />
       <div className="v-topbar__actions">
@@ -110,6 +131,9 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
         </div>
         <Menu triggerLabel="Account menu" items={accountItems} trigger={<span>Account</span>} />
       </div>
+      {showsAgentName && (
+        <AgentNameDialog open={nameDialogOpen} onClose={() => setNameDialogOpen(false)} />
+      )}
     </header>
   );
 }

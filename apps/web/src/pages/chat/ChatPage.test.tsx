@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ToastProvider } from '../../components/ui';
+import { AgentProfileProvider } from '../../agent/AgentProfileProvider';
 
 const startRun = vi.fn();
 const getCapabilities = vi.fn();
@@ -98,10 +99,33 @@ describe('the chat landing page', () => {
     expect(screen.getByRole('button', { name: 'Open the app builder' })).toBeDefined();
   });
 
-  it('uses a stored display name only when one exists', async () => {
-    window.localStorage.setItem('veltravia.display-name', 'Ijezie');
-    renderPage();
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Hey Ijezie');
+  it('uses the name the owner gave, and no name when they gave none', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            profile: {
+              agentName: 'Ada',
+              ownerName: 'Ijezie',
+              isDefault: false,
+              updatedAt: '2026-11-02T10:00:00.000Z',
+            },
+            limits: { maxLength: 40 },
+            persistence: { durable: false, note: '' },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    );
+    render(
+      <ToastProvider>
+        <AgentProfileProvider
+          client={{ fetchImpl: fetchImpl as unknown as typeof fetch, ownerRef: 'owner-1' }}
+        >
+          <ChatPage />
+        </AgentProfileProvider>
+      </ToastProvider>,
+    );
+    expect(await screen.findByText(/Hey Ijezie/)).toBeDefined();
   });
 
   it('dismisses a suggestion and keeps it dismissed', async () => {
