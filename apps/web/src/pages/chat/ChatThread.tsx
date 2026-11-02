@@ -131,14 +131,23 @@ export function ChatThread({
   onRetry,
   onNewChat,
 }: ChatThreadProps) {
+  // A lone warning is not a conversation: nothing has been said, so the row that
+  // names the thread and offers to start another one would be chrome around a
+  // single error. It appears once there is a real turn to head.
+  const hasRealTurn = messages.some(
+    (message) => message.role === 'user' || message.failedQuestion == null,
+  );
+
   return (
     <div className="v-chat__thread">
-      <div className="v-chat__thread-head">
-        <h1 className="v-chat__thread-title">{agentName}</h1>
-        <button type="button" className="v-chat__link" onClick={onNewChat}>
-          Start a new conversation
-        </button>
-      </div>
+      {hasRealTurn ? (
+        <div className="v-chat__thread-head">
+          <h1 className="v-chat__thread-title">{agentName}</h1>
+          <button type="button" className="v-chat__link" onClick={onNewChat}>
+            Start a new conversation
+          </button>
+        </div>
+      ) : null}
       <div className="v-chat__turns" role="log" aria-live="polite" aria-relevant="additions">
         {messages.map((message) => (
           <Message

@@ -525,6 +525,29 @@ describe('a message that does not reach the server', () => {
     expect(screen.getByLabelText('Message').getAttribute('placeholder')).toBe('Type a message…');
   });
 
+  it('leaves the warning alone on screen, with no thread header above it', async () => {
+    startRun.mockRejectedValue(new TransportError('offline', 'You are offline.'));
+    renderPage();
+    type('Find the bug');
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    await screen.findByText('Something went wrong');
+
+    // Nothing was said, so there is no thread to name and nothing to start over.
+    expect(screen.queryByText('Start a new conversation')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'My Engineer' })).toBeNull();
+  });
+
+  it('puts the header back once a real turn exists', async () => {
+    startRun.mockResolvedValue(run({ status: 'completed' }));
+    renderPage();
+    type('Find the bug');
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    await screen.findByText('Here is what I found.');
+
+    expect(screen.getByRole('heading', { name: 'My Engineer' })).toBeDefined();
+    expect(screen.getByText('Start a new conversation')).toBeDefined();
+  });
+
   it('puts no brand mark inside the error state', async () => {
     startRun.mockRejectedValue(new TransportError('offline', 'You are offline.'));
     renderPage();
