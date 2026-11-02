@@ -58,7 +58,7 @@ function harness(transport = new FixtureProviderTransport()) {
 const scope = { ownerRef: 'pool-owner' };
 
 describe('readOpenRouterKeys', () => {
-  it('reads numbered names in order and drops duplicates and non-keys', () => {
+  it('reads only the primary key and ignores numbered variants', () => {
     const { keys, skipped } = readOpenRouterKeys(
       envWith({
         OPENROUTER_API_KEY_10: KEY_C,
@@ -69,8 +69,8 @@ describe('readOpenRouterKeys', () => {
         UNRELATED: KEY_A,
       }),
     );
-    expect(keys).toEqual([KEY_A, KEY_B, KEY_C]);
-    expect(skipped).toBe(2);
+    expect(keys).toEqual([KEY_A]);
+    expect(skipped).toBe(0);
   });
 
   it('finds nothing in an environment without OpenRouter values', () => {
@@ -82,11 +82,7 @@ describe('seedOpenRouterPool', () => {
   it('creates one connection holding every usable key, and makes it the default', async () => {
     const { gateway } = harness();
     const result = await seedOpenRouterPool(gateway, scope.ownerRef, {
-      env: envWith({
-        OPENROUTER_API_KEY: KEY_A,
-        OPENROUTER_API_KEY_2: KEY_B,
-        OPENROUTER_API_KEY_3: KEY_C,
-      }),
+      keys: [KEY_A, KEY_B, KEY_C],
     });
 
     expect(result.connectionId).not.toBeNull();
@@ -114,27 +110,38 @@ describe('seedOpenRouterPool', () => {
       env: envWith({ OPENROUTER_API_KEY: KEY_A }),
     });
     const second = await seedOpenRouterPool(gateway, scope.ownerRef, {
-      env: envWith({ OPENROUTER_API_KEY: KEY_A, OPENROUTER_API_KEY_2: KEY_B }),
+      keys: [KEY_A, KEY_B],
     });
     expect(second.keysAdded).toBe(1);
     expect(second.keysAlreadyPresent).toBe(1);
 
     const third = await seedOpenRouterPool(gateway, scope.ownerRef, {
-      env: envWith({ OPENROUTER_API_KEY: KEY_A, OPENROUTER_API_KEY_2: KEY_B }),
+      keys: [KEY_A, KEY_B],
     });
     expect(third.keysAdded).toBe(0);
     expect(third.keysAlreadyPresent).toBe(2);
     expect((await gateway.listConnections(scope))[0]?.connection.keys).toHaveLength(2);
   });
 
-  it('says so when a saved value cannot be used', async () => {
+  it('says so when the saved value cannot be used', async () => {
     const { gateway } = harness();
     const result = await seedOpenRouterPool(gateway, scope.ownerRef, {
-      env: envWith({ OPENROUTER_API_KEY: KEY_A, OPENROUTER_API_KEY_2: FAKE_KEY_PREFIX + 'truncated' }),
+      env: envWith({ OPENROUTER_API_KEY: FAKE_KEY_PREFIX + 'truncated' }),
     });
-    expect(result.keysAdded).toBe(1);
+    expect(result.keysAdded).toBe(0);
     expect(result.problems).toHaveLength(1);
     expect(result.problems[0]).toMatch(/not a usable key/);
+  });
+
+  it('ignores a second key in the environment', async () => {
+    // One key at a time: a fresh one is handed over when this one is spent.
+    const { gateway } = harness();
+    const result = await seedOpenRouterPool(gateway, scope.ownerRef, {
+      env: envWith({ OPENROUTER_API_KEY: KEY_A, OPENROUTER_API_KEY_2: KEY_B }),
+    });
+    expect(result.keysAdded).toBe(1);
+    const entries = await gateway.listConnections(scope);
+    expect(entries[0]?.connection.keys).toHaveLength(1);
   });
 
   it('does nothing when no key is configured, and leaves a set default alone', async () => {
@@ -179,7 +186,7 @@ describe('a 402 with nothing affordable is a spent key', () => {
     });
     const { gateway } = harness(transport);
     await seedOpenRouterPool(gateway, scope.ownerRef, {
-      env: envWith({ OPENROUTER_API_KEY: KEY_A, OPENROUTER_API_KEY_2: KEY_B }),
+      keys: [KEY_A, KEY_B],
     });
     broke.add(KEY_A);
 
@@ -267,7 +274,7 @@ describe('a pool of keys never waits', () => {
     });
     const { gateway } = harness(transport);
     await seedOpenRouterPool(gateway, scope.ownerRef, {
-      env: envWith({ OPENROUTER_API_KEY: KEY_A, OPENROUTER_API_KEY_2: KEY_B }),
+      keys: [KEY_A, KEY_B],
     });
     // The pool exists first; the limits appear later. A key that is already
     // spent cannot be the one that creates the pool.
@@ -303,7 +310,7 @@ describe('a pool of keys never waits', () => {
     });
     const { gateway } = harness(transport);
     await seedOpenRouterPool(gateway, scope.ownerRef, {
-      env: envWith({ OPENROUTER_API_KEY: KEY_A, OPENROUTER_API_KEY_2: KEY_B }),
+      keys: [KEY_A, KEY_B],
     });
     broke.add(KEY_A);
 
@@ -330,7 +337,7 @@ describe('a pool of keys never waits', () => {
     });
     const { gateway } = harness(transport);
     await seedOpenRouterPool(gateway, scope.ownerRef, {
-      env: envWith({ OPENROUTER_API_KEY: KEY_A, OPENROUTER_API_KEY_2: KEY_B }),
+      keys: [KEY_A, KEY_B],
     });
     broke.add(KEY_A);
     broke.add(KEY_B);
@@ -359,7 +366,7 @@ describe('a pool of keys never waits', () => {
     });
     const { gateway } = harness(transport);
     await seedOpenRouterPool(gateway, scope.ownerRef, {
-      env: envWith({ OPENROUTER_API_KEY: KEY_A, OPENROUTER_API_KEY_2: KEY_B }),
+      keys: [KEY_A, KEY_B],
     });
     limited.add(KEY_A);
 

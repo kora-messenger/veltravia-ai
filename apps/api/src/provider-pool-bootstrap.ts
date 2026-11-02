@@ -16,7 +16,12 @@ import type { AIProviderGateway } from '@veltravia/ai-gateway';
  */
 
 /** Names accepted: OPENROUTER_API_KEY, OPENROUTER_API_KEY_2, ... */
-export const OPENROUTER_ENV_PATTERN = /^OPENROUTER_API_KEY(?:_\d+)?$/;
+/**
+ * The primary key only. Ijezie asked to run one key and hand over a fresh one
+ * when it is spent, so the numbered OPENROUTER_API_KEY_2.. variants are ignored
+ * instead of being quietly pooled behind his back.
+ */
+export const OPENROUTER_ENV_PATTERN = /^OPENROUTER_API_KEY$/;
 
 /**
  * Default model. A reasoning model (gpt-5-mini) spends its whole output budget
@@ -113,6 +118,11 @@ export interface SeedOptions {
   readonly defaultModelId?: string;
   readonly models?: readonly string[];
   readonly envNames?: RegExp;
+  /**
+   * Explicit keys, used when the caller already holds them (tests, or a future
+   * settings screen). The environment path supplies exactly one key.
+   */
+  readonly keys?: readonly string[];
 }
 
 /**
@@ -129,8 +139,24 @@ export async function seedOpenRouterPool(
   const providerId = options.providerId ?? 'openrouter';
   const defaultModelId = options.defaultModelId ?? OPENROUTER_DEFAULT_MODEL;
   const models: readonly string[] = options.models ?? OPENROUTER_MODEL_SHORTLIST;
-  const { keys, skipped } = readOpenRouterKeys(env);
-  if (keys.length === 0) return { ...NOTHING_SEEDED, keysSkipped: skipped };
+  const explicit = options.keys?.filter((key) => typeof key === 'string' && key.trim().length > 0);
+  const { keys, skipped } =
+    explicit !== undefined && explicit.length > 0
+      ? { keys: explicit.map((key) => key.trim()), skipped: 0 }
+      : readOpenRouterKeys(env);
+  if (keys.length === 0) {
+    // A value that is present but unusable must be reported, not silently ignored.
+    return {
+      ...NOTHING_SEEDED,
+      keysSkipped: skipped,
+      problems:
+        skipped > 0
+          ? [
+              `${skipped} saved OpenRouter value${skipped === 1 ? ' was' : 's were'} not a usable key and ${skipped === 1 ? 'was' : 'were'} left out.`,
+            ]
+          : [],
+    };
+  }
 
   const problems: string[] = [];
   if (skipped > 0) {
