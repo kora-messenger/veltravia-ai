@@ -196,6 +196,21 @@ describe('the chat landing page', () => {
     expect(await screen.findByText('You stopped this answer.')).toBeDefined();
   });
 
+  it('keeps the send control in place while stopping is offered', async () => {
+    startRun.mockResolvedValue(run({ status: 'running', answer: undefined }));
+    getRun.mockResolvedValue(run({ status: 'running', answer: undefined }));
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Long job' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Send message' }));
+
+    // The stop control sits beside the send control instead of replacing it,
+    // so the composer does not rearrange itself mid-answer.
+    const stop = await screen.findByRole('button', { name: 'Stop the answer' });
+    const send = screen.getByRole('button', { name: 'Send message' });
+    expect(stop.compareDocumentPosition(send) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(send.hasAttribute('disabled')).toBe(true);
+  });
+
   it('omits the microphone when the browser cannot dictate', () => {
     renderPage();
     expect(screen.queryByRole('button', { name: 'Dictate a message' })).toBeNull();

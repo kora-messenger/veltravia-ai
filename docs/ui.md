@@ -582,6 +582,16 @@ Three deliberate departures from the reference:
    connected and `Simulated` when none is, and its tooltip quotes the server's
    own reason. It links to model settings.
 
+The composer follows the second reference: one plain field over a control row,
+left to right `+`, the mode chip, the dictation control and the send control in
+the brand colour, all 32 px squares (the chip 30 px) inside a 86 px tall rounded
+grey box with a 16 px inner radius. The placeholder reads `Type a message…`.
+While an answer is in flight an outlined stop control appears **beside** the send
+control, which dims and disables, rather than swapping in for it: the row must
+not rearrange itself mid-answer, and two adjacent controls must not look alike.
+The reference's black action button is rendered in the brand violet, for the same
+reason the reference's blue was not adopted.
+
 What is wired: `POST /api/reasoning/runs` (profile `workspace`), the previous
 turns sent as conversation context, `GET /runs/:id` polled every 900 ms until a
 terminal state, and `POST /runs/:id/cancel` from the stop control. A failed run

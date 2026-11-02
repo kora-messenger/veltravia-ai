@@ -47,9 +47,15 @@ export interface ChatComposerProps {
 const MAX_ROWS_PX = 180;
 
 /**
- * The message composer: a borderless field over a control row, with the send
- * control carrying the brand colour. Every control does something real; the
- * microphone is omitted entirely when the browser has no speech recognition.
+ * The message composer, laid out like the reference: one plain field on top of
+ * a control row, all inside a rounded grey container.
+ *
+ * Left to right the row is: attachments, the mode chip, then the dictation
+ * control and finally the send control in the brand colour. While an answer is
+ * being produced a separate outlined stop control appears NEXT TO the send
+ * control rather than replacing it, so the composer does not rearrange itself
+ * mid-answer. Every control does something real; the microphone is omitted
+ * entirely when the browser has no speech recognition.
  */
 export function ChatComposer({
   value,
@@ -131,7 +137,7 @@ export function ChatComposer({
         className="v-chat-composer__input"
         value={value}
         rows={1}
-        placeholder="Ask anything, or describe what you want to build"
+        placeholder="Type a message…"
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={onKeyDown}
         aria-describedby="veltravia-chat-hint"
@@ -189,26 +195,26 @@ export function ChatComposer({
           </button>
         )}
 
-        {busy ? (
+        {busy && (
           <button
             type="button"
-            className="v-chat-composer__send v-chat-composer__send--stop"
+            className="v-chat-composer__stop"
             onClick={onStop}
             aria-label="Stop the answer"
           >
             <StopIcon />
           </button>
-        ) : (
-          <button
-            type="button"
-            className="v-chat-composer__send"
-            onClick={onSend}
-            disabled={!canSend}
-            aria-label="Send message"
-          >
-            <ArrowUpIcon />
-          </button>
         )}
+
+        <button
+          type="button"
+          className="v-chat-composer__send"
+          onClick={onSend}
+          disabled={!canSend}
+          aria-label="Send message"
+        >
+          <ArrowUpIcon />
+        </button>
       </div>
       <p className="v-chat-composer__hint" id="veltravia-chat-hint">
         Enter sends, Shift + Enter adds a line.

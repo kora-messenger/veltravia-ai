@@ -261,14 +261,15 @@
   background: linear-gradient(to top, var(--v-bg) 72%, transparent);
 }
 
+/* The reference's box: a light grey fill inside a thin grey border, one field
+   over a control row, and no drop shadow. Radius stays the measured 16px. */
 .v-chat-composer {
   max-width: 720px;
   margin: 0 auto;
-  padding: 6px 6px var(--v-space-2) var(--v-space-4);
+  padding: var(--v-space-2) var(--v-space-2) var(--v-space-2) var(--v-space-3);
   border: 1px solid var(--v-border-strong);
   border-radius: 16px;
-  background: var(--v-surface-raised);
-  box-shadow: var(--v-shadow-1);
+  background: var(--v-surface-muted);
 }
 
 .v-chat-composer:focus-within {
@@ -293,7 +294,7 @@
   display: block;
   width: 100%;
   max-height: 180px;
-  padding: var(--v-space-2) var(--v-space-2) var(--v-space-1) 0;
+  padding: var(--v-space-1) var(--v-space-2) var(--v-space-1) 0;
   border: 0;
   background: none;
   resize: none;
@@ -314,12 +315,30 @@
 .v-chat-composer__row {
   display: flex;
   align-items: center;
-  gap: var(--v-space-2);
+  gap: var(--v-space-1);
   padding-top: var(--v-space-1);
 }
 
 .v-chat-composer__spacer {
   flex: 1 1 auto;
+}
+
+/* The attachment menu trigger arrives as a ghost button; inside this row it has
+   to match the other icon controls exactly, or the row reads as ragged. */
+.v-chat-composer__row .v-menu__trigger {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 0;
+  line-height: 1;
+  padding: 0;
+  border-radius: var(--v-radius-md);
+  color: var(--v-text-muted);
+}
+
+.v-chat-composer__row .v-menu__trigger:hover {
+  background: var(--v-surface-hover);
+  color: var(--v-text);
 }
 
 .v-chat-composer__mode {
@@ -391,9 +410,23 @@
   cursor: not-allowed;
 }
 
-.v-chat-composer__send--stop {
-  background: var(--v-text);
-  color: var(--v-bg);
+/* Outlined, and deliberately different from the filled send control so the two
+   adjacent controls cannot be confused mid-answer. */
+.v-chat-composer__stop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--v-border-strong);
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface-raised);
+  color: var(--v-text);
+  cursor: pointer;
+}
+
+.v-chat-composer__stop:hover {
+  background: var(--v-surface-hover);
 }
 
 .v-chat-composer__hint {
