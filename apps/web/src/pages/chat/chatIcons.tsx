@@ -39,6 +39,19 @@ export function MicIcon({ size = 20 }: IconProps) {
   );
 }
 
+/**
+ * The voice mark: a short equaliser. Used on the filled control that stands in
+ * the send position while there is nothing to send, so the control is a voice
+ * control rather than a dead send button.
+ */
+export function WaveIcon({ size = 18 }: IconProps) {
+  return (
+    <svg {...base(size)} strokeWidth={2}>
+      <path d="M5 10v4M9 6v12M13 8v8M17 10v4M21 11v2" />
+    </svg>
+  );
+}
+
 export function ArrowUpIcon({ size = 18 }: IconProps) {
   return (
     <svg {...base(size)} strokeWidth={2}>

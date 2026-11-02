@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Menu, Tooltip, useToast } from '../../components/ui';
 import { navigateToHash } from '../../shell/useHashRoute';
-import { ArrowUpIcon, MicIcon, PlusIcon, StopIcon, TuneIcon } from './chatIcons';
+import {
+  ArrowUpIcon,
+  CloseIcon,
+  MicIcon,
+  PlusIcon,
+  StopIcon,
+  TuneIcon,
+  WaveIcon,
+} from './chatIcons';
 
 /** The slice of the Web Speech API used here, declared locally. */
 interface SpeechResultLike {
@@ -71,9 +79,11 @@ export function ChatComposer({
   providerDetail,
 }: ChatComposerProps) {
   const field = useRef<HTMLTextAreaElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
   const recognition = useRef<SpeechRecognitionLike | null>(null);
   const [listening, setListening] = useState(false);
   const [dictation, setDictation] = useState(false);
+  const [image, setImage] = useState<{ name: string; url: string } | null>(null);
   const { toast } = useToast();
 
   // Feature detection runs after mount so the control is never rendered for a
@@ -88,6 +98,25 @@ export function ChatComposer({
     element.style.height = 'auto';
     element.style.height = `${Math.min(element.scrollHeight, MAX_ROWS_PX)}px`;
   }, [value]);
+
+  // An object URL lives until it is revoked, so both replacing and removing the
+  // preview free the last one.
+  const replaceImage = (next: { name: string; url: string } | null) => {
+    setImage((current) => {
+      if (current !== null) URL.revokeObjectURL(current.url);
+      return next;
+    });
+  };
+
+  useEffect(
+    () => () => {
+      setImage((current) => {
+        if (current !== null) URL.revokeObjectURL(current.url);
+        return null;
+      });
+    },
+    [],
+  );
 
   const startListening = () => {
     if (listening) {
@@ -127,7 +156,27 @@ export function ChatComposer({
     }
   };
 
-  const canSend = value.trim() !== '' && !busy;
+  const typed = value.trim() !== '';
+  // The reference swaps the far-right control: a voice control while there is
+  // nothing to send, the send arrow as soon as there is a message or an image.
+  const hasSomethingToSend = typed || image !== null;
+  const canSend = hasSomethingToSend && !busy;
+
+  /**
+   * Sending with an image attached is refused rather than silently dropping it:
+   * the run API takes text, so a picture would leave the composer looking sent
+   * while the model never saw it.
+   */
+  const sendOrExplain = () => {
+    if (busy) return;
+    if (image !== null) {
+      toast('Images cannot be sent yet. Remove the image to send this message.', {
+        tone: 'error',
+      });
+      return;
+    }
+    onSend();
+  };
 
   return (
     <div className="v-chat-composer">
@@ -145,11 +194,38 @@ export function ChatComposer({
         onKeyDown={onKeyDown}
         aria-describedby="veltravia-chat-hint"
       />
+      {image !== null && (
+        <div className="v-chat-composer__attachment">
+          <img className="v-chat-composer__thumb" src={image.url} alt={image.name} />
+          <button
+            type="button"
+            className="v-chat-composer__dismiss"
+            onClick={() => replaceImage(null)}
+            aria-label={`Remove ${image.name}`}
+          >
+            <CloseIcon size={12} />
+          </button>
+        </div>
+      )}
+      <input
+        ref={picker}
+        type="file"
+        accept="image/*"
+        className="v-chat-composer__picker"
+        onChange={(event) => {
+          const chosen = event.target.files?.[0];
+          if (chosen !== undefined) {
+            replaceImage({ name: chosen.name, url: URL.createObjectURL(chosen) });
+          }
+          event.target.value = '';
+        }}
+      />
       <div className="v-chat-composer__row">
         <Menu
           trigger={<PlusIcon />}
           triggerLabel="More ways to start"
           items={[
+            { id: 'attach', label: 'Attach a photo', onSelect: () => picker.current?.click() },
             { id: 'new', label: 'New conversation', onSelect: onNewChat },
             {
               id: 'projects',
@@ -182,7 +258,7 @@ export function ChatComposer({
 
         <div className="v-chat-composer__spacer" />
 
-        {dictation && (
+        {dictation && !typed && image !== null && (
           <button
             type="button"
             className={
@@ -209,15 +285,43 @@ export function ChatComposer({
           </button>
         )}
 
-        <button
-          type="button"
-          className="v-chat-composer__send"
-          onClick={onSend}
-          disabled={!canSend}
-          aria-label="Send message"
-        >
-          <ArrowUpIcon />
-        </button>
+        {hasSomethingToSend ? (
+          <button
+            type="button"
+            className="v-chat-composer__send"
+            onClick={sendOrExplain}
+            disabled={!canSend}
+            aria-label="Send message"
+          >
+            <ArrowUpIcon />
+          </button>
+        ) : dictation ? (
+          // Nothing to send: the control becomes a voice control rather than a
+          // disabled send button, and it starts dictation, which is the voice
+          // capability this build actually has.
+          <button
+            type="button"
+            className="v-chat-composer__voice"
+            onClick={startListening}
+            aria-label={listening ? 'Stop dictation' : 'Dictate a message'}
+            aria-pressed={listening}
+          >
+            <WaveIcon />
+          </button>
+        ) : (
+          // No dictation in this browser, so the voice mark would be a dead
+          // control. Fall back to the send arrow, disabled because there is
+          // nothing to send.
+          <button
+            type="button"
+            className="v-chat-composer__send"
+            onClick={sendOrExplain}
+            disabled
+            aria-label="Send message"
+          >
+            <ArrowUpIcon />
+          </button>
+        )}
       </div>
       <p className="v-chat-composer__hint" id="veltravia-chat-hint">
         Enter sends, Shift + Enter adds a line.

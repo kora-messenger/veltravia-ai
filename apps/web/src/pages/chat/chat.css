@@ -436,20 +436,96 @@
   height: 32px;
   border: 0;
   border-radius: var(--v-radius-md);
-  background: var(--v-primary);
-  color: var(--v-primary-fg);
+  /* Sampled from the reference's typed state: #3B51E5. */
+  background: #3b51e5;
+  color: #ffffff;
   cursor: pointer;
 }
 
 .v-chat-composer__send:hover:not(:disabled) {
-  background: var(--v-primary-hover);
+  background: #3145cf;
 }
 
 .v-chat-composer__send:disabled {
-  background: var(--v-primary);
-  color: var(--v-primary-fg);
+  background: #3b51e5;
+  color: #ffffff;
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* The stand-in while there is nothing to send. Near-black, as in the reference,
+   so it reads as a different control rather than a dimmed send button. */
+.v-chat-composer__voice {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--v-radius-md);
+  background: #0f0e0e;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.v-chat-composer__voice:hover:not(:disabled) {
+  background: #000000;
+}
+
+.v-chat-composer__voice:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.v-chat-composer__voice[aria-pressed='true'] {
+  background: #3b51e5;
+}
+
+/* The picture preview sits above the field, inside the same container, and is
+   absent entirely when nothing is attached. */
+.v-chat-composer__attachment {
+  position: relative;
+  align-self: flex-start;
+  width: 76px;
+  height: 76px;
+  margin-bottom: var(--v-space-2);
+  border-radius: var(--v-radius-md);
+  overflow: visible;
+}
+
+.v-chat-composer__thumb {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--v-radius-md);
+  object-fit: cover;
+  display: block;
+  border: 1px solid var(--v-border);
+}
+
+.v-chat-composer__dismiss {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--v-border);
+  border-radius: 50%;
+  background: var(--v-surface);
+  color: var(--v-text);
+  box-shadow: 0 1px 3px rgba(32, 28, 52, 0.16);
+  cursor: pointer;
+}
+
+.v-chat-composer__dismiss:hover {
+  background: var(--v-surface-hover);
+}
+
+.v-chat-composer__picker {
+  display: none;
 }
 
 /* Outlined, and deliberately different from the filled send control so the two
