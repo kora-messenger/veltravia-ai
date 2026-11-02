@@ -23,6 +23,22 @@ change shipped to the phone. The wrapper adds only:
 
 Capacitor configuration lives in `apps/mobile/capacitor.config.ts`.
 
+## What the phone screens look like
+
+The phone is a different presentation of the same screens, not a different app.
+At phone width the chat keeps one column: the greeting sits above the composer
+rather than beside it, the two entry points are rows, the run line keeps its
+single-line summary with the steps behind one toggle, and navigation and the top
+bar surface arrive as overlays instead of columns.
+
+`docs/qa/phone-sheet-a.png` shows a new conversation, a finished run and one step
+opened onto its command and output; `docs/qa/phone-sheet-b.png` shows the top bar
+surface and the navigation drawer. Both are captured at 390 x 844 with a device
+pixel ratio of 3 and the `Capacitor` global present, which is how the bundled app
+knows it is packaged. The run in those captures is a recorded fixture: the
+simulated provider performs real orchestration but no model work, so a live
+simulated run produces a single `Thinking` row.
+
 ## How the app finds the backend
 
 The bundle deliberately carries no build-time environment: a packaged application

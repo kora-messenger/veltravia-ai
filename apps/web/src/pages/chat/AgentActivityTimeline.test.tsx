@@ -107,6 +107,18 @@ describe('the activity timeline', () => {
     expect(screen.queryByText('Finished with a failure')).toBeNull();
   });
 
+  it('stays quiet about a dropped stream once the run is over', () => {
+    render(
+      <AgentActivityTimeline
+        runStatus="completed"
+        connection="reconnecting"
+        activities={[activity({ activityId: 'a1' })]}
+      />,
+    );
+    // The answer is already on screen; a stream that closed afterwards is not news.
+    expect(screen.queryByText(/Nothing was restarted/)).toBeNull();
+  });
+
   it('says a failure instead of claiming the run finished cleanly', () => {
     render(
       <AgentActivityTimeline

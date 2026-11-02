@@ -71,7 +71,10 @@ export function AgentActivityTimeline({
             <ChevronIcon size={14} />
           </span>
         </button>
-        {connection === 'reconnecting' || connection === 'offline' ? (
+        {/* A drop only matters while there is still something to wait for. Once
+            the run is over the answer is already on screen, so a late stream
+            error must not reopen the conversation with a connection problem. */}
+        {running && (connection === 'reconnecting' || connection === 'offline') ? (
           <p className="v-act__connection" role="status">
             {connection === 'offline'
               ? 'You are offline. The run continues on the server and this will catch up.'
