@@ -47,10 +47,13 @@ export function shorten(text: string, max = MAX_LABEL_CHARS): string {
  * Derives the line from the run.
  *
  * - the last executed step's intent, which is the only thing actually happening
- * - otherwise the plan's first intent, marked as next so it is not mistaken for
- *   work already done
- * - otherwise a plain "Working on it", because a run with no published steps has
- *   told us nothing more specific
+ * - otherwise a plain "Working on it", because a run that has published no steps
+ *   has told us nothing more specific yet.
+ *
+ * A plan is deliberately NOT used. The reference holds a neutral line for the gap
+ * between sending and the first real step, and naming a planned step reads as
+ * work already under way. Holding the neutral phrase costs one switch (neutral,
+ * then the real step) instead of two (planned, then the same thing for real).
  */
 export function describeActivity(run: ReasoningRunView): ChatActivity {
   const steps = run.steps.slice(-MAX_ACTIVITY_STEPS).map((step) => ({
@@ -61,16 +64,7 @@ export function describeActivity(run: ReasoningRunView): ChatActivity {
   }));
 
   const last = steps[steps.length - 1];
-  let label: string;
-  if (last !== undefined) {
-    label = last.label;
-  } else {
-    const planned = run.plan?.steps[0]?.intent;
-    label =
-      planned === undefined || planned.trim() === ''
-        ? 'Working on it'
-        : `Next: ${shorten(titleCase(planned))}`;
-  }
+  const label = last === undefined ? 'Working on it' : last.label;
 
   return { label, steps, running: run.status === 'running' };
 }

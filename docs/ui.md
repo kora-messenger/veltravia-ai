@@ -802,10 +802,16 @@ Everything on that line comes from the server's own run view, derived by
 `describeActivity()` in `pages/chat/activity.ts`:
 
 1. the last executed step's `intent`, which is the only thing actually happening,
-2. otherwise the plan's first intent, prefixed `Next: ` so planned work is never
-   mistaken for work already done,
-3. otherwise `Working on it`, because a run that has published no steps has told
+2. otherwise `Working on it`, because a run that has published no steps has told
    the page nothing more specific.
+
+A plan is deliberately not used. The line once previewed the plan's first intent
+as `Next: …`, which named work that had not started and then repeated itself when
+that step really ran: two switches, one of them a guess. Holding `Working on it`
+until a step exists gives one switch, and the line only ever describes work that
+is happening. Two tests hold this: a run with a plan and no steps keeps the
+neutral label, and the label may never contain `next`. Live at 390px, the
+sequence is `Working on it` → `Read the readme header`.
 
 The expansion lists the steps with their status (`Done`, `Failed`, `Refused`,
 `Waiting for approval`) and duration. At most twelve are kept. Durations round in

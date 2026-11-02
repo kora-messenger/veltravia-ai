@@ -47,11 +47,19 @@ describe('the status line follows the run, not a guess', () => {
     expect(activity.running).toBe(true);
   });
 
-  it('labels a planned step as next, so it does not read as work already done', () => {
+  it('holds the neutral line while only a plan exists', () => {
     const activity = describeActivity(
       run({ plan: { goal: 'Answer', steps: [{ intent: 'read the test tail' }] } }),
     );
-    expect(activity.label).toBe('Next: Read the test tail');
+    expect(activity.label).toBe('Working on it');
+    expect(activity.label).not.toContain('Read the test tail');
+  });
+
+  it('never previews a planned step in the line', () => {
+    const activity = describeActivity(
+      run({ plan: { goal: 'Answer', steps: [{ intent: 'read the test tail' }] } }),
+    );
+    expect(activity.label.toLowerCase()).not.toContain('next');
   });
 
   it('prefers the last executed step over the plan', () => {
