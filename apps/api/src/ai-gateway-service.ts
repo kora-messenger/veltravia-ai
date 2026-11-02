@@ -12,6 +12,7 @@ import {
 
 import {
   seedGroqPool,
+  seedMistralPool,
   seedOpenAIPool,
   seedOpenRouterPool,
   type PoolSeedResult,
@@ -133,8 +134,9 @@ export function createGatewayService(options: GatewayServiceOptions = {}): Gatew
     const attempt = (async () => {
       await seedOpenRouterPool(gateway, ownerRef, { env }).catch(() => NOTHING);
       const openai = await seedOpenAIPool(gateway, ownerRef, { env }).catch(() => NOTHING);
-      // Groq is seeded after the default so it never steals it.
+      // Groq and Mistral are seeded after the default so they never steal it.
       await seedGroqPool(gateway, ownerRef, { env }).catch(() => NOTHING);
+      await seedMistralPool(gateway, ownerRef, { env }).catch(() => NOTHING);
       return openai;
     })();
     seeded.set(ownerRef, attempt);

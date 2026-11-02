@@ -40,6 +40,20 @@ export const OPENAI_MODEL_SHORTLIST = ['gpt-4o-mini', 'gpt-4o', 'gpt-5-mini'] as
 /** Groq keys: one key today, unnumbered or suffixed. */
 export const GROQ_ENV_PATTERN = /^GROQ_API_KEY(?:_\d+)?$/;
 
+/** Mistral keys: one key today, unnumbered or suffixed. */
+export const MISTRAL_ENV_PATTERN = /^MISTRAL_API_KEY(?:_\d+)?$/;
+
+/**
+ * Mistral models that actually serve on this subscription.
+ *
+ * Probed 2026-11-02: `mistral-large-latest` answers 403 "not available in your
+ * subscription" and `mistral-small-latest` answers 429 on every call, while
+ * these two answer normally. Naming them keeps the default selectable instead of
+ * hoping the vendor list is all reachable.
+ */
+export const MISTRAL_DEFAULT_MODEL = 'ministral-8b-latest';
+export const MISTRAL_MODEL_SHORTLIST = ['ministral-8b-latest', 'open-mistral-nemo'] as const;
+
 /** Groq's fastest reliable ids: a direct model and a large reasoning one. */
 export const GROQ_DEFAULT_MODEL = 'qwen/qwen3.8-27b';
 export const GROQ_MODEL_SHORTLIST = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b'] as const;
@@ -395,6 +409,24 @@ export function seedGroqPool(
     envNames: GROQ_ENV_PATTERN,
     defaultModelId: options.defaultModelId ?? GROQ_DEFAULT_MODEL,
     models: options.models ?? GROQ_MODEL_SHORTLIST,
+    makeDefault: false,
+  });
+}
+
+/** The Mistral connection: a fourth real provider, available to failover. */
+export function seedMistralPool(
+  gateway: AIProviderGateway,
+  ownerRef: string,
+  options: SeedOptions = {},
+): Promise<PoolSeedResult> {
+  return seedProviderPool(gateway, ownerRef, {
+    ...options,
+    providerId: 'mistral',
+    providerName: 'Mistral',
+    displayName: 'Mistral',
+    envNames: MISTRAL_ENV_PATTERN,
+    defaultModelId: options.defaultModelId ?? MISTRAL_DEFAULT_MODEL,
+    models: options.models ?? MISTRAL_MODEL_SHORTLIST,
     makeDefault: false,
   });
 }
