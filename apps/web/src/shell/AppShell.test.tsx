@@ -178,6 +178,33 @@ describe('AppShell', () => {
     expect(screen.getByTestId('page-settings')).toBeDefined();
   });
 
+  it('builds the bar as one strip: brand mark, title, then the account control', () => {
+    const { container } = renderShell();
+
+    const bar = container.querySelector('.v-topbar');
+    expect(bar).not.toBeNull();
+    if (!bar) throw new Error('no top bar');
+
+    // Order is the reference's: mark, then the title it belongs to, then the
+    // right-hand group. The mark is decorative because the title names the page.
+    const brand = bar.querySelector('.v-topbar__brand img');
+    expect(brand?.getAttribute('alt')).toBe('');
+    expect(brand?.getAttribute('width')).toBe('22');
+
+    const title = bar.querySelector('.v-topbar__title');
+    expect(title?.tagName).toBe('H1');
+
+    const children = Array.from(bar.children).map((child) => child.className);
+    expect(children.indexOf('v-topbar__brand')).toBeLessThan(
+      children.findIndex((name) => name.includes('v-topbar__context')),
+    );
+
+    // The reserved premium slot exists in the layout but draws nothing.
+    const slot = bar.querySelector('.v-topbar__premium-slot');
+    expect(slot?.children.length).toBe(0);
+    expect(slot?.getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('keeps the premium slot empty and reaches notifications from the account menu', () => {
     const { container } = renderShell();
 

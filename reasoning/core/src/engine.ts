@@ -1023,6 +1023,10 @@ export class ReasoningEngine {
         state.run = patch(
           state.run,
           {
+            // The provider record is metadata, not a message: whoever actually
+            // answered is named here and nowhere in the answer text. Failover
+            // between the owner's own keys is plumbing, so it is never narrated
+            // back to the reader.
             provider: {
               providerId: result.providerId,
               modelId: result.modelId,

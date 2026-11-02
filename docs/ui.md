@@ -65,9 +65,17 @@ pattern; toasts announce through a polite live region.
 - `AppShell.tsx` — sidebar + top bar + main content area.
 - `Sidebar.tsx` — primary navigation (Dashboard, Projects, Settings) with
   active (`aria-current="page"`), hover, focus, and collapse states.
-- `TopBar.tsx` — page context title, mobile navigation trigger, account
-  menu (theme cycling; account/sign-out are explicitly disabled until
-  authentication exists).
+- `TopBar.tsx` — single-strip bar: brand mark, page context title, mobile
+  navigation trigger, account menu (theme cycling; account/sign-out are
+  explicitly disabled until authentication exists).
+  Geometry is taken from the supplied reference bar (390px capture): 56px
+  tall, 12px left padding, 14px right padding, 22px brand mark, 18px/500
+  title, 20px action glyphs with 32px hit areas. The bar paints on the
+  raised surface rather than the page background so it reads as its own
+  strip. The premium slot is a reserved 20px gap that draws nothing: the
+  crown returns when there is a real subscription behind it, and until then
+  the bar carries no decorative status mark. Verified in-browser at 390px and
+  1280px (bar height 56px, title 18px/500, no horizontal overflow).
 - `useHashRoute.ts` — minimal hash routing (`#/dashboard`, `#/projects`,
   `#/projects/<id>`, `#/settings`); unknown hashes fall back to the
   dashboard. `RouteState` carries route parameters (e.g. the project id)

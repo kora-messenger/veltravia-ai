@@ -17,6 +17,7 @@ import {
   getReasoningProfile,
   listReasoningProfiles,
   reasoningUsageRecord,
+  type ProviderFallback,
   type ReasoningEvent,
   type ReasoningLimits,
   type ReasoningProfileId,
@@ -261,6 +262,10 @@ export class ReasoningService {
         },
         connectionId,
         modelId,
+        // The keys the owner already has are all seeded, so one spent balance
+        // must not end the conversation. Order follows the owner's routing
+        // preference: OpenAI first, then Groq, then OpenRouter.
+        ...(await this.providerPlan(input.ownerRef, connectionId)),
       });
     }
 
@@ -272,6 +277,53 @@ export class ReasoningService {
     const entry: OwnerEngine = { engine, mode, tools };
     this.engines.set(key, entry);
     return entry;
+  }
+
+  /**
+   * The other connections that could answer when the first one cannot.
+   *
+   * Healthy connections only, ordered by the owner's stated preference (Groq,
+   * then OpenRouter), each with the model its own connection is configured for.
+   * A connection with no model on it is skipped rather than guessed.
+   */
+  private async providerPlan(
+    ownerRef: string,
+    primaryConnectionId: string | undefined,
+  ): Promise<{ primaryProviderId?: string; fallbacks: ProviderFallback[] }> {
+    const empty = { fallbacks: [] as ProviderFallback[] };
+    if (!this.options.gateway) return empty;
+    const order = ['groq', 'openrouter', 'openai', 'mistral'];
+    let entries;
+    try {
+      entries = await this.options.gateway.listConnections({ ownerRef });
+    } catch {
+      return empty;
+    }
+    const rank = (providerId: string) => {
+      const index = order.indexOf(providerId);
+      return index === -1 ? order.length : index;
+    };
+    const primary = entries.find((entry) => entry.connection.id === primaryConnectionId);
+    const fallbacks = entries
+      .filter((entry) => entry.healthy && entry.connection.id !== primaryConnectionId)
+      .sort((a, b) => rank(a.connection.providerId) - rank(b.connection.providerId))
+      .map((entry) => ({
+        connectionId: entry.connection.id,
+        // `models` carries the gateway's model records; the id is what the
+        // gateway takes back in a completion request.
+        modelId:
+          entry.connection.defaultModelId ??
+          entry.models.find((model) => model.available)?.modelId ??
+          entry.models[0]?.modelId ??
+          '',
+        providerId: entry.connection.providerId,
+      }))
+      .filter((candidate) => candidate.modelId !== '')
+      .slice(0, 2);
+    return {
+      ...(primary ? { primaryProviderId: primary.connection.providerId } : {}),
+      fallbacks,
+    };
   }
 
   /** Starts a run and returns as soon as it has an id. */

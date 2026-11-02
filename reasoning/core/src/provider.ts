@@ -36,6 +36,22 @@ export interface ProviderResult {
   /** True when this is a deterministic mock. Never presented as real AI. */
   readonly simulated: boolean;
   readonly finishReason: string;
+  /**
+   * Set when a different connection answered because the first one could not.
+   * The engine keeps reporting providerId/modelId of whoever actually replied,
+   * so nothing is silently substituted.
+   */
+  readonly fallback?: ProviderFallbackNote;
+}
+
+export interface ProviderFallbackNote {
+  /** The connection that was tried first and refused. */
+  readonly fromProviderId: string;
+  readonly fromModelId: string;
+  /** Why it was skipped, in the gateway's own words. */
+  readonly reason: string;
+  /** How many connections were tried in total, including the one that answered. */
+  readonly attempts: number;
 }
 
 export interface ProviderChunk {
@@ -102,6 +118,13 @@ export function toReasoningProviderError(error: unknown): ReasoningError {
   return new ReasoningError('REASONING_PROVIDER_ERROR', scrubReasoningText(message));
 }
 
+export interface ProviderFallback {
+  readonly connectionId: string;
+  readonly modelId: string;
+  /** The provider behind the connection, for an honest "skipped X" note. */
+  readonly providerId?: string;
+}
+
 export interface GatewayProviderOptions {
   readonly gateway: AIProviderGateway;
   readonly scope: GatewayScope;
@@ -109,6 +132,47 @@ export interface GatewayProviderOptions {
   readonly connectionId?: string;
   readonly modelId?: string;
   readonly temperature?: number;
+  /**
+   * Tried in order when the first connection cannot serve: a spent balance, a
+   * rate limit, an unreachable provider or a rejected key. Bounded, and every
+   * attempt is reported back through `fallback` so the answer never claims a
+   * provider that did not answer.
+   */
+  /** The provider behind `connectionId`, so a skipped note can name it. */
+  readonly primaryProviderId?: string;
+  readonly fallbacks?: readonly ProviderFallback[];
+  /** Hard ceiling on how many alternatives may be tried. Defaults to 2. */
+  readonly maxFallbacks?: number;
+}
+
+/**
+ * Which failures are worth another provider's time.
+ *
+ * A malformed request is not: every provider would reject it the same way, so
+ * retrying only multiplies the bill. Everything else here is about capacity or
+ * configuration of the one connection that was picked.
+ */
+export function canFailOver(error: ReasoningError): boolean {
+  switch (error.code) {
+    case 'REASONING_PROVIDER_RATE_LIMITED':
+    case 'REASONING_PROVIDER_TIMEOUT':
+    case 'REASONING_PROVIDER_UNAVAILABLE':
+    case 'REASONING_PROVIDER_AUTH_FAILED':
+      return true;
+    case 'REASONING_PROVIDER_ERROR': {
+      const gatewayCode = error.details?.gatewayCode;
+      return (
+        gatewayCode === 'GATEWAY_LIMIT_EXCEEDED' ||
+        gatewayCode === 'GATEWAY_RATE_LIMITED' ||
+        gatewayCode === 'GATEWAY_MODEL_UNKNOWN' ||
+        gatewayCode === 'GATEWAY_PROVIDER_UNAVAILABLE' ||
+        gatewayCode === 'GATEWAY_PROVIDER_ERROR' ||
+        gatewayCode === 'GATEWAY_TIMEOUT'
+      );
+    }
+    default:
+      return false;
+  }
 }
 
 /**
@@ -121,35 +185,103 @@ export class GatewayReasoningProvider implements ReasoningProvider {
   readonly live = true;
   readonly streams = true;
   private readonly options: GatewayProviderOptions;
+  /**
+   * The connection that answered last time, once a fallback was used.
+   *
+   * A run makes several calls (classify, plan, answer, wording). Without this,
+   * every one of them pays the same dead-key failure first: seven rejected
+   * requests in one measured chat turn. The provider stays on whichever key
+   * actually serves the run.
+   */
+  private serving?: ProviderFallback;
 
   constructor(options: GatewayProviderOptions) {
     this.options = options;
   }
 
-  private requestPayload(request: ProviderRequest) {
+  /** The primary connection followed by the bounded fallbacks, deduplicated. */
+  private candidates(): readonly (ProviderFallback | undefined)[] {
+    const primary: ProviderFallback | undefined = this.options.connectionId
+      ? { connectionId: this.options.connectionId, modelId: this.options.modelId ?? '' }
+      : undefined;
+    const limit = Math.max(0, Math.min(this.options.maxFallbacks ?? 2, 5));
+    const seen = new Set<string>();
+    const order: (ProviderFallback | undefined)[] = [];
+    const serving = this.serving;
+    if (serving && serving.connectionId !== primary?.connectionId) {
+      order.push(serving);
+      seen.add(serving.connectionId);
+    }
+    if (primary) {
+      order.push(primary);
+      seen.add(primary.connectionId);
+    }
+    const extras: ProviderFallback[] = [];
+    for (const candidate of this.options.fallbacks ?? []) {
+      if (extras.length >= limit) break;
+      if (seen.has(candidate.connectionId)) continue;
+      if (candidate.modelId === '') continue;
+      seen.add(candidate.connectionId);
+      extras.push(candidate);
+    }
+    // With no explicit connection the gateway resolves the owner's preference
+    // itself, so that "default" attempt must still be made: an empty chain
+    // would fail a run that has a perfectly good default connection.
+    if (order.length === 0) return [undefined, ...extras];
+    return [...order, ...extras];
+  }
+
+  private requestPayload(request: ProviderRequest, candidate?: ProviderFallback) {
     return {
       messages: request.messages,
       system: request.system,
       maxOutputTokens: request.maxOutputTokens,
       temperature: request.temperature ?? this.options.temperature ?? 0.2,
       requiredCapabilities: ['text-generation'] as const,
-      ...(this.options.connectionId ? { connectionId: this.options.connectionId } : {}),
-      ...(this.options.modelId ? { modelId: this.options.modelId } : {}),
+      ...(candidate?.connectionId ? { connectionId: candidate.connectionId } : {}),
+      ...(candidate?.modelId ? { modelId: candidate.modelId } : {}),
       ...(this.options.scope.projectId ? { projectId: this.options.scope.projectId } : {}),
     };
   }
 
   async complete(request: ProviderRequest): Promise<ProviderResult> {
     throwIfAborted(request.signal);
-    let outcome: GenerationOutcome;
-    try {
-      outcome = await this.options.gateway.generate(
-        this.options.scope,
-        this.requestPayload(request),
-      );
-    } catch (error) {
-      throw toReasoningProviderError(error);
+    const chain = this.candidates();
+    let outcome: GenerationOutcome | undefined;
+    let skipped: { providerId: string; modelId: string; reason: string } | undefined;
+    let attempts = 0;
+    let lastError: ReasoningError | undefined;
+    for (const candidate of chain) {
+      throwIfAborted(request.signal);
+      attempts += 1;
+      try {
+        outcome = await this.options.gateway.generate(
+          this.options.scope,
+          this.requestPayload(request, candidate),
+        );
+        if (candidate && candidate.connectionId !== this.options.connectionId) {
+          this.serving = candidate;
+        }
+        break;
+      } catch (error) {
+        const mapped = toReasoningProviderError(error);
+        lastError = mapped;
+        // Only a capacity or configuration failure is worth another provider.
+        // A malformed request would fail everywhere, so it is reported at once.
+        if (!canFailOver(mapped) || attempts >= chain.length) throw mapped;
+        skipped ??= {
+          providerId:
+            candidate?.providerId ??
+            (candidate?.connectionId === this.options.connectionId
+              ? (this.options.primaryProviderId ?? 'the selected connection')
+              : 'the selected connection'),
+          modelId: candidate?.modelId ?? '',
+          reason: mapped.message,
+        };
+      }
     }
+    if (!outcome)
+      throw lastError ?? new ReasoningError('REASONING_PROVIDER_ERROR', 'The AI provider failed.');
     return {
       content: outcome.content,
       providerId: outcome.providerId,
@@ -161,6 +293,16 @@ export class GatewayReasoningProvider implements ReasoningProvider {
       live: outcome.live,
       simulated: false,
       finishReason: outcome.finishReason,
+      ...(skipped && attempts > 1
+        ? {
+            fallback: {
+              fromProviderId: skipped.providerId,
+              fromModelId: skipped.modelId,
+              reason: skipped.reason,
+              attempts,
+            },
+          }
+        : {}),
     };
   }
 

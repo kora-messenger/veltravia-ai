@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Dialog, Menu, type MenuItemDef } from '../components/ui';
+import { BrandMark } from '../components/brand/BrandMark';
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider';
 import { useAgentProfile } from '../agent/AgentProfileProvider';
 import { AgentNameDialog } from './AgentNameDialog';
@@ -79,6 +80,9 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
           />
         </svg>
       </button>
+      <span className="v-topbar__brand">
+        <BrandMark size={22} decorative />
+      </span>
       <div className="v-topbar__context">
         {showsAgentName ? (
           <button
@@ -96,11 +100,42 @@ export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
       </div>
       <div className="v-topbar__spacer" />
       <div className="v-topbar__actions">
-        <Menu triggerLabel="Account menu" items={accountItems} trigger={<span>Account</span>} />
+        {/* Reserved, empty, and never filled with a decorative mark: the slot
+            the reference puts a premium crown in stays clear until there is a
+            real subscription behind it. Notifications live in the account menu. */}
+        <span className="v-topbar__premium-slot" aria-hidden="true" />
+        <Menu
+          triggerLabel="Account menu"
+          items={accountItems}
+          trigger={
+            <span className="v-topbar__account-icon">
+              <svg viewBox="0 0 20 20" className="v-icon" aria-hidden="true">
+                <path
+                  d="M6.5 2.5h5l2 2h-5l-2-2Z"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinejoin="round"
+                />
+                <rect
+                  x="2.75"
+                  y="7.25"
+                  width="14.5"
+                  height="9.5"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                />
+                <path
+                  d="M8 13.75h4"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+          }
+        />
       </div>
-      {/* No status badge sits in the bar: the slot the reference fills with a
-          premium crown is left empty until there is a real subscription behind
-          it. Notifications live in the account menu instead. */}
       <Dialog
         open={notificationsOpen}
         onClose={() => setNotificationsOpen(false)}

@@ -114,15 +114,29 @@
   flex-direction: column;
 }
 
+/* Measurements are taken from the supplied reference bar (a 390px capture):
+ * 56px tall, 12px left padding, 14px right padding, 22px brand mark, 18px
+ * title, 20px action glyphs. The surface is the raised one, not the page
+ * background, which is what makes the bar read as a separate strip. */
 .v-topbar {
   display: flex;
   align-items: center;
-  gap: var(--v-space-3);
+  gap: 0.875rem;
   height: 3.5rem;
   flex: none;
-  padding: 0 var(--v-space-5);
-  background: var(--v-bg);
+  padding: 0 0.875rem 0 0.75rem;
+  background: var(--v-surface);
   border-bottom: 1px solid var(--v-border);
+}
+.v-topbar__brand {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+.v-topbar__context {
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 .v-topbar__menu-button {
   display: none;
@@ -139,8 +153,16 @@
 .v-topbar__menu-button:hover {
   background: var(--v-surface-hover);
 }
+/* The reference sets the product title at 18px medium, tighter than a page
+ * heading: it is a bar label, not the top of a document outline. */
 .v-topbar__title {
-  font-size: var(--v-text-md);
+  font-size: 1.125rem;
+  font-weight: var(--v-weight-medium);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* The agent's name is editable, so it reads as a button: one hit target
    around the title and its pencil, with a visible hover and focus ring. */
@@ -239,7 +261,27 @@
 .v-topbar__actions {
   display: flex;
   align-items: center;
-  gap: var(--v-space-3);
+  gap: 1.125rem;
+}
+
+/* Width of the reference's crown, kept clear so the account control does not
+ * drift when the premium indicator ships. It draws nothing today. */
+.v-topbar__premium-slot {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+/* Icon-only account control: same 20px glyph box as the reference icons, with
+ * the hit area grown to 32px around it (8px of slop on every side). */
+.v-topbar__account-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: -6px;
+  color: var(--v-text);
 }
 
 /* Notifications moved to the account menu, so the bar carries no badge. The
