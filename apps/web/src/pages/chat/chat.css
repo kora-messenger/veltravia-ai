@@ -1013,9 +1013,9 @@
      the line the thread ends on. */
   bottom: calc(100% - var(--v-space-1));
   z-index: 3;
-  width: 46px;
-  height: 46px;
-  margin: 0 0 0 -23px;
+  width: 40px;
+  height: 40px;
+  margin: 0 0 0 -20px;
   padding: 0;
   display: grid;
   place-items: center;
@@ -1051,13 +1051,13 @@
 .v-live-edge__dots {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3.5px;
 }
 
 .v-live-edge__dot {
   display: block;
-  width: 4.5px;
-  height: 4.5px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: currentColor;
   animation: v-live-edge-wave 1s ease-in-out infinite;
@@ -1080,7 +1080,7 @@
     transform: translateY(0);
   }
   22% {
-    transform: translateY(1.8px);
+    transform: translateY(1.6px);
   }
 }
 
