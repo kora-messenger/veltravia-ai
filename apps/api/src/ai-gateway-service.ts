@@ -10,7 +10,12 @@ import {
   type VaultKeyring,
 } from '@veltravia/ai-gateway';
 
-import { seedOpenRouterPool, type PoolSeedResult } from './provider-pool-bootstrap.js';
+import {
+  seedGroqPool,
+  seedOpenAIPool,
+  seedOpenRouterPool,
+  type PoolSeedResult,
+} from './provider-pool-bootstrap.js';
 
 /**
  * The API process's provider gateway (Step 26).
@@ -123,7 +128,15 @@ export function createGatewayService(options: GatewayServiceOptions = {}): Gatew
     if (existing) return existing;
     // One seed per owner per process. A failure is reported, never retried in a
     // loop: the caller still has the API surface to connect a key by hand.
-    const attempt = seedOpenRouterPool(gateway, ownerRef, { env }).catch(() => NOTHING);
+    // OpenRouter first, then OpenAI, which is the owner's default: seeding order
+    // is what decides which connection ends up owning the default.
+    const attempt = (async () => {
+      await seedOpenRouterPool(gateway, ownerRef, { env }).catch(() => NOTHING);
+      const openai = await seedOpenAIPool(gateway, ownerRef, { env }).catch(() => NOTHING);
+      // Groq is seeded after the default so it never steals it.
+      await seedGroqPool(gateway, ownerRef, { env }).catch(() => NOTHING);
+      return openai;
+    })();
     seeded.set(ownerRef, attempt);
     return attempt;
   };

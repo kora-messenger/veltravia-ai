@@ -48,6 +48,21 @@ const ERROR_STATUS: Readonly<Record<number, [string, string]>> = {
 };
 
 function normalizedFor(status: number, rawMessage: string, body?: unknown): GatewayError {
+  // A 429 is not always a rate limit. OpenAI answers an unfunded key with
+  // 429 insufficient_quota ("You have no credits remaining"), and calling that
+  // "rate limiting" hides the one thing the owner can act on: the bill.
+  const noCredit =
+    status === 429 &&
+    /insufficient_quota|no credits remaining|exceeded your current quota|billing/i.test(
+      rawMessage,
+    );
+  if (noCredit) {
+    return new GatewayError(
+      'GATEWAY_LIMIT_EXCEEDED',
+      'The provider reports no remaining credit on this account.',
+      { details: { status, quota: 'exhausted' } },
+    );
+  }
   const mapped = ERROR_STATUS[status];
   if (mapped) {
     const [code, message] = mapped as [string, string];

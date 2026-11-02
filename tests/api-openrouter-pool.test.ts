@@ -403,3 +403,46 @@ describe('a key the owner added themselves', () => {
     expect(connection?.connection.keys).toHaveLength(1);
   });
 });
+
+describe('an unfunded OpenAI key', () => {
+  it('is reported as no credit, not as rate limiting', async () => {
+    // The key validates, then the account runs dry: the override must fall
+    // through (undefined) until the connection exists.
+    let dry = false;
+    const transport = new FixtureProviderTransport({
+      override: () =>
+        dry
+          ? {
+              status: 429,
+              body: {
+                error: {
+                  message: 'You have no credits remaining. Add credits to continue using the API.',
+                  type: 'insufficient_quota',
+                  code: 'insufficient_quota',
+                },
+              },
+              text: JSON.stringify({
+                error: {
+                  message: 'You have no credits remaining. Add credits to continue using the API.',
+                  type: 'insufficient_quota',
+                  code: 'insufficient_quota',
+                },
+              }),
+            }
+          : undefined,
+    });
+    const { gateway } = harness(transport);
+    const attempt = await gateway.createConnection(scope, {
+      providerId: 'openai',
+      apiKey: KEY_A,
+      displayName: 'OpenAI',
+    });
+    expect(attempt.id).toBeTruthy();
+    dry = true;
+    const failure = await gateway
+      .generate(scope, { messages: [{ role: 'user', content: 'hello' }] })
+      .catch((error: { code?: string; message?: string }) => error);
+    expect((failure as { code?: string }).code).not.toBe('GATEWAY_RATE_LIMITED');
+    expect((failure as { code?: string }).code).toBe('GATEWAY_LIMIT_EXCEEDED');
+  });
+});

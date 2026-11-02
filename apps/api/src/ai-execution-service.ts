@@ -518,16 +518,26 @@ export class AiExecutionService {
 
       const wantStream = input.stream !== false;
       if (wantStream && selected.streaming) {
-        await this.runStreamed(state, gateway, request, maxOutputTokens);
+        await this.runStreamed(
+          state,
+          gateway,
+          request,
+          maxOutputTokens,
+          input.connectionId === undefined && input.modelId === undefined,
+        );
         return;
       }
 
       // ---------------------------------------------------------------------
       // 3. One-piece answer (no streaming requested, or the model cannot).
       // ---------------------------------------------------------------------
-      const outcome: GenerationOutcome = await gateway.generate(
-        { ownerRef: input.ownerRef, ...(input.projectId ? { projectId: input.projectId } : {}) },
+      const outcome: GenerationOutcome = await this.generateWithFailover(
+        state,
+        gateway,
         request,
+        // An explicitly named connection or model is the caller's decision and is
+        // never moved elsewhere.
+        input.connectionId === undefined && input.modelId === undefined,
       );
       state.content = outcome.content;
       state.run = { ...state.run, streamed: false };
@@ -591,38 +601,201 @@ export class AiExecutionService {
     }
   }
 
+  /**
+   * Provider-level failures worth trying somewhere else.
+   *
+   * A request the provider considers malformed, or a content refusal, is NOT in
+   * this set: another provider would reject it too, and retrying it elsewhere
+   * would only make the answer slower and less honest.
+   */
+  private static readonly FAILOVER_CODES = new Set([
+    'GATEWAY_LIMIT_EXCEEDED',
+    'GATEWAY_RATE_LIMITED',
+    'GATEWAY_AUTH_FAILED',
+    'GATEWAY_CREDENTIAL_INVALID',
+    'GATEWAY_PROVIDER_UNAVAILABLE',
+    'GATEWAY_TIMEOUT',
+    'GATEWAY_KEY_UNAVAILABLE',
+    'GATEWAY_ROUTE_UNAVAILABLE',
+  ]);
+
+  /**
+   * The other connections that could serve this request, best first.
+   *
+   * Speed is the point: a connection whose keys are all resting, or whose
+   * account is exhausted, is skipped WITHOUT a call, so a dead default costs one
+   * failed request in total, not one per question.
+   */
+  private async failoverCandidates(
+    ownerRef: string,
+    excludeConnectionId: string,
+    modelId: string | null,
+  ): Promise<{ connectionId: string; modelId: string }[]> {
+    const gateway = this.options.gateway;
+    if (gateway === null) return [];
+    const connections = await gateway.listConnections({ ownerRef }).catch(() => []);
+    const now = Date.now();
+    const out: { connectionId: string; modelId: string }[] = [];
+    for (const entry of connections) {
+      const connection = entry.connection;
+      if (connection.id === excludeConnectionId) continue;
+      const keys = connection.keys ?? [];
+      const exhausted = keys.some((key) => key.lastErrorCategory === 'exhausted');
+      if (exhausted) continue;
+      const resting = keys.every(
+        (key) =>
+          key.status === 'cooling' &&
+          key.cooldownUntil !== null &&
+          Date.parse(key.cooldownUntil) > now,
+      );
+      if (keys.length > 0 && resting) continue;
+      const model =
+        connection.modelIds.includes(modelId ?? '') && modelId !== null
+          ? modelId
+          : (connection.defaultModelId ?? connection.modelIds[0] ?? null);
+      if (model === null) continue;
+      out.push({ connectionId: connection.id, modelId: model });
+      if (out.length >= 2) break;
+    }
+    return out;
+  }
+
+  /** One complete answer, moving to another provider if this one cannot serve. */
+  private async generateWithFailover(
+    state: RunState,
+    gateway: AIProviderGateway,
+    request: Parameters<AIProviderGateway['generate']>[1],
+    allowFailover: boolean,
+  ): Promise<GenerationOutcome> {
+    const scope = {
+      ownerRef: state.run.ownerRef,
+      ...(state.run.projectId ? { projectId: state.run.projectId } : {}),
+    };
+    try {
+      return await gateway.generate(scope, request);
+    } catch (error) {
+      if (!allowFailover || !isGatewayError(error)) throw error;
+      if (!AiExecutionService.FAILOVER_CODES.has(error.code)) throw error;
+      const candidates = await this.failoverCandidates(
+        state.run.ownerRef,
+        request.connectionId ?? '',
+        request.modelId ?? null,
+      );
+      let lastError: unknown = error;
+      for (const candidate of candidates) {
+        this.emit(state, {
+          type: 'progress',
+          runId: state.run.id,
+          stage: 'generating',
+          message: 'That provider cannot serve this request, so another one is being tried.',
+        });
+        try {
+          const outcome = await gateway.generate(scope, {
+            ...request,
+            connectionId: candidate.connectionId,
+            modelId: candidate.modelId,
+          });
+          // The run reports the provider that actually answered.
+          state.run = {
+            ...state.run,
+            providerId: outcome.providerId,
+            modelId: outcome.modelId,
+          };
+          return outcome;
+        } catch (next) {
+          lastError = next;
+          if (!isGatewayError(next) || !AiExecutionService.FAILOVER_CODES.has(next.code)) {
+            throw next;
+          }
+        }
+      }
+      throw lastError;
+    }
+  }
+
+  /**
+   * Streams one answer, trying another provider when the chosen one cannot serve.
+   *
+   * Nothing is retried after a token has been delivered: a half answer from one
+   * provider cannot be completed by another, so the run fails honestly instead.
+   */
   private async runStreamed(
     state: RunState,
     gateway: AIProviderGateway,
     request: Parameters<AIProviderGateway['generate']>[1],
     _maxOutputTokens: number,
+    allowFailover = false,
   ): Promise<void> {
     const runId = state.run.id;
     const ownerRef = state.run.ownerRef;
+    const scope = { ownerRef, ...(state.run.projectId ? { projectId: state.run.projectId } : {}) };
     const startedAt = Date.now();
     let usage: { inputTokens: number | null; outputTokens: number | null } | undefined;
     let finishReason = 'unknown';
 
+    const attempts: Parameters<AIProviderGateway['generate']>[1][] = [request];
+    if (allowFailover) {
+      const candidates = await this.failoverCandidates(
+        ownerRef,
+        request.connectionId ?? '',
+        request.modelId ?? null,
+      );
+      for (const candidate of candidates) {
+        attempts.push({
+          ...request,
+          connectionId: candidate.connectionId,
+          modelId: candidate.modelId,
+        });
+      }
+    }
+
+    let delivered = false;
+    let answered = false;
+    let lastError: unknown = null;
+
     try {
-      for await (const chunk of gateway.stream(
-        { ownerRef, ...(state.run.projectId ? { projectId: state.run.projectId } : {}) },
-        request,
-      )) {
-        if (chunk.usage !== undefined) usage = chunk.usage;
-        if (chunk.finishReason !== undefined) finishReason = chunk.finishReason;
-        if (chunk.delta.length > 0) {
-          state.content += chunk.delta;
-          this.emit(state, { type: 'delta', runId, text: chunk.delta });
+      for (const [index, attempt] of attempts.entries()) {
+        if (index > 0) {
+          this.emit(state, {
+            type: 'progress',
+            runId,
+            stage: 'generating',
+            message: 'That provider cannot serve this request, so another one is being tried.',
+          });
+          state.run = {
+            ...state.run,
+            providerId: null,
+            modelId: attempt.modelId ?? state.run.modelId,
+          };
+        }
+        try {
+          for await (const chunk of gateway.stream(scope, attempt)) {
+            if (chunk.usage !== undefined) usage = chunk.usage;
+            if (chunk.finishReason !== undefined) finishReason = chunk.finishReason;
+            if (chunk.delta.length > 0) {
+              delivered = true;
+              state.content += chunk.delta;
+              this.emit(state, { type: 'delta', runId, text: chunk.delta });
+            }
+          }
+          answered = true;
+          break;
+        } catch (error) {
+          lastError = error;
+          const retryable =
+            allowFailover &&
+            !delivered &&
+            isGatewayError(error) &&
+            AiExecutionService.FAILOVER_CODES.has(error.code);
+          if (!retryable) throw error;
         }
       }
+      if (!answered) throw lastError ?? new Error('no provider answered');
     } catch (error) {
-      // A provider that simply cannot stream must not fail the run: fall back
-      // to one complete answer, and say so in the completion event.
+      // A provider that simply cannot stream must not fail the run: fall back to
+      // one complete answer, and say so in the completion event.
       if (isGatewayError(error) && error.code === 'GATEWAY_CAPABILITY_UNSUPPORTED') {
-        const outcome = await gateway.generate(
-          { ownerRef, ...(state.run.projectId ? { projectId: state.run.projectId } : {}) },
-          request,
-        );
+        const outcome = await this.generateWithFailover(state, gateway, request, allowFailover);
         state.content = outcome.content;
         state.run = { ...state.run, streamed: false };
         this.emitUsage(state, {

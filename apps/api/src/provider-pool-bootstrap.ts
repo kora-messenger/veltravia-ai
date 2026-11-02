@@ -24,6 +24,27 @@ import { credentialHint, type AIProviderGateway } from '@veltravia/ai-gateway';
 export const OPENROUTER_ENV_PATTERN = /^OPENROUTER_API_KEY$/;
 
 /**
+ * OpenAI keys: OPENAI_API_KEY and, because a secret saved by the platform gets a
+ * suffix, OPENAI_API_KEY_2 .. too.
+ */
+export const OPENAI_ENV_PATTERN = /^OPENAI_API_KEY(?:_\d+)?$/;
+
+/**
+ * Default OpenAI model: direct (no hidden reasoning budget), fast and cheap
+ * enough to answer a coding decision or an analysis inside a small window.
+ */
+export const OPENAI_DEFAULT_MODEL = 'gpt-4o-mini';
+
+export const OPENAI_MODEL_SHORTLIST = ['gpt-4o-mini', 'gpt-4o', 'gpt-5-mini'] as const;
+
+/** Groq keys: one key today, unnumbered or suffixed. */
+export const GROQ_ENV_PATTERN = /^GROQ_API_KEY(?:_\d+)?$/;
+
+/** Groq's fastest reliable ids: a direct model and a large reasoning one. */
+export const GROQ_DEFAULT_MODEL = 'qwen/qwen3.8-27b';
+export const GROQ_MODEL_SHORTLIST = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b'] as const;
+
+/**
  * Default model. A reasoning model (gpt-5-mini) spends its whole output budget
  * on reasoning before writing any content, so on a small balance it returns an
  * empty completion; a direct model answers a JSON decision inside 600 tokens.
@@ -70,16 +91,19 @@ const NOTHING_SEEDED: PoolSeedResult = {
  * duplicates removed. A key that is obviously not a key is skipped rather than
  * sent to the provider to be rejected.
  */
-export function readOpenRouterKeys(env: NodeJS.ProcessEnv): {
+export function readProviderKeys(
+  env: NodeJS.ProcessEnv,
+  pattern: RegExp,
+  baseName: string,
+): {
   readonly keys: readonly string[];
   readonly skipped: number;
 } {
   const names = Object.keys(env)
-    .filter((name) => OPENROUTER_ENV_PATTERN.test(name))
+    .filter((name) => pattern.test(name))
     .sort((a, b) => {
-      // OPENROUTER_API_KEY first, then _2, _3, ... numerically.
-      const rank = (name: string) =>
-        name === 'OPENROUTER_API_KEY' ? 1 : Number(name.split('_').pop());
+      // The unnumbered name first, then _2, _3, ... numerically.
+      const rank = (name: string) => (name === baseName ? 1 : Number(name.split('_').pop()));
       return rank(a) - rank(b);
     });
   const seen = new Set<string>();
@@ -100,6 +124,14 @@ export function readOpenRouterKeys(env: NodeJS.ProcessEnv): {
     keys.push(value);
   }
   return { keys, skipped };
+}
+
+/** OpenRouter keys from the environment, one at a time. */
+export function readOpenRouterKeys(env: NodeJS.ProcessEnv): {
+  readonly keys: readonly string[];
+  readonly skipped: number;
+} {
+  return readProviderKeys(env, OPENROUTER_ENV_PATTERN, 'OPENROUTER_API_KEY');
 }
 
 function codeOf(error: unknown): string | null {
@@ -123,6 +155,10 @@ export interface SeedOptions {
    * settings screen). The environment path supplies exactly one key.
    */
   readonly keys?: readonly string[];
+  /** Force this connection to become the owner's default. */
+  readonly makeDefault?: boolean;
+  /** Provider name used in plain-language problems. */
+  readonly providerName?: string;
 }
 
 /**
@@ -130,20 +166,26 @@ export interface SeedOptions {
  * that it is the default when no default is set yet. Safe to call repeatedly:
  * keys already in the pool are counted, not duplicated.
  */
-export async function seedOpenRouterPool(
+export async function seedProviderPool(
   gateway: AIProviderGateway,
   ownerRef: string,
   options: SeedOptions = {},
 ): Promise<PoolSeedResult> {
   const env = options.env ?? process.env;
   const providerId = options.providerId ?? 'openrouter';
+  const providerName = options.providerName ?? 'OpenRouter';
   const defaultModelId = options.defaultModelId ?? OPENROUTER_DEFAULT_MODEL;
   const models: readonly string[] = options.models ?? OPENROUTER_MODEL_SHORTLIST;
   const explicit = options.keys?.filter((key) => typeof key === 'string' && key.trim().length > 0);
   const { keys, skipped } =
     explicit !== undefined && explicit.length > 0
       ? { keys: explicit.map((key) => key.trim()), skipped: 0 }
-      : readOpenRouterKeys(env);
+      : readProviderKeys(
+          env,
+          options.envNames ??
+            (providerId === 'openai' ? OPENAI_ENV_PATTERN : OPENROUTER_ENV_PATTERN),
+          providerId === 'openai' ? 'OPENAI_API_KEY' : 'OPENROUTER_API_KEY',
+        );
   if (keys.length === 0) {
     // A value that is present but unusable must be reported, not silently ignored.
     return {
@@ -180,7 +222,7 @@ export async function seedOpenRouterPool(
     keys.some((key) =>
       existing.connection.keys.some((stored) => stored.hint === credentialHint(key)),
     );
-  if (existing && !seededAlready) {
+  if (existing && !seededAlready && options.makeDefault !== true) {
     return {
       connectionId: existing.connection.id,
       keysAdded,
@@ -205,13 +247,13 @@ export async function seedOpenRouterPool(
       const attempt = await gateway
         .createConnection(
           { ownerRef },
-          { providerId, apiKey, displayName: options.displayName ?? 'OpenRouter' },
+          { providerId, apiKey, displayName: options.displayName ?? providerName },
         )
         .catch((error: unknown) => {
           const code = codeOf(error);
           problems.push(
             code === 'GATEWAY_AUTH_FAILED' || code === 'GATEWAY_CREDENTIAL_INVALID'
-              ? 'OpenRouter rejected one saved key while setting the pool up.'
+              ? 'the provider rejected one saved key while setting the pool up.'
               : 'One saved key could not be stored while setting the pool up.',
           );
           return null;
@@ -240,7 +282,7 @@ export async function seedOpenRouterPool(
         }
         problems.push(
           code === 'GATEWAY_AUTH_FAILED' || code === 'GATEWAY_CREDENTIAL_INVALID'
-            ? 'OpenRouter rejected one saved key; it was not added to the pool.'
+            ? 'the provider rejected one saved key; it was not added to the pool.'
             : 'One saved key could not be added to the pool.',
         );
         return null;
@@ -273,6 +315,7 @@ export async function seedOpenRouterPool(
   // makes it the default pointing at a discovered model, so "no default yet" is
   // not the test; "the default is not somebody else's connection" is.
   const ownsDefault =
+    options.makeDefault === true ||
     preferences.defaultConnectionId === null ||
     preferences.defaultConnectionId === undefined ||
     preferences.defaultConnectionId === connectionId;
@@ -296,6 +339,64 @@ export async function seedOpenRouterPool(
     defaultModelId: ownsDefault ? preferredModel : (preferences.defaultModelId ?? preferredModel),
     problems,
   };
+}
+
+/** The OpenRouter pool: one environment key, replaced by hand when it is spent. */
+export function seedOpenRouterPool(
+  gateway: AIProviderGateway,
+  ownerRef: string,
+  options: SeedOptions = {},
+): Promise<PoolSeedResult> {
+  return seedProviderPool(gateway, ownerRef, {
+    ...options,
+    providerId: 'openrouter',
+    providerName: 'OpenRouter',
+    defaultModelId: options.defaultModelId ?? OPENROUTER_DEFAULT_MODEL,
+    models: options.models ?? OPENROUTER_MODEL_SHORTLIST,
+  });
+}
+
+/**
+ * The OpenAI connection: a second real provider beside OpenRouter, and the
+ * owner's default. A platform-saved secret arrives as OPENAI_API_KEY_2, so the
+ * numbered names are accepted here.
+ */
+export function seedOpenAIPool(
+  gateway: AIProviderGateway,
+  ownerRef: string,
+  options: SeedOptions = {},
+): Promise<PoolSeedResult> {
+  return seedProviderPool(gateway, ownerRef, {
+    ...options,
+    providerId: 'openai',
+    providerName: 'OpenAI',
+    displayName: 'OpenAI',
+    defaultModelId: options.defaultModelId ?? OPENAI_DEFAULT_MODEL,
+    models: options.models ?? OPENAI_MODEL_SHORTLIST,
+    makeDefault: true,
+  });
+}
+
+/**
+ * The Groq connection: a third real provider, and the fast one. It is not the
+ * default (OpenAI is), but a default that cannot serve is worse than a slow one,
+ * so the execution service falls back to whichever provider still has capacity.
+ */
+export function seedGroqPool(
+  gateway: AIProviderGateway,
+  ownerRef: string,
+  options: SeedOptions = {},
+): Promise<PoolSeedResult> {
+  return seedProviderPool(gateway, ownerRef, {
+    ...options,
+    providerId: 'groq',
+    providerName: 'Groq',
+    displayName: 'Groq',
+    envNames: GROQ_ENV_PATTERN,
+    defaultModelId: options.defaultModelId ?? GROQ_DEFAULT_MODEL,
+    models: options.models ?? GROQ_MODEL_SHORTLIST,
+    makeDefault: false,
+  });
 }
 
 /** Rewrites a connection's model shortlist so the default is always offered. */
