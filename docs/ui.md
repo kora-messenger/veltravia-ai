@@ -575,10 +575,17 @@ cropped copy of the logo reappears.
 `BrandMark` serves `srcSet` densities (1x/2x/3x), so a 3x display fetches the
 512px file instead of upscaling. The status mark renders at 24px in the top bar
 and 28px in the notification panel heading, and the panel shows the 16px heading
-unchanged so the mark never outgrows its title. The mark sits on the `--v-neutral-950` chip in
-both themes because the artwork mixes deep violet with white highlights: a light
-surface would swallow the highlights, a mid surface would soften the violet
-edges. The mark is static: `brand.css` has no keyframes, animation or
+unchanged so the mark never outgrows its title.
+
+The mark sits on nothing: `background: transparent`, no chip, no ring, no
+shadow, by request, so there is never a grey or dark box around the logo. The
+artwork already has transparent corners, and the shape is carried by its violet
+to cyan body. About 6.6% of the mark's opaque pixels are the near-white
+highlights, which read faintly on the light theme; the earlier dark chip existed
+only to make those highlights pop, and the trade was accepted to remove the box.
+Measured on the rendered 56px mark on `--v-bg`: computed background
+`rgba(0, 0, 0, 0)`, `box-shadow: none`, ink present (violet `#a716fb` through
+cyan `#15d4fb`). The mark is static: `brand.css` has no keyframes, animation or
 transform, and the test asserts that.
 
 ## Assistant chat surface (Step 36 follow-up)

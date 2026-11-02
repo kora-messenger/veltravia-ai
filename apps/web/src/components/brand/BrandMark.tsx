@@ -10,10 +10,11 @@ import type { CSSProperties } from 'react';
  * breathing room; the artwork itself is untouched (no recolour, no per-axis
  * scale, alpha preserved) and the originals ship alongside at their full size.
  *
- * The artwork mixes deep violet with white highlights, so it is always mounted
- * on a dark chip: on a light surface the white highlights would disappear, and
- * on the dark surface the chip keeps the mark's own edges crisp in both themes.
- * Sizes are square and follow the asset's own proportions.
+ * The mark is drawn on a transparent background by request: no chip, no grey
+ * box, so the artwork sits directly on the surface behind it. About 6.6% of the
+ * mark's opaque pixels are its near-white highlights, so those highlights read
+ * faintly on the light theme; the violet body, which carries the shape, does not
+ * depend on them. Sizes are square and follow the asset's own proportions.
  */
 
 export type BrandVariant = 'logo' | 'notification';

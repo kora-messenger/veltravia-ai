@@ -1,7 +1,8 @@
 /*
  * Brand assets: the artwork is already cropped to its ink, so the mark is
- * contained rather than padded. The chip is a token, not a magic colour, and
- * the mark never animates: no float, drift or pulse on the logo itself.
+ * contained rather than padded. No chip behind it: the mark sits directly on
+ * whatever surface it is on, so there is never a grey box around the logo.
+ * The mark itself never animates: no float, drift or pulse.
  */
 .v-brand-mark {
   display: inline-flex;
@@ -10,10 +11,9 @@
   width: var(--brand-mark-size, 28px);
   height: var(--brand-mark-size, 28px);
   border-radius: calc(var(--brand-mark-size, 28px) * 0.26);
-  background: var(--v-neutral-950);
+  background: transparent;
   overflow: hidden;
   flex: 0 0 auto;
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 8%);
 }
 
 .v-brand-mark__image {
