@@ -362,7 +362,8 @@ export function ChatComposer({
           triggerLabel="More ways to start"
           // The trigger sits at the bottom-left of the screen, so the panel opens
           // upwards from it: opening downwards would fall off the bottom edge.
-          placement="above-start"
+          // Small and anchored to the button itself, as Base44's own is.
+          placement="compact-above-start"
           items={[
             {
               id: 'attach',

@@ -32,8 +32,12 @@ export interface MenuItemDef {
  * trigger at the bottom-left of the screen, such as the composer's plus: opening
  * downwards there would put the panel off the bottom edge, and aligning to the
  * trigger's right edge would push it off the left.
+ *
+ * `compact-above-start` is the same direction for a small popup that belongs to
+ * its own trigger: it is anchored to that button, not to a bar around it, and is
+ * sized for a short list of plain rows rather than for long labels.
  */
-export type MenuPlacement = 'below-end' | 'above-start';
+export type MenuPlacement = 'below-end' | 'above-start' | 'compact-above-start';
 
 export interface MenuProps {
   /** The trigger element (rendered as-is inside a button). */
@@ -148,7 +152,7 @@ export function Menu({ trigger, triggerLabel, items, placement = 'below-end' }: 
   };
 
   return (
-    <div className="v-menu">
+    <div className={placement === 'compact-above-start' ? 'v-menu v-menu--compact' : 'v-menu'}>
       <button
         ref={triggerRef}
         type="button"
@@ -177,7 +181,9 @@ export function Menu({ trigger, triggerLabel, items, placement = 'below-end' }: 
           className={
             placement === 'above-start'
               ? 'v-menu__panel v-menu__panel--above-start'
-              : 'v-menu__panel'
+              : placement === 'compact-above-start'
+                ? 'v-menu__panel v-menu__panel--compact'
+                : 'v-menu__panel'
           }
           onKeyDown={handleMenuKeyDown}
         >

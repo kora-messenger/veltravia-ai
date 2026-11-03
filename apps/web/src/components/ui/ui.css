@@ -628,6 +628,53 @@
   color: var(--v-text);
 }
 
+/* A short list of plain rows that belongs to its own button (the composer's
+   plus). Measured from Base44's own popup at a 390px phone width: 263px wide,
+   a 30.5px row pitch, 8.5px above and below the rows, the panel's left edge
+   level with the button's and about 7px clear of it. The wrapper becomes the
+   positioning context so the panel hangs off the button, not the card. */
+.v-chat-composer__row .v-menu.v-menu--compact,
+.v-menu.v-menu--compact {
+  position: relative;
+}
+.v-menu__panel--compact {
+  top: auto;
+  right: auto;
+  left: 0;
+  bottom: calc(100% + 7px);
+  width: 263px;
+  min-width: 0;
+  max-width: calc(100vw - 24px);
+  padding: 8px;
+  border-radius: 14px;
+  box-shadow: var(--v-shadow-3, var(--v-shadow-2));
+  max-height: min(50vh, 20rem);
+  overflow-y: auto;
+}
+.v-menu__panel--compact .v-menu__item {
+  min-height: 30px;
+  gap: 12px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: var(--v-text-md);
+}
+.v-menu__panel--compact .v-menu__item-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v-menu__panel--compact .v-menu__hint {
+  white-space: nowrap;
+  margin-left: 8px;
+}
+.v-menu__panel--compact .v-menu__item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  color: var(--v-text);
+}
+
 .v-menu__item {
   display: flex;
   align-items: center;

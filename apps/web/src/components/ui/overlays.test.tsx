@@ -221,6 +221,39 @@ describe('Menu placement', () => {
     expect(panel.className).toContain('v-menu__panel--above-start');
   });
 
+  /**
+   * The plus popup is a small panel that hangs off its own button. It gets its
+   * own placement so the model picker, which has long labels and is anchored to
+   * the card, keeps the wider panel.
+   */
+  it('gives a compact popup its own wrapper and panel classes', async () => {
+    const { container } = render(
+      <Menu
+        trigger={<span>+</span>}
+        triggerLabel="More ways to start"
+        placement="compact-above-start"
+        items={[{ id: 'a', label: 'Attach files', onSelect: vi.fn() }]}
+      />,
+    );
+    expect(container.querySelector('.v-menu')?.className).toContain('v-menu--compact');
+    fireEvent.click(screen.getByRole('button', { name: 'More ways to start' }));
+    const panel = await screen.findByRole('menu');
+    expect(panel.className).toContain('v-menu__panel--compact');
+    expect(panel.className).not.toContain('v-menu__panel--above-start');
+  });
+
+  it('does not make the wider placement compact', async () => {
+    const { container } = render(
+      <Menu
+        trigger={<span>x</span>}
+        triggerLabel="Model"
+        placement="above-start"
+        items={[{ id: 'a', label: 'A long model label', onSelect: vi.fn() }]}
+      />,
+    );
+    expect(container.querySelector('.v-menu')?.className).not.toContain('v-menu--compact');
+  });
+
   it('leaves the default panel alone', async () => {
     render(
       <Menu
