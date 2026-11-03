@@ -459,3 +459,88 @@ describe('provider gateway: AI Core integration', () => {
     expect(connection.defaultModelId).toBe('beta-preview-2');
   });
 });
+
+describe("provider gateway: the day's allowance", () => {
+  /**
+   * The platform holds the provider keys, so the platform holds the budget. A
+   * ceiling is a spending guard, not a rate limit: it is counted per owner per
+   * UTC day from the usage rows the gateway already writes, so the number a
+   * person is shown and the number enforced cannot drift apart.
+   */
+  const setupWithCeiling = (ceiling: number) => {
+    const usage = new InMemoryUsageStore();
+    const gateway = new AIProviderGateway({
+      vault: new CredentialVault({ keyring: createTestKeyring([1]) }),
+      connections: new InMemoryConnectionStore(),
+      preferences: new InMemoryPreferenceStore(),
+      usage,
+      transport: new FixtureProviderTransport({ models: ['gpt-a'] }),
+      resolveHost: async () => ['93.184.216.34'],
+      rateLimitFloorMs: 1,
+      dailyRequestCeiling: ceiling,
+    });
+    return { gateway, usage };
+  };
+
+  it('refuses the call after the day is spent, before reaching a provider', async () => {
+    const { gateway } = setupWithCeiling(2);
+    await connect(gateway);
+    for (let index = 0; index < 2; index += 1) {
+      await gateway.generate(ownerA, { messages: [{ role: 'user', content: 'hello' }] });
+    }
+    await expect(
+      gateway.generate(ownerA, { messages: [{ role: 'user', content: 'again' }] }),
+    ).rejects.toMatchObject({ code: 'GATEWAY_DAILY_CEILING_REACHED' });
+  });
+
+  it('counts per owner, so one person cannot spend the other allowance', async () => {
+    const { gateway } = setupWithCeiling(1);
+    await connect(gateway, ownerA);
+    await connect(gateway, ownerB);
+    await gateway.generate(ownerA, { messages: [{ role: 'user', content: 'one' }] });
+    await expect(
+      gateway.generate(ownerA, { messages: [{ role: 'user', content: 'two' }] }),
+    ).rejects.toMatchObject({ code: 'GATEWAY_DAILY_CEILING_REACHED' });
+    // The other owner still has their own allowance.
+    await expect(
+      gateway.generate(ownerB, { messages: [{ role: 'user', content: 'mine' }] }),
+    ).resolves.toBeDefined();
+  });
+
+  it('reports what is used, and reports nothing when no ceiling is set', async () => {
+    const { gateway } = setupWithCeiling(5);
+    await connect(gateway);
+    await gateway.generate(ownerA, { messages: [{ role: 'user', content: 'hello' }] });
+    expect(await gateway.usageToday(ownerA)).toEqual({ used: 1, ceiling: 5 });
+
+    const open = setupWithCeiling(0);
+    expect(await open.gateway.usageToday(ownerA)).toEqual({ used: 0, ceiling: null });
+  });
+
+  it('recovers the next UTC day', async () => {
+    const start = new Date('2026-11-03T22:00:00.000Z');
+    let now = start;
+    const usage = new InMemoryUsageStore();
+    const gateway = new AIProviderGateway({
+      vault: new CredentialVault({ keyring: createTestKeyring([1]) }),
+      connections: new InMemoryConnectionStore(),
+      preferences: new InMemoryPreferenceStore(),
+      usage,
+      transport: new FixtureProviderTransport({ models: ['gpt-a'] }),
+      resolveHost: async () => ['93.184.216.34'],
+      rateLimitFloorMs: 1,
+      dailyRequestCeiling: 1,
+      now: () => now,
+    });
+    await connect(gateway);
+    await gateway.generate(ownerA, { messages: [{ role: 'user', content: 'late' }] });
+    await expect(
+      gateway.generate(ownerA, { messages: [{ role: 'user', content: 'later' }] }),
+    ).rejects.toMatchObject({ code: 'GATEWAY_DAILY_CEILING_REACHED' });
+
+    now = new Date('2026-11-04T00:05:00.000Z');
+    await expect(
+      gateway.generate(ownerA, { messages: [{ role: 'user', content: 'tomorrow' }] }),
+    ).resolves.toBeDefined();
+  });
+});

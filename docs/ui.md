@@ -942,23 +942,42 @@ The composer is unchanged by this work: the row is the only addition.
 The composer's plus opens one card above itself, pinned to its left edge, because
 the trigger sits at the bottom-left of the screen: opening downwards there falls
 off the bottom, and aligning to the trigger's right edge pushes the card off the
-left. Rows are 46px tall with a leading icon, the panel is 12px-radius with the
-deep shadow, and it scrolls instead of overflowing when the window is short.
-Measured at 390x844 and 360x640: the card stays inside the viewport on both, and
-Escape closes it and returns focus to the plus.
+left. The card is anchored to the composer, not to the 40px row inside it, so it
+clears the input box instead of covering it. Rows are 45px tall with a leading
+icon, the panel is 12px-radius with the deep shadow, and it scrolls instead of
+overflowing on a short window. Measured at 390x844 and 360x640: inside the
+viewport on both, and Escape closes it and returns focus to the plus.
 
-Every row does what it says:
+The top of the card is the reference's three rows:
 
-| Row                  | What it does                               |
-| -------------------- | ------------------------------------------ |
-| Attach a photo       | Opens the picture picker (up to 10 images) |
-| New conversation     | Clears the thread                          |
-| Go to projects       | Opens the projects list                    |
-| Open the app builder | Opens the app builder                      |
-| Model settings       | Opens the model settings page              |
+| Row                      | State                                                      |
+| ------------------------ | ---------------------------------------------------------- |
+| Attach files             | Opens the picker: pictures, PDF, text, markdown, CSV, DOCX |
+| Add note                 | Opens a second level listing notes, with a count badge     |
+| Upload from Google Drive | Drawn disabled, hint "Not connected"                       |
 
-Two rows from the reference are deliberately absent. **Add note** implies attached
-context with a count; there is no note store behind the composer, so a row with a
-badge would be a number nothing tracks. **Upload from Google Drive** needs a Drive
-connector, which is not connected. Neither row is drawn as decoration, and neither
-pretends to work.
+**Attach files** accepts documents as well as pictures. A picture is previewed as
+a thumbnail; anything else becomes a named chip, because a browser cannot draw a
+PDF. Attachments still cannot be sent: the run API takes text, so a send with a
+file attached is refused with a plain explanation rather than leaving the file
+looking sent.
+
+**Add note** is real, and small. The second level lists the notes already written
+plus `Write a note…`, and a row opens a dialog to write one. Notes are kept in
+this browser only, the row carries a badge with how many there are, and tapping a
+note in the list removes it. When a message is sent the notes travel with it,
+verbatim, after the person's own words:
+
+```
+Build me a page
+
+Notes from the owner:
+- keep it short
+```
+
+**Upload from Google Drive** has no Drive connection behind it, so it is drawn
+disabled with the reason. It is the one row in the card that does not act, and it
+says so rather than failing quietly.
+
+Below the reference's three rows sit the actions this product actually has: new
+conversation, projects, app builder, model settings.

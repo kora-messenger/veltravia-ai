@@ -194,8 +194,14 @@ afterEach(() => {
 describe('frontend builder page', () => {
   it('shows the project, real file totals and classified pages', async () => {
     renderPage();
-    expect(await screen.findByRole('heading', { name: 'Portfolio site', level: 1 })).toBeDefined();
-    expect(await screen.findByText('src/pages/Home.tsx')).toBeDefined();
+    // First test in the file, so it also pays the page's cold import; the default
+    // 1s wait is too tight when the whole suite is running at once.
+    expect(
+      await screen.findByRole('heading', { name: 'Portfolio site', level: 1 }, { timeout: 5000 }),
+    ).toBeDefined();
+    expect(
+      await screen.findByText('src/pages/Home.tsx', undefined, { timeout: 5000 }),
+    ).toBeDefined();
     expect(screen.getAllByText('Pages').length).toBeGreaterThan(0);
     // Detection said react, so the header may name it; a null framework must not.
     expect(screen.getAllByRole('heading', { name: 'Portfolio site' }).length).toBe(2);

@@ -49,6 +49,48 @@ export interface ReasoningCapabilities {
   };
   readonly tools: readonly ReasoningToolView[];
   readonly simulatedReasoningAllowed: boolean;
+  /** The pinned model, or null when this person is on Automatic. */
+  readonly model?: ChatModelChoice | null;
+}
+
+/** A model someone pinned; the chip shows its label. */
+export interface ChatModelChoice {
+  readonly connectionId: string;
+  readonly modelId: string;
+  readonly label: string;
+  readonly providerId: string;
+  readonly providerName: string;
+}
+
+export interface AvailableModel extends ChatModelChoice {
+  readonly isDefaultConnection: boolean;
+}
+
+export interface ModelPickerData {
+  readonly automatic: { readonly id: string; readonly label: string; readonly description: string };
+  readonly models: readonly AvailableModel[];
+  readonly choice: ChatModelChoice | null;
+}
+
+export async function getModelPicker(): Promise<ModelPickerData> {
+  return apiRequest<ModelPickerData>(`${base}/models`);
+}
+
+/** Pins a model, or returns to Automatic. */
+export async function setChatModel(
+  choice: null | { connectionId: string; modelId: string },
+): Promise<ChatModelChoice | null> {
+  const body =
+    choice === null
+      ? { automatic: true }
+      : { connectionId: choice.connectionId, modelId: choice.modelId };
+  const result = await apiRequest<{ choice: ChatModelChoice | null }>(`${base}/model`, {
+    method: 'PUT',
+    // apiRequest serialises the body itself; stringifying here sent a JSON
+    // string literal, which the server read as an empty choice.
+    body,
+  });
+  return result.choice;
 }
 
 export type ReasoningStatus =

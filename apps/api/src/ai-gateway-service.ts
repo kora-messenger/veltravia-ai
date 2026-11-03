@@ -67,6 +67,11 @@ export interface GatewayServiceOptions {
    */
   readonly bootstrapOpenRouter?: boolean;
   readonly env?: NodeJS.ProcessEnv;
+  /**
+   * How many model calls one owner may make per UTC day. Defaults to
+   * VELTRAVIA_DAILY_REQUEST_CEILING, or 200. Zero means no ceiling.
+   */
+  readonly dailyRequestCeiling?: number;
   /** Owner the startup seed runs for. */
   readonly bootstrapOwnerRef?: string;
   /**
@@ -89,6 +94,9 @@ const NOTHING: PoolSeedResult = {
   defaultModelId: null,
   problems: [],
 };
+
+/** What one owner may spend per day when nothing is configured. */
+export const DEFAULT_DAILY_REQUEST_CEILING = 200;
 
 export const ENCRYPTION_SETUP_HINT =
   'Set VELTRAVIA_CREDENTIAL_KEY (or VELTRAVIA_CREDENTIAL_KEYS) to a 32-byte base64 key before connecting a provider.';
@@ -122,19 +130,24 @@ export function createGatewayService(options: GatewayServiceOptions = {}): Gatew
     store: options.stores?.vault ?? new InMemoryVaultRecordStore(),
     now,
   });
+  const env = options.env ?? process.env;
+  const ceilingEnv = Number.parseInt(env.VELTRAVIA_DAILY_REQUEST_CEILING?.trim() ?? '', 10);
+  const dailyRequestCeiling =
+    options.dailyRequestCeiling ??
+    (Number.isFinite(ceilingEnv) && ceilingEnv >= 0 ? ceilingEnv : DEFAULT_DAILY_REQUEST_CEILING);
   const gateway = new AIProviderGateway({
     vault,
     connections: options.stores?.connections ?? new InMemoryConnectionStore(),
     preferences: options.stores?.preferences ?? new InMemoryPreferenceStore(),
     usage: options.stores?.usage ?? new InMemoryUsageStore(),
     transport: options.transport ?? new FetchProviderTransport(),
+    dailyRequestCeiling,
     ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
     ...(options.rateLimitFloorMs !== undefined
       ? { rateLimitFloorMs: options.rateLimitFloorMs }
       : {}),
     now,
   });
-  const env = options.env ?? process.env;
   const bootstrapEnabled = options.bootstrapOpenRouter ?? options.transport === undefined;
   const seeded = new Map<string, Promise<PoolSeedResult>>();
   const ensurePool = (ownerRef: string): Promise<PoolSeedResult> => {

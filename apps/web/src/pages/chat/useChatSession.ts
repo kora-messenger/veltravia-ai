@@ -1,3 +1,5 @@
+import { useToast } from '../../components/ui';
+import { setChatModel, type AvailableModel, type ChatModelChoice } from '../../api/reasoning';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useChat } from './useChat';
 
@@ -8,11 +10,16 @@ export interface ChatSession {
   readonly chat: ReturnType<typeof useChat>;
   readonly draft: string;
   readonly setDraft: (next: string) => void;
-  readonly send: () => void;
+  readonly send: (text?: string) => void;
   /** Sends the words of the last failed turn again, from the warning on screen. */
   readonly retry: () => void;
   readonly newChat: () => void;
   readonly providerLabel: string;
+  /** The pinned model, or null on Automatic. */
+  readonly model: ChatModelChoice | null;
+  readonly models: readonly AvailableModel[];
+  /** Pins a model, or null to return to Automatic. */
+  readonly chooseModel: (choice: null | AvailableModel) => void;
   readonly providerDetail: string;
   /** A conversation with no turns asks an open question; a thread asks for a message. */
   readonly placeholder: string;
@@ -54,9 +61,12 @@ export function useChatSession(): ChatSession {
     return () => window.removeEventListener(NEW_CHAT_EVENT, onNewChat);
   }, [newChat]);
 
-  const send = () => {
-    if (draft.trim() === '' || chat.busy) return;
-    chat.send(draft);
+  const send = (text?: string) => {
+    // The composer passes the words when it has attached notes to them; the
+    // surface sends what is in the box otherwise.
+    const body = (text ?? draft).trim();
+    if (body === '' || chat.busy) return;
+    chat.send(body);
     setDraft('');
   };
 
@@ -68,7 +78,10 @@ export function useChatSession(): ChatSession {
   }, [chat]);
 
   const providerConnected = chat.capabilities?.provider.connected ?? false;
-  const providerLabel = providerConnected ? 'Auto' : 'Simulated';
+  // The chip says what will answer: the pinned model when there is one, Auto
+  // when the router decides, Simulated when nothing is connected.
+  const model = chat.capabilities?.model ?? null;
+  const providerLabel = providerConnected ? (model?.label ?? 'Auto') : 'Simulated';
   const providerReason = chat.capabilities?.provider.reason ?? null;
   const providerDetail = providerConnected
     ? 'Your connected provider answers, chosen automatically. Open model settings to change it.'
@@ -76,6 +89,23 @@ export function useChatSession(): ChatSession {
       'No provider is connected, so answers are simulated. Connect one under AI providers.');
 
   const started = chat.messages.length > 0;
+
+  const { toast } = useToast();
+  const chooseModel = (choice: null | AvailableModel) => {
+    void setChatModel(
+      choice === null ? null : { connectionId: choice.connectionId, modelId: choice.modelId },
+    )
+      .then(() => {
+        chat.refreshCapabilities();
+        // Said only once the server has stored it, so the chip and the words agree.
+        toast('Chat model updated', { tone: 'success', duration: 3500 });
+      })
+      .catch(() => {
+        toast('Could not change the chat model. Your previous choice is still in use.', {
+          tone: 'error',
+        });
+      });
+  };
 
   return {
     chat,
@@ -85,6 +115,9 @@ export function useChatSession(): ChatSession {
     retry,
     newChat,
     providerLabel,
+    model,
+    models: chat.models,
+    chooseModel,
     providerDetail,
     placeholder: started ? 'Type a message…' : "What's on your mind",
     started,

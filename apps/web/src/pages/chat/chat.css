@@ -369,6 +369,17 @@
   flex: 1 1 auto;
 }
 
+/* The plus menu is anchored to the composer, not to the 32px row inside it: from
+   the row the panel would open over the input box it belongs to. Its wrapper is
+   therefore static, and the composer is the positioning context. */
+.v-chat-composer {
+  position: relative;
+}
+
+.v-chat-composer__row .v-menu {
+  position: static;
+}
+
 /* The attachment menu trigger arrives as a ghost button; inside this row it has
    to match the other icon controls exactly, or the row reads as ragged. */
 .v-chat-composer__row .v-menu__trigger {
@@ -436,24 +447,27 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
   border: 0;
-  border-radius: var(--v-radius-md);
-  /* Sampled from the reference's typed state: #3B51E5. */
-  background: #3b51e5;
+  border-radius: 10px;
+  /* The same dark square as the waveform control, so the row does not change
+     colour when text arrives: the glyph turns into the white up arrow and the
+     plain microphone beside it goes away. */
+  background: #0f0e0e;
   color: #ffffff;
   cursor: pointer;
 }
 
 .v-chat-composer__send:hover:not(:disabled) {
-  background: #3145cf;
+  background: #000000;
 }
 
 .v-chat-composer__send:disabled {
-  background: #3b51e5;
+  background: #0f0e0e;
   color: #ffffff;
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
@@ -463,10 +477,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
   border: 0;
-  border-radius: var(--v-radius-md);
+  /* Near-black square with soft corners, as in the image. */
+  border-radius: 10px;
   background: #0f0e0e;
   color: #ffffff;
   cursor: pointer;
@@ -1285,4 +1301,106 @@
   padding-left: var(--v-space-1);
   font-size: var(--v-text-xs);
   color: var(--v-text-muted);
+}
+
+/* A note is written in a dialog: a few sentences, not a file. */
+.v-chat-composer__note-label {
+  display: block;
+  margin-bottom: var(--v-space-1);
+  font-size: var(--v-text-sm);
+  color: var(--v-text-muted);
+}
+
+.v-chat-composer__note {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--v-space-2);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface);
+  color: var(--v-text);
+  font: inherit;
+  resize: vertical;
+}
+
+.v-chat-composer__note-actions {
+  display: flex;
+  gap: var(--v-space-2);
+  justify-content: flex-end;
+  margin-top: var(--v-space-3);
+}
+
+.v-chat-composer__note-save,
+.v-chat-composer__note-cancel {
+  height: 36px;
+  padding: 0 var(--v-space-3);
+  border-radius: var(--v-radius-md);
+  font: inherit;
+  font-weight: var(--v-weight-medium);
+  cursor: pointer;
+}
+
+.v-chat-composer__note-save {
+  border: 0;
+  background: #3b51e5;
+  color: #ffffff;
+}
+
+.v-chat-composer__note-cancel {
+  border: 1px solid var(--v-border);
+  background: none;
+  color: var(--v-text);
+}
+
+/* The caret that marks a row opening a second level. */
+.v-menu__caret {
+  display: inline-flex;
+  align-items: center;
+  color: var(--v-text-muted);
+}
+
+/* A document attached to a message, which cannot be shown as a picture. */
+.v-chat-composer__file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--v-space-1);
+  max-width: 9rem;
+  padding: 0 var(--v-space-2);
+  height: 40px;
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface);
+  color: var(--v-text-muted);
+  font-size: var(--v-text-xs);
+}
+
+.v-chat-composer__file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The plain microphone: a transparent 32px control at the end of the row, with the
+   filled square beside it. It disappears the moment there is text to send. */
+.v-chat-composer__mic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border: 0;
+  border-radius: var(--v-radius-full);
+  background: none;
+  color: var(--v-text);
+  cursor: pointer;
+}
+
+.v-chat-composer__mic:hover {
+  background: var(--v-surface-hover);
+}
+
+.v-chat-composer__mic--listening {
+  color: #3b51e5;
+  background: var(--v-primary-muted);
 }

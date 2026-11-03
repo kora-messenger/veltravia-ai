@@ -6,6 +6,7 @@
  */
 
 import type { AIProviderGateway } from '@veltravia/ai-gateway';
+import { classifyPrompt, type PromptCategory } from './prompt-category.js';
 import { GatewayError, isGatewayError } from '@veltravia/ai-gateway';
 import {
   DEFAULT_REASONING_LIMITS,
@@ -52,6 +53,8 @@ export interface ReasoningStartInput {
   readonly context?: ReasoningRequest['context'];
   readonly limits?: Partial<ReasoningLimits>;
   readonly idempotencyKey?: string;
+  /** Set by the service itself on Automatic runs; callers do not supply it. */
+  readonly category?: PromptCategory;
 }
 
 export interface ReasoningEventRecord {
@@ -68,6 +71,29 @@ export interface ReasoningToolSummary {
   readonly available: boolean;
 }
 
+/**
+ * The backup chain for Automatic runs, tried in this order after the primary.
+ * OpenAI is the default primary; Groq is a different company, so an OpenAI
+ * outage does not take it down; OpenRouter is the last resort. Providers whose
+ * keys are rejected (or that are not listed here) are never swapped in.
+ */
+export const FALLBACK_ORDER: readonly string[] = ['openai', 'groq', 'openrouter'];
+
+/** A model a person has pinned for their own conversations. */
+export interface ChatModelChoice {
+  readonly connectionId: string;
+  readonly modelId: string;
+  /** What the chip shows: the model as the provider names it. */
+  readonly label: string;
+  readonly providerId: string;
+  readonly providerName: string;
+}
+
+export interface AvailableModel extends ChatModelChoice {
+  /** True for the connection the gateway would use by default. */
+  readonly isDefaultConnection: boolean;
+}
+
 export interface ReasoningServiceOptions {
   readonly gateway: AIProviderGateway | null;
   /**
@@ -78,6 +104,8 @@ export interface ReasoningServiceOptions {
   readonly routeFor?: (input: {
     readonly ownerRef: string;
     readonly projectId?: string;
+    /** What the prompt is asking for, so Automatic can match a model to it. */
+    readonly category?: PromptCategory;
   }) => Promise<
     | { readonly outcome: 'routed'; readonly connectionId: string; readonly modelId: string }
     | { readonly outcome: 'unsupported' | 'needs-attention'; readonly summary: string }
@@ -108,6 +136,13 @@ export class ReasoningService {
   private readonly events = new Map<string, ReasoningEventRecord[]>();
   private readonly listeners = new Map<string, Set<(record: ReasoningEventRecord) => void>>();
   private readonly maxBufferedEvents: number;
+  /**
+   * One pinned model per person, or nothing for Automatic.
+   *
+   * In memory, like the rest of this build: a restart puts everyone back on
+   * Automatic rather than pretending a choice survived.
+   */
+  private readonly modelChoices = new Map<string, ChatModelChoice | null>();
 
   constructor(options: ReasoningServiceOptions) {
     this.options = options;
@@ -155,6 +190,69 @@ export class ReasoningService {
     };
   }
 
+  /** Every model this person could pin, across their own connections. */
+  async availableModels(ownerRef: string): Promise<readonly AvailableModel[]> {
+    const gateway = this.options.gateway;
+    if (gateway === null) return [];
+    const entries = await gateway.listConnections({ ownerRef });
+    const models: AvailableModel[] = [];
+    for (const entry of entries) {
+      if (entry.connection.status === 'disabled') continue;
+      for (const model of entry.models) {
+        models.push({
+          connectionId: entry.connection.id,
+          modelId: model.modelId,
+          // The provider's own name for it, so the chip says what will answer.
+          label: model.displayName,
+          providerId: entry.connection.providerId,
+          providerName: entry.providerName,
+          isDefaultConnection: entry.isDefault,
+        });
+      }
+    }
+    return models;
+  }
+
+  /** The pinned model, or null when this person is on Automatic. */
+  modelChoice(ownerRef: string): ChatModelChoice | null {
+    return this.modelChoices.get(ownerRef) ?? null;
+  }
+
+  /**
+   * Pins a model, or returns to Automatic when given null.
+   *
+   * The choice is checked against the models this person actually has: pinning
+   * something unlisted would turn every send into a refusal.
+   */
+  async setModelChoice(
+    ownerRef: string,
+    choice: null | { connectionId: string; modelId: string },
+  ): Promise<ChatModelChoice | null> {
+    if (choice === null) {
+      this.modelChoices.set(ownerRef, null);
+      return null;
+    }
+    const available = await this.availableModels(ownerRef);
+    const match = available.find(
+      (model) => model.modelId === choice.modelId && model.connectionId === choice.connectionId,
+    );
+    if (match === undefined) {
+      throw new ReasoningError(
+        'REASONING_MODEL_UNKNOWN',
+        'That model is not on a connection this account can use.',
+      );
+    }
+    const pinned: ChatModelChoice = {
+      connectionId: match.connectionId,
+      modelId: match.modelId,
+      label: match.label,
+      providerId: match.providerId,
+      providerName: match.providerName,
+    };
+    this.modelChoices.set(ownerRef, pinned);
+    return pinned;
+  }
+
   /** Builds the tool manager for one owner and returns its read-only tool list. */
   toolsFor(ownerRef: string): ToolManager {
     const tools = createToolManager(
@@ -195,6 +293,7 @@ export class ReasoningService {
     projectId?: string;
     connectionId?: string;
     modelId?: string;
+    category?: PromptCategory;
     mode: ReasoningMode;
   }): string {
     return [
@@ -203,6 +302,8 @@ export class ReasoningService {
       input.projectId ?? '-',
       input.connectionId ?? '-',
       input.modelId ?? '-',
+      // Automatic picks a model per kind of request, so each kind keeps its own engine.
+      input.category ?? '-',
     ].join('|');
   }
 
@@ -214,6 +315,7 @@ export class ReasoningService {
       ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
       ...(input.connectionId !== undefined ? { connectionId: input.connectionId } : {}),
       ...(input.modelId !== undefined ? { modelId: input.modelId } : {}),
+      ...(input.category !== undefined ? { category: input.category } : {}),
     });
     const existing = this.engines.get(key);
     if (existing !== undefined && existing.engine.listRuns().length < MAX_RUNS_PER_ENGINE) {
@@ -238,6 +340,9 @@ export class ReasoningService {
       // refusal is reported as-is instead of quietly trying something else.
       let connectionId = input.connectionId;
       let modelId = input.modelId;
+      // A model the caller named is an instruction, so it is never swapped for
+      // another provider mid-run. Only a router-chosen (Automatic) run may fall back.
+      const namedByCaller = connectionId !== undefined && modelId !== undefined;
       if (connectionId === undefined || modelId === undefined) {
         if (this.options.routeFor === undefined) {
           throw new GatewayError(
@@ -248,6 +353,7 @@ export class ReasoningService {
         const routed = await this.options.routeFor({
           ownerRef: input.ownerRef,
           ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+          ...(input.category !== undefined ? { category: input.category } : {}),
         });
         if (routed.outcome !== 'routed') {
           throw new GatewayError('GATEWAY_NO_PROVIDER_CONFIGURED', routed.summary);
@@ -264,10 +370,10 @@ export class ReasoningService {
         },
         connectionId,
         modelId,
-        // The keys the owner already has are all seeded, so one spent balance
-        // must not end the conversation. Order follows the owner's routing
-        // preference: OpenAI first, then Groq, then OpenRouter.
-        ...(await this.providerPlan(input.ownerRef, connectionId)),
+        // On Automatic, one spent balance or outage must not end the conversation,
+        // so a small backup chain applies (see FALLBACK_ORDER). A pinned model gets
+        // none: if it fails the person sees the failure rather than a different model.
+        ...(namedByCaller ? {} : await this.providerPlan(input.ownerRef, connectionId)),
       });
     }
 
@@ -294,20 +400,23 @@ export class ReasoningService {
   ): Promise<{ primaryProviderId?: string; fallbacks: ProviderFallback[] }> {
     const empty = { fallbacks: [] as ProviderFallback[] };
     if (!this.options.gateway) return empty;
-    const order = ['groq', 'openrouter', 'openai', 'mistral'];
     let entries;
     try {
       entries = await this.options.gateway.listConnections({ ownerRef });
     } catch {
       return empty;
     }
-    const rank = (providerId: string) => {
-      const index = order.indexOf(providerId);
-      return index === -1 ? order.length : index;
-    };
+    const rank = (providerId: string) => FALLBACK_ORDER.indexOf(providerId);
     const primary = entries.find((entry) => entry.connection.id === primaryConnectionId);
     const fallbacks = entries
-      .filter((entry) => entry.healthy && entry.connection.id !== primaryConnectionId)
+      // Only providers in the chain are ever used as a backup. Others stay
+      // available to pick by hand but are not swapped in silently.
+      .filter(
+        (entry) =>
+          entry.healthy &&
+          entry.connection.id !== primaryConnectionId &&
+          rank(entry.connection.providerId) !== -1,
+      )
       .sort((a, b) => rank(a.connection.providerId) - rank(b.connection.providerId))
       .map((entry) => ({
         connectionId: entry.connection.id,
@@ -337,7 +446,18 @@ export class ReasoningService {
         'That reasoning profile does not exist.',
       );
     }
-    const entry = await this.engineFor(input);
+    // A pinned model is the person's instruction, so it is applied to a run that
+    // does not name one. Automatic sends nothing and the router decides.
+    const pinned = input.modelId === undefined ? this.modelChoice(input.ownerRef) : null;
+    // On Automatic the prompt decides the kind of request, and the router picks
+    // a model that suits it. A named or pinned model skips this entirely.
+    const category =
+      pinned === null && input.modelId === undefined ? classifyPrompt(input.task) : undefined;
+    const entry = await this.engineFor(
+      pinned === null
+        ? { ...input, ...(category !== undefined ? { category } : {}) }
+        : { ...input, connectionId: pinned.connectionId, modelId: pinned.modelId },
+    );
     const availableTools = entry.tools.list().map((definition) => definition.id);
 
     let counter = 0;

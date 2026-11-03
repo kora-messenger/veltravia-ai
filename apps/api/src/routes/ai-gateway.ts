@@ -42,6 +42,9 @@ const STATUS: Readonly<Record<string, number>> = {
   GATEWAY_MODEL_UNKNOWN: 404,
   GATEWAY_NO_PROVIDER_CONFIGURED: 409,
   GATEWAY_RATE_LIMITED: 429,
+  // A spent daily allowance is the caller's budget, not an outage: 429 says
+  // "try later" and an outage would say "something is broken".
+  GATEWAY_DAILY_CEILING_REACHED: 429,
   GATEWAY_TIMEOUT: 504,
   GATEWAY_PROVIDER_UNAVAILABLE: 502,
   GATEWAY_AUTH_FAILED: 401,

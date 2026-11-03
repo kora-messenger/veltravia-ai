@@ -95,6 +95,12 @@ export interface GatewayOptions {
    * refuses when the selector refuses.
    */
   readonly selector?: RouteSelector;
+  /**
+   * How many model calls one owner may make per UTC day. Zero or absent means
+   * no ceiling. The platform holds the provider keys, so the platform also holds
+   * the budget: without this one person could spend the whole account.
+   */
+  readonly dailyRequestCeiling?: number;
   /** Operator-declared prices. Absent means no cost estimates are produced. */
   readonly pricing?: ModelPricingTable;
   /** Bounded retry policy for retryable provider failures. */
@@ -329,6 +335,7 @@ export class AIProviderGateway {
   private readonly pricing: ModelPricingTable;
   private readonly retry: RetryPolicy;
   private readonly rateLimitFloorMs: number;
+  private readonly dailyRequestCeiling: number;
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: GatewayOptions) {
@@ -350,6 +357,7 @@ export class AIProviderGateway {
     this.pricing = options.pricing ?? new ModelPricingTable();
     this.retry = options.retry ?? DEFAULT_RETRY_POLICY;
     this.rateLimitFloorMs = options.rateLimitFloorMs ?? DEFAULT_RATE_LIMIT_FLOOR_MS;
+    this.dailyRequestCeiling = options.dailyRequestCeiling ?? 0;
     this.sleep = options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   }
 
@@ -953,6 +961,34 @@ export class AIProviderGateway {
     );
   }
 
+  /**
+   * How much of today's allowance this owner has used.
+   *
+   * Counted from the usage rows the gateway already writes, so the number shown
+   * to a person and the number enforced are the same number. A record is today's
+   * when its timestamp falls on or after UTC midnight.
+   */
+  async usageToday(scope: GatewayScope): Promise<{ used: number; ceiling: number | null }> {
+    const ownerRef = requireOwner(scope);
+    if (this.dailyRequestCeiling <= 0) return { used: 0, ceiling: null };
+    const since = new Date(this.now());
+    since.setUTCHours(0, 0, 0, 0);
+    const rows = await this.usage.listByOwner(ownerRef, this.dailyRequestCeiling + 50);
+    const used = rows.filter((row) => Date.parse(row.requestedAt) >= since.getTime()).length;
+    return { used, ceiling: this.dailyRequestCeiling };
+  }
+
+  private async assertWithinDailyCeiling(ownerRef: string): Promise<void> {
+    if (this.dailyRequestCeiling <= 0) return;
+    const { used } = await this.usageToday({ ownerRef } as GatewayScope);
+    if (used < this.dailyRequestCeiling) return;
+    throw new GatewayError(
+      'GATEWAY_DAILY_CEILING_REACHED',
+      `This account has used its ${this.dailyRequestCeiling} answers for today. It resets at midnight UTC.`,
+      { details: { used, ceiling: this.dailyRequestCeiling } },
+    );
+  }
+
   /** True when the owner has at least one usable connection. */
   async isConfigured(scope: GatewayScope): Promise<boolean> {
     const ownerRef = requireOwner(scope);
@@ -962,6 +998,7 @@ export class AIProviderGateway {
 
   async generate(scope: GatewayScope, request: GenerationRequest): Promise<GenerationOutcome> {
     const ownerRef = requireOwner(scope);
+    await this.assertWithinDailyCeiling(ownerRef);
     const projectId = request.projectId ?? scope.projectId;
     throwIfAborted(request.signal);
     const route = await this.resolveRoute(scope, {
@@ -1149,6 +1186,7 @@ export class AIProviderGateway {
   ): AsyncIterable<GatewayStreamChunk> {
     const ownerRef = requireOwner(scope);
     const projectId = request.projectId ?? scope.projectId;
+    await this.assertWithinDailyCeiling(ownerRef);
     throwIfAborted(request.signal);
     const route = await this.resolveRoute(scope, {
       ...(request.projectId ? { projectId: request.projectId } : {}),

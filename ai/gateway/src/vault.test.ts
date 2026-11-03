@@ -111,7 +111,11 @@ describe('credential vault', () => {
     const { ref } = await vault.put('owner-a', TEST_OPENAI_KEY);
     const record = store.snapshot()[0];
     expect(record).toBeDefined();
-    await store.put({ ...record!, ciphertext: record!.ciphertext.replace(/^./, 'A') });
+    // Flip the first character to something it is not: replacing it with a fixed
+    // 'A' did nothing whenever the random ciphertext already began with one, and
+    // the test then passed a valid record and failed for the wrong reason.
+    const first = record!.ciphertext[0] === 'A' ? 'B' : 'A';
+    await store.put({ ...record!, ciphertext: `${first}${record!.ciphertext.slice(1)}` });
     await expect(vault.read('owner-a', ref)).rejects.toMatchObject({
       code: 'GATEWAY_VAULT_DECRYPT_FAILED',
     });

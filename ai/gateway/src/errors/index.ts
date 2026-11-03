@@ -18,6 +18,11 @@ export const GATEWAY_ERROR_CODES = [
   'GATEWAY_MODEL_UNKNOWN',
   'GATEWAY_NO_PROVIDER_CONFIGURED',
   'GATEWAY_RATE_LIMITED',
+  /**
+   * This owner has used the day's allowance. It is a budget, not a fault: the
+   * caller is told plainly and the request never reaches a provider.
+   */
+  'GATEWAY_DAILY_CEILING_REACHED',
   'GATEWAY_TIMEOUT',
   'GATEWAY_PROVIDER_ERROR',
   'GATEWAY_PROVIDER_UNAVAILABLE',
@@ -111,6 +116,7 @@ export function errorCategoryOf(error: unknown): ProviderErrorCategory {
     case 'GATEWAY_CREDENTIAL_INVALID':
       return 'auth';
     case 'GATEWAY_RATE_LIMITED':
+    case 'GATEWAY_DAILY_CEILING_REACHED':
       return 'rate_limited';
     case 'GATEWAY_TIMEOUT':
       return 'timeout';

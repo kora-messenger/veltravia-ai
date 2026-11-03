@@ -128,6 +128,9 @@ export function ChatPage() {
           placeholder={session.placeholder}
           providerLabel={session.providerLabel}
           providerDetail={session.providerDetail}
+          model={session.model}
+          models={session.models}
+          chooseModel={session.chooseModel}
         />
       </div>
     </div>

@@ -320,3 +320,80 @@ export function BuilderIcon({ size = 18 }: IconProps) {
     </svg>
   );
 }
+
+/** A paperclip: attach a file. */
+export function AttachIcon({ size = 18 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M20 11.4 11.6 19.8a4.6 4.6 0 0 1-6.5-6.5l8.6-8.6a3.1 3.1 0 0 1 4.4 4.4l-8.5 8.5a1.6 1.6 0 0 1-2.2-2.2l7.9-7.9" />
+    </svg>
+  );
+}
+
+/** A page with ruled lines: a note. */
+export function NoteIcon({ size = 18 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M6 3.5h8.2L19 8.3v12.2H6z" />
+      <path d="M14 3.6V8.4h4.6M9 12.4h7M9 16h5" />
+    </svg>
+  );
+}
+
+/** The Drive mark: three leaves around a hollow centre. */
+export function DriveIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M8.6 3.5h6.8l6 10.4h-6.8z" fill="#FFCF63" />
+      <path d="M8.6 3.5 2.6 13.9l3.4 5.9 6-10.4z" fill="#11A861" />
+      <path d="M6 19.8h12l3.4-5.9H9.4z" fill="#3C8BFF" />
+    </svg>
+  );
+}
+
+/**
+ * A mark for the maker of a model, so the chip and each picker row say who
+ * answers at a glance. These are simple original glyphs in the current text
+ * colour, not the makers' logo files; an unknown maker gets a neutral chip
+ * rather than a wrong mark.
+ */
+export function ProviderMark({ providerId, size = 18 }: IconProps & { providerId: string }) {
+  switch (providerId) {
+    case 'anthropic':
+      // Eight rays from a common centre.
+      return (
+        <svg {...base(size)} strokeWidth={1.9}>
+          <path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4" />
+        </svg>
+      );
+    case 'openai':
+      // Three interlocking arcs inside a hexagon outline.
+      return (
+        <svg {...base(size)} strokeWidth={1.7}>
+          <path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9L12 3z" />
+          <path d="M12 3v8.2l7.8 4.3M12 11.2L4.2 15.5" />
+        </svg>
+      );
+    case 'gemini':
+      // A four-point star.
+      return (
+        <svg {...base(size)} fill="currentColor" stroke="none">
+          <path d="M12 2c.6 5.4 4.6 9.4 10 10-5.4.6-9.4 4.6-10 10-.6-5.4-4.6-9.4-10-10 5.4-.6 9.4-4.6 10-10z" />
+        </svg>
+      );
+    case 'xai':
+      return (
+        <svg {...base(size)} strokeWidth={1.9}>
+          <path d="M5 5l14 14M19 5L5 19" />
+        </svg>
+      );
+    default:
+      // Unknown maker: a plain chip outline.
+      return (
+        <svg {...base(size)} strokeWidth={1.7}>
+          <rect x="6" y="6" width="12" height="12" rx="2.5" />
+          <path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" />
+        </svg>
+      );
+  }
+}

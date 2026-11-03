@@ -31,9 +31,11 @@ import {
   cancelRun,
   continueRun,
   getCapabilities,
+  getModelPicker,
   getRun,
   isTerminal,
   startRun,
+  type AvailableModel,
   type ReasoningCapabilities,
   type ReasoningRunView,
 } from '../../api/reasoning';
@@ -187,6 +189,10 @@ export interface UseChatResult {
   readonly messages: readonly ChatMessage[];
   readonly busy: boolean;
   readonly capabilities: ReasoningCapabilities | null;
+  /** Models this account can pin; empty until the list arrives. */
+  readonly models: readonly AvailableModel[];
+  /** Re-reads provider state and the model list, after a choice. */
+  readonly refreshCapabilities: () => void;
   readonly send: (text: string) => void;
   readonly stop: () => void;
   readonly retry: () => void;
@@ -205,6 +211,9 @@ export function useChat(): UseChatResult {
   const [messages, setMessages] = useState<readonly ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
   const [capabilities, setCapabilities] = useState<ReasoningCapabilities | null>(null);
+  // The picker's list is separate from capabilities: it is bigger and changes
+  // far less often, so it is fetched once and refetched after a choice.
+  const [models, setModels] = useState<readonly AvailableModel[]>([]);
   const [restore, setRestore] = useState<UseChatResult['restore']>(null);
 
   const follower = useRef<RunFollower | null>(null);
@@ -220,20 +229,21 @@ export function useChat(): UseChatResult {
     };
   }, []);
 
-  // The provider state decides how a question is answered, so it is read once
-  // rather than guessed. A failure here is not fatal: the chip simply reports
-  // that it does not know yet.
-  useEffect(() => {
-    let live = true;
+  // The provider state decides how a question is answered, so it is read rather
+  // than guessed, and again whenever a model is pinned. A failure here is not
+  // fatal: the chip simply reports that it does not know yet.
+  const loadCapabilities = useCallback(() => {
     getCapabilities()
-      .then((result) => {
-        if (live) setCapabilities(readCapabilities(result));
-      })
+      .then((result) => setCapabilities(readCapabilities(result)))
       .catch(() => undefined);
-    return () => {
-      live = false;
-    };
+    getModelPicker()
+      .then((result) => setModels(result.models))
+      .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    loadCapabilities();
+  }, [loadCapabilities]);
 
   const patch = useCallback((id: string, next: Partial<ChatMessage>) => {
     setMessages((current) =>
@@ -617,6 +627,8 @@ export function useChat(): UseChatResult {
     messages,
     busy,
     capabilities,
+    models,
+    refreshCapabilities: loadCapabilities,
     send,
     stop,
     retry,

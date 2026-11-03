@@ -67,6 +67,30 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         <ol className="v-toaster__list" aria-live="polite">
           {toasts.map((entry) => (
             <li key={entry.id} className={`v-toast v-toast--${entry.tone}`} role="status">
+              {/* A filled mark for the outcomes that carry a verdict. Plain info
+                  toasts stay text-only, and the icon is decorative: the words say it. */}
+              {entry.tone !== 'info' && (
+                <span className="v-toast__mark" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
+                    {entry.tone === 'success' ? (
+                      <path
+                        d="M6 12.5l4 4 8-9"
+                        stroke="currentColor"
+                        strokeWidth="2.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    ) : (
+                      <path
+                        d="M8 8l8 8M16 8l-8 8"
+                        stroke="currentColor"
+                        strokeWidth="2.6"
+                        strokeLinecap="round"
+                      />
+                    )}
+                  </svg>
+                </span>
+              )}
               <span className="v-toast__message">{entry.message}</span>
               <button
                 type="button"

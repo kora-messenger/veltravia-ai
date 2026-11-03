@@ -40,6 +40,7 @@ function toHttpError(error: unknown): { status: number; body: Record<string, unk
 function gatewayStatus(code: string): number {
   if (code === 'GATEWAY_NO_PROVIDER_CONFIGURED') return 409;
   if (code === 'GATEWAY_RATE_LIMITED') return 429;
+  if (code === 'GATEWAY_DAILY_CEILING_REACHED') return 429;
   if (code === 'GATEWAY_MODEL_UNKNOWN') return 404;
   if (code === 'GATEWAY_CAPABILITY_UNSUPPORTED' || code === 'GATEWAY_INVALID_REQUEST') return 400;
   if (code === 'GATEWAY_TIMEOUT') return 504;

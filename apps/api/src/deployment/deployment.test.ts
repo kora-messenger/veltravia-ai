@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -256,8 +256,9 @@ describe('durable gateway stores', () => {
   it('reports storage as unusable instead of pretending', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'veltravia-gateway-'));
     dirs.push(dir);
-    // a directory where the file must go: writing the collection cannot work
-    await writeFile(join(dir, 'usage-records.json'), '', 'utf8');
+    // a directory where the file must go: writing the collection cannot work.
+    // (An empty file is a valid empty collection, so it would not prove this.)
+    await mkdir(join(dir, 'usage-records.json'));
     const stores = createDurableGatewayStores(dir);
     await expect(stores.verify()).rejects.toThrow();
   });

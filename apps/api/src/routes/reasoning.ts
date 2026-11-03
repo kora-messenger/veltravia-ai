@@ -153,10 +153,71 @@ export function registerReasoningRoutes(app: FastifyInstance, service: Reasoning
     const capabilities = service.capabilities();
     return {
       ...capabilities,
+      model: service.modelChoice(ownerRef),
       tools: service.toolSummaries(ownerRef),
       simulatedReasoningAllowed:
         (readEnv('VELTRAVIA_ALLOW_SIMULATED_REASONING') ?? 'true') !== 'false',
     };
+  });
+
+  /**
+   * The model picker: Automatic plus every model this person can pin.
+   *
+   * Labels are the provider's own names, so the chip says what will answer
+   * rather than an internal id.
+   */
+  app.get('/api/reasoning/models', async (request) => {
+    const ownerRef = ownerOf(request);
+    const [models, choice] = await Promise.all([
+      service.availableModels(ownerRef),
+      Promise.resolve(service.modelChoice(ownerRef)),
+    ]);
+    return {
+      automatic: {
+        id: 'automatic',
+        label: 'Automatic',
+        description: 'Matched with the best model for each request',
+      },
+      models,
+      choice,
+    };
+  });
+
+  /** Pins a model, or returns to Automatic with `{ automatic: true }`. */
+  app.put('/api/reasoning/model', async (request, reply) => {
+    const ownerRef = ownerOf(request);
+    const body = (request.body ?? {}) as {
+      automatic?: boolean;
+      connectionId?: string;
+      modelId?: string;
+    };
+    // Say what was asked for. A body that names neither Automatic nor a whole
+    // model used to be read as "go back to Automatic", which hid a client that
+    // sent the choice in the wrong shape and reported success.
+    const wantsAutomatic = body.automatic === true;
+    const namesModel =
+      typeof body.connectionId === 'string' &&
+      body.connectionId !== '' &&
+      typeof body.modelId === 'string' &&
+      body.modelId !== '';
+    if (!wantsAutomatic && !namesModel) {
+      return reply.status(400).send({
+        code: 'REASONING_MODEL_CHOICE_INVALID',
+        message: 'Send { "automatic": true } or both connectionId and modelId.',
+      });
+    }
+    try {
+      const choice = wantsAutomatic
+        ? await service.setModelChoice(ownerRef, null)
+        : await service.setModelChoice(ownerRef, {
+            connectionId: body.connectionId as string,
+            modelId: body.modelId as string,
+          });
+      return reply.status(200).send({ choice });
+    } catch (error) {
+      const mapped = toError(error);
+      return reply.status(mapped.status).send(mapped.body);
+    }
   });
 
   /** Usage: provider, model, tokens the provider reported, and failure category. */

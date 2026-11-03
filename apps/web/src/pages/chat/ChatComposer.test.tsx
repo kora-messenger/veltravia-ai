@@ -49,9 +49,9 @@ afterEach(() => {
 
 const { ChatComposer } = await import('./ChatComposer');
 
-function renderComposer(props: { value?: string } = {}) {
+function renderComposer(props: { value?: string; onSend?: (text?: string) => void } = {}) {
   const onChange = vi.fn();
-  const onSend = vi.fn();
+  const onSend = props.onSend ?? vi.fn();
   render(
     <ToastProvider>
       <ChatComposer
@@ -63,6 +63,9 @@ function renderComposer(props: { value?: string } = {}) {
         busy={false}
         placeholder="Type a message..."
         providerLabel="Auto"
+        model={null}
+        models={[]}
+        chooseModel={vi.fn()}
         providerDetail="Whatever is available answers."
       />
     </ToastProvider>,
@@ -75,7 +78,7 @@ const micControl = () => screen.queryByRole('button', { name: 'Dictate a message
 const voiceControl = () => document.querySelector('.v-chat-composer__voice');
 
 describe('an empty box', () => {
-  it('offers one dictation control, a voice control, and no send arrow', () => {
+  it('shows the plain microphone and the filled square, and no send arrow', () => {
     renderComposer();
     // Exactly one dictation affordance: the mic icon would duplicate the voice
     // control, so only the voice control is shown while there is nothing to send.
@@ -118,12 +121,13 @@ describe('with a picture attached', () => {
     return input;
   };
 
-  it('shows the preview and, with no text yet, keeps dictation but offers send', async () => {
+  it('keeps both controls while an attachment sits in an empty box', async () => {
     renderComposer();
     await attach();
+    // Nothing disappears for an attachment: only typed words change the row.
     expect(micControl()).not.toBeNull();
-    expect(sendControl()).not.toBeNull();
-    expect(voiceControl()).toBeNull();
+    expect(voiceControl()).not.toBeNull();
+    expect(sendControl()).toBeNull();
   });
 
   it('puts the preview at the top of the box, above the field', async () => {
@@ -143,11 +147,11 @@ describe('with a picture attached', () => {
   });
 
   it('explains rather than silently dropping the picture, because runs take text only', async () => {
-    const { onSend } = renderComposer();
+    const { onSend } = renderComposer({ value: 'Look at this' });
     await attach();
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
     expect(onSend).not.toHaveBeenCalled();
-    expect(await screen.findAllByText(/Pictures cannot be sent yet/i)).toBeDefined();
+    expect(await screen.findAllByText(/Files cannot be sent yet/i)).toBeDefined();
   });
 
   it('takes up to ten pictures in one message', async () => {
@@ -169,16 +173,24 @@ describe('with a picture attached', () => {
     await waitFor(() =>
       expect(document.querySelectorAll('.v-chat-composer__attachment')).toHaveLength(10),
     );
-    expect(await screen.findAllByText(/up to 10 pictures/i)).toBeDefined();
+    expect(await screen.findAllByText(/up to 10 files/i)).toBeDefined();
   });
 
   it('keeps dictation while the box is still empty', async () => {
     renderComposer();
     await attach();
-    // The reference keeps the mic for a picture-only message; the typed case is
-    // covered by the test above, so together they pin the whole rule.
+    // The plain microphone and the filled square both stay for a picture-only
+    // message, and pressing the square starts dictation rather than nothing.
     expect(micControl()).not.toBeNull();
-    expect(sendControl()).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Start voice input' })).toBeDefined();
+  });
+
+  it('explains an attachment when Enter is pressed, instead of doing nothing', async () => {
+    const { onSend } = renderComposer();
+    await attach();
+    fireEvent.keyDown(screen.getByLabelText('Message'), { key: 'Enter' });
+    expect(onSend).not.toHaveBeenCalled();
+    expect(await screen.findAllByText(/Files cannot be sent yet/i)).toBeDefined();
   });
 
   it('grows with the text instead of stopping at a fixed height', async () => {
@@ -225,5 +237,140 @@ describe('a browser without dictation', () => {
     expect(voiceControl()).toBeNull();
     // The send arrow is there but disabled: nothing to send, nothing to dictate.
     expect(sendControl()?.hasAttribute('disabled')).toBe(true);
+  });
+});
+
+describe('the plus card', () => {
+  /** Reads the rows in the order they are drawn. */
+  const rows = () =>
+    [...document.querySelectorAll('.v-menu__item-label')].map((node) => node.textContent);
+
+  it('draws the reference rows, with the Drive row honestly unavailable', async () => {
+    renderComposer();
+    fireEvent.click(screen.getByRole('button', { name: 'More ways to start' }));
+    await screen.findByRole('menu');
+    expect(rows().slice(0, 3)).toEqual(['Attach files', 'Add note', 'Upload from Google Drive']);
+    const drive = screen.getByRole('menuitem', { name: /Upload from Google Drive/ });
+    expect(drive.hasAttribute('disabled')).toBe(true);
+    expect(drive.textContent).toContain('Not connected');
+  });
+
+  it('opens a second level for notes, with a way back', async () => {
+    renderComposer();
+    fireEvent.click(screen.getByRole('button', { name: 'More ways to start' }));
+    await screen.findByRole('menu');
+    fireEvent.click(screen.getByRole('menuitem', { name: /Add note/ }));
+    expect(rows()).toEqual(['Back to Add note', 'Write a note…']);
+    // The caret marks the row that opens this level.
+    fireEvent.click(screen.getByRole('menuitem', { name: /Back to Add note/ }));
+    expect(rows()[1]).toBe('Add note');
+  });
+
+  it('writes a note, counts it, and sends it with the message', async () => {
+    const onSend = vi.fn();
+    // The box already holds the message: this stands in for typing, because the
+    // test double's onChange does not feed state back.
+    renderComposer({ onSend, value: 'Build me a page' });
+    fireEvent.click(screen.getByRole('button', { name: 'More ways to start' }));
+    await screen.findByRole('menu');
+    fireEvent.click(screen.getByRole('menuitem', { name: /Add note/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Write a note…' }));
+    fireEvent.change(await screen.findByLabelText('Note'), {
+      target: { value: 'keep it short' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save note' }));
+
+    // The count appears on the row that owns the notes.
+    fireEvent.click(screen.getByRole('button', { name: 'More ways to start' }));
+    const noteRow = await screen.findByRole('menuitem', { name: /Add note/ });
+    expect(noteRow.textContent).toContain('1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    expect(onSend).toHaveBeenCalledWith(
+      'Build me a page\n\nNotes from the owner:\n- keep it short',
+    );
+  });
+});
+
+describe('the model chip', () => {
+  const sonnet = {
+    connectionId: 'c1',
+    modelId: 'sonnet-5.5',
+    label: 'Sonnet 5.5',
+    providerId: 'anthropic',
+    providerName: 'Anthropic',
+    isDefaultConnection: true,
+  };
+  const gpt = {
+    connectionId: 'c2',
+    modelId: 'gpt-5.6-luna',
+    label: 'GPT-5.6 Luna',
+    providerId: 'openai',
+    providerName: 'OpenAI',
+    isDefaultConnection: false,
+  };
+
+  function renderChip(pinned: typeof sonnet | null, chooseModel = vi.fn()) {
+    render(
+      <ToastProvider>
+        <ChatComposer
+          value=""
+          onChange={vi.fn()}
+          onSend={vi.fn()}
+          onStop={vi.fn()}
+          onNewChat={vi.fn()}
+          busy={false}
+          placeholder="Type a message..."
+          providerLabel={pinned?.label ?? 'Auto'}
+          model={pinned}
+          models={[sonnet, gpt]}
+          chooseModel={chooseModel}
+          providerDetail="Whatever is available answers."
+        />
+      </ToastProvider>,
+    );
+    return chooseModel;
+  }
+
+  const chip = () => screen.getByRole('button', { name: /^Model:/ });
+
+  it('says Auto with the generic mark until a model is pinned', () => {
+    renderChip(null);
+    expect(chip().textContent).toBe('Auto');
+    expect(chip().querySelector('svg')).not.toBeNull();
+  });
+
+  it('shows the pinned model by name, with a different mark from Auto', () => {
+    renderChip(null);
+    const autoMark = chip().querySelector('svg')!.innerHTML;
+    cleanup();
+    renderChip(sonnet);
+    expect(chip().textContent).toBe('Sonnet 5.5');
+    expect(chip().querySelector('svg')!.innerHTML).not.toBe(autoMark);
+  });
+
+  it('gives each maker its own mark in the list and ticks the one in use', () => {
+    renderChip(sonnet);
+    fireEvent.click(chip());
+    const rows = screen.getAllByRole('menuitem');
+    const names = rows.map((row) => row.textContent ?? '');
+    expect(names[0]).toContain('Automatic');
+    const sonnetRow = rows.find((row) => (row.textContent ?? '').includes('Sonnet 5.5'))!;
+    const gptRow = rows.find((row) => (row.textContent ?? '').includes('GPT-5.6 Luna'))!;
+    expect(sonnetRow.textContent).toContain('✓');
+    expect(gptRow.textContent).not.toContain('✓');
+    expect(sonnetRow.querySelector('svg')!.innerHTML).not.toBe(
+      gptRow.querySelector('svg')!.innerHTML,
+    );
+  });
+
+  it('pins the chosen model, and Automatic clears the pin', () => {
+    const choose = renderChip(sonnet);
+    fireEvent.click(chip());
+    fireEvent.click(screen.getByRole('menuitem', { name: /GPT-5\.6 Luna/ }));
+    expect(choose).toHaveBeenCalledWith(expect.objectContaining({ modelId: 'gpt-5.6-luna' }));
+    fireEvent.click(chip());
+    fireEvent.click(screen.getByRole('menuitem', { name: /Automatic/ }));
+    expect(choose).toHaveBeenLastCalledWith(null);
   });
 });

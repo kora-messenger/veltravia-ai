@@ -1,3 +1,4 @@
+import { pickModelFor } from './model-preferences.js';
 import { registerVideoRoutes } from './routes/video.js';
 import { registerDocumentRoutes } from './routes/document.js';
 import { registerConnectionRoutes } from './routes/connections.js';
@@ -536,9 +537,37 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       files: fileManager,
       intelligence,
       routeFor: async (input) => {
+        // Automatic: the prompt's kind picks a model the owner actually has.
+        // When none of the preferred models is connected, the router decides
+        // exactly as it did before.
+        let chosen: ReturnType<typeof pickModelFor> = null;
+        if (input.category !== undefined) {
+          try {
+            const catalog = await modelRouter.router.catalog({ ownerRef: input.ownerRef });
+            chosen = pickModelFor(
+              input.category,
+              catalog.models
+                .filter((model) => model.available)
+                .map((model) => ({
+                  connectionId: model.connectionId,
+                  providerId: model.providerId,
+                  modelId: model.modelId,
+                })),
+            );
+          } catch {
+            chosen = null;
+          }
+        }
         const decision = await modelRouter.routeFor(input.ownerRef, {
-          category: SERVICE_CATEGORIES.reasoning,
+          category: input.category ?? SERVICE_CATEGORIES.reasoning,
           ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+          ...(chosen !== null
+            ? {
+                mode: 'manual' as const,
+                connectionId: chosen.connectionId,
+                modelId: chosen.modelId,
+              }
+            : {}),
           purpose: 'reasoning run',
         });
         if (decision.outcome === 'routed' && decision.selected !== null) {

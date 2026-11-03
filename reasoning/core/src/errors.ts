@@ -8,6 +8,8 @@ export const REASONING_ERROR_CODES = [
   'REASONING_INVALID_MODEL_OUTPUT',
   'REASONING_TOOL_NOT_ALLOWED',
   'REASONING_TOOL_INPUT_INVALID',
+  /** A pinned model that is not on a connection this account can use. */
+  'REASONING_MODEL_UNKNOWN',
   'REASONING_PROVIDER_UNAVAILABLE',
   'REASONING_PROVIDER_AUTH_FAILED',
   'REASONING_PROVIDER_RATE_LIMITED',
@@ -81,6 +83,9 @@ export function reasoningHttpStatus(code: ReasoningErrorCode): number {
   // is checked before the generic client-code branch returns 400.
   if (code === 'REASONING_RUN_NOT_CONTINUABLE') return 409;
   if (code === 'REASONING_CONTINUATION_EXHAUSTED') return 409;
+  // A model that is not on this account's connections is fixable by choosing
+  // another, so it is a conflict with current state, not a malformed request.
+  if (code === 'REASONING_MODEL_UNKNOWN') return 409;
   if (CLIENT_CODES.has(code)) {
     return code === 'REASONING_RUN_NOT_FOUND' ? 404 : 400;
   }

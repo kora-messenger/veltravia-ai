@@ -1,17 +1,22 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Menu, Tooltip, useToast } from '../../components/ui';
+import { Dialog, Menu, useToast } from '../../components/ui';
 import { navigateToHash } from '../../shell/useHashRoute';
+import type { AvailableModel, ChatModelChoice } from '../../api/reasoning';
 import {
   ArrowUpIcon,
+  AttachIcon,
   BuilderIcon,
+  DriveIcon,
+  NoteIcon,
   CloseIcon,
   FolderIcon,
   MicIcon,
   NewChatIcon,
-  PhotoIcon,
   PlusIcon,
   StopIcon,
+  ProviderMark,
   TuneIcon,
+  WaveIcon,
 } from './chatIcons';
 
 /** The slice of the Web Speech API used here, declared locally. */
@@ -46,7 +51,11 @@ function speechRecognition(): SpeechRecognitionLike | null {
 export interface ChatComposerProps {
   readonly value: string;
   readonly onChange: (next: string) => void;
-  readonly onSend: () => void;
+  /**
+   * Sends the message. The composer passes the words to send when it has
+   * attached notes to them; otherwise the surface sends what is in the box.
+   */
+  readonly onSend: (text?: string) => void;
   readonly onStop: () => void;
   readonly onNewChat: () => void;
   readonly busy: boolean;
@@ -54,6 +63,10 @@ export interface ChatComposerProps {
   readonly placeholder: string;
   /** What will answer, in plain words. Always a fact, never a guess. */
   readonly providerLabel: string;
+  /** The pinned model, or null on Automatic. */
+  readonly model: ChatModelChoice | null;
+  readonly models: readonly AvailableModel[];
+  readonly chooseModel: (choice: null | AvailableModel) => void;
   readonly providerDetail: string;
 }
 
@@ -64,8 +77,37 @@ export interface ChatComposerProps {
  */
 const MAX_GROWTH = 0.45;
 
-/** How many pictures one message may carry. */
+/** How many files one message may carry. */
 const MAX_ATTACHMENTS = 10;
+
+/** Notes written here stay in this browser: there is no note store on the server. */
+const NOTES_KEY = 'veltravia:composer-notes';
+
+function readNotes(): { id: string; text: string }[] {
+  try {
+    const raw = window.localStorage.getItem(NOTES_KEY);
+    if (raw === null) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (entry): entry is { id: string; text: string } =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        typeof (entry as { id?: unknown }).id === 'string' &&
+        typeof (entry as { text?: unknown }).text === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeNotes(notes: readonly { id: string; text: string }[]): void {
+  try {
+    window.localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+  } catch {
+    // A browser that refuses storage loses the notes, not the message.
+  }
+}
 
 /**
  * The message composer, laid out like the reference: one plain field on top of
@@ -87,6 +129,9 @@ export function ChatComposer({
   busy,
   placeholder,
   providerLabel,
+  model,
+  models,
+  chooseModel,
   providerDetail,
 }: ChatComposerProps) {
   const field = useRef<HTMLTextAreaElement>(null);
@@ -94,7 +139,14 @@ export function ChatComposer({
   const recognition = useRef<SpeechRecognitionLike | null>(null);
   const [listening, setListening] = useState(false);
   const [dictation, setDictation] = useState(false);
-  const [images, setImages] = useState<readonly { name: string; url: string }[]>([]);
+  const [attachments, setAttachments] = useState<
+    readonly { id: string; name: string; url: string | null }[]
+  >([]);
+  // Notes are the person's own words attached to the message they are about to
+  // send. They live in this browser; nothing is uploaded.
+  const [notes, setNotes] = useState<readonly { id: string; text: string }[]>(readNotes);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
   const { toast } = useToast();
 
   // Feature detection runs after mount so the control is never rendered for a
@@ -113,41 +165,48 @@ export function ChatComposer({
 
   // Every object URL lives until it is revoked, so removing one preview, clearing
   // the box and unmounting all free what they opened.
-  const revokeAll = (attachments: readonly { url: string }[]) => {
-    for (const attachment of attachments) URL.revokeObjectURL(attachment.url);
+  const revokeAll = (items: readonly { url: string | null }[]) => {
+    for (const item of items) if (item.url !== null) URL.revokeObjectURL(item.url);
   };
 
-  const addImages = (files: readonly File[]) => {
-    setImages((current) => {
+  const addAttachments = (files: readonly File[]) => {
+    setAttachments((current) => {
       const room = MAX_ATTACHMENTS - current.length;
       if (room <= 0) {
-        toast(`You can attach up to ${MAX_ATTACHMENTS} pictures.`, { tone: 'error' });
+        toast(`You can attach up to ${MAX_ATTACHMENTS} files.`, { tone: 'error' });
         return current;
       }
-      const accepted = files.slice(0, room);
       if (files.length > room) {
         toast(`Only ${room} more could be added: the limit is ${MAX_ATTACHMENTS}.`, {
           tone: 'error',
         });
       }
+      const accepted = files.slice(0, room);
       return [
         ...current,
-        ...accepted.map((file) => ({ name: file.name, url: URL.createObjectURL(file) })),
+        ...accepted.map((file) => ({
+          id: `${file.name}-${file.lastModified}-${current.length}`,
+          name: file.name,
+          // Only pictures are previewed; anything else keeps its name and an
+          // icon, because a browser cannot render a PDF as a thumbnail.
+          url: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+        })),
       ];
     });
   };
 
-  const removeImage = (url: string) => {
-    setImages((current) => {
-      const next = current.filter((attachment) => attachment.url !== url);
-      if (next.length !== current.length) URL.revokeObjectURL(url);
+  const removeAttachment = (id: string) => {
+    setAttachments((current) => {
+      const next = current.filter((attachment) => attachment.id !== id);
+      const removed = current.find((attachment) => attachment.id === id);
+      if (removed?.url != null) URL.revokeObjectURL(removed.url);
       return next;
     });
   };
 
   useEffect(
     () => () => {
-      setImages((current) => {
+      setAttachments((current) => {
         revokeAll(current);
         return [];
       });
@@ -189,15 +248,15 @@ export function ChatComposer({
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && event.shiftKey === false) {
       event.preventDefault();
-      onSend();
+      sendOrExplain();
     }
   };
 
   const typed = value.trim() !== '';
   // The reference swaps the far-right control: a voice control while there is
   // nothing to send, the send arrow as soon as there is a message or an image.
-  const hasSomethingToSend = typed || images.length > 0;
-  const canSend = hasSomethingToSend && !busy;
+  // Only typed words change the row. An attachment does not hide the microphone,
+  // and an empty box has nothing to send.
 
   /**
    * Sending with an image attached is refused rather than silently dropping it:
@@ -206,30 +265,71 @@ export function ChatComposer({
    */
   const sendOrExplain = () => {
     if (busy) return;
-    if (images.length > 0) {
+    if (attachments.length > 0) {
+      // Files ride along with the message in the composer only: the run API
+      // takes text, so sending with one attached would look sent while the model
+      // never saw it.
       toast(
-        images.length === 1
-          ? 'Pictures cannot be sent yet. Remove it to send this message.'
-          : 'Pictures cannot be sent yet. Remove them to send this message.',
+        attachments.length === 1
+          ? 'Files cannot be sent yet. Remove it to send this message.'
+          : 'Files cannot be sent yet. Remove them to send this message.',
         { tone: 'error' },
       );
       return;
     }
-    onSend();
+    if (notes.length === 0) {
+      onSend();
+      return;
+    }
+    // The notes are the person's own words, so they travel with the message
+    // rather than being summarised or dropped.
+    const block = notes.map((note) => `- ${note.text}`).join('\n');
+    onSend(`${value.trim()}\n\nNotes from the owner:\n${block}`);
+  };
+
+  const openNote = () => {
+    setNoteDraft('');
+    setNoteOpen(true);
+  };
+
+  const saveNote = () => {
+    const text = noteDraft.trim();
+    if (text === '') return;
+    const next = [...notes, { id: `${Date.now()}`, text }];
+    setNotes(next);
+    writeNotes(next);
+    setNoteOpen(false);
+  };
+
+  const removeNote = (id: string) => {
+    const next = notes.filter((note) => note.id !== id);
+    setNotes(next);
+    writeNotes(next);
   };
 
   return (
     <div className="v-chat-composer">
-      {images.length > 0 && (
+      {attachments.length > 0 && (
         <ul className="v-chat-composer__attachments">
-          {images.map((image) => (
-            <li className="v-chat-composer__attachment" key={image.url}>
-              <img className="v-chat-composer__thumb" src={image.url} alt={image.name} />
+          {attachments.map((attachment) => (
+            <li className="v-chat-composer__attachment" key={attachment.id}>
+              {attachment.url === null ? (
+                <span className="v-chat-composer__file">
+                  <NoteIcon size={14} />
+                  <span className="v-chat-composer__file-name">{attachment.name}</span>
+                </span>
+              ) : (
+                <img
+                  className="v-chat-composer__thumb"
+                  src={attachment.url}
+                  alt={attachment.name}
+                />
+              )}
               <button
                 type="button"
                 className="v-chat-composer__dismiss"
-                onClick={() => removeImage(image.url)}
-                aria-label={`Remove ${image.name}`}
+                onClick={() => removeAttachment(attachment.id)}
+                aria-label={`Remove ${attachment.name}`}
               >
                 <CloseIcon size={12} />
               </button>
@@ -240,11 +340,11 @@ export function ChatComposer({
       <input
         ref={picker}
         type="file"
-        accept="image/*"
+        accept="image/*,.pdf,.txt,.md,.json,.csv,.doc,.docx"
         multiple
         className="v-chat-composer__picker"
         onChange={(event) => {
-          addImages(Array.from(event.target.files ?? []));
+          addAttachments(Array.from(event.target.files ?? []));
           event.target.value = '';
         }}
       />
@@ -272,9 +372,35 @@ export function ChatComposer({
           items={[
             {
               id: 'attach',
-              label: 'Attach a photo',
-              icon: <PhotoIcon />,
+              label: 'Attach files',
+              icon: <AttachIcon />,
               onSelect: () => picker.current?.click(),
+            },
+            {
+              id: 'note',
+              label: 'Add note',
+              icon: <NoteIcon />,
+              hint: notes.length > 0 ? String(notes.length) : undefined,
+              children: [
+                { id: 'write', label: 'Write a note…', onSelect: openNote },
+                ...notes.map((note) => ({
+                  id: note.id,
+                  label: note.text,
+                  hint: 'Remove',
+                  onSelect: () => removeNote(note.id),
+                })),
+              ],
+            },
+            {
+              id: 'drive',
+              // The reference's third row. There is no Drive connection behind
+              // it, so it is drawn as unavailable with the reason, never as a
+              // control that quietly does nothing.
+              label: 'Upload from Google Drive',
+              icon: <DriveIcon />,
+              hint: 'Not connected',
+              disabled: true,
+              onSelect: () => {},
             },
             {
               id: 'new',
@@ -303,28 +429,54 @@ export function ChatComposer({
           ]}
         />
 
-        <Tooltip text={providerDetail}>
-          <button
-            type="button"
-            className="v-chat-composer__mode"
-            onClick={() => navigateToHash('#/settings/models')}
-          >
-            <TuneIcon />
-            <span>{providerLabel}</span>
-          </button>
-        </Tooltip>
+        {/* The chip says what will answer: the pinned model, or Automatic when
+            the router decides. Choosing one pins it for this person. */}
+        <Menu
+          trigger={
+            <>
+              {model === null ? <TuneIcon /> : <ProviderMark providerId={model.providerId} />}
+              <span>{providerLabel}</span>
+            </>
+          }
+          triggerLabel={`Model: ${providerLabel}. ${providerDetail}`}
+          placement="above-start"
+          items={[
+            {
+              id: 'auto',
+              icon: <TuneIcon />,
+              label: 'Automatic',
+              hint: model === null ? '✓' : undefined,
+              onSelect: () => chooseModel(null),
+            },
+            ...models.map((entry) => ({
+              id: `${entry.connectionId}:${entry.modelId}`,
+              icon: <ProviderMark providerId={entry.providerId} />,
+              label: entry.label,
+              hint:
+                model?.modelId === entry.modelId
+                  ? '✓'
+                  : `${entry.providerName}${entry.isDefaultConnection ? ' · default' : ''}`,
+              onSelect: () => chooseModel(entry),
+            })),
+          ]}
+        />
 
         <div className="v-chat-composer__spacer" />
 
-        {/* The reference keeps dictation while the box is empty, even with a
-            picture attached, and drops it the moment there is text to send. */}
-        {dictation && !typed && images.length > 0 && (
+        {/* Right side of the row, exactly as asked:
+              - an empty box shows TWO controls, the plain microphone and the
+                filled square;
+              - once there is text only the microphone goes, and the square in the
+                same place becomes the send control;
+              - an attachment changes nothing: only typing counts here.
+            The microphone is absent only where the browser cannot dictate. */}
+        {dictation && !typed && (
           <button
             type="button"
             className={
               listening
-                ? 'v-chat-composer__icon v-chat-composer__icon--active'
-                : 'v-chat-composer__icon'
+                ? 'v-chat-composer__mic v-chat-composer__mic--listening'
+                : 'v-chat-composer__mic'
             }
             onClick={startListening}
             aria-label={listening ? 'Stop dictation' : 'Dictate a message'}
@@ -345,33 +497,30 @@ export function ChatComposer({
           </button>
         )}
 
-        {hasSomethingToSend ? (
+        {typed ? (
           <button
             type="button"
             className="v-chat-composer__send"
             onClick={sendOrExplain}
-            disabled={!canSend}
+            disabled={busy}
             aria-label="Send message"
           >
             <ArrowUpIcon />
           </button>
         ) : dictation ? (
-          // Nothing to send: the control becomes a voice control rather than a
-          // disabled send button, and it starts dictation, which is the voice
-          // capability this build actually has.
+          // Nothing typed: the filled square is the dictation control, so it is
+          // never a dead button sitting where send will be.
           <button
             type="button"
             className="v-chat-composer__voice"
             onClick={startListening}
-            aria-label={listening ? 'Stop dictation' : 'Dictate a message'}
+            aria-label={listening ? 'Stop voice input' : 'Start voice input'}
             aria-pressed={listening}
           >
-            <MicIcon />
+            <WaveIcon />
           </button>
         ) : (
-          // No dictation in this browser, so the voice mark would be a dead
-          // control. Fall back to the send arrow, disabled because there is
-          // nothing to send.
+          // No dictation in this browser, so the square would be a dead control.
           <button
             type="button"
             className="v-chat-composer__send"
@@ -386,6 +535,36 @@ export function ChatComposer({
       <p className="v-chat-composer__hint" id="veltravia-chat-hint">
         Enter sends, Shift + Enter adds a line.
       </p>
+
+      <Dialog
+        open={noteOpen}
+        onClose={() => setNoteOpen(false)}
+        title="Add a note"
+        description="Notes go with the next message you send. They stay in this browser."
+      >
+        <label className="v-chat-composer__note-label" htmlFor="veltravia-note">
+          Note
+        </label>
+        <textarea
+          id="veltravia-note"
+          className="v-chat-composer__note"
+          rows={4}
+          value={noteDraft}
+          onChange={(event) => setNoteDraft(event.target.value)}
+        />
+        <div className="v-chat-composer__note-actions">
+          <button type="button" className="v-chat-composer__note-save" onClick={saveNote}>
+            Save note
+          </button>
+          <button
+            type="button"
+            className="v-chat-composer__note-cancel"
+            onClick={() => setNoteOpen(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      </Dialog>
     </div>
   );
 }

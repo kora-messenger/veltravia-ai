@@ -11,11 +11,18 @@ import {
 export interface MenuItemDef {
   id: string;
   label: string;
-  onSelect(): void;
+  /** Runs when the row is chosen. A row with children opens them instead. */
+  onSelect?(): void | boolean;
   icon?: ReactNode;
   /** Short trailing note, e.g. why an item is not usable yet. Read by AT. */
   hint?: string;
   disabled?: boolean;
+  /**
+   * A second level. The row then carries a caret and, when chosen, the panel
+   * shows these rows with one way back. Used where one label groups several
+   * actions, as "Add note" groups the notes already written.
+   */
+  children?: readonly MenuItemDef[];
 }
 
 /**
@@ -45,6 +52,8 @@ export interface MenuProps {
 export function Menu({ trigger, triggerLabel, items, placement = 'below-end' }: MenuProps) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  // The path into a second level, empty at the top.
+  const [trail, setTrail] = useState<readonly MenuItemDef[]>([]);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -52,8 +61,31 @@ export function Menu({ trigger, triggerLabel, items, placement = 'below-end' }: 
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
     setActiveIndex(-1);
+    setTrail([]);
     if (restoreFocus) triggerRef.current?.focus();
   }, []);
+
+  /** The rows actually on screen: the top level, or the open second level. */
+  const parent = trail[trail.length - 1];
+  const visible: readonly MenuItemDef[] = parent?.children !== undefined ? parent.children : items;
+  // A second level opens with a way back, so the keyboard can always leave it.
+  const rows: readonly MenuItemDef[] =
+    trail.length === 0
+      ? visible
+      : [
+          {
+            id: '__back',
+            label: `Back to ${parent?.label ?? 'the menu'}`,
+            onSelect: () => {
+              setTrail((current) => current.slice(0, -1));
+              setActiveIndex(0);
+              // Stepping back leaves the panel open: closing it here would hide
+              // the rows the person just asked to return to.
+              return true;
+            },
+          },
+          ...visible,
+        ];
 
   useEffect(() => {
     if (!open) return;
@@ -87,7 +119,7 @@ export function Menu({ trigger, triggerLabel, items, placement = 'below-end' }: 
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       setOpen(true);
-      setActiveIndex(event.key === 'ArrowDown' ? 0 : items.length - 1);
+      setActiveIndex(event.key === 'ArrowDown' ? 0 : rows.length - 1);
     }
   };
 
@@ -99,9 +131,9 @@ export function Menu({ trigger, triggerLabel, items, placement = 'below-end' }: 
     }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
-      if (items.length === 0) return;
+      if (rows.length === 0) return;
       const delta = event.key === 'ArrowDown' ? 1 : -1;
-      setActiveIndex((index) => (index + delta + items.length) % items.length);
+      setActiveIndex((index) => (index + delta + rows.length) % rows.length);
       return;
     }
     if (event.key === 'Home') {
@@ -111,7 +143,7 @@ export function Menu({ trigger, triggerLabel, items, placement = 'below-end' }: 
     }
     if (event.key === 'End') {
       event.preventDefault();
-      setActiveIndex(items.length - 1);
+      setActiveIndex(rows.length - 1);
     }
   };
 
@@ -149,7 +181,7 @@ export function Menu({ trigger, triggerLabel, items, placement = 'below-end' }: 
           }
           onKeyDown={handleMenuKeyDown}
         >
-          {items.map((item, index) => (
+          {rows.map((item, index) => (
             <button
               key={item.id}
               type="button"
@@ -159,15 +191,36 @@ export function Menu({ trigger, triggerLabel, items, placement = 'below-end' }: 
               }
               disabled={item.disabled}
               onMouseEnter={() => setActiveIndex(index)}
+              aria-haspopup={item.children !== undefined ? 'menu' : undefined}
               onClick={() => {
                 if (item.disabled) return;
-                item.onSelect();
+                if (item.children !== undefined) {
+                  setTrail((current) => [...current, item]);
+                  setActiveIndex(0);
+                  return;
+                }
+                // Returning true means "stay open": a row that changes the panel
+                // rather than acting has not finished the person's errand.
+                if (item.onSelect?.() === true) return;
                 close(true);
               }}
             >
               {item.icon !== undefined && <span className="v-menu__item-icon">{item.icon}</span>}
               <span className="v-menu__item-label">{item.label}</span>
               {item.hint !== undefined && <span className="v-menu__hint">{item.hint}</span>}
+              {item.children !== undefined && (
+                <span className="v-menu__caret" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" width="12" height="12" fill="none">
+                    <path
+                      d="M5 10l3-3 3 3"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+              )}
             </button>
           ))}
         </div>

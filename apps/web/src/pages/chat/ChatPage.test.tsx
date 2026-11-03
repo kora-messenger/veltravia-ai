@@ -18,6 +18,9 @@ const openActivityStream = vi.fn((_runId: string, _after: number, _handlers: unk
 vi.mock('../../api/reasoning', () => ({
   startRun: (input: unknown) => startRun(input),
   getCapabilities: () => getCapabilities(),
+  // The picker is fetched alongside capabilities; these tests never pin a model.
+  getModelPicker: () => Promise.resolve({ automatic: {}, models: [], choice: null }),
+  setChatModel: () => Promise.resolve(null),
   getRun: (id: string) => getRun(id),
   cancelRun: (id: string) => cancelRun(id),
   continueRun: (id: string) => continueRun(id),

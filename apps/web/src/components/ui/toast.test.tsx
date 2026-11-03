@@ -103,4 +103,35 @@ describe('ToastProvider', () => {
     expect(screen.getByText('First')).toBeDefined();
     expect(screen.getByText('Second')).toBeDefined();
   });
+
+  it('marks a success with a check and an error with a cross, and leaves info plain', () => {
+    function Marks() {
+      const { toast } = useToast();
+      return (
+        <Button
+          onClick={() => {
+            toast('Chat model updated', { tone: 'success', duration: 0 });
+            toast('Could not save', { tone: 'error', duration: 0 });
+            toast('Just so you know', { duration: 0 });
+          }}
+        >
+          fire
+        </Button>
+      );
+    }
+    render(
+      <ToastProvider>
+        <Marks />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'fire' }));
+    const items = screen.getAllByRole('status');
+    expect(items).toHaveLength(3);
+    expect(items[0]!.querySelector('.v-toast__mark')).not.toBeNull();
+    expect(items[1]!.querySelector('.v-toast__mark')).not.toBeNull();
+    expect(items[2]!.querySelector('.v-toast__mark')).toBeNull();
+    // The mark is decoration; the words carry the meaning.
+    expect(items[0]!.querySelector('.v-toast__mark')!.getAttribute('aria-hidden')).toBe('true');
+    expect(screen.getByText('Chat model updated')).toBeTruthy();
+  });
 });

@@ -729,6 +729,24 @@
 .v-toast--error {
   border-left-color: var(--v-error);
 }
+/* The verdict mark: a filled disc with a knocked-out glyph, 28px like the
+   reference, coloured by the same tone token as the edge. */
+.v-toast__mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #fff;
+}
+.v-toast--success .v-toast__mark {
+  background: var(--v-success);
+}
+.v-toast--error .v-toast__mark {
+  background: var(--v-error);
+}
 .v-toast__message {
   flex: 1;
   font-size: var(--v-text-sm);
@@ -744,6 +762,33 @@
 }
 .v-toast__close:hover {
   color: var(--v-text);
+}
+@media (max-width: 640px) {
+  .v-toaster {
+    left: var(--v-space-4);
+    right: var(--v-space-4);
+    bottom: calc(var(--v-space-4) + 72px + env(safe-area-inset-bottom, 0px));
+    justify-content: center;
+  }
+  .v-toaster__list {
+    width: 100%;
+    align-items: center;
+  }
+  .v-toast {
+    width: 100%;
+    max-width: 26rem;
+    border-left-width: 1px;
+    border-radius: 14px;
+    padding: var(--v-space-3) var(--v-space-4);
+    box-shadow: 0 10px 30px rgba(15, 14, 14, 0.14);
+  }
+  .v-toast__message {
+    font-size: var(--v-text-base, 1rem);
+  }
+  .v-toast__close {
+    font-size: var(--v-text-sm);
+    padding: var(--v-space-1);
+  }
 }
 @keyframes v-toast-in {
   from {
