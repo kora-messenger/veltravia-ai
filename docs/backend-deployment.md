@@ -284,3 +284,67 @@ readiness, redaction at depth, and shutdown both clean and timed out.
    review of that boundary.
 6. Uploaded files are in memory, so a restart during an analysis loses them.
 7. Usage records are capped at 5,000 per file, oldest dropped first.
+
+## Running it on your own host
+
+The API does not need Base44 or any platform to run. It is a Node process with a
+container definition and one environment file.
+
+### What holds the keys
+
+The server holds the model key. Set `OPENROUTER_API_KEY` (or `OPENAI_API_KEY`,
+`GROQ_API_KEY`, `MISTRAL_API_KEY`) in the environment and every caller is answered
+without pasting anything: on startup the pool for the default owner is seeded from
+those variables, and a restart restores it. Stored keys are encrypted with
+`VELTRAVIA_CREDENTIAL_KEY`, so a leaked database does not leak a key.
+
+Byok still works and still wins: a person who connects their own key has it used
+first, because their own key is their own spend.
+
+### What stops the bill running away
+
+`VELTRAVIA_DAILY_REQUEST_CEILING` caps model calls per owner per UTC day (default
+200, `0` lifts it). It is counted from the usage rows the gateway already writes,
+so the number a person is shown and the number enforced are the same number. The
+check runs before any provider is reached, on both the normal and the streaming
+path, and a spent day comes back as `429 GATEWAY_DAILY_CEILING_REACHED` with plain
+words: the day resets at midnight UTC.
+
+This is a spending guard, not authentication. A public deployment also needs
+sign-in in front of it, or the ceiling becomes the only thing between the internet
+and the key. That is the next piece, and it is why the workflow deploys only from
+an authorised ref.
+
+### Three ways to start it
+
+```bash
+# 1. Local, from source
+cp .env.example .env
+npm run dev --workspace @veltravia/api
+
+# 2. Container, anywhere that runs one
+docker build -t veltravia-api .
+docker run -p 3000:3000 --env-file .env veltravia-api
+
+# 3. Render, one click
+#    New -> Blueprint -> this repository. render.yaml asks once for the model key
+#    and the allowed web origin, generates the credential key, and attaches the
+#    disk that makes stored keys survive a restart.
+```
+
+`render.yaml` sets `NODE_ENV=production`, which makes startup strict on purpose: a
+missing credential key, a non-https public URL or a wildcard CORS origin stops the
+process at boot (exit 78) rather than serving a deployment that looks healthy and
+cannot answer.
+
+### Hosting is only half of it
+
+A static page cannot talk to a key by itself. Until the web build knows where the
+API lives, it shows "Simulated". Point it at the host:
+
+```bash
+VELTRAVIA_API_BASE_URL=https://your-api-host npm run build --workspace @veltravia/web
+```
+
+and set the same host's origin in `VELTRAVIA_CORS_ORIGINS` on the API, or the
+browser will block every answer.

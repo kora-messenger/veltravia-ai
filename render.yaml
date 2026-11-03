@@ -1,0 +1,55 @@
+# Veltravia API on a host of your own.
+#
+# One web service, no database to attach: provider keys are encrypted with the
+# credential key in the environment, and everything the API stores lives in a
+# disk it mounts itself. Nothing here points at Base44.
+#
+#   Render dashboard -> New -> Blueprint -> pick this repository.
+#
+# Two values are asked for once and then kept as secrets:
+#   OPENROUTER_API_KEY   the server's model key, so people never paste one
+#   VELTRAVIA_CORS_ORIGINS  the web origins allowed to call this API
+
+services:
+  - type: web
+    name: veltravia-api
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: false
+    disk:
+      name: veltravia-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PORT
+        value: 3000
+      - key: VELTRAVIA_STORAGE_DRIVER
+        value: file
+      - key: VELTRAVIA_DATA_DIR
+        value: /app/data
+      - key: VELTRAVIA_TRUST_PROXY
+        value: 'true'
+      # Render terminates TLS in front of the container, so the API is told its
+      # own address rather than guessing from a header.
+      - key: VELTRAVIA_PUBLIC_API_URL
+        value: https://veltravia-api.onrender.com
+      # The pages build is a static site: name its origin exactly, never '*'.
+      - key: VELTRAVIA_CORS_ORIGINS
+        sync: false
+      # Generated once, then held: this is what encrypts stored provider keys.
+      # Rotating it makes stored keys unreadable, which is the correct failure.
+      - key: VELTRAVIA_CREDENTIAL_KEY
+        generateValue: true
+      # The server's own model key. Set it and every signed-in person is
+      # answered without ever seeing a key.
+      - key: OPENROUTER_API_KEY
+        sync: false
+      # How many answers one person may have per UTC day. 0 lifts the ceiling.
+      - key: VELTRAVIA_DAILY_REQUEST_CEILING
+        value: '200'

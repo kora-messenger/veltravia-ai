@@ -1,0 +1,26 @@
+# What the container build does not need.
+#
+# The API image is built from the workspace manifests and the three trees it
+# actually imports, so everything else is noise: the web bundle, the Android
+# project, test fixtures, recordings and local notes.
+
+node_modules
+*/node_modules
+**/node_modules
+**/dist
+**/coverage
+**/*.test.ts
+**/*.test.tsx
+apps/web
+apps/android
+android
+docs
+scripts
+tests
+incoming_files
+tmp
+.git
+.github
+*.apk
+*.aab
+*.log
