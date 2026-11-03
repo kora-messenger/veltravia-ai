@@ -1,7 +1,18 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Menu, Tooltip, useToast } from '../../components/ui';
 import { navigateToHash } from '../../shell/useHashRoute';
-import { ArrowUpIcon, CloseIcon, MicIcon, PlusIcon, StopIcon, TuneIcon } from './chatIcons';
+import {
+  ArrowUpIcon,
+  BuilderIcon,
+  CloseIcon,
+  FolderIcon,
+  MicIcon,
+  NewChatIcon,
+  PhotoIcon,
+  PlusIcon,
+  StopIcon,
+  TuneIcon,
+} from './chatIcons';
 
 /** The slice of the Web Speech API used here, declared locally. */
 interface SpeechResultLike {
@@ -255,22 +266,38 @@ export function ChatComposer({
         <Menu
           trigger={<PlusIcon />}
           triggerLabel="More ways to start"
+          // The trigger sits at the bottom-left of the screen, so the panel opens
+          // upwards from it: opening downwards would fall off the bottom edge.
+          placement="above-start"
           items={[
-            { id: 'attach', label: 'Attach a photo', onSelect: () => picker.current?.click() },
-            { id: 'new', label: 'New conversation', onSelect: onNewChat },
+            {
+              id: 'attach',
+              label: 'Attach a photo',
+              icon: <PhotoIcon />,
+              onSelect: () => picker.current?.click(),
+            },
+            {
+              id: 'new',
+              label: 'New conversation',
+              icon: <NewChatIcon />,
+              onSelect: onNewChat,
+            },
             {
               id: 'projects',
               label: 'Go to projects',
+              icon: <FolderIcon />,
               onSelect: () => navigateToHash('#/projects'),
             },
             {
               id: 'builder',
               label: 'Open the app builder',
+              icon: <BuilderIcon />,
               onSelect: () => navigateToHash('#/builder'),
             },
             {
               id: 'settings',
               label: 'Model settings',
+              icon: <TuneIcon />,
               onSelect: () => navigateToHash('#/settings/models'),
             },
           ]}

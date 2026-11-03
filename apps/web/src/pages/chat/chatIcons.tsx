@@ -288,3 +288,35 @@ export function ShareIcon({ size = 17 }: IconProps) {
     </svg>
   );
 }
+
+/** A picture in a frame: attach a photo. */
+export function PhotoIcon({ size = 18 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <rect x="3" y="4.5" width="18" height="15" rx="2.4" />
+      <circle cx="8.6" cy="9.6" r="1.6" />
+      <path d="M21 15.5 16.4 11 6 20.4" />
+    </svg>
+  );
+}
+
+/** A folder: the projects list. */
+export function FolderIcon({ size = 18 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M3 7.4A1.9 1.9 0 0 1 4.9 5.5h4l2 2.6h8.2A1.9 1.9 0 0 1 21 10v7.6a1.9 1.9 0 0 1-1.9 1.9H4.9A1.9 1.9 0 0 1 3 17.6Z" />
+    </svg>
+  );
+}
+
+/** Four tiles: the app builder. */
+export function BuilderIcon({ size = 18 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.8" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.8" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.8" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="1.8" />
+    </svg>
+  );
+}

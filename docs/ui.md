@@ -936,3 +936,29 @@ Two controls from the reference are deliberately NOT drawn:
   not exist yet. The agent-wide menu already lives in the top bar.
 
 The composer is unchanged by this work: the row is the only addition.
+
+## The plus menu
+
+The composer's plus opens one card above itself, pinned to its left edge, because
+the trigger sits at the bottom-left of the screen: opening downwards there falls
+off the bottom, and aligning to the trigger's right edge pushes the card off the
+left. Rows are 46px tall with a leading icon, the panel is 12px-radius with the
+deep shadow, and it scrolls instead of overflowing when the window is short.
+Measured at 390x844 and 360x640: the card stays inside the viewport on both, and
+Escape closes it and returns focus to the plus.
+
+Every row does what it says:
+
+| Row                  | What it does                               |
+| -------------------- | ------------------------------------------ |
+| Attach a photo       | Opens the picture picker (up to 10 images) |
+| New conversation     | Clears the thread                          |
+| Go to projects       | Opens the projects list                    |
+| Open the app builder | Opens the app builder                      |
+| Model settings       | Opens the model settings page              |
+
+Two rows from the reference are deliberately absent. **Add note** implies attached
+context with a count; there is no note store behind the composer, so a row with a
+badge would be a number nothing tracks. **Upload from Google Drive** needs a Drive
+connector, which is not connected. Neither row is drawn as decoration, and neither
+pretends to work.

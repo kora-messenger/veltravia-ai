@@ -18,12 +18,23 @@ export interface MenuItemDef {
   disabled?: boolean;
 }
 
+/**
+ * Where the panel opens from its trigger.
+ *
+ * `below-end` is the default for a control in a bar. `above-start` is for a
+ * trigger at the bottom-left of the screen, such as the composer's plus: opening
+ * downwards there would put the panel off the bottom edge, and aligning to the
+ * trigger's right edge would push it off the left.
+ */
+export type MenuPlacement = 'below-end' | 'above-start';
+
 export interface MenuProps {
   /** The trigger element (rendered as-is inside a button). */
   trigger: ReactNode;
   /** Accessible label for the trigger button. */
   triggerLabel: string;
   items: readonly MenuItemDef[];
+  readonly placement?: MenuPlacement;
 }
 
 /**
@@ -31,7 +42,7 @@ export interface MenuProps {
  * keyboard navigation, Escape closes and restores focus to the trigger,
  * click-outside closes.
  */
-export function Menu({ trigger, triggerLabel, items }: MenuProps) {
+export function Menu({ trigger, triggerLabel, items, placement = 'below-end' }: MenuProps) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -131,7 +142,11 @@ export function Menu({ trigger, triggerLabel, items }: MenuProps) {
           role="menu"
           id={menuId}
           aria-label={triggerLabel}
-          className="v-menu__panel"
+          className={
+            placement === 'above-start'
+              ? 'v-menu__panel v-menu__panel--above-start'
+              : 'v-menu__panel'
+          }
           onKeyDown={handleMenuKeyDown}
         >
           {items.map((item, index) => (

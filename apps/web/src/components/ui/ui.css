@@ -596,6 +596,38 @@
   z-index: 40;
   animation: v-pop-in var(--v-dur-fast) var(--v-ease-out);
 }
+/* Opened upwards from a trigger at the bottom of the screen: the panel grows
+   above the composer and is pinned to the trigger's left edge. */
+.v-menu__panel--above-start {
+  top: auto;
+  bottom: calc(100% + var(--v-space-2));
+  right: auto;
+  left: 0;
+  min-width: 17rem;
+  max-width: calc(100vw - var(--v-space-6));
+  padding: var(--v-space-1);
+  border-radius: var(--v-radius-lg);
+  box-shadow: var(--v-shadow-3, var(--v-shadow-2));
+  max-height: min(60vh, 26rem);
+  overflow-y: auto;
+}
+
+.v-menu__panel--above-start .v-menu__item {
+  min-height: 46px;
+  gap: var(--v-space-3);
+  padding: var(--v-space-2) var(--v-space-3);
+  border-radius: var(--v-radius-md);
+  font-size: var(--v-text-md);
+}
+
+.v-menu__panel--above-start .v-menu__item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  color: var(--v-text);
+}
+
 .v-menu__item {
   display: flex;
   align-items: center;

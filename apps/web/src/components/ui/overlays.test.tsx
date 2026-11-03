@@ -199,3 +199,38 @@ describe('Tooltip', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 });
+
+describe('Menu placement', () => {
+  /**
+   * The composer's plus sits at the bottom-left of the screen. Opening downwards
+   * there would put the panel off the bottom edge, and aligning to the trigger's
+   * right edge would push it off the left, so the panel carries the placement
+   * class that pins it above and to the left.
+   */
+  it('marks the panel when it opens upwards from the trigger', async () => {
+    render(
+      <Menu
+        trigger={<span>+</span>}
+        triggerLabel="More ways to start"
+        placement="above-start"
+        items={[{ id: 'a', label: 'Attach a photo', onSelect: vi.fn() }]}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'More ways to start' }));
+    const panel = await screen.findByRole('menu');
+    expect(panel.className).toContain('v-menu__panel--above-start');
+  });
+
+  it('leaves the default panel alone', async () => {
+    render(
+      <Menu
+        trigger={<span>+</span>}
+        triggerLabel="Panel menu"
+        items={[{ id: 'a', label: 'Light', onSelect: vi.fn() }]}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Panel menu' }));
+    const panel = await screen.findByRole('menu');
+    expect(panel.className).not.toContain('above-start');
+  });
+});
