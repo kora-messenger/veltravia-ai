@@ -1,17 +1,13 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Dialog, Menu, useToast } from '../../components/ui';
-import { navigateToHash } from '../../shell/useHashRoute';
 import type { AvailableModel, ChatModelChoice } from '../../api/reasoning';
 import {
   ArrowUpIcon,
   AttachIcon,
-  BuilderIcon,
   DriveIcon,
   NoteIcon,
   CloseIcon,
-  FolderIcon,
   MicIcon,
-  NewChatIcon,
   PlusIcon,
   StopIcon,
   ProviderMark,
@@ -57,7 +53,6 @@ export interface ChatComposerProps {
    */
   readonly onSend: (text?: string) => void;
   readonly onStop: () => void;
-  readonly onNewChat: () => void;
   readonly busy: boolean;
   /** A fresh conversation asks an open question; a thread asks for a message. */
   readonly placeholder: string;
@@ -125,7 +120,6 @@ export function ChatComposer({
   onChange,
   onSend,
   onStop,
-  onNewChat,
   busy,
   placeholder,
   providerLabel,
@@ -401,30 +395,6 @@ export function ChatComposer({
               hint: 'Not connected',
               disabled: true,
               onSelect: () => {},
-            },
-            {
-              id: 'new',
-              label: 'New conversation',
-              icon: <NewChatIcon />,
-              onSelect: onNewChat,
-            },
-            {
-              id: 'projects',
-              label: 'Go to projects',
-              icon: <FolderIcon />,
-              onSelect: () => navigateToHash('#/projects'),
-            },
-            {
-              id: 'builder',
-              label: 'Open the app builder',
-              icon: <BuilderIcon />,
-              onSelect: () => navigateToHash('#/builder'),
-            },
-            {
-              id: 'settings',
-              label: 'Model settings',
-              icon: <TuneIcon />,
-              onSelect: () => navigateToHash('#/settings/models'),
             },
           ]}
         />

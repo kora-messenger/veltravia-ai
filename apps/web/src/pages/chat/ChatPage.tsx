@@ -123,7 +123,6 @@ export function ChatPage() {
           onChange={session.setDraft}
           onSend={session.send}
           onStop={session.chat.stop}
-          onNewChat={session.newChat}
           busy={session.chat.busy}
           placeholder={session.placeholder}
           providerLabel={session.providerLabel}

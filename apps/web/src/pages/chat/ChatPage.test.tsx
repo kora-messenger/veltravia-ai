@@ -328,21 +328,24 @@ describe('the chat landing page', () => {
     expect(screen.queryByRole('button', { name: 'Dictate a message' })).toBeNull();
   });
 
-  it('starts a new conversation without a page reload', async () => {
-    startRun.mockResolvedValue(run());
+  it('keeps the plus menu to attaching, notes and Drive', async () => {
     renderPage();
-    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Hello' } });
-    fireEvent.keyDown(screen.getByLabelText('Message'), { key: 'Enter' });
-    await screen.findByText('Here is what I found.');
-    // The thread has no header of its own; starting over lives in the box's menu.
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'More ways to start' }));
     });
-    await act(async () => {
-      fireEvent.click(screen.getByRole('menuitem', { name: 'New conversation' }));
-    });
-    expect(screen.queryByText('Here is what I found.')).toBeNull();
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Hey there');
+    const rows = screen.getAllByRole('menuitem').map((row) => row.textContent ?? '');
+    expect(rows.some((label) => label.includes('Attach files'))).toBe(true);
+    expect(rows.some((label) => label.includes('Add note'))).toBe(true);
+    expect(rows.some((label) => label.includes('Upload from Google Drive'))).toBe(true);
+    // These four were removed on purpose; they must not creep back in.
+    for (const gone of [
+      'New conversation',
+      'Go to projects',
+      'Open the app builder',
+      'Model settings',
+    ]) {
+      expect(rows.some((label) => label.includes(gone))).toBe(false);
+    }
   });
 });
 

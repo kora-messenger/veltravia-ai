@@ -301,26 +301,7 @@ export function PhotoIcon({ size = 18 }: IconProps) {
 }
 
 /** A folder: the projects list. */
-export function FolderIcon({ size = 18 }: IconProps) {
-  return (
-    <svg {...base(size)}>
-      <path d="M3 7.4A1.9 1.9 0 0 1 4.9 5.5h4l2 2.6h8.2A1.9 1.9 0 0 1 21 10v7.6a1.9 1.9 0 0 1-1.9 1.9H4.9A1.9 1.9 0 0 1 3 17.6Z" />
-    </svg>
-  );
-}
-
 /** Four tiles: the app builder. */
-export function BuilderIcon({ size = 18 }: IconProps) {
-  return (
-    <svg {...base(size)}>
-      <rect x="3.5" y="3.5" width="7" height="7" rx="1.8" />
-      <rect x="13.5" y="3.5" width="7" height="7" rx="1.8" />
-      <rect x="3.5" y="13.5" width="7" height="7" rx="1.8" />
-      <rect x="13.5" y="13.5" width="7" height="7" rx="1.8" />
-    </svg>
-  );
-}
-
 /** A paperclip: attach a file. */
 export function AttachIcon({ size = 18 }: IconProps) {
   return (
