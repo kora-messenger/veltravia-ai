@@ -10,6 +10,8 @@ export const CODING_AUDIT_EVENT_TYPES = [
   'coding_run_started',
   'coding_plan_created',
   'coding_plan_approved',
+  'coding_checkpoint',
+  'coding_checkpoint_failed',
   'coding_plan_rejected',
   'coding_tool_requested',
   'coding_tool_executed',

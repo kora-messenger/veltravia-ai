@@ -209,6 +209,13 @@ export function createVersionTools(manager: VersionControlManager): {
             minimum: 0,
           },
           reason: { type: 'string', description: 'Why this rollback is needed.', maxLength: 500 },
+          paths: {
+            type: 'array',
+            description: 'Restore only these files or folders. Omit to restore the whole tree.',
+            items: { type: 'string', minLength: 1, maxLength: 512 },
+            minItems: 1,
+            maxItems: 200,
+          },
         },
         required: ['projectId', 'workspaceId', 'targetRevisionId', 'expectedCurrentRevision'],
         additionalProperties: false,
@@ -227,6 +234,10 @@ export function createVersionTools(manager: VersionControlManager): {
             description: 'The restored revision number.',
           },
           filesChanged: { type: 'number', description: 'Restore steps applied.' },
+          recoveryCheckpointId: {
+            type: 'string',
+            description: 'The checkpoint taken just before the restore, to undo it.',
+          },
         },
         required: [
           'newRevisionId',
@@ -242,13 +253,22 @@ export function createVersionTools(manager: VersionControlManager): {
       requiresConfirmation: true,
     }),
     async (input) => {
-      const result = await manager.executeRollback({
+      const base = {
         projectId: stringInput(input, 'projectId'),
         workspaceId: stringInput(input, 'workspaceId'),
         targetRevisionId: stringInput(input, 'targetRevisionId'),
         expectedCurrentRevision: Number(input.expectedCurrentRevision),
         reason: optionalStringInput(input, 'reason') ?? null,
-      });
+      };
+      const paths = Array.isArray(input.paths)
+        ? input.paths.filter((p): p is string => typeof p === 'string')
+        : undefined;
+      // One tool, one confirmation, one audit trail: a selective restore is the
+      // same gated action with a narrower reach, never a separate path around it.
+      const result =
+        paths !== undefined
+          ? await manager.executeSelectiveRollback({ ...base, paths })
+          : await manager.executeRollback(base);
       return { ...result };
     },
   );

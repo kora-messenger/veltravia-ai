@@ -16,6 +16,7 @@ const CODING_ERROR_STATUS: Record<string, number> = {
   CODING_INVALID_PLAN: 400,
   CODING_PLAN_REJECTED: 400,
   CODING_INVALID_DECISION: 400,
+  CODING_CHECKPOINT_FAILED: 409,
   CODING_STALE_REVISION: 409,
   CODING_PROJECT_NOT_FOUND: 404,
   CODING_WORKSPACE_NOT_FOUND: 404,
@@ -80,6 +81,8 @@ function toRunPayload(
     plan: view.plan,
     failure: view.failure,
     phase: view.phase,
+    // What was (or was not) checkpointed before the approved changes.
+    checkpoint: view.checkpoint,
     ...(decisionSource !== undefined
       ? {
           model: (() => {

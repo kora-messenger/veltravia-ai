@@ -85,6 +85,8 @@ export interface RollbackOperationView {
     readonly restoredFromRevisionId: string;
     readonly restoredFromRevisionNumber: number;
     readonly filesChanged: number;
+    /** The checkpoint saved just before the restore, so it can be undone. */
+    readonly recoveryCheckpointId: string | null;
   } | null;
   readonly failureCode: string | null;
   readonly failureMessage: string | null;
@@ -93,6 +95,8 @@ export interface RollbackOperationView {
     readonly targetRevisionId: string;
     readonly expectedCurrentRevision: number;
     readonly reason: string | null;
+    /** The files being restored. Null means the whole project. */
+    readonly paths: readonly string[] | null;
   };
 }
 
@@ -198,6 +202,7 @@ function toOperationView(raw: unknown): RollbackOperationView {
           restoredFromRevisionId: asString(result.restoredFromRevisionId),
           restoredFromRevisionNumber: asNumber(result.restoredFromRevisionNumber),
           filesChanged: asNumber(result.filesChanged),
+          recoveryCheckpointId: asNullableString(result.recoveryCheckpointId),
         }
       : null,
     failureCode: asNullableString(record.failureCode),
@@ -207,6 +212,9 @@ function toOperationView(raw: unknown): RollbackOperationView {
       targetRevisionId: asString(request.targetRevisionId),
       expectedCurrentRevision: asNumber(request.expectedCurrentRevision),
       reason: asNullableString(request.reason),
+      paths: Array.isArray(request.paths)
+        ? request.paths.filter((path): path is string => typeof path === 'string')
+        : null,
     },
   };
 }
@@ -248,6 +256,21 @@ export async function fetchRevisionDiff(
 ): Promise<DiffView> {
   const raw = await apiRequest<Record<string, unknown>>(
     `/api/projects/${enc(projectId)}/revisions/${enc(revisionId)}/diff?workspaceId=${enc(workspaceId)}`,
+    { ...(options.fetchImpl !== undefined ? { fetchImpl: options.fetchImpl } : {}) },
+  );
+  return toDiffView(raw);
+}
+
+/** Compares any two revisions of a workspace: what changed from `from` to `to`. */
+export async function compareRevisions(
+  projectId: string,
+  workspaceId: string,
+  from: string,
+  to: string,
+  options: { readonly fetchImpl?: typeof fetch } = {},
+): Promise<DiffView> {
+  const raw = await apiRequest<Record<string, unknown>>(
+    `/api/projects/${enc(projectId)}/revisions/compare?workspaceId=${enc(workspaceId)}&from=${enc(from)}&to=${enc(to)}`,
     { ...(options.fetchImpl !== undefined ? { fetchImpl: options.fetchImpl } : {}) },
   );
   return toDiffView(raw);
@@ -327,6 +350,8 @@ export async function openRollback(
     readonly targetRevisionId: string;
     readonly expectedCurrentRevision: number;
     readonly reason?: string;
+    /** Restore only these files or folders; leave out for the whole project. */
+    readonly paths?: readonly string[];
     readonly fetchImpl?: typeof fetch;
   },
 ): Promise<OpenedRollback> {
@@ -339,6 +364,7 @@ export async function openRollback(
         targetRevisionId: input.targetRevisionId,
         expectedCurrentRevision: input.expectedCurrentRevision,
         ...(input.reason !== undefined ? { reason: input.reason } : {}),
+        ...(input.paths !== undefined ? { paths: [...input.paths] } : {}),
       },
       ...(input.fetchImpl !== undefined ? { fetchImpl: input.fetchImpl } : {}),
     },

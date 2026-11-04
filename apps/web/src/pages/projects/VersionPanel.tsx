@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Button,
   Dialog,
   ErrorState,
   Input,
-  Select,
   Spinner,
   Tabs,
   useToast,
 } from '../../components/ui';
+import { fetchBranchHistory, type BranchView, type HistoryEntryView } from '../../api/branches';
+import { BranchBar } from './BranchBar';
 import {
   captureRevision,
+  compareRevisions,
   createCheckpoint,
   decideRollback,
   deleteCheckpoint,
@@ -62,6 +64,34 @@ const SOURCE_TONE: Record<string, 'success' | 'warning' | 'neutral'> = {
 
 const MAX_DIFF_LINES = 200;
 
+// The comparison runs from the current files TO the revision being restored, so
+// each kind already describes what restoring does to that file: a file marked
+// "deleted" is one that exists now and not then, and will be removed.
+const RESTORE_KIND_LABEL: Record<string, string> = {
+  added: 'will come back',
+  modified: 'will be reverted',
+  deleted: 'will be removed',
+  renamed: 'will be renamed',
+};
+
+const ACTOR_LABEL: Record<HistoryEntryView['actor'], string> = {
+  user: 'You',
+  'ai-agent': 'AI agent',
+  system: 'Restore',
+};
+const ACTOR_TONE: Record<HistoryEntryView['actor'], 'success' | 'warning' | 'neutral'> = {
+  user: 'success',
+  'ai-agent': 'warning',
+  system: 'neutral',
+};
+
+function entryFor(
+  history: readonly HistoryEntryView[] | null,
+  revisionId: string,
+): HistoryEntryView | null {
+  return history?.find((entry) => entry.revisionId === revisionId) ?? null;
+}
+
 function sourceLabel(source: string): string {
   return SOURCE_LABEL[source] ?? source.replace(/_/g, ' ');
 }
@@ -89,10 +119,13 @@ export function VersionPanel({
     () => workspaces.filter((workspace) => workspace.status === 'active'),
     [workspaces],
   );
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>(
-    activeWorkspaces[0]?.id ?? '',
-  );
-  const selectedWorkspace = activeWorkspaces.find((w) => w.id === selectedWorkspaceId) ?? null;
+  // The branch in view decides which workspace the rest of the panel shows.
+  const [branch, setBranch] = useState<BranchView | null>(null);
+  const [branchRefresh, setBranchRefresh] = useState(0);
+  const [history, setHistory] = useState<readonly HistoryEntryView[] | null>(null);
+  const branchIdRef = useRef<string | null>(null);
+  const selectedWorkspaceId = branch?.workspaceId ?? '';
+  const selectedWorkspace = workspaces.find((w) => w.id === selectedWorkspaceId) ?? null;
 
   const [revisions, setRevisions] = useState<readonly RevisionView[] | null>(null);
   const [checkpoints, setCheckpoints] = useState<readonly CheckpointView[] | null>(null);
@@ -107,6 +140,14 @@ export function VersionPanel({
   const [diff, setDiff] = useState<DiffView | null>(null);
   const [diffBusy, setDiffBusy] = useState<string | null>(null);
   const [pendingRollback, setPendingRollback] = useState<OpenedRollback | null>(null);
+  // Restore step 1: which files would change, so the person can choose.
+  const [choosing, setChoosing] = useState<{
+    readonly revision: RevisionView;
+    readonly files: readonly { readonly path: string; readonly kind: string }[];
+  } | null>(null);
+  const [chosenPaths, setChosenPaths] = useState<ReadonlySet<string>>(new Set());
+  // The paths the open confirmation was requested for; null means everything.
+  const [pendingPaths, setPendingPaths] = useState<readonly string[] | null>(null);
   const [deciding, setDeciding] = useState(false);
 
   const reload = useCallback(async () => {
@@ -117,23 +158,28 @@ export function VersionPanel({
     setLoadError(null);
     setActionError(null);
     try {
-      const [revisionViews, checkpointViews] = await Promise.all([
+      const [revisionViews, checkpointViews, historyPage] = await Promise.all([
         listRevisions(projectId, selectedWorkspace.id),
         listCheckpoints(projectId, selectedWorkspace.id),
+        branch !== null
+          ? fetchBranchHistory(projectId, branch.id, { limit: 100 })
+          : Promise.resolve(null),
       ]);
       setRevisions(revisionViews);
       setCheckpoints(checkpointViews);
+      setHistory(historyPage?.entries ?? null);
     } catch (failure) {
       setLoadError(errorMessage(failure));
     } finally {
       setLoading(false);
     }
-  }, [projectId, selectedWorkspace]);
+  }, [projectId, selectedWorkspace, branch]);
 
   useEffect(() => {
     setLoading(true);
     setRevisions(null);
     setCheckpoints(null);
+    setHistory(null);
     void reload();
   }, [reload]);
 
@@ -158,6 +204,7 @@ export function VersionPanel({
       setCaptureMessage('');
       toast('Revision captured', { tone: 'success' });
       await reload();
+      setBranchRefresh((value) => value + 1);
       onWorkspaceRevisionChanged?.();
     });
   };
@@ -199,18 +246,62 @@ export function VersionPanel({
     })();
   };
 
+  // Stable identity: BranchBar reports the branch after every refresh, and only a
+  // DIFFERENT branch should close an open diff or restore dialog. Clearing them on
+  // a refresh would make a confirmation vanish the moment it opened.
+  const handleBranchChange = useCallback((next: BranchView | null): void => {
+    setBranch(next);
+    if (next?.id !== branchIdRef.current) {
+      branchIdRef.current = next?.id ?? null;
+      setDiff(null);
+      setPendingRollback(null);
+    }
+  }, []);
+
+  /** Step 1: show which files restoring this revision would change. */
   const handleRestoreRequest = (revision: RevisionView): void => {
-    if (selectedWorkspace === null) return;
+    if (selectedWorkspace === null || latestRevisionId === null) return;
+    setActionError(null);
+    void (async () => {
+      setBusy(true);
+      try {
+        const comparison = await compareRevisions(
+          projectId,
+          selectedWorkspace.id,
+          latestRevisionId,
+          revision.id,
+        );
+        const files = comparison.files
+          .filter((file) => file.kind !== 'unchanged')
+          .map((file) => ({ path: file.path, kind: file.kind }));
+        setChosenPaths(new Set(files.map((file) => file.path)));
+        setChoosing({ revision, files });
+      } catch (failure) {
+        setActionError(errorMessage(failure));
+      } finally {
+        setBusy(false);
+      }
+    })();
+  };
+
+  /** Step 2: ask the server, which pauses for the person's confirmation. */
+  const handleConfirmChoice = (): void => {
+    if (selectedWorkspace === null || choosing === null || chosenPaths.size === 0) return;
+    const everything = chosenPaths.size === choosing.files.length;
+    const paths = everything ? null : [...chosenPaths];
     setActionError(null);
     void (async () => {
       setBusy(true);
       try {
         const opened = await openRollback(projectId, {
           workspaceId: selectedWorkspace.id,
-          targetRevisionId: revision.id,
+          targetRevisionId: choosing.revision.id,
           expectedCurrentRevision: selectedWorkspace.revision,
+          ...(paths !== null ? { paths } : {}),
         });
+        setPendingPaths(paths);
         setPendingRollback(opened);
+        setChoosing(null);
       } catch (failure) {
         setActionError(errorMessage(failure));
       } finally {
@@ -234,6 +325,7 @@ export function VersionPanel({
         }
         setPendingRollback(null);
         await reload();
+        setBranchRefresh((value) => value + 1);
         onWorkspaceRevisionChanged?.();
       } catch (failure) {
         setActionError(errorMessage(failure));
@@ -262,13 +354,18 @@ export function VersionPanel({
       <div className="v-page-section__header">
         <h3 className="v-heading-3">Version history</h3>
       </div>
+      <BranchBar
+        projectId={projectId}
+        refreshKey={branchRefresh}
+        onBranchChange={handleBranchChange}
+      />
       {actionError !== null ? (
         <p className="v-preview__failure" role="alert">
           {actionError}
         </p>
       ) : null}
 
-      {loadError !== null ? (
+      {selectedWorkspace === null ? null : loadError !== null ? (
         <ErrorState
           title="Could not load version history"
           description={loadError}
@@ -286,21 +383,6 @@ export function VersionPanel({
         </p>
       ) : (
         <>
-          <div className="v-preview__controls">
-            <Select
-              label="Workspace"
-              value={selectedWorkspaceId}
-              options={activeWorkspaces.map((workspace) => ({
-                value: workspace.id,
-                label: workspace.name,
-              }))}
-              onChange={(event) => {
-                setSelectedWorkspaceId(event.target.value);
-                setDiff(null);
-                setPendingRollback(null);
-              }}
-            />
-          </div>
           <Tabs
             aria-label="Version views"
             tabs={[
@@ -328,49 +410,64 @@ export function VersionPanel({
                       </p>
                     ) : (
                       <ul className="v-version-list">
-                        {(revisions ?? []).map((revision) => (
-                          <li key={revision.id} className="v-version-row">
-                            <span className="v-version-row__number">
-                              #{revision.revisionNumber}
-                            </span>
-                            <Badge tone={SOURCE_TONE[revision.source] ?? 'neutral'}>
-                              {sourceLabel(revision.source)}
-                            </Badge>
-                            <span className="v-version-row__meta">
-                              {revision.change.added} added · {revision.change.modified} changed ·{' '}
-                              {revision.change.deleted} removed · {revision.fileCount} files
-                            </span>
-                            {revision.message !== null ? (
-                              <span className="v-version-row__message">{revision.message}</span>
-                            ) : null}
-                            <span className="v-version-row__created">
-                              {formatTimestamp(revision.createdAt)}
-                            </span>
-                            <span className="v-version-row__actions">
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => handleViewDiff(revision)}
-                                disabled={diffBusy === revision.id}
-                              >
-                                {diffBusy === revision.id ? 'Loading…' : 'Diff'}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => handleRestoreRequest(revision)}
-                                disabled={busy || revision.id === latestRevisionId}
-                                title={
-                                  revision.id === latestRevisionId
-                                    ? 'This is the latest revision.'
-                                    : undefined
-                                }
-                              >
-                                Restore…
-                              </Button>
-                            </span>
-                          </li>
-                        ))}
+                        {(revisions ?? []).map((revision) => {
+                          const entry = entryFor(history, revision.id);
+                          return (
+                            <li key={revision.id} className="v-version-row">
+                              <span className="v-version-row__number">
+                                #{revision.revisionNumber}
+                              </span>
+                              <Badge tone={SOURCE_TONE[revision.source] ?? 'neutral'}>
+                                {sourceLabel(revision.source)}
+                              </Badge>
+                              {entry !== null ? (
+                                <Badge tone={ACTOR_TONE[entry.actor]}>
+                                  {ACTOR_LABEL[entry.actor]}
+                                </Badge>
+                              ) : null}
+                              {entry !== null && entry.checkpointNames.length > 0 ? (
+                                <Badge tone="success">
+                                  {entry.checkpointNames.length === 1
+                                    ? entry.checkpointNames[0]
+                                    : `${entry.checkpointNames.length} checkpoints`}
+                                </Badge>
+                              ) : null}
+                              <span className="v-version-row__meta">
+                                {revision.change.added} added · {revision.change.modified} changed ·{' '}
+                                {revision.change.deleted} removed · {revision.fileCount} files
+                              </span>
+                              {revision.message !== null ? (
+                                <span className="v-version-row__message">{revision.message}</span>
+                              ) : null}
+                              <span className="v-version-row__created">
+                                {formatTimestamp(revision.createdAt)}
+                              </span>
+                              <span className="v-version-row__actions">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => handleViewDiff(revision)}
+                                  disabled={diffBusy === revision.id}
+                                >
+                                  {diffBusy === revision.id ? 'Loading…' : 'Diff'}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => handleRestoreRequest(revision)}
+                                  disabled={busy || revision.id === latestRevisionId}
+                                  title={
+                                    revision.id === latestRevisionId
+                                      ? 'This is the latest revision.'
+                                      : undefined
+                                  }
+                                >
+                                  Restore…
+                                </Button>
+                              </span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </div>
@@ -465,6 +562,68 @@ export function VersionPanel({
         </Dialog>
       ) : null}
 
+      {choosing !== null ? (
+        <Dialog
+          open
+          title={`Restore from revision #${choosing.revision.revisionNumber}`}
+          onClose={() => {
+            if (!busy) setChoosing(null);
+          }}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setChoosing(null)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleConfirmChoice}
+                disabled={busy || chosenPaths.size === 0}
+              >
+                {busy ? 'Checking…' : 'Continue'}
+              </Button>
+            </>
+          }
+        >
+          {choosing.files.length === 0 ? (
+            <p className="v-muted">
+              The current files already match this revision, so there is nothing to restore.
+            </p>
+          ) : (
+            <>
+              <p>
+                Choose the files to bring back. Files you leave unticked stay exactly as they are
+                now.
+              </p>
+              <ul className="v-restore-files" aria-label="Files to restore">
+                {choosing.files.map((file) => (
+                  <li key={file.path}>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={chosenPaths.has(file.path)}
+                        onChange={(event) => {
+                          setChosenPaths((current) => {
+                            const next = new Set(current);
+                            if (event.target.checked) next.add(file.path);
+                            else next.delete(file.path);
+                            return next;
+                          });
+                        }}
+                      />{' '}
+                      <span className="v-restore-files__path">{file.path}</span>{' '}
+                      <Badge tone="neutral">{RESTORE_KIND_LABEL[file.kind] ?? file.kind}</Badge>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              <p className="v-muted">
+                {chosenPaths.size} of {choosing.files.length} selected.
+              </p>
+            </>
+          )}
+        </Dialog>
+      ) : null}
+
       {pendingRollback !== null ? (
         <Dialog
           open
@@ -490,12 +649,26 @@ export function VersionPanel({
           }
         >
           <p>
-            The workspace will be restored to revision #
-            {pendingRollback.validation.targetRevisionNumber} (
-            {pendingRollback.validation.filesChanged} file
-            {pendingRollback.validation.filesChanged === 1 ? '' : 's'} will change). The current
-            files are kept in history: the restore itself is recorded as a NEW revision, so nothing
-            is lost.
+            {pendingPaths === null
+              ? 'The whole project'
+              : `${pendingPaths.length} chosen file${pendingPaths.length === 1 ? '' : 's'}`}{' '}
+            will be restored to revision #{pendingRollback.validation.targetRevisionNumber} (
+            {pendingRollback.validation.filesChanged} change
+            {pendingRollback.validation.filesChanged === 1 ? '' : 's'}).
+            {pendingPaths !== null ? ' Every other file stays as it is.' : ''}
+          </p>
+          {pendingPaths !== null ? (
+            <ul className="v-restore-files" aria-label="Files being restored">
+              {pendingPaths.map((path) => (
+                <li key={path}>
+                  <span className="v-restore-files__path">{path}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <p>
+            Before anything changes, the files as they are now are saved as a recovery point, and
+            the restore is recorded as a NEW revision, so you can undo it.
           </p>
           <p className="v-muted">
             Closing this dialog without confirming leaves the workspace untouched.

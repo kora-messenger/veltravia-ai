@@ -47,6 +47,7 @@ const VERSION_ERROR_STATUS: Record<string, number> = {
   VERSION_INVALID_TRANSITION: 409,
   VERSION_OPERATION_ALREADY_RESOLVED: 409,
   VERSION_RETENTION_VIOLATION: 422,
+  VERSION_RESTORE_PATHS_INVALID: 400,
 };
 
 function toHttpError(error: unknown): { status: number; body: Record<string, unknown> } {
@@ -123,6 +124,8 @@ function toOperationView(operation: RollbackOperation): Record<string, unknown> 
       targetRevisionId: operation.request.targetRevisionId,
       expectedCurrentRevision: operation.request.expectedCurrentRevision,
       reason: operation.request.reason,
+      // Which files the person is approving; null means the whole tree.
+      paths: operation.request.paths ?? null,
     },
   };
 }
@@ -202,6 +205,12 @@ export function registerVersionRoutes(app: FastifyInstance, options: VersionRout
       targetRevisionId: { type: 'string', minLength: 1, maxLength: 128 },
       expectedCurrentRevision: { type: 'integer', minimum: 0 },
       reason: { type: 'string', maxLength: 500 },
+      paths: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 200,
+        items: { type: 'string', minLength: 1, maxLength: 512 },
+      },
     },
   };
 
@@ -432,6 +441,7 @@ export function registerVersionRoutes(app: FastifyInstance, options: VersionRout
         targetRevisionId: string;
         expectedCurrentRevision: number;
         reason?: string;
+        paths?: string[];
       };
       // The Tool System schema requires strings, not null: omit `reason`
       // entirely when the caller did not supply one.
@@ -441,6 +451,7 @@ export function registerVersionRoutes(app: FastifyInstance, options: VersionRout
         targetRevisionId: body.targetRevisionId,
         expectedCurrentRevision: body.expectedCurrentRevision,
         ...(body.reason !== undefined ? { reason: body.reason } : {}),
+        ...(body.paths !== undefined ? { paths: body.paths } : {}),
       };
       try {
         // Pre-validation gives honest typed errors BEFORE any confirmation.
@@ -591,6 +602,8 @@ export function registerVersionRoutes(app: FastifyInstance, options: VersionRout
             targetRevisionId: stored.targetRevisionId,
             expectedCurrentRevision: stored.expectedCurrentRevision,
             ...(stored.reason !== null ? { reason: stored.reason } : {}),
+            // The approved paths, exactly as stored: the replay can never widen them.
+            ...(stored.paths !== undefined ? { paths: [...stored.paths] } : {}),
           },
           { requester: 'api', confirmationId },
         );

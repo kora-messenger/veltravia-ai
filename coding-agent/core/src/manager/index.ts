@@ -36,6 +36,8 @@ function isExternalToolId(toolId: string): boolean {
 }
 import {
   isCodingRunTerminal,
+  type CodingCheckpointPort,
+  type CodingCheckpointReport,
   type CodingDecisionContext,
   type CodingDecisionSource,
   type CodingPendingApproval,
@@ -62,6 +64,9 @@ interface ManagedRun {
   state: CodingRunState;
   plan: CodingPlan | null;
   planApproved: boolean;
+  /** Set once the checkpoint step has run, so it happens once per run. */
+  checkpoint: CodingCheckpointReport | null;
+  checkpointDone: boolean;
   summary: string | null;
   changedFiles: Map<string, 'created' | 'updated' | 'moved' | 'deleted'>;
   workspaceRevision: number | null;
@@ -114,6 +119,8 @@ export interface CodingAgentManagerOptions {
   readonly toolAllowlist?: readonly string[];
   /** Trusted server-side limit overrides (still capped by hard ceilings). */
   readonly limits?: Partial<CodingRunLimits>;
+  /** Takes the checkpoint before approved changes. Absent = none is taken. */
+  readonly checkpoints?: CodingCheckpointPort;
 }
 
 /** Loop signal: `null` = keep driving, otherwise the run stops with this view. */
@@ -127,6 +134,7 @@ export class CodingAgentManager {
   private readonly requirePlanApproval: boolean;
   private readonly toolAllowlist: readonly string[];
   private readonly limitOverrides: Partial<CodingRunLimits>;
+  private readonly checkpoints: CodingCheckpointPort | undefined;
   private readonly runs = new Map<string, ManagedRun>();
 
   constructor(options: CodingAgentManagerOptions) {
@@ -138,6 +146,7 @@ export class CodingAgentManager {
     this.requirePlanApproval = options.requirePlanApproval ?? true;
     this.toolAllowlist = options.toolAllowlist ?? [];
     this.limitOverrides = options.limits ?? {};
+    this.checkpoints = options.checkpoints;
   }
 
   // ---- lifecycle ------------------------------------------------------------
@@ -163,6 +172,8 @@ export class CodingAgentManager {
       state: 'idle',
       plan: null,
       planApproved: false,
+      checkpoint: null,
+      checkpointDone: false,
       summary: null,
       changedFiles: new Map(),
       workspaceRevision: null,
@@ -439,12 +450,58 @@ export class CodingAgentManager {
     return null;
   }
 
+  /**
+   * Asks the host for a checkpoint before the approved changes. If the host
+   * says one is needed and cannot make it, the run stops here, before any
+   * change: proceeding without a way back is the one thing this must not do.
+   */
+  private async takeCheckpoint(run: ManagedRun): Promise<DriveOutcome> {
+    run.checkpointDone = true;
+    if (this.checkpoints === undefined || run.plan === null) return null;
+    const audit = createCodingAuditEmitter(run.request.runId, this.now);
+    try {
+      run.checkpoint = await this.checkpoints.beforeApprovedChanges({
+        runId: run.request.runId,
+        projectId: run.request.projectId,
+        workspaceId: run.request.workspaceId,
+        plan: run.plan,
+      });
+      audit(
+        'coding_checkpoint',
+        run.checkpoint.taken
+          ? `Checkpoint taken before changes: ${run.checkpoint.reason}`
+          : `No checkpoint needed: ${run.checkpoint.reason}`,
+        { taken: run.checkpoint.taken },
+      );
+      return null;
+    } catch {
+      audit(
+        'coding_checkpoint_failed',
+        'The checkpoint could not be taken; no files were changed',
+        {},
+      );
+      return this.finishFailure(
+        run,
+        'CODING_CHECKPOINT_FAILED',
+        'a checkpoint could not be taken before the changes, so nothing was changed',
+      );
+    }
+  }
+
   private async handleAction(
     run: ManagedRun,
     action: { type: string } & Record<string, unknown>,
   ): Promise<DriveOutcome> {
     if (run.plan === null || !run.planApproved) {
       return this.finishFailure(run, 'CODING_INVALID_DECISION', 'actions require an approved plan');
+    }
+    // Once per run, after approval and before anything is acted on: the way
+    // back exists before the first change. Both approval paths (a person
+    // clicking approve, or approval switched off) arrive here, so neither can
+    // skip it.
+    if (!run.checkpointDone) {
+      const stop = await this.takeCheckpoint(run);
+      if (stop !== null) return stop;
     }
     if (run.toolCalls >= run.limits.maxToolCalls) {
       return this.finishFailure(run, 'CODING_TOOL_CALL_LIMIT', 'tool-call limit reached');
@@ -1013,6 +1070,7 @@ export class CodingAgentManager {
       plan: run.plan,
       failure: run.failure,
       phase: run.phase,
+      checkpoint: run.checkpoint,
     };
   }
 

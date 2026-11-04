@@ -6,6 +6,7 @@ import { ToastProvider } from '../../components/ui';
 import { VersionPanel } from './VersionPanel';
 import {
   captureRevision,
+  compareRevisions,
   createCheckpoint,
   decideRollback,
   deleteCheckpoint,
@@ -18,6 +19,13 @@ import {
   type OpenedRollback,
   type RevisionView,
 } from '../../api/versions';
+import {
+  fetchBranchHistory,
+  getBranch,
+  listBranches,
+  switchBranch,
+  type BranchView,
+} from '../../api/branches';
 import { ApiError } from '../../api/client';
 import type { WorkspaceView } from '../../api/workspaces';
 
@@ -28,6 +36,7 @@ vi.mock('../../api/versions', async (importOriginal) => {
     listRevisions: vi.fn(),
     listCheckpoints: vi.fn(),
     captureRevision: vi.fn(),
+    compareRevisions: vi.fn(),
     createCheckpoint: vi.fn(),
     deleteCheckpoint: vi.fn(),
     fetchRevisionDiff: vi.fn(),
@@ -36,14 +45,30 @@ vi.mock('../../api/versions', async (importOriginal) => {
   };
 });
 
+vi.mock('../../api/branches', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../api/branches')>();
+  return {
+    ...actual,
+    listBranches: vi.fn(),
+    getBranch: vi.fn(),
+    switchBranch: vi.fn(),
+    fetchBranchHistory: vi.fn(),
+  };
+});
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
 
+const mockedListBranches = vi.mocked(listBranches);
+const mockedHistory = vi.mocked(fetchBranchHistory);
+const mockedSwitch = vi.mocked(switchBranch);
+const mockedGetBranch = vi.mocked(getBranch);
 const mockedListRevisions = vi.mocked(listRevisions);
 const mockedListCheckpoints = vi.mocked(listCheckpoints);
 const mockedCapture = vi.mocked(captureRevision);
+const mockedCompare = vi.mocked(compareRevisions);
 const mockedCreateCheckpoint = vi.mocked(createCheckpoint);
 const mockedDeleteCheckpoint = vi.mocked(deleteCheckpoint);
 const mockedDiff = vi.mocked(fetchRevisionDiff);
@@ -90,12 +115,57 @@ function checkpoint(overrides: Partial<CheckpointView> = {}): CheckpointView {
   };
 }
 
+function branch(overrides: Partial<BranchView> = {}): BranchView {
+  return {
+    id: 'br-main',
+    name: 'main',
+    description: null,
+    state: 'active',
+    isDefault: true,
+    isActive: true,
+    workspaceId: 'ws-1',
+    baseRevisionId: null,
+    parentBranchId: null,
+    createdAt: '2026-09-19T09:00:00Z',
+    createdBy: 'user',
+    archivedAt: null,
+    ...overrides,
+  };
+}
+
 function seed(
   revisions: readonly RevisionView[],
   checkpoints: readonly CheckpointView[] = [],
 ): void {
   mockedListRevisions.mockResolvedValue(revisions);
   mockedListCheckpoints.mockResolvedValue(checkpoints);
+  // Restoring first asks which files would change. Latest -> target, so
+  // "added" is a file that comes back and "deleted" one that is removed.
+  mockedCompare.mockResolvedValue({
+    fromRevisionId: 'rev-2',
+    toRevisionId: 'rev-1',
+    fromLabel: null,
+    toLabel: null,
+    added: 1,
+    modified: 1,
+    deleted: 0,
+    renamed: 0,
+    unchanged: 3,
+    files: [
+      { path: 'src/app.ts', kind: 'modified', lines: [] },
+      { path: 'src/old.ts', kind: 'added', lines: [] },
+    ],
+  } as never);
+  // One default branch on the workspace under test.
+  mockedListBranches.mockResolvedValue({ branches: [branch()], activeBranchId: 'br-main' });
+  mockedHistory.mockResolvedValue({ entries: [], total: revisions.length, hasMore: false });
+  mockedSwitch.mockResolvedValue(branch());
+  mockedGetBranch.mockResolvedValue({
+    branch: branch(),
+    deletable: false,
+    deleteBlockedReason: 'The default branch cannot be deleted.',
+    latestRevisionNumber: 2,
+  });
 }
 
 function renderPanel(
@@ -226,6 +296,14 @@ describe('VersionPanel', () => {
     expect(restoreButtons[0].hasAttribute('disabled')).toBe(true);
     expect(restoreButtons[1].hasAttribute('disabled')).toBe(false);
     fireEvent.click(restoreButtons[1]);
+    // Step 1: the person sees which files would change, all chosen by default.
+    expect(await screen.findByText('src/app.ts')).toBeDefined();
+    expect(screen.getByText('src/old.ts')).toBeDefined();
+    expect(screen.getByText('will be reverted')).toBeDefined();
+    expect(screen.getByText('will come back')).toBeDefined();
+    expect(screen.getByText('2 of 2 selected.')).toBeDefined();
+    expect(mockedOpen).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => {
       expect(mockedOpen).toHaveBeenCalledWith('p1', {
         workspaceId: 'ws-1',
@@ -269,6 +347,7 @@ describe('VersionPanel', () => {
     renderPanel();
     const restoreButtons = await screen.findAllByRole('button', { name: 'Restore…' });
     fireEvent.click(restoreButtons[1]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Keep current files' }));
     await waitFor(() => {
       expect(screen.queryByText('Restore this revision?')).toBeNull();
@@ -316,6 +395,7 @@ describe('VersionPanel', () => {
     renderPanel();
     const restoreButtons = await screen.findAllByRole('button', { name: 'Restore…' });
     fireEvent.click(restoreButtons[1]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
     expect(await screen.findByRole('alert')).toBeDefined();
     expect(mockedDecide).not.toHaveBeenCalled();
   });

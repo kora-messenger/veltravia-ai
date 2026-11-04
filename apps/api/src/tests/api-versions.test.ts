@@ -322,15 +322,26 @@ describe('version API: rollback (Tool-System-gated)', () => {
     });
     expect(extra.statusCode).toBe(404);
 
-    // History intact: 2 captures + 1 rollback revision.
+    // History intact: 2 captures + 1 recovery point + 1 rollback revision.
     const list = await app.inject({
       method: 'GET',
       url: `/api/projects/${projectId}/revisions?workspaceId=${workspaceId}`,
     });
     const body = list.json() as { revisions: RevisionView[]; total: number };
-    expect(body.total).toBe(3);
+    expect(body.total).toBe(4);
     expect(body.revisions[0].source).toBe('rollback');
     expect(body.revisions[0].restoredFromRevisionId).toBe(firstRevisionId);
+
+    // The restore reports the checkpoint it took first, and that checkpoint is listed.
+    const recoveryId = (approved.result as { recoveryCheckpointId?: string }).recoveryCheckpointId;
+    expect(typeof recoveryId).toBe('string');
+    const checkpoints = await app.inject({
+      method: 'GET',
+      url: `/api/projects/${projectId}/checkpoints?workspaceId=${workspaceId}`,
+    });
+    const listed = (checkpoints.json() as { checkpoints: { id: string; name: string }[] })
+      .checkpoints;
+    expect(listed.find((c) => c.id === recoveryId)?.name).toContain('Recovery');
   });
 
   it('rejects the confirmation and restores nothing', async () => {

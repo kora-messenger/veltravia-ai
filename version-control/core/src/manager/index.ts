@@ -43,6 +43,7 @@ import type { RestoreStep, VersionWorkspaceGateway } from '../gateway/index.js';
 import { changeCounts, compareSnapshots } from '../diff/index.js';
 import { manifestHashFromGateway, manifestHashOf, hashNodeContent } from '../integrity/index.js';
 import { containsSecretShapedContent } from '../secrets/index.js';
+import { normaliseSelectedPath, pathIsUnder, planRestoreSteps } from '../branch/plan.js';
 import {
   scrubMetadata,
   type VersionAuditEventType,
@@ -430,6 +431,32 @@ export class VersionControlManager {
     }
     const snapshot = await this.requireIntactSnapshot(target);
     const current = await this.gateway.listNodes(request.workspaceId);
+    if (request.paths !== undefined) {
+      // A selective restore: say how many steps THOSE paths need, so the
+      // confirmation describes what will actually happen, not the whole tree.
+      const chosen: string[] = [];
+      for (const raw of request.paths) {
+        const clean = normaliseSelectedPath(raw);
+        if (clean === null) {
+          throw new VersionError(
+            'VERSION_RESTORE_PATHS_INVALID',
+            'One of the chosen paths is not a valid project path.',
+          );
+        }
+        if (!chosen.includes(clean)) chosen.push(clean);
+      }
+      if (chosen.length === 0) {
+        throw new VersionError(
+          'VERSION_RESTORE_PATHS_INVALID',
+          'Choose at least one file to restore.',
+        );
+      }
+      const steps = planRestoreSteps(snapshot.nodes, current, chosen);
+      if (steps.length === 0) {
+        throw new InvalidRollbackTargetError('the chosen files already match that revision.');
+      }
+      return { target, currentRevision: workspace.revision, filesChanged: steps.length };
+    }
     const { snapshotNodes } = manifestHashFromGateway(current);
     const counts = changeCounts(snapshot.nodes, snapshotNodes);
     const filesChanged = counts.added + counts.modified + counts.deleted;
@@ -536,6 +563,9 @@ export class VersionControlManager {
     );
     const snapshot = await this.requireIntactSnapshot(target);
 
+    // A way back first: nothing is rewritten until this exists.
+    const recovery = await this.takeRecoveryCheckpoint(request, target, false);
+
     // Build the restore plan against the live tree.
     const current = await this.gateway.listNodes(request.workspaceId);
     const currentByPath = new Map(current.map((node) => [node.path, node]));
@@ -601,6 +631,7 @@ export class VersionControlManager {
       restoredFromRevisionId: target.id,
       restoredFromRevisionNumber: target.revisionNumber,
       filesChanged: steps.length,
+      recoveryCheckpointId: recovery.id,
     };
     this.emit('rollback_completed', request, {
       newRevisionId: result.newRevisionId,
@@ -648,6 +679,171 @@ export class VersionControlManager {
     this.operations.set(operationId, next);
     this.emit('rollback_failed', operation.request, { operationId, code });
     return next;
+  }
+
+  /**
+   * A revision's snapshot, after the same integrity check a rollback uses.
+   *
+   * Branching seeds a new workspace from this, so a corrupt or tampered
+   * snapshot stops there instead of being copied into a fresh branch.
+   */
+  async getIntactSnapshot(
+    projectId: string,
+    workspaceId: string,
+    revisionId: string,
+  ): Promise<RevisionSnapshot> {
+    const revision = await this.getRevision(projectId, workspaceId, revisionId);
+    return this.requireIntactSnapshot(revision);
+  }
+
+  /**
+   * Restores chosen files (or folders) from a revision and leaves the rest of
+   * the tree exactly as it is.
+   *
+   * Same guards as a full rollback: ownership, the expected current revision,
+   * an intact snapshot, and a new revision appended afterwards. The check at the
+   * end differs, because a partial restore cannot match the whole snapshot:
+   * the chosen paths must now match the target, and every other path must be
+   * unchanged from before.
+   */
+  async executeSelectiveRollback(
+    request: RollbackRequest & { readonly paths: readonly string[] },
+  ): Promise<RollbackResult> {
+    const normalised: string[] = [];
+    for (const raw of request.paths) {
+      const clean = normaliseSelectedPath(raw);
+      if (clean === null) {
+        throw new VersionError(
+          'VERSION_RESTORE_PATHS_INVALID',
+          'One of the chosen paths is not a valid project path.',
+        );
+      }
+      if (!normalised.includes(clean)) normalised.push(clean);
+    }
+    if (normalised.length === 0) {
+      throw new VersionError(
+        'VERSION_RESTORE_PATHS_INVALID',
+        'Choose at least one file to restore.',
+      );
+    }
+
+    const workspace = await this.gateway.getWorkspace(request.workspaceId);
+    if (workspace.projectId !== request.projectId) throw new ForeignProjectRevisionError();
+    if (request.expectedCurrentRevision !== workspace.revision) {
+      this.emit('revision_conflict', request, {
+        expected: request.expectedCurrentRevision,
+        actual: workspace.revision,
+      });
+      throw new RevisionConflictError(request.expectedCurrentRevision, workspace.revision);
+    }
+    const target = await this.getRevision(
+      request.projectId,
+      request.workspaceId,
+      request.targetRevisionId,
+    );
+    const snapshot = await this.requireIntactSnapshot(target);
+
+    const before = await this.gateway.listNodes(request.workspaceId);
+    const steps = planRestoreSteps(snapshot.nodes, before, normalised);
+    if (steps.length === 0) {
+      throw new InvalidRollbackTargetError('the chosen files already match that revision.');
+    }
+    // A way back first. Taken after the no-op check, so a restore that would
+    // change nothing leaves no checkpoint behind.
+    const recovery = await this.takeRecoveryCheckpoint(request, target, true);
+
+    this.emit('rollback_started', request, {
+      operationTarget: target.id,
+      steps: steps.length,
+      selective: true,
+    });
+    await this.gateway.applyRestore(request.workspaceId, steps);
+
+    // Chosen paths must now match the target; everything else must be untouched.
+    const after = await this.gateway.listNodes(request.workspaceId);
+    const targetByPath = new Map(snapshot.nodes.map((node) => [node.path, node]));
+    const beforeByPath = new Map(before.map((node) => [node.path, node]));
+    const afterByPath = new Map(after.map((node) => [node.path, node]));
+    const chosen = (path: string): boolean => normalised.some((sel) => pathIsUnder(path, sel));
+    let verified = true;
+    for (const node of after) {
+      if (chosen(node.path)) {
+        const want = targetByPath.get(node.path);
+        if (want === undefined || want.type !== node.type) verified = false;
+        else if (node.type === 'file' && node.content !== want.content) verified = false;
+      } else {
+        const was = beforeByPath.get(node.path);
+        if (was === undefined || was.type !== node.type || was.content !== node.content) {
+          verified = false;
+        }
+      }
+    }
+    for (const node of before) {
+      if (!chosen(node.path) && !afterByPath.has(node.path)) verified = false;
+    }
+    if (!verified) {
+      this.emit('integrity_failure', request, {
+        reason: 'selective_restore_verification_failed',
+        revisionId: target.id,
+      });
+      throw new RestoreVerificationError(target.id);
+    }
+
+    const revision = await this.captureRevision({
+      projectId: request.projectId,
+      workspaceId: request.workspaceId,
+      source: 'rollback',
+      message: `Restored ${normalised.length} path${normalised.length === 1 ? '' : 's'} from revision ${target.revisionNumber}`,
+      createdBy: 'rollback',
+      restoredFromRevisionId: target.id,
+    });
+    const result: RollbackResult = {
+      newRevisionId: revision.id,
+      newRevisionNumber: revision.revisionNumber,
+      restoredFromRevisionId: target.id,
+      restoredFromRevisionNumber: target.revisionNumber,
+      filesChanged: steps.length,
+      recoveryCheckpointId: recovery.id,
+    };
+    this.emit('rollback_completed', request, {
+      newRevisionId: result.newRevisionId,
+      restoredFromRevisionId: target.id,
+      steps: steps.length,
+      selective: true,
+    });
+    return result;
+  }
+
+  /**
+   * The recovery point taken before a restore rewrites the tree.
+   *
+   * It is a revision of the tree AS IT IS NOW, pinned by a named checkpoint, so
+   * a restore that turns out to be a mistake can itself be undone. Capturing
+   * does not change the workspace, so the caller's expected-revision check
+   * still holds afterwards. A failure here stops the restore: restoring without
+   * a way back would be exactly the silent loss this exists to prevent.
+   */
+  private async takeRecoveryCheckpoint(
+    request: RollbackRequest,
+    target: ProjectRevision,
+    selective: boolean,
+  ): Promise<Checkpoint> {
+    const label = `Before restoring revision ${target.revisionNumber}${selective ? ' (some files)' : ''}`;
+    const revision = await this.captureRevision({
+      projectId: request.projectId,
+      workspaceId: request.workspaceId,
+      source: 'manual',
+      message: `Recovery point: ${label}`,
+      createdBy: 'recovery',
+    });
+    return this.createCheckpoint({
+      projectId: request.projectId,
+      workspaceId: request.workspaceId,
+      revisionId: revision.id,
+      name: `Recovery: ${label}`,
+      description: 'Taken automatically so this restore can be undone.',
+      createdBy: 'recovery',
+    });
   }
 
   // ------------------------------------------------------------------

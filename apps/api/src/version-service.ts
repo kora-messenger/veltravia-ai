@@ -1,6 +1,9 @@
 import {
+  BranchManager,
+  InMemoryBranchStore,
   VersionControlManager,
   VersionError,
+  type BranchWorkspaceGateway,
   type GatewayNode,
   type VersionWorkspaceGateway,
 } from '@veltravia/version-core';
@@ -39,6 +42,11 @@ function toVersionError(error: unknown): VersionError {
 
 export interface VersionControlServiceOptions {
   readonly projectEngine: ProjectEngine;
+  /**
+   * A manager made elsewhere (tests inject one). Branches are then built on
+   * THAT manager, so they see the same revisions rather than a second store.
+   */
+  readonly manager?: VersionControlManager;
   readonly now?: () => Date;
   readonly onAudit?: (event: { readonly type: string }) => void;
   readonly retention?: {
@@ -49,6 +57,8 @@ export interface VersionControlServiceOptions {
 
 export interface VersionControlService {
   readonly manager: VersionControlManager;
+  /** Branches over the same revisions (Step 38). */
+  readonly branches: BranchManager;
 }
 
 export function createVersionControlService(
@@ -125,15 +135,48 @@ export function createVersionControlService(
     },
   };
 
-  const manager = new VersionControlManager({
-    store: new InMemoryRevisionStore(),
-    gateway,
-    now,
-    auditSink: (event) => {
-      options.onAudit?.(event);
+  const manager =
+    options.manager ??
+    new VersionControlManager({
+      store: new InMemoryRevisionStore(),
+      gateway,
+      now,
+      auditSink: (event) => {
+        options.onAudit?.(event);
+      },
+      ...(options.retention ? { policy: { ...options.retention } } : {}),
+    });
+
+  /**
+   * Branch workspace access, on the same engine. A failed branch creation
+   * archives the half-made workspace rather than deleting it: the engine has no
+   * delete, and hiding is the safer thing to do with files anyway.
+   */
+  const branchWorkspaces: BranchWorkspaceGateway = {
+    createWorkspace: async (projectId, name) => {
+      try {
+        const workspace = await engine.workspaces.createWorkspace(projectId, { name });
+        return { workspaceId: workspace.id };
+      } catch (error) {
+        throw toVersionError(error);
+      }
     },
-    ...(options.retention ? { policy: { ...options.retention } } : {}),
+    seedWorkspace: (workspaceId, steps) => gateway.applyRestore(workspaceId, steps),
+    discardWorkspace: async (workspaceId) => {
+      try {
+        await engine.workspaces.archiveWorkspace(workspaceId);
+      } catch (error) {
+        throw toVersionError(error);
+      }
+    },
+  };
+
+  const branches = new BranchManager({
+    versions: manager,
+    store: new InMemoryBranchStore(),
+    workspaces: branchWorkspaces,
+    now,
   });
 
-  return { manager };
+  return { manager, branches };
 }

@@ -2,6 +2,7 @@ import {
   CodingAgentManager,
   createProjectTools,
   CODING_TOOL_IDS,
+  type CodingCheckpointPort,
   type CodingDecisionSource,
 } from '@veltravia/coding-agent-core';
 import { createScriptedCodingDecisionSource } from '@veltravia/coding-agent-mock';
@@ -68,6 +69,8 @@ export interface CreateCodingManagerOptions {
   readonly decisionSource?: CodingDecisionSource;
   /** Trusted server-side config: plans need human approval. Default: true. */
   readonly requirePlanApproval?: boolean;
+  /** Takes the checkpoint before approved changes (Step 38). Absent = none. */
+  readonly checkpoints?: CodingCheckpointPort;
 }
 
 /**
@@ -122,6 +125,7 @@ export function createCodingManager(options: CreateCodingManagerOptions): Coding
     decisionSource: options.decisionSource ?? createDemoCodingDecisionSource(),
     now: options.now,
     requirePlanApproval: options.requirePlanApproval ?? true,
+    ...(options.checkpoints !== undefined ? { checkpoints: options.checkpoints } : {}),
     // invoke_tool allowlist: exactly the GitHub connector tools. The model
     // can NAME one of these; every execution still passes the full Tool
     // System pipeline (schema, permissions, connector auth, confirmation).

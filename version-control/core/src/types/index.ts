@@ -117,6 +117,12 @@ export interface RollbackRequest {
   /** The workspace revision the requester believes is current. */
   readonly expectedCurrentRevision: number;
   readonly reason: string | null;
+  /**
+   * Restore only these files or folders (Step 38). Absent means the whole
+   * tree. It travels with the request, so a confirmation approves exactly the
+   * paths that were asked for and the replay cannot widen them.
+   */
+  readonly paths?: readonly string[];
 }
 
 export const ROLLBACK_OPERATION_STATES = [
@@ -160,6 +166,8 @@ export interface RollbackResult {
   readonly restoredFromRevisionId: string;
   readonly restoredFromRevisionNumber: number;
   readonly filesChanged: number;
+  /** The checkpoint taken just before the tree was rewritten, to undo this. */
+  readonly recoveryCheckpointId?: string;
 }
 
 /** One file-level entry in a revision comparison. */

@@ -71,6 +71,8 @@ import { registerTestingRoutes } from './routes/testing.js';
 import { registerMemoryRoutes } from './routes/memories.js';
 import { registerCodebaseRoutes } from './routes/codebase.js';
 import { registerRuntimeRoutes } from './routes/runtimes.js';
+import { createCodingCheckpointPort } from './coding-checkpoints.js';
+import { registerBranchRoutes } from './routes/branches.js';
 import { registerVersionRoutes } from './routes/versions.js';
 import { createVersionControlService } from './version-service.js';
 import { createFileIntelligenceService } from './file-service.js';
@@ -205,11 +207,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Version Control (Step 18): immutable revisions, checkpoints, diffs, and
   // Tool-System-gated rollback over the SAME Project Engine. Created BEFORE
   // the tool manager so its tools can ride the controlled pipeline.
-  const versionManager =
-    options.versionManager ??
-    createVersionControlService({
-      projectEngine,
-    }).manager;
+  const versionService = createVersionControlService({
+    projectEngine,
+    ...(options.versionManager !== undefined ? { manager: options.versionManager } : {}),
+  });
+  const versionManager = versionService.manager;
+  const branchManager = versionService.branches;
   const fileManager =
     options.fileManager ?? createFileIntelligenceService({ projectEngine, versionManager });
   const audioManager =
@@ -378,6 +381,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     createCodingManager({
       projectEngine,
       sandboxes,
+      checkpoints: createCodingCheckpointPort({ projectEngine, version: versionManager }),
       now: () => new Date(),
       // A real model plans and implements by default. The scripted source is
       // used only when VELTRAVIA_CODING_DEMO=1 is set server-side, and the run
@@ -452,6 +456,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // (`version.rollback`, critical risk, human confirmation bound to the
   // exact input); every response is metadata or a bounded diff view.
   registerVersionRoutes(app, { version: versionManager, projectEngine, tools });
+  registerBranchRoutes(app, { version: versionManager, branches: branchManager, projectEngine });
 
   // Step 19: upload, bounded extraction/preview, provenance-linked artifacts,
   // controlled short-lived downloads. Raw storage references never cross API.

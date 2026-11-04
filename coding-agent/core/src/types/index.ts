@@ -331,6 +331,41 @@ export interface CodingRunFailure {
   readonly message: string;
 }
 
+/**
+ * What the agent tells the person about the checkpoint taken before it changed
+ * anything. Present on every run that reached approved changes, including the
+ * runs where no checkpoint was needed, so "none was taken" is stated, not
+ * inferred from a missing field.
+ */
+export interface CodingCheckpointReport {
+  /** Whether a checkpoint was taken before the approved changes. */
+  readonly taken: boolean;
+  readonly checkpointId: string | null;
+  readonly checkpointName: string | null;
+  /** The workspace revision the run started from. */
+  readonly revisionNumber: number | null;
+  /** Plain words: why one was taken, or why it was not needed. */
+  readonly reason: string;
+}
+
+/**
+ * The version-control side of a run, supplied by the host. Kept as a port so
+ * this package does not depend on version control.
+ */
+export interface CodingCheckpointPort {
+  /**
+   * Called once, after approval and before the first change. Throwing stops the
+   * run: changing files with no way back is not allowed once a checkpoint was
+   * judged necessary.
+   */
+  beforeApprovedChanges(input: {
+    readonly runId: string;
+    readonly projectId: string;
+    readonly workspaceId: string;
+    readonly plan: CodingPlan;
+  }): Promise<CodingCheckpointReport>;
+}
+
 export interface CodingRunView {
   readonly runId: string;
   readonly projectId: string;
@@ -349,4 +384,6 @@ export interface CodingRunView {
   readonly failure: CodingRunFailure | null;
   /** The real execution phase, in plain words. */
   readonly phase: CodingPhase;
+  /** The checkpoint taken before the approved changes, once there is one. */
+  readonly checkpoint: CodingCheckpointReport | null;
 }

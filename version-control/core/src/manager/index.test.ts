@@ -452,13 +452,53 @@ describe('rollback', () => {
     // A NEW revision record was created; old ones remain.
     expect(result.restoredFromRevisionId).toBe(first);
     expect(result.newRevisionId).not.toBe(first);
+    // 3 seeded + 1 recovery point taken before the restore + 1 for the restore.
     const history = await h.manager.listRevisions('p1', 'w1', 50, 0);
-    expect(history.total).toBe(4);
+    expect(history.total).toBe(5);
     expect(history.revisions[0].source).toBe('rollback');
     expect(history.revisions[0].restoredFromRevisionId).toBe(first);
     // Historical revisions remain retrievable.
     const old = await h.manager.getRevision('p1', 'w1', third);
     expect(old.id).toBe(third);
+  });
+
+  it('takes a recovery checkpoint BEFORE restoring, so the restore can be undone', async () => {
+    const h = harness();
+    const { first } = await seeded(h);
+    const result = await h.manager.executeRollback({
+      projectId: 'p1',
+      workspaceId: 'w1',
+      targetRevisionId: first,
+      expectedCurrentRevision: h.gateway.revision,
+      reason: null,
+    });
+    expect(typeof result.recoveryCheckpointId).toBe('string');
+
+    const checkpoint = await h.manager.getCheckpoint('p1', 'w1', result.recoveryCheckpointId!);
+    expect(checkpoint.name).toContain('Recovery');
+    // It pins the state from before the restore: extra.txt existed then.
+    const snapshot = await h.manager.getIntactSnapshot('p1', 'w1', checkpoint.revisionId);
+    expect(snapshot.nodes.some((n) => n.path === 'extra.txt')).toBe(true);
+    // And it sits before the restore revision, not after.
+    const recovery = await h.manager.getRevision('p1', 'w1', checkpoint.revisionId);
+    const restored = await h.manager.getRevision('p1', 'w1', result.newRevisionId);
+    expect(recovery.revisionNumber).toBeLessThan(restored.revisionNumber);
+  });
+
+  it('leaves no recovery checkpoint when the restore is refused', async () => {
+    const h = harness();
+    const { first } = await seeded(h);
+    await expect(
+      h.manager.executeRollback({
+        projectId: 'p1',
+        workspaceId: 'w1',
+        targetRevisionId: first,
+        expectedCurrentRevision: h.gateway.revision + 5,
+        reason: null,
+      }),
+    ).rejects.toThrow(RevisionConflictError);
+    const checkpoints = await h.manager.listCheckpoints('p1', 'w1');
+    expect(checkpoints.some((c) => c.name.startsWith('Recovery'))).toBe(false);
   });
 
   it('refuses rollback when the current revision moved (concurrency)', async () => {
