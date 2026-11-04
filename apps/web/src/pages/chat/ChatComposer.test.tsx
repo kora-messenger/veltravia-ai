@@ -251,7 +251,12 @@ describe('the plus card', () => {
     expect(rows().slice(0, 3)).toEqual(['Attach files', 'Add note', 'Upload from Google Drive']);
     const drive = screen.getByRole('menuitem', { name: /Upload from Google Drive/ });
     expect(drive.hasAttribute('disabled')).toBe(true);
-    expect(drive.textContent).toContain('Not connected');
+    // The full name is on the row; the reason is not printed beside it.
+    expect(drive.textContent).toBe('Upload from Google Drive');
+    expect(drive.textContent).not.toContain('Not connected');
+    // The reason is still available to a hover and to a screen reader.
+    expect(drive.getAttribute('title')).toBe('Google Drive is not connected');
+    expect(drive.getAttribute('aria-description')).toBe('Google Drive is not connected');
   });
 
   it('opens a second level for notes, with a way back', async () => {

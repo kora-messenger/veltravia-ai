@@ -254,6 +254,35 @@ describe('Menu placement', () => {
     expect(container.querySelector('.v-menu')?.className).not.toContain('v-menu--compact');
   });
 
+  /**
+   * A row can explain itself without printing the reason beside its label. The
+   * reason lives in a tooltip and is read by assistive tech, so a long label
+   * keeps the whole row instead of being cut to make room for a note.
+   */
+  it('gives a row a description as a tooltip, not as visible text', async () => {
+    render(
+      <Menu
+        trigger={<span>+</span>}
+        triggerLabel="More ways to start"
+        placement="compact-above-start"
+        items={[
+          {
+            id: 'drive',
+            label: 'Upload from Google Drive',
+            description: 'Google Drive is not connected',
+            disabled: true,
+            onSelect: vi.fn(),
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'More ways to start' }));
+    const row = await screen.findByRole('menuitem', { name: /Upload from Google Drive/ });
+    expect(row.textContent).toBe('Upload from Google Drive');
+    expect(row.getAttribute('title')).toBe('Google Drive is not connected');
+    expect(row.getAttribute('aria-description')).toBe('Google Drive is not connected');
+  });
+
   it('leaves the default panel alone', async () => {
     render(
       <Menu

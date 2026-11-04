@@ -16,6 +16,12 @@ export interface MenuItemDef {
   icon?: ReactNode;
   /** Short trailing note, e.g. why an item is not usable yet. Read by AT. */
   hint?: string;
+  /**
+   * Why a row is the way it is, without taking room in the row: shown as a
+   * tooltip and read by assistive tech. Used for a disabled row whose reason
+   * would otherwise squeeze its label.
+   */
+  description?: string;
   disabled?: boolean;
   /**
    * A second level. The row then carries a caret and, when chosen, the panel
@@ -196,6 +202,8 @@ export function Menu({ trigger, triggerLabel, items, placement = 'below-end' }: 
                 index === activeIndex ? 'v-menu__item v-menu__item--active' : 'v-menu__item'
               }
               disabled={item.disabled}
+              title={item.description}
+              aria-description={item.description}
               onMouseEnter={() => setActiveIndex(index)}
               aria-haspopup={item.children !== undefined ? 'menu' : undefined}
               onClick={() => {

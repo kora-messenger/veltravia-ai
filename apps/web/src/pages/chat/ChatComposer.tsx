@@ -389,11 +389,12 @@ export function ChatComposer({
             {
               id: 'drive',
               // The reference's third row. There is no Drive connection behind
-              // it, so it is drawn as unavailable with the reason, never as a
-              // control that quietly does nothing.
+              // it, so it is drawn as unavailable, never as a control that
+              // quietly does nothing. The reason is a tooltip and is read aloud
+              // rather than printed in the row, so the full name fits.
               label: 'Upload from Google Drive',
               icon: <DriveIcon />,
-              hint: 'Not connected',
+              description: 'Google Drive is not connected',
               disabled: true,
               onSelect: () => {},
             },
