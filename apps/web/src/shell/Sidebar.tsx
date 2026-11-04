@@ -1,6 +1,12 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { BrandMark } from '../components/brand/BrandMark';
-import { ROUTES, type RouteDef } from './useHashRoute';
+import {
+  AI_WORKSPACE_IDS,
+  AI_WORKSPACE_LABEL,
+  ROUTES,
+  isAiWorkspaceRoute,
+  type RouteDef,
+} from './useHashRoute';
 
 const ICONS: Record<string, ReactNode> = {
   chat: (
@@ -173,6 +179,38 @@ export function Sidebar({
   mobileOpen,
   onMobileClose,
 }: SidebarProps) {
+  // Expanded by default so nothing is hidden on first sight. The person can fold
+  // it away, but a page inside it is never hidden while it is the current page.
+  const [foldedByUser, setFoldedByUser] = useState(false);
+  const everyday = ROUTES.filter((route) => !isAiWorkspaceRoute(route.id));
+  const aiTools = AI_WORKSPACE_IDS.flatMap((id) => ROUTES.find((route) => route.id === id) ?? []);
+  const aiActive = aiTools.some((route) => route.id === activeRouteId);
+  // When the sidebar is narrowed to icons there is no room for a header, so the
+  // group is shown flat rather than hidden.
+  const aiOpen = collapsed || !foldedByUser || aiActive;
+
+  const link = (route: RouteDef) => {
+    const active = route.id === activeRouteId;
+    return (
+      <li key={route.id}>
+        <a
+          href={route.hash}
+          className={active ? 'v-sidebar__link v-sidebar__link--active' : 'v-sidebar__link'}
+          aria-current={active ? 'page' : undefined}
+          title={collapsed ? route.title : undefined}
+          onClick={(event) => {
+            event.preventDefault();
+            onNavigate(route);
+            onMobileClose();
+          }}
+        >
+          {ICONS[route.id]}
+          {!collapsed && <span>{route.title}</span>}
+        </a>
+      </li>
+    );
+  };
+
   return (
     <>
       {mobileOpen && <div className="v-shell__backdrop" onClick={onMobileClose} />}
@@ -205,29 +243,34 @@ export function Sidebar({
           </button>
         </div>
 
-        <ul className="v-sidebar__nav">
-          {ROUTES.map((route) => {
-            const active = route.id === activeRouteId;
-            return (
-              <li key={route.id}>
-                <a
-                  href={route.hash}
-                  className={active ? 'v-sidebar__link v-sidebar__link--active' : 'v-sidebar__link'}
-                  aria-current={active ? 'page' : undefined}
-                  title={collapsed ? route.title : undefined}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    onNavigate(route);
-                    onMobileClose();
-                  }}
-                >
-                  {ICONS[route.id]}
-                  {!collapsed && <span>{route.title}</span>}
-                </a>
-              </li>
-            );
-          })}
-        </ul>
+        <ul className="v-sidebar__nav">{everyday.map(link)}</ul>
+
+        <div className="v-sidebar__group" role="group" aria-label={AI_WORKSPACE_LABEL}>
+          {!collapsed && (
+            <button
+              type="button"
+              className="v-sidebar__group-toggle"
+              aria-expanded={aiOpen}
+              aria-controls="v-sidebar-ai-tools"
+              // A current page inside the group keeps it open, so the control
+              // is inert then rather than pretending it can fold it away.
+              disabled={aiActive}
+              onClick={() => setFoldedByUser((folded) => !folded)}
+            >
+              <span>{AI_WORKSPACE_LABEL}</span>
+              <svg viewBox="0 0 16 16" className="v-icon v-sidebar__chevron" aria-hidden="true">
+                <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+            </button>
+          )}
+          <ul
+            id="v-sidebar-ai-tools"
+            className="v-sidebar__nav v-sidebar__nav--group"
+            hidden={!aiOpen}
+          >
+            {aiTools.map(link)}
+          </ul>
+        </div>
 
         <div className="v-sidebar__footer">
           {!collapsed && <span className="v-caption">Platform preview — under development</span>}

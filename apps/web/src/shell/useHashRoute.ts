@@ -33,6 +33,33 @@ export const ROUTES: readonly RouteDef[] = [
   { id: 'settings', hash: '#/settings', title: 'Settings' },
 ] as const;
 
+/**
+ * The AI tools, gathered under one "AI workspace" group in both menus. One list
+ * so the desktop sidebar and the phone drawer cannot drift apart. Order is the
+ * order they are shown. Every id is a real route above; none is invented.
+ */
+export const AI_WORKSPACE_IDS = [
+  'reasoning',
+  'execute',
+  'intelligence',
+  'connections',
+  'documents',
+  'image',
+  'video',
+  'audio',
+  'integrations',
+  'ai-providers',
+  'builder',
+  'files',
+] as const;
+
+export const AI_WORKSPACE_LABEL = 'AI workspace';
+
+/** True when the route belongs inside the AI workspace group. */
+export function isAiWorkspaceRoute(id: string): boolean {
+  return (AI_WORKSPACE_IDS as readonly string[]).includes(id);
+}
+
 export type RouteId =
   | 'chat'
   | 'dashboard'

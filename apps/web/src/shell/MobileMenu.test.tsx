@@ -34,7 +34,7 @@ describe('the phone navigation drawer', () => {
     for (const route of ROUTES) expect(labels).toContain(route.title);
   });
 
-  it('puts the everyday places first and the rest under one quiet label', () => {
+  it('puts the everyday places first, then the AI tools under one quiet label', () => {
     setup();
     const labels = Array.from(document.querySelectorAll('.v-mmenu__label')).map(
       (node) => node.textContent,
@@ -46,10 +46,40 @@ describe('the phone navigation drawer', () => {
       'Files & artifacts',
       'Dashboard',
     ]);
-    expect(screen.getByText('Tools')).toBeDefined();
-    // The group label sits between the two lists.
+    expect(screen.getByText('AI workspace')).toBeDefined();
+    expect(screen.getByText('Account')).toBeDefined();
+    // Each group label sits between two lists: everyday, AI, account.
     const all = Array.from(document.querySelectorAll('.v-mmenu__list, .v-mmenu__group'));
-    expect(all.map((node) => node.className.includes('group'))).toEqual([false, true, false]);
+    expect(all.map((node) => node.className.includes('group'))).toEqual([
+      false,
+      true,
+      false,
+      true,
+      false,
+    ]);
+  });
+
+  it('files every AI tool under AI workspace and settings outside it', () => {
+    setup();
+    const groups = Array.from(document.querySelectorAll('.v-mmenu__list, .v-mmenu__group'));
+    const labelsOf = (list: Element) =>
+      Array.from(list.querySelectorAll('.v-mmenu__label')).map((n) => n.textContent);
+    const ai = labelsOf(groups[2]!);
+    expect(ai).toEqual([
+      'Reasoning workspace',
+      'Model runs',
+      'Knowledge synthesis',
+      'Connected Apps',
+      'Document intelligence',
+      'Image intelligence',
+      'Video intelligence',
+      'Audio intelligence',
+      'Integrations',
+      'AI providers',
+    ]);
+    const account = labelsOf(groups[4]!);
+    expect(account).toContain('Settings');
+    expect(account).not.toContain('Reasoning workspace');
   });
 
   it('marks the current page and no other', () => {

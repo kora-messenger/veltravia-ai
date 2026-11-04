@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { UserAvatar } from '../pages/chat/UserAvatar';
 import { useAgentProfile } from '../agent/AgentProfileProvider';
-import { ROUTES, type RouteDef } from './useHashRoute';
+import { AI_WORKSPACE_IDS, AI_WORKSPACE_LABEL, ROUTES, type RouteDef } from './useHashRoute';
 
 /**
  * The phone's navigation drawer.
@@ -22,7 +22,7 @@ import { ROUTES, type RouteDef } from './useHashRoute';
 /** The everyday places, in the order a person reaches for them. */
 const MAIN_IDS = ['chat', 'projects', 'builder', 'files', 'dashboard'] as const;
 /** Everything else the platform offers, grouped under one label. */
-const TOOLS_LABEL = 'Tools';
+const ACCOUNT_LABEL = 'Account';
 
 const glyph = (children: ReactNode) => (
   <svg viewBox="0 0 24 24" className="v-mmenu__icon" aria-hidden="true">
@@ -167,7 +167,17 @@ export function MobileMenu({
   }, [open]);
 
   const main = MAIN_IDS.flatMap((id) => ROUTES.find((route) => route.id === id) ?? []);
-  const tools = ROUTES.filter((route) => !(MAIN_IDS as readonly string[]).includes(route.id));
+  // The AI tools, minus the two that are already pinned among the everyday
+  // places above (a route is listed once, never twice).
+  const aiTools = AI_WORKSPACE_IDS.filter(
+    (id) => !(MAIN_IDS as readonly string[]).includes(id),
+  ).flatMap((id) => ROUTES.find((route) => route.id === id) ?? []);
+  // Whatever is neither everyday nor an AI tool (model routing, settings).
+  const account = ROUTES.filter(
+    (route) =>
+      !(MAIN_IDS as readonly string[]).includes(route.id) &&
+      !(AI_WORKSPACE_IDS as readonly string[]).includes(route.id),
+  );
 
   const row = (route: RouteDef) => {
     const active = route.id === activeRouteId;
@@ -204,8 +214,11 @@ export function MobileMenu({
       >
         <ul className="v-mmenu__list">{main.map(row)}</ul>
 
-        <p className="v-mmenu__group">{TOOLS_LABEL}</p>
-        <ul className="v-mmenu__list v-mmenu__list--scroll">{tools.map(row)}</ul>
+        <p className="v-mmenu__group">{AI_WORKSPACE_LABEL}</p>
+        <ul className="v-mmenu__list v-mmenu__list--scroll">{aiTools.map(row)}</ul>
+
+        <p className="v-mmenu__group">{ACCOUNT_LABEL}</p>
+        <ul className="v-mmenu__list">{account.map(row)}</ul>
 
         <div className="v-mmenu__dock">
           <button

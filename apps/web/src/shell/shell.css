@@ -100,6 +100,62 @@
   justify-content: center;
 }
 
+/* The everyday list keeps its natural height; the AI workspace group takes the
+   rest and scrolls on its own, so twelve tools never push the footer off a short
+   window. */
+.v-sidebar__nav:not(.v-sidebar__nav--group) {
+  flex: 0 0 auto;
+}
+.v-sidebar__group {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-top: 1px solid var(--v-border-muted);
+}
+.v-sidebar__group-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  margin: var(--v-space-2) var(--v-space-3) 0;
+  padding: 0 var(--v-space-2);
+  border: 0;
+  border-radius: var(--v-radius-sm);
+  background: transparent;
+  color: var(--v-text-muted);
+  font: inherit;
+  font-size: var(--v-text-xs);
+  font-weight: var(--v-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.v-sidebar__group-toggle:hover:not(:disabled) {
+  background: var(--v-surface-hover);
+  color: var(--v-text);
+}
+.v-sidebar__group-toggle:disabled {
+  cursor: default;
+}
+.v-sidebar__chevron {
+  transition: transform var(--v-dur-fast) var(--v-ease-out);
+}
+.v-sidebar__group-toggle[aria-expanded='false'] .v-sidebar__chevron {
+  transform: rotate(-90deg);
+}
+.v-sidebar__nav--group {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.v-sidebar__nav--group[hidden] {
+  display: none;
+}
+.v-sidebar--collapsed .v-sidebar__group {
+  border-top: 1px solid var(--v-border-muted);
+}
+
 .v-sidebar__footer {
   padding: var(--v-space-3);
   border-top: 1px solid var(--v-border-muted);
