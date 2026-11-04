@@ -121,12 +121,20 @@ export function createDurableGatewayStores(dir: string): DurableGatewayStores {
     preferences: preferenceStore,
     usage: usageStore,
     async verify() {
-      await Promise.all([
+      // Wait for every collection to settle before answering. Promise.all would
+      // reject on the first failure and return while the others are still
+      // writing their files, so a caller that then removes the directory (or
+      // exits) races those writes.
+      const results = await Promise.allSettled([
         credentials.verifyWritable(),
         connections.verifyWritable(),
         preferences.verifyWritable(),
         usage.verifyWritable(),
       ]);
+      const failed = results.find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      );
+      if (failed !== undefined) throw failed.reason;
     },
   };
 }

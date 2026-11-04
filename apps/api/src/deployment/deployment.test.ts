@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -261,6 +261,32 @@ describe('durable gateway stores', () => {
     await mkdir(join(dir, 'usage-records.json'));
     const stores = createDurableGatewayStores(dir);
     await expect(stores.verify()).rejects.toThrow();
+  });
+});
+
+describe('durable gateway stores: verify', () => {
+  /**
+   * verify() checks four collections at once. With Promise.all it answered as
+   * soon as the first one failed, while the others were still writing, so a
+   * caller that then removed the directory raced those writes. That showed up
+   * as an intermittent ENOTEMPTY in this suite's own cleanup.
+   */
+  it('does not answer until every collection has finished writing', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'veltravia-gateway-'));
+    dirs.push(dir);
+    // The first collection fails straight away; the rest are healthy.
+    await mkdir(join(dir, 'provider-credentials.json'));
+    const stores = createDurableGatewayStores(dir);
+
+    await expect(stores.verify()).rejects.toThrow();
+
+    // By the time it answers, every healthy collection's file must already be
+    // on disk and no temporary file may be left mid-write.
+    const names = await readdir(dir);
+    expect(names).toContain('provider-connections.json');
+    expect(names).toContain('provider-preferences.json');
+    expect(names).toContain('usage-records.json');
+    expect(names.filter((name) => name.endsWith('.tmp'))).toEqual([]);
   });
 });
 
