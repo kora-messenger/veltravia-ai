@@ -22,6 +22,7 @@
 import { CodingAgentManager, type CodingRunView } from '@veltravia/coding-agent-core';
 import type { ToolInvocationResult, ToolManager } from '@veltravia/tool-core';
 
+import { readWorkspace, type ReadWorkspaceResult } from '../app-testing/reader.js';
 import { bindTestAudit, type TestAuditEventType, type TestAuditSink } from '../audit/index.js';
 import {
   detectProject,
@@ -166,6 +167,16 @@ export class TestingManager {
       options.generateRunId ?? (() => `testrun_${Math.random().toString(36).slice(2, 12)}`);
     this.auditSink = options.onAudit;
     this.codingRepairRunner = options.codingRepairRunner ?? defaultCodingRepairRunner(options);
+  }
+
+  /**
+   * Reads a workspace's files for inspection, bounded and read-only, through
+   * the same gated Tool System the runs use. This exposes the READ and nothing
+   * else: the Tool System itself stays private, so no caller can reach the
+   * sandbox through it. Files that may hold secrets are listed but never read.
+   */
+  readWorkspaceFiles(workspaceId: string): Promise<ReadWorkspaceResult> {
+    return readWorkspace({ tools: this.tools, workspaceId, requester: 'app-testing-agent' });
   }
 
   // ---- lifecycle ------------------------------------------------------------
