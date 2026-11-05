@@ -61,13 +61,17 @@ import { createConnectorManager } from './connectors.js';
 import { createAgentManager } from './agents.js';
 import { createEngine } from './projects.js';
 import { createToolManager } from './tools.js';
-import { createSandboxManager } from './sandboxes.js';
+import { createSandboxManager, describeSandboxRuntime } from './sandboxes.js';
 import { registerSandboxRoutes } from './routes/sandboxes.js';
 import { registerAIRoutes } from './routes/ai-generate.js';
 import { registerConnectorRoutes } from './routes/connectors.js';
 import { registerAgentRoutes } from './routes/agents.js';
 import { registerCodingRoutes } from './routes/coding.js';
+import { registerAppTestingRoutes } from './routes/app-testing.js';
 import { registerTestingRoutes } from './routes/testing.js';
+import { AppTestingService } from './app-testing.js';
+import { describeEnvironment } from '@veltravia/testing-core';
+import { TestingRunLedger } from './testing-ownership.js';
 import { registerMemoryRoutes } from './routes/memories.js';
 import { registerCodebaseRoutes } from './routes/codebase.js';
 import { registerRuntimeRoutes } from './routes/runtimes.js';
@@ -88,7 +92,7 @@ import { createCodebaseManager } from './codebase-service.js';
 import { registerGenerationRoutes } from './routes/generation.js';
 import { createCodingManager, createDemoCodingDecisionSource } from './coding.js';
 import { createApiCodingDecisionSource } from './coding-model.js';
-import { createTestingManager } from './testing.js';
+import { createTestingStack } from './testing.js';
 import { createGenerationManager } from './generation.js';
 import { registerToolRoutes } from './routes/tools.js';
 import { registerProjectRoutes } from './routes/projects.js';
@@ -428,12 +432,25 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // through these routes; responses carry safe normalized state only.
   const testing =
     options.testing ??
-    createTestingManager({
-      projectEngine,
-      sandboxes,
+    createTestingStack({ projectEngine, sandboxes, now: () => new Date() }).testing;
+  // Who may see and act on which testing run. Required by every testing route.
+  const testingLedger = new TestingRunLedger(projectEngine);
+  registerTestingRoutes(app, testing, testingLedger, { version: versionManager });
+  // Application testing (Step 39): inspection, generated tests, security checks
+  // and reports over the SAME testing manager. The environment is stated from
+  // the sandbox runtime, never assumed.
+  registerAppTestingRoutes(
+    app,
+    new AppTestingService({
+      testing,
+      ledger: testingLedger,
+      environment: describeEnvironment(describeSandboxRuntime(), 'disabled'),
       now: () => new Date(),
-    });
-  registerTestingRoutes(app, testing, { version: versionManager });
+    }),
+    testing,
+    testingLedger,
+    { version: versionManager },
+  );
 
   // Memory routes: per-project memory CRUD, search, lifecycle, candidate
   // review, stats, and candidate extraction from COMPLETED runs. Every

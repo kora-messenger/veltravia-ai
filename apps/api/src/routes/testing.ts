@@ -1,6 +1,8 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { captureRunEnd, captureRunStart, type RunCaptureHooks } from '../run-captures.js';
 import { isTestingError, type TestRunView, type TestingManager } from '@veltravia/testing-core';
+
+import { TestingAccessError, type TestingRunLedger } from '../testing-ownership.js';
 
 /** Maps normalized testing error codes to HTTP status codes. */
 const TESTING_ERROR_STATUS: Record<string, number> = {
@@ -26,7 +28,28 @@ const TESTING_ERROR_STATUS: Record<string, number> = {
   TESTING_CANCELLED: 409,
 };
 
-function toHttpError(error: unknown): { status: number; body: Record<string, unknown> } {
+function readEnv(name: string): string | undefined {
+  const value = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    ?.env?.[name];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/** The caller, taken from the request headers - never from the body. */
+export function testingOwnerOf(request: FastifyRequest): string {
+  const header = request.headers['x-veltravia-owner-ref'] ?? request.headers['x-veltravia-owner'];
+  const raw = Array.isArray(header) ? header[0] : header;
+  if (typeof raw === 'string' && raw.length > 0) return raw.slice(0, 256);
+  return readEnv('VELTRAVIA_DEFAULT_OWNER_REF') ?? 'veltravia-dev-user';
+}
+
+export function toHttpError(error: unknown): { status: number; body: Record<string, unknown> } {
+  if (error instanceof TestingAccessError) {
+    // The same answer whether the project or run is missing or belongs to someone else.
+    return {
+      status: 404,
+      body: { error: { code: 'TESTING_NOT_FOUND', message: error.message } },
+    };
+  }
   if (isTestingError(error)) {
     const status = TESTING_ERROR_STATUS[error.code] ?? 500;
     return { status, body: { error: error.toJSON() } };
@@ -94,6 +117,7 @@ const approvalBodySchema = {
 export function registerTestingRoutes(
   app: FastifyInstance,
   manager: TestingManager,
+  ledger: TestingRunLedger,
   captures: RunCaptureHooks = {},
 ): void {
   app.post('/api/testing/runs', { schema: { body: runBodySchema } }, async (request, reply) => {
@@ -103,12 +127,20 @@ export function registerTestingRoutes(
         workspaceId: string;
         runId?: string;
       };
+      const ownerRef = testingOwnerOf(request);
+      // The caller must own the project, and the workspace must be its own.
+      await ledger.assertCanStart(ownerRef, body.projectId, body.workspaceId);
       // Step 18: bracket the testing run (best-effort).
       await captureRunStart(captures, 'testing_before_repair', body.projectId, body.workspaceId);
       const view = await manager.startRun({
         projectId: body.projectId,
         workspaceId: body.workspaceId,
         ...(body.runId !== undefined ? { runId: body.runId } : {}),
+      });
+      ledger.record(view.runId, {
+        ownerRef,
+        projectId: body.projectId,
+        workspaceId: body.workspaceId,
       });
       await captureRunEnd(captures, 'testing_after', view.projectId, view.workspaceId, view.state);
       reply.code(200);
@@ -123,6 +155,7 @@ export function registerTestingRoutes(
   app.get('/api/testing/runs/:runId', async (request, reply) => {
     const { runId } = request.params as { runId: string };
     try {
+      ledger.require(testingOwnerOf(request), runId);
       return toRunPayload(manager.getRun(runId));
     } catch (error) {
       const { status, body } = toHttpError(error);
@@ -138,6 +171,7 @@ export function registerTestingRoutes(
       const { runId } = request.params as { runId: string };
       const { decision } = request.body as { decision: 'approve' | 'reject' };
       try {
+        ledger.require(testingOwnerOf(request), runId);
         const view = await manager.submitApproval(runId, decision);
         await captureRunEnd(
           captures,
@@ -159,6 +193,7 @@ export function registerTestingRoutes(
   app.post('/api/testing/runs/:runId/cancel', async (request, reply) => {
     const { runId } = request.params as { runId: string };
     try {
+      ledger.require(testingOwnerOf(request), runId);
       const view = manager.cancelRun(runId);
       await captureRunEnd(captures, 'testing_after', view.projectId, view.workspaceId, view.state);
       reply.code(200);

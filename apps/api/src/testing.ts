@@ -43,6 +43,17 @@ export interface CreateTestingManagerOptions {
  * Coding Agent repair runs need, server-side, and nothing else.
  */
 export function createTestingManager(options: CreateTestingManagerOptions): TestingManager {
+  return createTestingStack(options).testing;
+}
+
+/** The testing manager together with the Tool System it reads and runs through. */
+export interface TestingStack {
+  readonly testing: TestingManager;
+  /** The same gated Tool System the manager uses, for read-only inspection. */
+  readonly tools: ToolManager;
+}
+
+export function createTestingStack(options: CreateTestingManagerOptions): TestingStack {
   const now = options.now ?? (() => new Date());
   // The testing manager's OWN ConnectorManager: the read-only
   // /api/connectors surface can never be affected by this wiring.
@@ -70,9 +81,10 @@ export function createTestingManager(options: CreateTestingManagerOptions): Test
     }
   }
 
-  return new TestingManager({
+  const testing = new TestingManager({
     tools,
     debugAgent: options.debugAgent ?? createDemoDebugAgent(),
     ...(options.now !== undefined ? { now: options.now } : {}),
   });
+  return { testing, tools };
 }

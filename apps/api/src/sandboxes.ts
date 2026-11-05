@@ -26,6 +26,21 @@ export function createSandboxManager(
 }
 
 /**
+ * What the runtime behind createSandboxManager is, read from a runtime built by
+ * the same factory rather than written down a second time. Reports use this to
+ * say what ran their commands, and when a real runtime replaces the mock in
+ * createSandboxManager this follows it.
+ *
+ * Limit: it describes what the factory builds, not a manager someone injects
+ * into buildApp. An injected sandbox manager of a different kind would still be
+ * described as the factory's runtime.
+ */
+export function describeSandboxRuntime(): { runtimeId: string; providesOsIsolation: boolean } {
+  const { runtime } = createMockSandboxManager();
+  return { runtimeId: runtime.runtimeId, providesOsIsolation: runtime.providesOsIsolation };
+}
+
+/**
  * Validates that a workspace reference actually exists in the Project
  * Engine. The sandbox may REFERENCE a workspace, but never bypass Project
  * Engine rules: unknown workspaces are a 404 before any sandbox exists.

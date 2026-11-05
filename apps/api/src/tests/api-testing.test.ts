@@ -10,6 +10,25 @@ const sandboxManager = () =>
 
 const NOW = () => new Date('2026-09-18T07:00:00.000Z');
 
+/** The owner the fixture projects belong to. Every request names it. */
+const OWNER = 'api-test-owner';
+
+type App = ReturnType<typeof buildApp>;
+
+/**
+ * Makes every request carry an owner header. Testing runs are visible only to
+ * the owner who started them, so a caller has to say who it is.
+ */
+function asOwner(app: App, ownerRef: string = OWNER): App {
+  const inject = app.inject.bind(app) as (options: object) => unknown;
+  app.inject = ((options: { headers?: Record<string, string> }) =>
+    inject({
+      ...options,
+      headers: { ...options.headers, 'x-veltravia-owner-ref': ownerRef },
+    })) as App['inject'];
+  return app;
+}
+
 async function createTestedApp(options?: { manifest?: string }): Promise<{
   app: ReturnType<typeof buildApp>;
   projectId: string;
@@ -25,7 +44,7 @@ async function createTestedApp(options?: { manifest?: string }): Promise<{
     name: 'api-testing-project',
     description: 'project used by the testing API tests',
     projectType: 'other',
-    ownerRef: 'api-test-owner',
+    ownerRef: OWNER,
   });
   const workspace = await projectEngine.workspaces.createWorkspace(project.id, {
     name: 'main',
@@ -46,7 +65,7 @@ async function createTestedApp(options?: { manifest?: string }): Promise<{
       )}\n`,
   });
   const testing = createTestingManager({ projectEngine, now: NOW, sandboxes: sandboxManager() });
-  const app = buildApp({ projectEngine, testing });
+  const app = asOwner(buildApp({ projectEngine, testing }));
   return { app, projectId: project.id, workspaceId: workspace.id };
 }
 
@@ -164,14 +183,14 @@ describe('testing API routes', () => {
       name: 'empty',
       description: 'project without a package manifest',
       projectType: 'other',
-      ownerRef: 'api-test-owner',
+      ownerRef: OWNER,
     });
     const workspace = await projectEngine.workspaces.createWorkspace(project.id, {
       name: 'main',
       branch: 'main',
     });
     const testing = createTestingManager({ projectEngine, now: NOW, sandboxes: sandboxManager() });
-    const app = buildApp({ projectEngine, testing });
+    const app = asOwner(buildApp({ projectEngine, testing }));
     const started = await app.inject({
       method: 'POST',
       url: '/api/testing/runs',
