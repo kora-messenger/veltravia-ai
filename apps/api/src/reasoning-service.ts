@@ -30,6 +30,14 @@ import {
 import { SimulatedReasoningProvider } from '@veltravia/reasoning-mock';
 import type { AgentActivitySnapshot } from '@veltravia/shared';
 import type { ToolManager } from '@veltravia/tool-core';
+import { mockDatabaseConnector, mockStorageConnector } from '@veltravia/integration-mocks';
+import type { ApiIntegrationSystem } from './integrations.js';
+import type { AppBuilderManager } from '@veltravia/app-builder-core';
+import type { ProjectEngine } from '@veltravia/project-core';
+import type { AudioIntelligenceManager } from '@veltravia/audio-intelligence-core';
+import type { ImageIntelligenceManager } from '@veltravia/image-intelligence-core';
+import type { VideoIntelligenceManager } from '@veltravia/video-intelligence-core';
+import type { DocumentIntelligenceManager } from '@veltravia/document-intelligence-core';
 
 import { createToolManager } from './tools.js';
 import type { CodebaseIntelligenceManager } from '@veltravia/codebase-core';
@@ -115,6 +123,24 @@ export interface ReasoningServiceOptions {
   readonly codebase?: CodebaseIntelligenceManager;
   readonly files?: FileIntelligenceManager;
   readonly intelligence?: IntelligenceService;
+  /**
+   * The media and document managers behind the Document, Image, Video and Audio
+   * pages. Passing them is what lets the AI read what the person uploaded; the
+   * tools stay owner-scoped and read-only (see createToolManager).
+   */
+  readonly documents?: DocumentIntelligenceManager;
+  readonly images?: ImageIntelligenceManager;
+  readonly videos?: VideoIntelligenceManager;
+  readonly audio?: AudioIntelligenceManager;
+  /**
+   * Connected apps and integrations. When given, the connector-backed tools are
+   * registered through the same Tool System pipeline the agents use: the
+   * connection authorises, the integration runtime executes, and a tool stays
+   * UNAVAILABLE until a connection exists.
+   */
+  readonly integrations?: ApiIntegrationSystem;
+  /** App Builder and the project engine it reads, for the read-only builder tools. */
+  readonly appBuilder?: { readonly manager: AppBuilderManager; readonly projects: ProjectEngine };
   readonly simulatedFactory?: () => ReasoningProvider;
   /** Ceiling on buffered stream events per run. */
   readonly maxBufferedEvents?: number;
@@ -255,24 +281,33 @@ export class ReasoningService {
 
   /** Builds the tool manager for one owner and returns its read-only tool list. */
   toolsFor(ownerRef: string): ToolManager {
+    const integrations = this.options.integrations;
     const tools = createToolManager(
       this.now,
       undefined,
       undefined,
-      undefined,
+      integrations !== undefined
+        ? {
+            connectors: [mockStorageConnector(this.now), mockDatabaseConnector(this.now)],
+            connectorExecutor: integrations.connectorExecutor(),
+          }
+        : undefined,
       this.options.codebase,
       undefined,
       this.options.files,
-      undefined,
-      undefined,
-      undefined,
+      this.options.audio,
+      this.options.images,
+      this.options.videos,
       this.options.intelligence,
       ownerRef,
+      this.options.documents,
+      this.options.appBuilder,
     );
     // Read-only grants only. Nothing destructive is reachable from reasoning:
     // an operator must grant it explicitly, and the Tool System still demands
     // a human confirmation for anything risky.
     tools.grantPermission('mock.summarize', 'mock.read');
+    integrations?.registerAgentTools(tools);
     return tools;
   }
 

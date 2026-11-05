@@ -62,7 +62,9 @@ export function createAppBuilderManager(options: CreateAppBuilderOptions): AppBu
       async ensureProject(input): Promise<EnsureProjectResult> {
         const project = await projectEngine.projects.createProject({
           name: input.name,
-          description: input.description,
+          // A specification may leave the description out; the project engine
+          // insists on a string, so default to an empty one.
+          description: typeof input.description === 'string' ? input.description : '',
           projectType: projectTypeFor(input.projectKind),
           ownerRef: input.ownerRef,
           metadata: { source: 'app-builder' },

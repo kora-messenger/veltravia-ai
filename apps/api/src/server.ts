@@ -531,6 +531,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // provider (or the disclosed offline mock), may only name tools the server
   // offers, and pauses for a human before anything risky. Streaming exposes the
   // same events the API reports, never hidden reasoning.
+  // Built here so the reasoning service can read it; routes register further down.
+  const appBuilder =
+    options.appBuilder ?? createAppBuilderManager({ projectEngine, codingAgent: coding });
   const reasoning =
     options.reasoning ??
     new ReasoningService({
@@ -541,6 +544,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       codebase,
       files: fileManager,
       intelligence,
+      documents: documentManager,
+      integrations,
+      appBuilder: { manager: appBuilder, projects: projectEngine },
+      images: imageManager,
+      videos: videoManager,
+      audio: audioManager,
       routeFor: async (input) => {
         // Automatic: the prompt's kind picks a model the owner actually has.
         // When none of the preferred models is connected, the router decides
@@ -599,8 +608,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // App Builder (Step 30): the language-independent builder. Adapters reach the
   // SAME project engine and coding agent as everything else - no second store,
   // no second executor. Builds and deployments stay unavailable and say so.
-  const appBuilder =
-    options.appBuilder ?? createAppBuilderManager({ projectEngine, codingAgent: coding });
   registerAppBuilderRoutes(app, { appBuilder });
 
   // Native source storage (Step 31): history, atomic change sets and snapshots
