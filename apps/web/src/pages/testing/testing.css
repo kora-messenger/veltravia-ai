@@ -1,0 +1,351 @@
+/*
+ * Application testing workspace (Step 39).
+ *
+ * Three regions: what was found, the result, and the problems. The page sits
+ * beside the shell's sidebar, so it has less room than its width suggests: below
+ * 1320px the problems move under the other two, and below 900px the regions
+ * become switchable panels. The result column always gets the most room.
+ */
+
+.v-testing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-4);
+  min-height: 0;
+  padding-bottom: var(--v-space-5);
+}
+
+.v-testing--loading {
+  padding: var(--v-space-6);
+}
+
+.v-testing__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.v-testing__identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-1);
+  min-width: 0;
+}
+
+.v-testing__title {
+  margin: 0;
+  font-size: var(--v-text-2xl);
+  font-weight: var(--v-weight-semibold);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.v-testing__badges,
+.v-testing__header-actions,
+.v-testing__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+}
+
+.v-testing__alert {
+  padding: var(--v-space-3);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface-muted);
+  color: var(--v-text);
+  font-size: var(--v-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.v-testing__note {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  margin: 0;
+  color: var(--v-text-muted);
+  font-size: var(--v-text-sm);
+}
+
+.v-testing__tabs {
+  display: none;
+  gap: var(--v-space-1);
+  padding: var(--v-space-1);
+  background: var(--v-surface-muted);
+  border-radius: var(--v-radius-md);
+}
+
+.v-testing__tab {
+  flex: 1;
+  min-height: 44px;
+  padding: var(--v-space-2) var(--v-space-3);
+  border: none;
+  border-radius: var(--v-radius-sm);
+  background: transparent;
+  color: var(--v-text-muted);
+  font: inherit;
+  font-size: var(--v-text-sm);
+  cursor: pointer;
+}
+
+.v-testing__tab--active {
+  background: var(--v-surface);
+  color: var(--v-text);
+  box-shadow: var(--v-shadow-1);
+}
+
+.v-testing__body {
+  display: grid;
+  /* The result is the main content, so it gets the room: the side columns give
+     way first and never squeeze it below a readable width. */
+  grid-template-columns: minmax(200px, 0.8fr) minmax(360px, 1.6fr) minmax(240px, 1fr);
+  gap: var(--v-space-4);
+  align-items: start;
+  min-height: 0;
+}
+
+.v-testing__region {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-4);
+  min-width: 0;
+}
+
+.v-testing__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  padding: var(--v-space-4);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-lg);
+  background: var(--v-surface);
+  min-width: 0;
+}
+
+.v-testing__panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--v-space-2);
+}
+
+.v-testing__panel-title {
+  margin: 0;
+  font-size: var(--v-text-lg);
+  font-weight: var(--v-weight-semibold);
+}
+
+.v-testing__sub {
+  margin: var(--v-space-2) 0 0;
+  font-size: var(--v-text-md);
+  font-weight: var(--v-weight-semibold);
+}
+
+.v-testing__headline {
+  margin: 0;
+  font-size: var(--v-text-md);
+  overflow-wrap: anywhere;
+}
+
+.v-testing__hint,
+.v-testing__empty,
+.v-testing__environment,
+.v-testing__files {
+  margin: 0;
+  color: var(--v-text-muted);
+  font-size: var(--v-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.v-testing__caveat {
+  margin: 0;
+  padding: var(--v-space-2) var(--v-space-3);
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface-muted);
+  font-size: var(--v-text-sm);
+}
+
+.v-testing__counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--v-space-2);
+  margin: 0;
+}
+
+.v-testing__count {
+  padding: var(--v-space-3);
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface-muted);
+  text-align: center;
+}
+
+.v-testing__count dt {
+  color: var(--v-text-muted);
+  font-size: var(--v-text-xs);
+}
+
+.v-testing__count dd {
+  margin: 0;
+  font-size: var(--v-text-xl);
+  font-weight: var(--v-weight-semibold);
+}
+
+.v-testing__facts {
+  display: grid;
+  gap: var(--v-space-2);
+  margin: 0;
+}
+
+.v-testing__fact {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--v-space-3);
+  font-size: var(--v-text-sm);
+}
+
+.v-testing__fact dt {
+  color: var(--v-text-muted);
+}
+
+.v-testing__fact dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.v-testing__proposed,
+.v-testing__tests,
+.v-testing__bugs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.v-testing__proposed li {
+  font-size: var(--v-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.v-testing__skipped {
+  font-size: var(--v-text-sm);
+  color: var(--v-text-muted);
+}
+
+.v-testing__test {
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  overflow: hidden;
+}
+
+.v-testing__test-row {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--v-space-2) var(--v-space-3);
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.v-testing__test-row:focus-visible,
+.v-testing__tab:focus-visible {
+  outline: 2px solid var(--v-focus-ring, currentColor);
+  outline-offset: -2px;
+}
+
+.v-testing__test-title {
+  min-width: 0;
+  font-size: var(--v-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.v-testing__test-detail {
+  padding: var(--v-space-3);
+  border-top: 1px solid var(--v-border);
+  background: var(--v-surface-muted);
+  font-size: var(--v-text-sm);
+}
+
+.v-testing__error {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--v-font-mono, monospace);
+  font-size: var(--v-text-xs);
+}
+
+.v-testing__bug {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  padding: var(--v-space-3);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  font-size: var(--v-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.v-testing__bug p {
+  margin: 0;
+}
+
+.v-testing__bug-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-1);
+}
+
+.v-testing__bug-title {
+  margin: 0;
+  font-size: var(--v-text-md);
+}
+
+.v-testing__approval {
+  border-color: var(--v-primary, currentColor);
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 1320px) {
+  .v-testing__body {
+    grid-template-columns: minmax(200px, 0.7fr) minmax(0, 1.5fr);
+  }
+
+  .v-testing__region--problems {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .v-testing__tabs {
+    display: flex;
+  }
+
+  .v-testing__body {
+    display: block;
+  }
+
+  .v-testing__region {
+    display: none;
+  }
+
+  .v-testing--panel-found .v-testing__region--found,
+  .v-testing--panel-results .v-testing__region--results,
+  .v-testing--panel-problems .v-testing__region--problems {
+    display: flex;
+  }
+
+  .v-testing__header-actions .v-button {
+    min-height: 44px;
+  }
+}

@@ -78,6 +78,7 @@ export type RouteId =
   | 'project-workspace'
   | 'project-builder'
   | 'project-backend'
+  | 'project-testing'
   | 'project-app'
   | 'ai-providers'
   | 'model-routing'
@@ -95,6 +96,7 @@ const PROJECT_ID_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)$/;
 const WORKSPACE_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/workspace$/;
 const BUILDER_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/builder$/;
 const BACKEND_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/backend$/;
+const TESTING_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/testing$/;
 const APP_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/app$/;
 
 function routeForHash(hash: string): RouteState {
@@ -170,6 +172,14 @@ function routeForHash(hash: string): RouteState {
       id: 'project-backend',
       title: 'Backend builder',
       projectId: backendMatch[1] ?? null,
+    };
+  }
+  const testingMatch = TESTING_PATTERN.exec(hash);
+  if (testingMatch !== null) {
+    return {
+      id: 'project-testing',
+      title: 'Application testing',
+      projectId: testingMatch[1] ?? null,
     };
   }
   const workspaceMatch = WORKSPACE_PATTERN.exec(hash);
