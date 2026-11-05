@@ -43,6 +43,32 @@ async function createWorkspace(
 }
 
 describe('Project API', () => {
+  it('ignores an ownerRef named in the body: the caller owns what it creates', async () => {
+    const { app } = buildProjectApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: { 'x-veltravia-owner-ref': 'owner-bob' },
+      payload: { ...CREATE_BODY, ownerRef: 'owner-alice' },
+    });
+    expect(response.statusCode).toBe(201);
+    const created = response.json() as { id: string; ownerRef: string };
+    expect(created.ownerRef).toBe('owner-bob');
+    // Alice must not see a project planted in her name, and Bob sees his own.
+    const alice = await app.inject({
+      method: 'GET',
+      url: '/api/projects',
+      headers: { 'x-veltravia-owner-ref': 'owner-alice' },
+    });
+    expect(JSON.stringify(alice.json())).not.toContain(created.id);
+    const bob = await app.inject({
+      method: 'GET',
+      url: '/api/projects',
+      headers: { 'x-veltravia-owner-ref': 'owner-bob' },
+    });
+    expect(JSON.stringify(bob.json())).toContain(created.id);
+  });
+
   it('assigns a development owner server-side when the client omits ownerRef', async () => {
     const { app } = buildProjectApp();
     const response = await app.inject({
@@ -137,7 +163,8 @@ describe('Project API', () => {
     const { app } = buildProjectApp();
     const project = await app.inject({ method: 'GET', url: '/api/projects/prj-404' });
     expect(project.statusCode).toBe(404);
-    expect(project.json().error.code).toBe('PROJECT_NOT_FOUND');
+    // One code for "missing" and "not yours": ids cannot be probed.
+    expect(project.json().error.code).toBe('NOT_FOUND');
 
     const workspace = await app.inject({ method: 'GET', url: '/api/workspaces/ws-404' });
     expect(workspace.statusCode).toBe(404);
@@ -317,7 +344,7 @@ describe('Workspace + File API', () => {
     expect(gone.statusCode).toBe(404);
   });
 
-  it('returns 400 for unknown workspaces on file ops (workspace must exist first)', async () => {
+  it('returns 404 for unknown workspaces on file ops (workspace must exist first)', async () => {
     const { app } = buildProjectApp();
     const response = await app.inject({
       method: 'POST',
@@ -325,6 +352,6 @@ describe('Workspace + File API', () => {
       payload: { path: 'x.txt', content: '' },
     });
     expect(response.statusCode).toBe(404);
-    expect(response.json().error.code).toBe('WORKSPACE_NOT_FOUND');
+    expect(response.json().error.code).toBe('NOT_FOUND');
   });
 });

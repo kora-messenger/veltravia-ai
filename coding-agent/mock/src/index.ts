@@ -8,6 +8,8 @@
 
 import {
   createProjectTools,
+  type ProjectToolOwnership,
+  type ProjectToolScope,
   type CodingDecision,
   type CodingDecisionContext,
   type CodingDecisionSource,
@@ -232,6 +234,13 @@ export interface CreateCodingFixtureEnvironmentOptions {
   readonly projectEngine?: ProjectEngine;
   /** When true, wires the offline GitHub connector + tools into the environment. */
   readonly withGitHub?: boolean;
+  /**
+   * Overrides which workspace a run may touch. By default every run in the
+   * fixture is held to the fixture's OWN workspace, so the scope check is real
+   * in tests (a second workspace or another project is refused) without needing
+   * a request owner.
+   */
+  readonly runScopes?: ProjectToolOwnership;
 }
 
 /** Permission grants the coding fixture environment hands to the ToolManager. */
@@ -308,7 +317,21 @@ export async function createCodingFixtureEnvironment(
         }
       : {}),
   });
-  const projectTools = createProjectTools(projectEngine);
+  // The fixture's own workspace, filled in below once it exists. Every run in the
+  // fixture is held to it, so the scope check is exercised for real in tests.
+  let fixtureScope: ProjectToolScope | null = null;
+  const projectTools = createProjectTools(
+    projectEngine,
+    options.runScopes ?? {
+      // The fixture project's workspaces, read at call time so a workspace a test
+      // creates later is covered. Another project is still refused.
+      scopeOfRun: async () => {
+        if (fixtureScope === null) return null;
+        const workspaces = await projectEngine.workspaces.listWorkspaces(fixtureScope.projectId);
+        return { ...fixtureScope, alsoWorkspaceIds: workspaces.map((workspace) => workspace.id) };
+      },
+    },
+  );
   for (const definition of projectTools.definitions) {
     tools.register(definition);
   }
@@ -358,6 +381,7 @@ export async function createCodingFixtureEnvironment(
   const workspace = await projectEngine.workspaces.createWorkspace(project.id, {
     name: 'workspace',
   });
+  fixtureScope = { projectId: project.id, workspaceId: workspace.id };
 
   return {
     projectEngine,

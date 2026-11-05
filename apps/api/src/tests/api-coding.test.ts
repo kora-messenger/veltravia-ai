@@ -1,3 +1,4 @@
+import { createRunScopes } from './run-scopes.js';
 import { describe, expect, it } from 'vitest';
 import type { CodingDecision, CodingDecisionContext } from '@veltravia/coding-agent-core';
 import { createCodingManager } from '../coding.js';
@@ -26,7 +27,7 @@ async function createCodedApp(
     name: 'api-coding-project',
     description: 'project used by the coding API tests',
     projectType: 'other',
-    ownerRef: 'api-test-owner',
+    ownerRef: 'veltravia-dev-user',
   });
   const workspace = await projectEngine.workspaces.createWorkspace(project.id, {
     name: 'main',
@@ -38,13 +39,15 @@ async function createCodedApp(
     nextDecision: async (_context: CodingDecisionContext): Promise<CodingDecision> =>
       decisions[index++] ?? { type: 'fail', reason: 'script exhausted' },
   };
+  const { ownership, runScopes } = createRunScopes(projectEngine);
   const coding = createCodingManager({
     projectEngine,
+    runScopes,
     decisionSource,
     now: NOW,
     requirePlanApproval: options?.requirePlanApproval ?? true,
   });
-  const app = buildApp({ projectEngine, coding });
+  const app = buildApp({ projectEngine, coding, runOwnership: ownership });
   return { app, projectId: project.id, workspaceId: workspace.id };
 }
 
@@ -102,7 +105,7 @@ describe('POST /api/coding/runs', () => {
     app.close();
   });
 
-  it('fails the run typed when the project does not exist', async () => {
+  it("refuses to start a run on a project that does not exist or is not the caller's", async () => {
     const { app, workspaceId } = await createCodedApp([
       PLAN,
       { type: 'action', action: { type: 'inspect_project' } },
@@ -110,22 +113,12 @@ describe('POST /api/coding/runs', () => {
     const start = await app.inject({
       method: 'POST',
       url: '/api/coding/runs',
-      payload: {
-        projectId: 'missing-project',
-        workspaceId,
-        userRequirement: 'Add a README',
-      },
+      payload: { projectId: 'missing-project', workspaceId, userRequirement: 'Add a README' },
     });
-    const runId = start.json().runId;
-    const approval = await app.inject({
-      method: 'POST',
-      url: `/api/coding/runs/${runId}/confirmation`,
-      payload: { decision: 'approve' },
-    });
-    expect(approval.statusCode).toBe(200);
-    const body = approval.json();
-    expect(body.state).toBe('failed');
-    expect(body.failure?.code).toBe('CODING_PROJECT_NOT_FOUND');
+    // Refused up front, before any run exists: nothing to approve, nothing written.
+    expect(start.statusCode).toBe(404);
+    expect(start.json().error.code).toBe('NOT_FOUND');
+    expect(start.json().runId).toBeUndefined();
     app.close();
   });
 
@@ -258,7 +251,8 @@ describe('GET /api/coding/runs/:runId', () => {
     const { app } = await createCodedApp([PLAN]);
     const response = await app.inject({ method: 'GET', url: '/api/coding/runs/never-started' });
     expect(response.statusCode).toBe(404);
-    expect(response.json().error.code).toBe('CODING_RUN_NOT_FOUND');
+    // Same answer as a run that belongs to someone else.
+    expect(response.json().error.code).toBe('NOT_FOUND');
     app.close();
   });
 });

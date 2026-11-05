@@ -93,6 +93,8 @@ function projectTypeForAppType(appType: AppType): ProjectType {
 
 interface ManagedRun {
   readonly runId: string;
+  /** Owner of the project this run creates: the caller who started it. */
+  readonly ownerRef: string;
   readonly idea: string;
   readonly createdAt: Date;
   state: GenerationState;
@@ -182,6 +184,8 @@ export class AppGenerationManager {
   async startRun(input: {
     readonly idea: string;
     readonly runId?: string;
+    /** The caller. The generated project is created for this owner, not a shared one. */
+    readonly ownerRef?: string;
   }): Promise<GenerationRunView> {
     const idea = validateIdea(input.idea);
     const runId = input.runId ?? this.generateRunId();
@@ -193,6 +197,7 @@ export class AppGenerationManager {
     const now = this.now();
     const run: ManagedRun = {
       runId,
+      ownerRef: input.ownerRef ?? this.ownerRef,
       idea,
       createdAt: now,
       state: 'created',
@@ -461,7 +466,7 @@ export class AppGenerationManager {
         name: plan.project.name,
         description: plan.project.description,
         projectType: projectTypeForAppType(spec.appType),
-        ownerRef: this.ownerRef,
+        ownerRef: run.ownerRef,
       });
       const workspace = await this.options.projectEngine.workspaces.createWorkspace(project.id, {
         name: 'Generated Workspace',

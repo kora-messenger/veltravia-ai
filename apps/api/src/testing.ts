@@ -1,4 +1,8 @@
-import { CODING_TOOL_IDS, createProjectTools } from '@veltravia/coding-agent-core';
+import {
+  CODING_TOOL_IDS,
+  createProjectTools,
+  type ProjectToolOwnership,
+} from '@veltravia/coding-agent-core';
 import { ConnectorManager } from '@veltravia/connector-core';
 import { createMockConnector } from '@veltravia/connector-mock';
 import type { ProjectEngine } from '@veltravia/project-core';
@@ -25,6 +29,8 @@ function createDemoDebugAgent(): DebugAgent {
 
 export interface CreateTestingManagerOptions {
   readonly projectEngine: ProjectEngine;
+  /** Holds each run to the one workspace it was started on (see run-ownership.ts). */
+  readonly runScopes: ProjectToolOwnership;
   readonly tools?: ToolManager;
   /** Sandbox manager for registering sandbox tools when no tools manager is injected. */
   readonly sandboxes?: SandboxManager;
@@ -62,7 +68,7 @@ export function createTestingStack(options: CreateTestingManagerOptions): Testin
   connectors.configure('mock');
   const tools = options.tools ?? createToolManager(now, options.sandboxes, connectors);
 
-  const projectTools = createProjectTools(options.projectEngine);
+  const projectTools = createProjectTools(options.projectEngine, options.runScopes);
   for (const definition of projectTools.definitions) {
     tools.register(definition);
   }

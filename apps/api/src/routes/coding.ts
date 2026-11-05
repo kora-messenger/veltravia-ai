@@ -1,4 +1,6 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { resolveCallerOwnerRef } from '../project-access.js';
+import { RunAccessError, type RunOwnership } from '../run-ownership.js';
+import type { FastifyInstance } from 'fastify';
 import { captureRunEnd, captureRunStart, type RunCaptureHooks } from '../run-captures.js';
 import {
   CODING_PHASES,
@@ -40,6 +42,10 @@ const CODING_ERROR_STATUS: Record<string, number> = {
 };
 
 function toHttpError(error: unknown): { status: number; body: Record<string, unknown> } {
+  if (error instanceof RunAccessError) {
+    // One status and body for "not yours" and "does not exist".
+    return { status: 404, body: { error: { code: 'NOT_FOUND', message: error.message } } };
+  }
   if (isCodingError(error)) {
     const status = CODING_ERROR_STATUS[error.code] ?? 500;
     return { status, body: { error: error.toJSON() } };
@@ -47,12 +53,7 @@ function toHttpError(error: unknown): { status: number; body: Record<string, unk
   return { status: 500, body: { error: { code: 'INTERNAL', message: 'unexpected failure' } } };
 }
 
-function ownerOf(request: FastifyRequest): string {
-  const header = request.headers['x-veltravia-owner-ref'] ?? request.headers['x-veltravia-owner'];
-  const raw = Array.isArray(header) ? header[0] : header;
-  if (typeof raw === 'string' && raw.length > 0) return raw.slice(0, 256);
-  return process.env.VELTRAVIA_DEFAULT_OWNER_REF ?? 'veltravia-dev-user';
-}
+const ownerOf = resolveCallerOwnerRef;
 
 /**
  * The safe public shape of a run: exactly the CodingRunView fields, plus the
@@ -134,6 +135,8 @@ export interface CodingAgentInfo {
 }
 
 export interface CodingRouteDeps {
+  /** Owner of each run; start, read, cancel and approve are all checked against it. */
+  readonly runs: RunOwnership;
   /** Present when the API runs the model-powered source. */
   readonly decisionSource?: ApiCodingDecisionSource;
 }
@@ -150,7 +153,7 @@ export function registerCodingRoutes(
   manager: CodingAgentManager,
   captures: RunCaptureHooks = {},
   info: CodingAgentInfo = { decisionSource: 'scripted-demo', planApprovalRequired: true },
-  deps: CodingRouteDeps = {},
+  deps: CodingRouteDeps,
 ): void {
   /**
    * Capability truth, so the builder UI can say what it is talking to instead
@@ -213,6 +216,9 @@ export function registerCodingRoutes(
           };
         }
       }
+      // The caller must own the project, and the workspace must belong to it.
+      // The ids are in the BODY, so the parameter guard never sees them.
+      await deps.runs.assertCanStart(ownerOf(request), body.projectId, body.workspaceId);
       // Step 18: bracket the run - capture BEFORE the run starts (best-effort).
       await captureRunStart(captures, 'coding_before', body.projectId, body.workspaceId);
       const view = await manager.startRun({
@@ -226,6 +232,11 @@ export function registerCodingRoutes(
           ? { acceptanceCriteria: body.acceptanceCriteria }
           : {}),
       });
+      deps.runs.record(view.runId, {
+        ownerRef: ownerOf(request),
+        projectId: body.projectId,
+        workspaceId: body.workspaceId,
+      });
       reply.code(200);
       return toRunPayload(view, deps.decisionSource);
     } catch (error) {
@@ -238,6 +249,7 @@ export function registerCodingRoutes(
   app.get('/api/coding/runs/:runId', async (request, reply) => {
     const { runId } = request.params as { runId: string };
     try {
+      deps.runs.require(ownerOf(request), runId);
       reply.code(200);
       return toRunPayload(manager.getRun(runId), deps.decisionSource);
     } catch (error) {
@@ -250,6 +262,7 @@ export function registerCodingRoutes(
   app.post('/api/coding/runs/:runId/cancel', async (request, reply) => {
     const { runId } = request.params as { runId: string };
     try {
+      deps.runs.require(ownerOf(request), runId);
       const view = manager.cancelRun(runId);
       // Abort the model call itself: cancelling should stop the spend, not
       // just make the answer unread.
@@ -271,6 +284,7 @@ export function registerCodingRoutes(
       const { runId } = request.params as { runId: string };
       const { decision } = request.body as { decision: 'approve' | 'reject' };
       try {
+        deps.runs.require(ownerOf(request), runId);
         const view = await manager.submitApproval(runId, decision);
         await captureRunEnd(captures, 'coding_after', view.projectId, view.workspaceId, view.state);
         reply.code(200);

@@ -65,11 +65,68 @@ function nodeView(node: FileNode): Record<string, unknown> {
   };
 }
 
-export function createProjectTools(projectEngine: ProjectEngine): {
+/**
+ * What a project tool call is allowed to touch.
+ *
+ * The tools take a `projectId` / `workspaceId` from model input. Unbound, any run
+ * allowed to use them could read, rewrite, move and delete files in ANY project
+ * whose id it could name. With a scope resolver, each call is held to the one
+ * project + workspace its run was started on (the start route has already
+ * checked that the caller owns it). The run is identified by the invocation's
+ * correlationId, which the server-side manager sets; it is never model input.
+ *
+ * A call outside the run's scope, or from a run the resolver does not know,
+ * answers exactly like a project that does not exist.
+ */
+export interface ProjectToolScope {
+  readonly projectId: string;
+  /** The workspace the run was started on. */
+  readonly workspaceId: string;
+  /**
+   * Further workspaces of the SAME project the run may touch. Production leaves
+   * this empty (a run has exactly one workspace); an in-process test fixture,
+   * which has no start route, lists the fixture project's workspaces.
+   */
+  readonly alsoWorkspaceIds?: readonly string[];
+}
+
+export interface ProjectToolOwnership {
+  /** Returns the scope of a run, or null when the run is unknown. */
+  readonly scopeOfRun: (
+    runId: string,
+  ) => ProjectToolScope | null | Promise<ProjectToolScope | null>;
+}
+
+const PROJECT_TOOL_NOT_FOUND = 'That project or workspace was not found.';
+
+export function createProjectTools(
+  projectEngine: ProjectEngine,
+  ownership: ProjectToolOwnership,
+): {
   definitions: ToolDefinition[];
   implementations: ToolImplementation[];
 } {
+  if (typeof ownership?.scopeOfRun !== 'function') {
+    // Fail at construction: an unbound tool set must not exist.
+    throw new Error('createProjectTools requires a run scope resolver.');
+  }
   const tools: ProjectToolOptions[] = [];
+
+  /** True when the call names exactly the workspace (and project) its run owns. */
+  const withinRunScope = async (
+    input: Record<string, unknown>,
+    correlationId: string | undefined,
+  ): Promise<boolean> => {
+    if (correlationId === undefined) return false;
+    const scope = await ownership.scopeOfRun(correlationId);
+    if (scope === null) return false;
+    const named = input['workspaceId'];
+    if (named !== scope.workspaceId && !(scope.alsoWorkspaceIds ?? []).includes(named as string)) {
+      return false;
+    }
+    const projectId = input['projectId'];
+    return projectId === undefined || projectId === scope.projectId;
+  };
 
   const wrap = (
     definition: ToolDefinition,
@@ -81,8 +138,13 @@ export function createProjectTools(projectEngine: ProjectEngine): {
       definition,
       implementation: {
         toolId: definition.id,
-        handler: async (input) => {
+        handler: async (input, context) => {
           try {
+            if (!(await withinRunScope(input, context?.invocation?.correlationId))) {
+              throw new ToolExecutionError(definition.id, PROJECT_TOOL_NOT_FOUND, {
+                details: { cause: 'NOT_FOUND' },
+              });
+            }
             return await handler(input);
           } catch (error) {
             toToolError(definition.id, error);

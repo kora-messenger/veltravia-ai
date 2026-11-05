@@ -1,4 +1,4 @@
-import { createProjectTools } from '@veltravia/coding-agent-core';
+import { createProjectTools, type ProjectToolOwnership } from '@veltravia/coding-agent-core';
 import { ConnectorManager } from '@veltravia/connector-core';
 import { createMockConnector } from '@veltravia/connector-mock';
 import { AppGenerationManager } from '@veltravia/generation-core';
@@ -24,6 +24,8 @@ const GENERATION_TOOL_IDS = [
 
 export interface CreateGenerationManagerOptions {
   readonly projectEngine: ProjectEngine;
+  /** Holds each run to the one workspace it was started on (see run-ownership.ts). */
+  readonly runScopes: ProjectToolOwnership;
   readonly tools?: ToolManager;
   /** Sandbox manager for registering sandbox tools when no tools manager is injected. */
   readonly sandboxes?: SandboxManager;
@@ -52,7 +54,7 @@ export function createGenerationManager(
   connectors.configure('mock');
   const tools = options.tools ?? createToolManager(now, options.sandboxes, connectors);
 
-  const projectTools = createProjectTools(options.projectEngine);
+  const projectTools = createProjectTools(options.projectEngine, options.runScopes);
   for (const definition of projectTools.definitions) {
     tools.register(definition);
   }

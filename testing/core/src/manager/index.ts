@@ -175,8 +175,13 @@ export class TestingManager {
    * else: the Tool System itself stays private, so no caller can reach the
    * sandbox through it. Files that may hold secrets are listed but never read.
    */
-  readWorkspaceFiles(workspaceId: string): Promise<ReadWorkspaceResult> {
-    return readWorkspace({ tools: this.tools, workspaceId, requester: 'app-testing-agent' });
+  readWorkspaceFiles(workspaceId: string, runId: string): Promise<ReadWorkspaceResult> {
+    return readWorkspace({
+      tools: this.tools,
+      workspaceId,
+      requester: 'app-testing-agent',
+      correlationId: runId,
+    });
   }
 
   // ---- lifecycle ------------------------------------------------------------

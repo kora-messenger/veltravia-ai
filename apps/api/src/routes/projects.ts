@@ -1,5 +1,5 @@
-import { readEnv } from '@veltravia/config';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { resolveCallerOwnerRef } from '../project-access.js';
+import type { FastifyInstance } from 'fastify';
 import {
   InvalidPathError,
   isProjectError,
@@ -93,24 +93,10 @@ const metadataSchema = { type: 'object', additionalProperties: true };
  * identity. A real deployment derives `ownerRef` from the authenticated
  * session instead; the field is identity metadata, never a credential.
  */
-function developmentOwnerRef(): string {
-  return readEnv('VELTRAVIA_DEFAULT_OWNER_REF') ?? 'veltravia-dev-user';
-}
-
-/**
- * The owner a request speaks for, when it names one.
- *
- * Steps that scope data per owner (files, documents, media intelligence, cross-
- * source intelligence) identify the caller with `x-veltravia-owner-ref`. A
- * project created without an explicit `ownerRef` inherits that identity so the
- * same caller can find its own projects afterwards; without a header the
- * development owner is used, exactly as before.
- */
-function requestOwnerRef(request: FastifyRequest): string | null {
-  const raw = request.headers['x-veltravia-owner-ref'];
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  return typeof value === 'string' && value.length > 0 ? value.slice(0, 256) : null;
-}
+// The caller is resolved by ONE function shared with the access guard
+// (project-access.ts), so a project is never filed under one identity and
+// checked under another.
+const callerOwnerRef = resolveCallerOwnerRef;
 
 export function registerProjectRoutes(app: FastifyInstance, engine: ProjectEngine): void {
   // -----------------------------------------------------------------
@@ -125,6 +111,8 @@ export function registerProjectRoutes(app: FastifyInstance, engine: ProjectEngin
       name: { type: 'string', minLength: 1, maxLength: 128 },
       description: { type: 'string', maxLength: 2000 },
       projectType: projectTypeSchema,
+      // Accepted so older clients are not rejected, but IGNORED: a project belongs to
+      // the caller, never to whoever the body names.
       ownerRef: { type: 'string', minLength: 1, maxLength: 256 },
       version: { type: 'string', maxLength: 64 },
       metadata: metadataSchema,
@@ -144,7 +132,7 @@ export function registerProjectRoutes(app: FastifyInstance, engine: ProjectEngin
         name: body.name,
         description: body.description,
         projectType: body.projectType,
-        ownerRef: body.ownerRef ?? requestOwnerRef(request) ?? developmentOwnerRef(),
+        ownerRef: callerOwnerRef(request),
         ...(body.version !== undefined ? { version: body.version } : {}),
         ...(body.metadata !== undefined ? { metadata: body.metadata } : {}),
       });
@@ -155,9 +143,13 @@ export function registerProjectRoutes(app: FastifyInstance, engine: ProjectEngin
     }
   });
 
-  app.get('/api/projects', async (_request, reply) => {
+  app.get('/api/projects', async (request, reply) => {
     try {
-      const projects = await engine.projects.listProjects();
+      // Only the caller's own projects. The ownership guard covers routes that
+      // name a project; the list names none, so it filters here.
+      const projects = await engine.projects.listProjects({
+        ownerRef: callerOwnerRef(request),
+      });
       return reply.send({ projects: projects.map(projectResponse) });
     } catch (error) {
       const { status, body } = toHttpError(error);

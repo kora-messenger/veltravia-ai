@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   generateTests,
   inspectApplication,
@@ -93,20 +94,25 @@ export class AppTestingService {
   async start(input: StartInput): Promise<StartedRun> {
     await this.options.ledger.assertCanStart(input.ownerRef, input.projectId, input.workspaceId);
 
-    const read = await this.options.testing.readWorkspaceFiles(input.workspaceId);
-    const inspection = inspectApplication(read.files);
-    const findings = runSecurityChecks(read.files, inspection);
-    const generated = generateTests(inspection);
-
-    const run = await this.options.testing.startRun({
-      projectId: input.projectId,
-      workspaceId: input.workspaceId,
-    });
-    this.options.ledger.record(run.runId, {
+    // Record the scope BEFORE the run starts: the run lists its workspace while it
+    // starts, and the project tools only act inside a recorded run's own workspace.
+    const runId = `testrun_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+    this.options.ledger.record(runId, {
       ownerRef: input.ownerRef,
       projectId: input.projectId,
       workspaceId: input.workspaceId,
     });
+    const run = await this.options.testing.startRun({
+      projectId: input.projectId,
+      workspaceId: input.workspaceId,
+      runId,
+    });
+    // The read is held to this run's workspace.
+    const read = await this.options.testing.readWorkspaceFiles(input.workspaceId, run.runId);
+    const inspection = inspectApplication(read.files);
+    const findings = runSecurityChecks(read.files, inspection);
+    const generated = generateTests(inspection);
+
     const context: AppTestContext = {
       inspection,
       findings,

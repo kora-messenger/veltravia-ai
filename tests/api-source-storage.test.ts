@@ -117,7 +117,7 @@ describe('native source storage API', () => {
     ]) {
       const response = await app.inject({ method: 'GET', url, headers: ownerB });
       expect(response.statusCode).toBe(404);
-      expect(response.json().error.code).toBe('SOURCE_REPOSITORY_NOT_FOUND');
+      expect(response.json().error.code).toBe('NOT_FOUND');
     }
 
     const write = await createFile(app, projectId, 'b.ts', 'b', ownerB);

@@ -107,6 +107,11 @@ export interface ReadWorkspaceOptions {
   readonly workspaceId: string;
   /** Who is asking, recorded by the Tool System. */
   readonly requester?: string;
+  /**
+   * The run this read belongs to. The project tools only act inside a run's
+   * own workspace, so a read without a run is refused.
+   */
+  readonly correlationId?: string;
 }
 
 /** Lists and reads a workspace within bounds. Never throws on a missing file. */
@@ -122,7 +127,10 @@ export async function readWorkspace(options: ReadWorkspaceOptions): Promise<Read
   let unreadable = 0;
 
   const invoke = (toolId: string, input: Record<string, unknown>) =>
-    tools.invoke(toolId, input, { requester });
+    tools.invoke(toolId, input, {
+      requester,
+      ...(options.correlationId !== undefined ? { correlationId: options.correlationId } : {}),
+    });
 
   // Breadth-first listing, bounded by depth and file count.
   const queue: { path: string | null; depth: number }[] = [{ path: null, depth: 0 }];

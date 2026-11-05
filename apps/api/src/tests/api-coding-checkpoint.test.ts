@@ -1,3 +1,4 @@
+import { createRunScopes } from './run-scopes.js';
 import { describe, expect, it } from 'vitest';
 import type { CodingDecision, CodingDecisionContext } from '@veltravia/coding-agent-core';
 import { createProjectEngine, createSequentialIdGenerator } from '@veltravia/project-mock';
@@ -40,7 +41,7 @@ async function setup(decisions: CodingDecision[]) {
     name: 'p',
     description: 'd',
     projectType: 'other',
-    ownerRef: 'owner',
+    ownerRef: 'veltravia-dev-user',
   });
   const workspace = await projectEngine.workspaces.createWorkspace(project.id, { name: 'main' });
   await projectEngine.files.createFile(workspace.id, { path: 'old.ts', content: 'old' });
@@ -49,7 +50,9 @@ async function setup(decisions: CodingDecision[]) {
   const service = createVersionControlService({ projectEngine, now: NOW });
 
   let index = 0;
+  const { ownership, runScopes } = createRunScopes(projectEngine);
   const coding = createCodingManager({
+    runScopes,
     projectEngine,
     now: NOW,
     decisionSource: {
@@ -59,7 +62,12 @@ async function setup(decisions: CodingDecision[]) {
     requirePlanApproval: true,
     checkpoints: createCodingCheckpointPort({ projectEngine, version: service.manager }),
   });
-  const app = buildApp({ projectEngine, coding, versionManager: service.manager });
+  const app = buildApp({
+    projectEngine,
+    coding,
+    versionManager: service.manager,
+    runOwnership: ownership,
+  });
   return { app, projectId: project.id, workspaceId: workspace.id, service };
 }
 

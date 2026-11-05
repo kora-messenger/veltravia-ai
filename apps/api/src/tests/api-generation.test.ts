@@ -1,3 +1,4 @@
+import { createRunScopes } from './run-scopes.js';
 import { describe, expect, it } from 'vitest';
 import { createGenerationManager } from '../generation.js';
 import { createProjectEngine, createSequentialIdGenerator } from '@veltravia/project-mock';
@@ -20,8 +21,9 @@ async function createGenerationApp(): Promise<GenerationApp> {
     generateNodeId: createSequentialIdGenerator('node'),
   });
   const sandboxes = createMockSandboxManager({ now: NOW, auditSink: () => undefined }).manager;
-  const generation = createGenerationManager({ projectEngine, sandboxes, now: NOW });
-  const app = buildApp({ projectEngine, generation });
+  const { ownership, runScopes } = createRunScopes(projectEngine);
+  const generation = createGenerationManager({ projectEngine, sandboxes, runScopes, now: NOW });
+  const app = buildApp({ projectEngine, generation, runOwnership: ownership });
   return { app };
 }
 

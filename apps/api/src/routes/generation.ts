@@ -1,4 +1,6 @@
 import type { FastifyInstance } from 'fastify';
+import { resolveCallerOwnerRef } from '../project-access.js';
+import { RunAccessError, type RunOwnership } from '../run-ownership.js';
 import { captureRunEnd, captureRunStart, type RunCaptureHooks } from '../run-captures.js';
 import {
   isGenerationError,
@@ -34,6 +36,9 @@ const GENERATION_ERROR_STATUS: Record<string, number> = {
 };
 
 function toHttpError(error: unknown): { status: number; body: Record<string, unknown> } {
+  if (error instanceof RunAccessError) {
+    return { status: 404, body: { error: { code: 'NOT_FOUND', message: error.message } } };
+  }
   if (isGenerationError(error)) {
     const status = GENERATION_ERROR_STATUS[error.code] ?? 500;
     return { status, body: { error: error.toJSON() } };
@@ -122,7 +127,8 @@ const approvalBodySchema = {
 export function registerGenerationRoutes(
   app: FastifyInstance,
   manager: AppGenerationManager,
-  captures: RunCaptureHooks = {},
+  captures: RunCaptureHooks,
+  runs: RunOwnership,
 ): void {
   app.post(
     '/api/app-generations',
@@ -130,10 +136,15 @@ export function registerGenerationRoutes(
     async (request, reply) => {
       try {
         const body = request.body as { idea: string; runId?: string };
+        const owner = resolveCallerOwnerRef(request);
         const view = await manager.startRun({
           idea: body.idea,
+          ownerRef: owner,
           ...(body.runId !== undefined ? { runId: body.runId } : {}),
         });
+        // The project does not exist yet; its scope is recorded as soon as the
+        // run reports one (see scopeFromView), and the owner is fixed now.
+        runs.recordStart(view.runId, owner, view.projectId, view.workspaceId);
         return reply.code(201).send(toRunPayload(view));
       } catch (error) {
         const { status, body } = toHttpError(error);
@@ -145,6 +156,7 @@ export function registerGenerationRoutes(
   app.get('/api/app-generations/:runId', async (request, reply) => {
     try {
       const { runId } = request.params as { runId: string };
+      runs.require(resolveCallerOwnerRef(request), runId);
       return reply.send(toRunPayload(manager.getRun(runId)));
     } catch (error) {
       const { status, body } = toHttpError(error);
@@ -155,6 +167,7 @@ export function registerGenerationRoutes(
   app.get('/api/app-generations/:runId/plan', async (request, reply) => {
     try {
       const { runId } = request.params as { runId: string };
+      runs.require(resolveCallerOwnerRef(request), runId);
       return reply.send(toPlanPayload(manager.getPlan(runId)));
     } catch (error) {
       const { status, body } = toHttpError(error);
@@ -165,6 +178,7 @@ export function registerGenerationRoutes(
   app.get('/api/app-generations/:runId/result', async (request, reply) => {
     try {
       const { runId } = request.params as { runId: string };
+      runs.require(resolveCallerOwnerRef(request), runId);
       return reply.send(toResultPayload(manager.getResult(runId)));
     } catch (error) {
       const { status, body } = toHttpError(error);
@@ -178,6 +192,7 @@ export function registerGenerationRoutes(
     async (request, reply) => {
       try {
         const { runId } = request.params as { runId: string };
+        runs.require(resolveCallerOwnerRef(request), runId);
         const body = request.body as { decision: 'approve' | 'reject' };
         const before = manager.getRun(runId);
         if (before.projectId !== null && before.workspaceId !== null) {
@@ -209,6 +224,7 @@ export function registerGenerationRoutes(
   app.post('/api/app-generations/:runId/cancel', async (request, reply) => {
     try {
       const { runId } = request.params as { runId: string };
+      runs.require(resolveCallerOwnerRef(request), runId);
       const cancelled = await manager.cancelRun(runId);
       if (cancelled.projectId !== null && cancelled.workspaceId !== null) {
         await captureRunEnd(

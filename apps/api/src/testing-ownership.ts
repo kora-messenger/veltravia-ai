@@ -66,6 +66,14 @@ export class TestingRunLedger {
     return record;
   }
 
+  /** The workspace a test run was started on (no owner check: server-side use only). */
+  scopeOf(runId: string): { projectId: string; workspaceId: string } | null {
+    const record = this.runs.get(runId);
+    return record === undefined
+      ? null
+      : { projectId: record.projectId, workspaceId: record.workspaceId };
+  }
+
   /** Runs owned by the caller, newest last. Never includes anyone else's. */
   list(ownerRef: string): readonly { readonly runId: string; readonly record: RunRecord }[] {
     return [...this.runs.entries()]

@@ -1,3 +1,4 @@
+import { createRunScopes } from './run-scopes.js';
 import { describe, expect, it } from 'vitest';
 import { createTestingManager } from '../testing.js';
 import { createProjectEngine, createSequentialIdGenerator } from '@veltravia/project-mock';
@@ -64,8 +65,14 @@ async function createTestedApp(options?: { manifest?: string }): Promise<{
         2,
       )}\n`,
   });
-  const testing = createTestingManager({ projectEngine, now: NOW, sandboxes: sandboxManager() });
-  const app = asOwner(buildApp({ projectEngine, testing }));
+  const { ownership, runScopes } = createRunScopes(projectEngine);
+  const testing = createTestingManager({
+    projectEngine,
+    runScopes,
+    now: NOW,
+    sandboxes: sandboxManager(),
+  });
+  const app = asOwner(buildApp({ projectEngine, testing, runOwnership: ownership }));
   return { app, projectId: project.id, workspaceId: workspace.id };
 }
 
@@ -189,8 +196,14 @@ describe('testing API routes', () => {
       name: 'main',
       branch: 'main',
     });
-    const testing = createTestingManager({ projectEngine, now: NOW, sandboxes: sandboxManager() });
-    const app = asOwner(buildApp({ projectEngine, testing }));
+    const { ownership, runScopes } = createRunScopes(projectEngine);
+    const testing = createTestingManager({
+      projectEngine,
+      runScopes,
+      now: NOW,
+      sandboxes: sandboxManager(),
+    });
+    const app = asOwner(buildApp({ projectEngine, testing, runOwnership: ownership }));
     const started = await app.inject({
       method: 'POST',
       url: '/api/testing/runs',

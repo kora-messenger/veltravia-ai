@@ -77,7 +77,24 @@ async function setup(
     readonly limits?: Record<string, number>;
   } = {},
 ): Promise<TestSetup> {
-  const environment = await createCodingFixtureEnvironment();
+  // Like production, a generation run may touch only the project + workspace IT
+  // created. The manager does not exist until the environment (and its tools)
+  // does, so the resolver reads it late.
+  let managerRef: AppGenerationManager | null = null;
+  const environment = await createCodingFixtureEnvironment({
+    runScopes: {
+      scopeOfRun: (runId) => {
+        try {
+          const view = managerRef?.getRun(runId);
+          return view?.projectId != null && view.workspaceId != null
+            ? { projectId: view.projectId, workspaceId: view.workspaceId }
+            : null;
+        } catch {
+          return null;
+        }
+      },
+    },
+  });
   const audits: GenerationAuditEvent[] = [];
   const template = options.template ?? makeTemplate();
   const registry = new TemplateRegistry();
@@ -143,6 +160,7 @@ async function setup(
     onAudit: (event) => audits.push(event as GenerationAuditEvent),
     ...(options.limits !== undefined ? { limits: options.limits } : {}),
   });
+  managerRef = manager;
   return { manager, template, audits, plannerFailures: { messages: [] } };
 }
 

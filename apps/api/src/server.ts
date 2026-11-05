@@ -96,6 +96,8 @@ import { createTestingStack } from './testing.js';
 import { createGenerationManager } from './generation.js';
 import { registerToolRoutes } from './routes/tools.js';
 import { registerProjectRoutes } from './routes/projects.js';
+import { createProjectAccess, registerProjectAccessGuard } from './project-access.js';
+import { RunOwnership } from './run-ownership.js';
 import { registerIntegrationRoutes } from './routes/integrations.js';
 import { createIntegrationSystem, type ApiIntegrationSystem } from './integrations.js';
 import { createGitHubApiConnector } from './github.js';
@@ -109,6 +111,12 @@ function readPositiveIntEnv(name: string): number {
 }
 
 export interface BuildAppOptions {
+  /**
+   * The run-scope ledger. Tests that inject their own coding / generation /
+   * testing manager must build that manager from THIS ledger's resolver, or the
+   * server and the manager disagree about which workspace a run may touch.
+   */
+  readonly runOwnership?: RunOwnership;
   /** Pre-built AICore (tests inject one); defaults to the mock-backed core. */
   readonly aiCore?: AICore;
   /** Pre-built ConnectorManager (tests inject one); defaults to the mock connector. */
@@ -202,6 +210,15 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // isolation boundary - never in the API process, never with inherited
   // environment, never unrestricted.
   const projectEngine = options.projectEngine ?? createEngine();
+
+  // Ownership guard. Registered BEFORE any route that names a project or a
+  // workspace: Fastify applies a hook only to routes added after it.
+  const projectAccess = createProjectAccess(projectEngine);
+  registerProjectAccessGuard(app, projectAccess);
+  // Which owner started which coding / generation run, and the one workspace
+  // each run may touch. Shared by the three run managers and their routes.
+  const runOwnership = options.runOwnership ?? new RunOwnership(projectEngine);
+  const runScopes = { scopeOfRun: (runId: string) => runOwnership.scopeOf(runId) };
   const sandboxes = options.sandboxes ?? createSandboxManager();
   registerSandboxRoutes(app, sandboxes, projectEngine);
 
@@ -384,6 +401,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     // the availability of tools other consumers see.
     createCodingManager({
       projectEngine,
+      runScopes,
       sandboxes,
       checkpoints: createCodingCheckpointPort({ projectEngine, version: versionManager }),
       now: () => new Date(),
@@ -407,7 +425,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         options.coding !== undefined ? 'injected' : codingDemoMode ? 'scripted-demo' : 'model',
       planApprovalRequired: true,
     },
-    codingDecision !== null ? { decisionSource: codingDecision } : {},
+    { runs: runOwnership, ...(codingDecision !== null ? { decisionSource: codingDecision } : {}) },
   );
 
   // App Generation endpoints: bounded, state-machine-driven idea-to-app
@@ -420,10 +438,21 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     options.generation ??
     createGenerationManager({
       projectEngine,
+      runScopes,
       sandboxes,
       now: () => new Date(),
     });
-  registerGenerationRoutes(app, generation, { version: versionManager });
+  runOwnership.addScopeSource((runId) => {
+    try {
+      const view = generation.getRun(runId);
+      return view.projectId !== null && view.workspaceId !== null
+        ? { projectId: view.projectId, workspaceId: view.workspaceId }
+        : null;
+    } catch {
+      return null;
+    }
+  });
+  registerGenerationRoutes(app, generation, { version: versionManager }, runOwnership);
 
   // Testing Engine endpoints: bounded, state-machine-driven test runs over
   // the SAME project engine and sandbox layer - every read and command flows
@@ -432,9 +461,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // through these routes; responses carry safe normalized state only.
   const testing =
     options.testing ??
-    createTestingStack({ projectEngine, sandboxes, now: () => new Date() }).testing;
+    createTestingStack({ projectEngine, sandboxes, runScopes, now: () => new Date() }).testing;
   // Who may see and act on which testing run. Required by every testing route.
   const testingLedger = new TestingRunLedger(projectEngine);
+  // A test run, and the repair run it spawns, may touch only the workspace the test run was started on.
+  runOwnership.addScopeSource((runId) => testingLedger.scopeOf(runId));
   registerTestingRoutes(app, testing, testingLedger, { version: versionManager });
   // Application testing (Step 39): inspection, generated tests, security checks
   // and reports over the SAME testing manager. The environment is stated from

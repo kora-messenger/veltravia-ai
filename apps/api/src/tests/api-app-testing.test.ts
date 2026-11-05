@@ -1,3 +1,4 @@
+import { createRunScopes } from './run-scopes.js';
 import { describe, expect, it } from 'vitest';
 import { createProjectEngine, createSequentialIdGenerator } from '@veltravia/project-mock';
 import { createMockSandboxManager } from '@veltravia/sandbox-mock';
@@ -72,8 +73,14 @@ async function setup(extraFiles: Record<string, string> = {}): Promise<Fixture> 
     ...extraFiles,
   });
   const theirs = await make(BOB, { 'package.json': MANIFEST });
-  const testing = createTestingManager({ projectEngine, now: NOW, sandboxes: sandboxManager() });
-  const app = buildApp({ projectEngine, testing });
+  const { ownership, runScopes } = createRunScopes(projectEngine);
+  const testing = createTestingManager({
+    projectEngine,
+    runScopes,
+    now: NOW,
+    sandboxes: sandboxManager(),
+  });
+  const app = buildApp({ projectEngine, testing, runOwnership: ownership });
   return {
     app,
     ...mine,

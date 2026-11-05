@@ -66,7 +66,7 @@ describe('memory routes - project scoping', () => {
       payload: { title: 't', content: 'c', type: 'project_summary' },
     });
     expect(response.statusCode).toBe(404);
-    expect((response.json().error as { code: string }).code).toBe('PROJECT_NOT_FOUND');
+    expect((response.json().error as { code: string }).code).toBe('NOT_FOUND');
   });
 
   it('rejects unknown body properties (strict contract)', async () => {

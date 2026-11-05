@@ -1,6 +1,7 @@
 import {
   CodingAgentManager,
   createProjectTools,
+  type ProjectToolOwnership,
   CODING_TOOL_IDS,
   type CodingCheckpointPort,
   type CodingDecisionSource,
@@ -61,6 +62,8 @@ export function createDemoCodingDecisionSource(): CodingDecisionSource {
 
 export interface CreateCodingManagerOptions {
   readonly projectEngine: ProjectEngine;
+  /** Holds each run to the one workspace it was started on (see run-ownership.ts). */
+  readonly runScopes: ProjectToolOwnership;
   readonly tools?: ToolManager;
   /** Sandbox manager for registering sandbox tools when no tools manager is injected. */
   readonly sandboxes?: SandboxManager;
@@ -103,7 +106,7 @@ export function createCodingManager(options: CreateCodingManagerOptions): Coding
     .registerAndConnect(connectors)
     .catch(() => undefined)
     .catch(() => undefined);
-  const projectTools = createProjectTools(options.projectEngine);
+  const projectTools = createProjectTools(options.projectEngine, options.runScopes);
   for (const definition of projectTools.definitions) {
     tools.register(definition);
   }

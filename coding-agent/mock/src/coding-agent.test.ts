@@ -243,7 +243,10 @@ describe('coding agent full loop (offline fixture environment)', () => {
     await manager.submitApproval(run.runId, 'approve');
     const view = manager.getRun(run.runId);
     expect(view.state).toBe('failed');
-    expect(view.failure?.message).toMatch(/PROJECT_NOT_FOUND/);
+    // A project outside the run's scope answers like one that does not exist:
+    // the engine's own code must not leak, or ids could be probed.
+    expect(view.failure?.message ?? '').not.toMatch(/PROJECT_NOT_FOUND|WORKSPACE_NOT_FOUND/);
+    expect(await env.projectEngine.files.listDirectory(env.workspaceId, '')).toEqual([]);
   });
 
   it('runs against a different workspace of the same project without cross-talk', async () => {
@@ -443,7 +446,8 @@ describe('coding agent full loop (offline fixture environment)', () => {
     await manager.submitApproval(run.runId, 'approve');
     const view = manager.getRun(run.runId);
     expect(view.state).toBe('failed');
-    expect(view.failure?.message).toMatch(/WORKSPACE_NOT_FOUND|not found/);
+    expect(view.failure?.message ?? '').not.toMatch(/PROJECT_NOT_FOUND|WORKSPACE_NOT_FOUND/);
+    expect(await env.projectEngine.files.listDirectory(env.workspaceId, '')).toEqual([]);
   });
 
   it('fails deterministically when the script is exhausted', async () => {

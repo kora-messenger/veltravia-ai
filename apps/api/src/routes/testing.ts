@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { captureRunEnd, captureRunStart, type RunCaptureHooks } from '../run-captures.js';
 import { isTestingError, type TestRunView, type TestingManager } from '@veltravia/testing-core';
@@ -132,15 +133,18 @@ export function registerTestingRoutes(
       await ledger.assertCanStart(ownerRef, body.projectId, body.workspaceId);
       // Step 18: bracket the testing run (best-effort).
       await captureRunStart(captures, 'testing_before_repair', body.projectId, body.workspaceId);
-      const view = await manager.startRun({
-        projectId: body.projectId,
-        workspaceId: body.workspaceId,
-        ...(body.runId !== undefined ? { runId: body.runId } : {}),
-      });
-      ledger.record(view.runId, {
+      // Record the scope BEFORE the run starts: the run lists its workspace while it
+      // starts, and the project tools only act inside a recorded run's own workspace.
+      const runId = body.runId ?? `testrun_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+      ledger.record(runId, {
         ownerRef,
         projectId: body.projectId,
         workspaceId: body.workspaceId,
+      });
+      const view = await manager.startRun({
+        projectId: body.projectId,
+        workspaceId: body.workspaceId,
+        runId,
       });
       await captureRunEnd(captures, 'testing_after', view.projectId, view.workspaceId, view.state);
       reply.code(200);

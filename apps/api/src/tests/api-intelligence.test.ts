@@ -11,17 +11,18 @@ async function seed(app: App) {
   const project = await app.inject({
     method: 'POST',
     url: '/api/projects',
+    headers: OWNER,
     payload: {
       name: 'Kora Messenger',
       projectType: 'web',
       description: 'Messaging app',
-      ownerRef: 'owner-a',
     },
   });
   const projectId = (project.json() as { id: string }).id;
   const workspace = await app.inject({
     method: 'POST',
     url: `/api/projects/${projectId}/workspaces`,
+    headers: OWNER,
     payload: { name: 'main' },
   });
   const workspaceId = (workspace.json() as { id: string }).id;
@@ -29,6 +30,7 @@ async function seed(app: App) {
     app.inject({
       method: 'POST',
       url: `/api/workspaces/${workspaceId}/files`,
+      headers: OWNER,
       payload: { path, content },
     });
   await create('spec.md', '# Specification\n\n## Authentication\nEmail sign-in is implemented.\n');
@@ -65,12 +67,14 @@ describe('owner identity', () => {
     const workspace = await app.inject({
       method: 'POST',
       url: `/api/projects/${(created.json() as { id: string }).id}/workspaces`,
+      headers: { 'x-veltravia-owner-ref': 'owner-a' },
       payload: { name: 'main' },
     });
     const workspaceId = (workspace.json() as { id: string }).id;
     await app.inject({
       method: 'POST',
       url: `/api/workspaces/${workspaceId}/files`,
+      headers: { 'x-veltravia-owner-ref': 'owner-a' },
       payload: { path: 'plan.md', content: '# Plan\n\nDeadline is 2026-12-15.\n' },
     });
 
