@@ -151,7 +151,10 @@ export async function discardExport(exportId: string): Promise<void> {
 async function sha256Hex(bytes: ArrayBuffer): Promise<string | null> {
   const subtle = globalThis.crypto?.subtle;
   if (subtle === undefined) return null;
-  const digest = await subtle.digest('SHA-256', bytes);
+  // Copy into a Uint8Array made HERE. Under jsdom on Node 20, the ArrayBuffer a
+  // Response returns comes from another realm and crypto.subtle refuses it; a
+  // typed array built in this realm is accepted everywhere, including a browser.
+  const digest = await subtle.digest('SHA-256', new Uint8Array(bytes));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
