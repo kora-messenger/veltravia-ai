@@ -136,3 +136,68 @@ export function mapCommit(
     asString((record.commit as { message?: unknown } | null)?.message) || fallbackMessage;
   return { sha, message, path, branch };
 }
+
+/** One file in a repository tree. Directories and submodules are not files. */
+export interface GitHubTreeFile {
+  readonly path: string;
+  /** The blob sha: the version token for this exact content. */
+  readonly sha: string;
+  readonly size: number;
+}
+
+/**
+ * Maps raw tree entries to files only. Anything that is not a regular blob
+ * (directories, submodules, symlinks) is counted as skipped, never invented as
+ * a file, so a sync can say what it did not look at.
+ */
+export function mapTreeFiles(rawEntries: readonly unknown[]): {
+  files: GitHubTreeFile[];
+  skipped: number;
+} {
+  const files: GitHubTreeFile[] = [];
+  let skipped = 0;
+  for (const raw of rawEntries) {
+    if (raw === null || typeof raw !== 'object') {
+      throw new GitHubError('GITHUB_INVALID_RESPONSE', 'malformed tree entry');
+    }
+    const record = raw as Record<string, unknown>;
+    const type = asString(record.type);
+    const mode = asString(record.mode);
+    if (type === 'tree') continue; // a directory: its files are listed on their own
+    // A symlink is mode 120000 and a submodule is a commit: neither is file text.
+    if (type !== 'blob' || mode === '120000' || mode === '160000') {
+      skipped += 1;
+      continue;
+    }
+    const path = asString(record.path);
+    const sha = asString(record.sha);
+    if (path.length === 0 || !/^[0-9a-f]{40}$|^[0-9a-f]{64}$/.test(sha)) {
+      throw new GitHubError('GITHUB_INVALID_RESPONSE', 'tree entry is missing path or sha');
+    }
+    files.push({ path, sha, size: typeof record.size === 'number' ? record.size : 0 });
+  }
+  return { files, skipped };
+}
+
+/**
+ * Decodes a blob as TEXT, or says it is not text. The check is a round trip: if
+ * re-encoding the decoded string does not give back the original bytes, the
+ * blob was not valid UTF-8 (an image, an archive) and must not be treated as a
+ * text file a sync could "modify".
+ */
+export function mapBlobText(raw: unknown): { text: string | null; size: number } {
+  if (raw === null || typeof raw !== 'object') {
+    throw new GitHubError('GITHUB_INVALID_RESPONSE', 'malformed blob payload');
+  }
+  const record = raw as Record<string, unknown>;
+  const size = typeof record.size === 'number' ? record.size : 0;
+  if (size > MAX_FILE_CONTENT_BYTES) return { text: null, size };
+  if (asString(record.encoding) !== 'base64') return { text: null, size };
+  const encoded = asString(record.content).replace(/\n/g, '');
+  const bytes = Buffer.from(encoded, 'base64');
+  const text = bytes.toString('utf-8');
+  if (!Buffer.from(text, 'utf-8').equals(bytes) || text.includes('\u0000')) {
+    return { text: null, size };
+  }
+  return { text, size };
+}

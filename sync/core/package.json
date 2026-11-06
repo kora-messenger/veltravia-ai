@@ -1,0 +1,24 @@
+{
+  "name": "@veltravia/sync-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia GitHub synchronisation: three-way comparison against a recorded base, conflict detection that never discards either side, approval-gated plans, and an atomic single-commit publish through the existing GitHub connector. GitHub is optional; nothing here is needed for native use or export.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/export-core": "*"
+  }
+}

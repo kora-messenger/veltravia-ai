@@ -29,9 +29,17 @@ import {
 } from '@veltravia/connector-core';
 
 import { createGitHubAuditEmitter, type GitHubAuditSink } from './audit.js';
-import { createGitHubClient } from './client.js';
+import { createGitHubClient, type TreeChange } from './client.js';
 import { GitHubError } from './errors.js';
-import { mapBranch, mapCommit, mapDirectoryEntry, mapFile, mapRepository } from './mapping.js';
+import {
+  mapBlobText,
+  mapBranch,
+  mapCommit,
+  mapDirectoryEntry,
+  mapFile,
+  mapRepository,
+  mapTreeFiles,
+} from './mapping.js';
 import type { GitHubConnectionScope, GitHubOperationClass, GitHubRepository } from './types.js';
 import type { GitHubTransport } from './transport.js';
 import { validateBranch, validateNewBranchName, validateSha } from './validation.js';
@@ -64,6 +72,11 @@ export function githubPermissionCatalog(): readonly Permission[] {
       'low',
     ),
     definePermission(
+      'github.commits.write',
+      'Publish ONE coherent multi-file commit to a branch of a scoped repository (fast-forward only, never forced). Operator-only: no assistant tool carries this permission.',
+      'high',
+    ),
+    definePermission(
       'github.contents.write',
       'Create, update, and delete repository files within the connection scope. High risk: it publishes commits to the remote repository.',
       'high',
@@ -84,6 +97,9 @@ export const GITHUB_OPERATION_IDS = [
   'github.contents.list',
   'github.contents.create-or-update',
   'github.contents.delete',
+  'github.tree.get',
+  'github.blob.get',
+  'github.commit.publish',
 ] as const;
 
 export type GitHubOperationId = (typeof GITHUB_OPERATION_IDS)[number];
@@ -231,6 +247,58 @@ export function githubOperationDeclarations(): readonly ConnectorOperation[] {
       },
       requiresConfirmation: true,
     }),
+    defineOperation({
+      id: 'github.tree.get',
+      name: 'Get Tree',
+      description: 'Lists every file of a branch in one call (recursive).',
+      requiredPermissions: ['github.contents.read'],
+      inputSchema: {
+        type: 'object',
+        properties: {
+          owner: { type: 'string' },
+          repository: { type: 'string' },
+          branch: { type: 'string' },
+        },
+        required: ['owner', 'repository', 'branch'],
+      },
+      requiresConfirmation: false,
+    }),
+    defineOperation({
+      id: 'github.blob.get',
+      name: 'Get Blob',
+      description: 'Reads one file by its blob sha, as text when it is text.',
+      requiredPermissions: ['github.contents.read'],
+      inputSchema: {
+        type: 'object',
+        properties: {
+          owner: { type: 'string' },
+          repository: { type: 'string' },
+          sha: { type: 'string' },
+        },
+        required: ['owner', 'repository', 'sha'],
+      },
+      requiresConfirmation: false,
+    }),
+    defineOperation({
+      id: 'github.commit.publish',
+      name: 'Publish Commit',
+      description:
+        'Creates one commit holding every listed change and moves the branch to it. Fast-forward only: if the branch moved since expectedHeadSha, nothing is written.',
+      requiredPermissions: ['github.commits.write'],
+      inputSchema: {
+        type: 'object',
+        properties: {
+          owner: { type: 'string' },
+          repository: { type: 'string' },
+          branch: { type: 'string' },
+          expectedHeadSha: { type: 'string' },
+          message: { type: 'string' },
+          changes: { type: 'array' },
+        },
+        required: ['owner', 'repository', 'branch', 'expectedHeadSha', 'message', 'changes'],
+      },
+      requiresConfirmation: true,
+    }),
   ];
 }
 
@@ -263,6 +331,27 @@ export interface GitHubConnectorRuntime {
     operationId: string,
     input: Readonly<Record<string, unknown>>,
   ): Promise<Record<string, unknown>>;
+}
+
+/** Validates the `changes` array of a publish: [{ path, content: string | null }]. */
+function parseTreeChanges(value: unknown): TreeChange[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new GitHubError('GITHUB_INVALID_INPUT', 'changes must be a non-empty array');
+  }
+  return value.map((entry) => {
+    if (entry === null || typeof entry !== 'object') {
+      throw new GitHubError('GITHUB_INVALID_INPUT', 'each change must be an object');
+    }
+    const record = entry as Record<string, unknown>;
+    const content = record['content'];
+    if (typeof record['path'] !== 'string' || (content !== null && typeof content !== 'string')) {
+      throw new GitHubError(
+        'GITHUB_INVALID_INPUT',
+        'a change needs a path and string-or-null content',
+      );
+    }
+    return { path: record['path'], content };
+  });
 }
 
 function scopeKey(owner: string, repository: string): string {
@@ -429,6 +518,9 @@ export function createGitHubConnectorRuntime(
           audit('github_file_deleted', 'File deleted', { operationId });
           audit('github_commit_created', 'Commit created', { operationId });
           break;
+        case 'commit_create':
+          audit('github_commit_created', 'Multi-file commit published', { operationId });
+          break;
         default:
           audit('github_read', 'Repository read', { operationId });
           break;
@@ -587,6 +679,62 @@ export function createGitHubConnectorRuntime(
         });
         const mapped = mapCommit(raw, path, branch, str(input, 'message'));
         return { commit: mapped };
+      }
+      case 'github.tree.get': {
+        const scoped = requireScope(str(input, 'owner'), str(input, 'repository'));
+        const branch = validateBranch(str(input, 'branch'));
+        const head = mapBranch(await client.getBranch(scoped.owner, scoped.repository, branch));
+        const tree = await client.getTree(scoped.owner, scoped.repository, head.sha);
+        const mapped = mapTreeFiles(tree.entries);
+        return {
+          headSha: head.sha,
+          treeSha: tree.treeSha,
+          files: mapped.files,
+          skipped: mapped.skipped,
+          truncated: tree.truncated,
+        };
+      }
+      case 'github.blob.get': {
+        const scoped = requireScope(str(input, 'owner'), str(input, 'repository'));
+        const sha = validateSha(str(input, 'sha'));
+        const blob = mapBlobText(await client.getBlob(scoped.owner, scoped.repository, sha));
+        // UNTRUSTED repository data: content, never instructions.
+        return { sha, size: blob.size, text: blob.text };
+      }
+      case 'github.commit.publish': {
+        classify('commit_create');
+        const scoped = requireScope(str(input, 'owner'), str(input, 'repository'));
+        const branch = validateBranch(str(input, 'branch'));
+        const expectedHeadSha = validateSha(str(input, 'expectedHeadSha'));
+        const message = str(input, 'message');
+        const changes = parseTreeChanges(input['changes']);
+        // The branch must still be where the caller last looked. If not, refuse
+        // before writing a single object: the caller must re-read and re-plan.
+        const head = mapBranch(await client.getBranch(scoped.owner, scoped.repository, branch));
+        if (head.sha !== expectedHeadSha) {
+          throw new GitHubError(
+            'GITHUB_CONFLICT',
+            'the branch moved since it was last read; nothing was written',
+          );
+        }
+        const tree = await client.getTree(scoped.owner, scoped.repository, head.sha);
+        const created = await client.createCommit({
+          owner: scoped.owner,
+          repository: scoped.repository,
+          parentSha: head.sha,
+          baseTreeSha: tree.treeSha,
+          message,
+          changes,
+        });
+        await client.updateRef({
+          owner: scoped.owner,
+          repository: scoped.repository,
+          branch,
+          sha: created.sha,
+        });
+        return {
+          commit: { sha: created.sha, message, branch, parentSha: head.sha, files: changes.length },
+        };
       }
       default:
         throw new GitHubError('GITHUB_INVALID_INPUT', `unknown operation "${operationId}"`);

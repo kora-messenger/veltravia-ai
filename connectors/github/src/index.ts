@@ -9,3 +9,4 @@ export * from './connector.js';
 export * from './integration.js';
 export * from './tools.js';
 export * from './testing.js';
+export * from './git-data-fake.js';

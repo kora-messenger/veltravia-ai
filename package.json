@@ -38,6 +38,7 @@
     "app-builder/core",
     "source-storage/core",
     "export/core",
+    "sync/core",
     "testing/core",
     "testing/mock",
     "memory/core",
@@ -70,7 +71,7 @@
     "test": "vitest run",
     "build:packages": "npm run build --workspace @veltravia/types && npm run build --workspace @veltravia/shared && npm run build --workspace @veltravia/config",
     "build:ai": "npm run build --workspace @veltravia/ai-core && npm run build --workspace @veltravia/ai-provider-mock && npm run build --workspace @veltravia/ai-provider-gemini",
-    "build": "npm run build:packages && npm run build:ai && npm run build:connectors && npm run build:integration-core && npm run build:tools && npm run build:integration-mocks && npm run build:connector-github && npm run build:agent && npm run build:project && npm run build:sandbox && npm run build:coding && npm run build:generation && npm run build:app-builder && npm run build:source-storage && npm run build:export && npm run build:testing && npm run build:memory && npm run build:codebase && npm run build:runtime && npm run build:version && npm run build:file-intelligence && npm run build:audio-intelligence && npm run build:image-intelligence && npm run build:video-intelligence && npm run build:document-intelligence && npm run build:connected-apps && npm run build:intelligence && npm run build:gateway && npm run build:ai-router && npm run build:reasoning && npm run build --workspace @veltravia/api && npm run build --workspace @veltravia/web",
+    "build": "npm run build:packages && npm run build:ai && npm run build:connectors && npm run build:integration-core && npm run build:tools && npm run build:integration-mocks && npm run build:connector-github && npm run build:agent && npm run build:project && npm run build:sandbox && npm run build:coding && npm run build:generation && npm run build:app-builder && npm run build:source-storage && npm run build:export && npm run build:sync && npm run build:testing && npm run build:memory && npm run build:codebase && npm run build:runtime && npm run build:version && npm run build:file-intelligence && npm run build:audio-intelligence && npm run build:image-intelligence && npm run build:video-intelligence && npm run build:document-intelligence && npm run build:connected-apps && npm run build:intelligence && npm run build:gateway && npm run build:ai-router && npm run build:reasoning && npm run build --workspace @veltravia/api && npm run build --workspace @veltravia/web",
     "dev:api": "npm run build:packages && npm run build:ai && npm run dev --workspace @veltravia/api",
     "dev:web": "npm run build:packages && npm run dev --workspace @veltravia/web",
     "check": "bash scripts/check.sh",
@@ -102,7 +103,8 @@
     "build:reasoning": "npm run build --workspace @veltravia/reasoning-core && npm run build --workspace @veltravia/reasoning-mock",
     "build:ai-router": "npm run build --workspace @veltravia/ai-router",
     "build:source-storage": "npm run build --workspace @veltravia/source-storage-core",
-    "build:export": "npm run build --workspace @veltravia/export-core"
+    "build:export": "npm run build --workspace @veltravia/export-core",
+    "build:sync": "npm run build --workspace @veltravia/sync-core"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

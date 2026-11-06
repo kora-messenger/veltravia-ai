@@ -19,7 +19,7 @@ import { GitHubError } from './errors.js';
 /** The fixed, only endpoint the connector will ever talk to. */
 export const GITHUB_API_BASE_URL = 'https://api.github.com';
 
-export const GITHUB_TRANSPORT_METHODS = ['GET', 'POST', 'PUT', 'DELETE'] as const;
+export const GITHUB_TRANSPORT_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 export type GitHubTransportMethod = (typeof GITHUB_TRANSPORT_METHODS)[number];
 
 /** A validated transport request. Constructed only by this file's helpers. */
