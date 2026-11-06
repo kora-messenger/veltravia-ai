@@ -14,6 +14,9 @@ import { registerIntelligenceRoutes } from './routes/intelligence.js';
 import { registerAiExecutionRoutes } from './routes/ai-execution.js';
 import { registerAppBuilderRoutes } from './routes/app-builder.js';
 import { registerSourceRoutes } from './routes/source.js';
+import { registerExportRoutes } from './routes/exports.js';
+import { createExportService } from './export-service.js';
+import type { ExportManager } from '@veltravia/export-core';
 import { registerBackendRoutes } from './routes/backend.js';
 import { registerUnifiedRoutes } from './routes/unified.js';
 import { createSourceService } from './source-service.js';
@@ -111,6 +114,8 @@ function readPositiveIntEnv(name: string): number {
 }
 
 export interface BuildAppOptions {
+  /** Pre-built export manager (tests inject one); defaults to one over the project engine. */
+  readonly exports?: ExportManager;
   /**
    * The run-scope ledger. Tests that inject their own coding / generation /
    * testing manager must build that manager from THIS ledger's resolver, or the
@@ -671,6 +676,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       const best = [...detection.frameworks].sort((a, b) => b.confidence - a.confidence)[0];
       return best?.id ?? null;
     },
+  });
+
+  // Native export (Step 40): ZIP archives of a project, read through the SAME
+  // project engine. Owner-scoped, revision-consistent, secrets left out. GitHub
+  // is not involved and nothing here writes to the project.
+  registerExportRoutes(app, {
+    exports: options.exports ?? createExportService({ projectEngine }),
   });
 
   // Backend Builder (Step 33): a descriptive scan of the SAME tree. Read-only,

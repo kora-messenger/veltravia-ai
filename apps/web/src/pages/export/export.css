@@ -1,0 +1,283 @@
+/*
+ * Source-code export (Step 40, phase 2).
+ *
+ * Two regions on a wide screen: what to export, and the result. Under 900px they
+ * stack. The page sits beside the shell sidebar, so it has less room than the
+ * viewport suggests; long paths wrap instead of widening the page.
+ */
+
+.v-export {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-4);
+  min-height: 0;
+  min-width: 0;
+  padding-bottom: var(--v-space-5);
+}
+
+.v-export--loading {
+  padding: var(--v-space-6);
+}
+
+.v-export__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.v-export__identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-1);
+  min-width: 0;
+}
+
+.v-export__title {
+  margin: 0;
+  font-size: var(--v-text-2xl);
+  font-weight: var(--v-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.v-export__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+}
+
+.v-export__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: var(--v-space-4);
+  align-items: start;
+}
+
+.v-export__results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-4);
+  min-width: 0;
+}
+
+.v-export__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  min-width: 0;
+  padding: var(--v-space-4);
+  background: var(--v-neutral-0);
+  border: 1px solid var(--v-neutral-200);
+  border-radius: var(--v-radius-md, 10px);
+}
+
+.v-export__panel--excluded {
+  border-color: var(--v-amber-400);
+}
+
+.v-export__panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.v-export__panel-title {
+  margin: 0;
+  font-size: var(--v-text-lg);
+  font-weight: var(--v-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.v-export__note {
+  margin: 0;
+  font-size: var(--v-text-sm);
+  line-height: 1.5;
+  color: var(--v-neutral-600);
+}
+
+.v-export__modes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+}
+
+.v-export__mode {
+  display: flex;
+  gap: var(--v-space-2);
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--v-text-md);
+  cursor: pointer;
+}
+
+/* The native radio is 13px by default: too small to hit. The whole row is the
+ * target (44px tall, above) and the control itself is enlarged to match. */
+.v-export__mode input[type='radio'] {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--v-brand-600);
+  cursor: pointer;
+}
+
+.v-export__mode input[type='radio']:focus-visible {
+  outline: 2px solid var(--v-brand-600);
+  outline-offset: 2px;
+}
+
+.v-export__picker {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  padding: var(--v-space-1) 0;
+  margin: 0;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--v-neutral-200);
+  border-radius: var(--v-radius-sm, 8px);
+}
+
+.v-export__picker-row {
+  min-height: 36px;
+  padding-inline-end: var(--v-space-2);
+}
+
+.v-export__picker-name {
+  font-family: var(--v-font-mono);
+  font-size: var(--v-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.v-export__picker-kind {
+  display: inline-block;
+  width: 1em;
+  color: var(--v-neutral-500);
+}
+
+.v-export__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+}
+
+.v-export__facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--v-space-3);
+  margin: 0;
+}
+
+.v-export__facts dt {
+  font-size: var(--v-text-2xs);
+  color: var(--v-neutral-600);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.v-export__facts dd {
+  margin: 0;
+  font-size: var(--v-text-lg);
+  font-weight: var(--v-weight-semibold);
+}
+
+.v-export__hash {
+  margin: 0;
+  font-size: var(--v-text-xs);
+  color: var(--v-neutral-600);
+  overflow-wrap: anywhere;
+}
+
+.v-export__path {
+  font-family: var(--v-font-mono);
+  font-size: var(--v-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.v-export__excluded {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.v-export__excluded-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.v-export__excluded-detail {
+  margin: var(--v-space-1) 0 0;
+  font-size: var(--v-text-sm);
+  color: var(--v-neutral-600);
+}
+
+.v-export__failure {
+  padding: var(--v-space-3);
+  color: var(--v-red-600);
+  background: var(--v-neutral-50);
+  border: 1px solid var(--v-red-400);
+  border-radius: var(--v-radius-sm, 8px);
+}
+
+.v-export__failure p {
+  margin: var(--v-space-1) 0 0;
+  font-size: var(--v-text-sm);
+}
+
+.v-export__error {
+  margin: 0;
+  font-size: var(--v-text-sm);
+  color: var(--v-red-600);
+}
+
+.v-export__ok {
+  margin: 0;
+  font-size: var(--v-text-sm);
+  color: var(--v-green-600);
+}
+
+.v-export__progress {
+  display: flex;
+  gap: var(--v-space-2);
+  align-items: center;
+  margin: 0;
+  font-size: var(--v-text-sm);
+  color: var(--v-neutral-700);
+}
+
+.v-export__history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.v-export__history-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--v-text-sm);
+}
+
+@media (max-width: 900px) {
+  .v-export__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .v-export__facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

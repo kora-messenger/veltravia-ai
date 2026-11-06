@@ -23,6 +23,7 @@ import {
   FrontendBuilderPage,
   BackendBuilderPage,
   TestingPage,
+  ExportPage,
   UnifiedAppPage,
   ExecutePage,
   SettingsPage,
@@ -68,6 +69,8 @@ export function App() {
                   return <BackendBuilderPage projectId={route.projectId} />;
                 case 'project-testing':
                   return <TestingPage projectId={route.projectId} />;
+                case 'project-export':
+                  return <ExportPage projectId={route.projectId} />;
                 case 'project-app':
                   return <UnifiedAppPage projectId={route.projectId} />;
                 case 'reasoning':

@@ -1,0 +1,25 @@
+{
+  "name": "@veltravia/export-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia native source-code export: owner-scoped, revision-consistent ZIP archives of a project with secrets and credential files excluded and reported by name only. GitHub is not involved.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/project-core": "*",
+    "fflate": "^0.8.3"
+  }
+}
