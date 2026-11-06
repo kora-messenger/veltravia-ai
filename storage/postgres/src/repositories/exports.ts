@@ -10,6 +10,7 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
@@ -122,6 +123,30 @@ export class PostgresExportJobStore {
     return rows.rows.map(toExport);
   }
 
+  /**
+   * Every export this owner has, newest first. Same reason as the sync store's
+   * `loadOwner`: the export manager reads synchronously through its
+   * `ArchiveStore` port, so the mirror is filled from here per request.
+   */
+  async listByOwner(limit = 200): Promise<ExportJobRecord[]> {
+    const owner = requireOwner();
+    const rows = await this.query.query<ExportRow>(
+      `select * from export_jobs where owner_ref = $1
+        order by created_at desc limit $2`,
+      [owner, Math.min(limit, 500)],
+    );
+    return rows.rows.map(toExport);
+  }
+
+  /** Removes one job. Owner-scoped: a foreign id changes nothing. */
+  async deleteJob(exportId: string): Promise<void> {
+    const owner = requireOwner();
+    await this.query.query('delete from export_jobs where id = $1 and owner_ref = $2', [
+      exportId,
+      owner,
+    ]);
+  }
+
   /** Retention sweep. Returns how many expired jobs were removed. */
   async deleteExpired(now: Date = new Date()): Promise<number> {
     const owner = requireOwner();
@@ -227,6 +252,23 @@ export class LocalObjectStore implements ObjectStore {
       throw Object.assign(new Error('Invalid object key.'), { name: 'OBJECT_KEY_INVALID' });
     }
     return path;
+  }
+
+  /**
+   * Reads an object synchronously.
+   *
+   * The export manager's `ArchiveStore.get` is synchronous, so a process that
+   * did not create the archive (a restart) needs the bytes without awaiting.
+   * That is only possible on a local filesystem driver; a remote driver has no
+   * synchronous read and returns null, which the API reports as unavailable.
+   */
+  readSync(key: string): Uint8Array | null {
+    try {
+      const path = this.pathFor(key);
+      return new Uint8Array(readFileSync(path));
+    } catch {
+      return null;
+    }
   }
 
   async put(input: PutObjectInput): Promise<StoredObjectRecord> {

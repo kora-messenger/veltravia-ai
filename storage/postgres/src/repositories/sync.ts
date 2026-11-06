@@ -24,6 +24,12 @@ export interface SyncPlanRecord {
   readonly expiresAt: string;
 }
 
+export interface OwnerSyncState {
+  readonly connections: readonly { projectId: string; payload: Record<string, unknown> }[];
+  readonly plans: readonly SyncPlanRecord[];
+  readonly history: readonly SyncHistoryRecord[];
+}
+
 export interface SyncHistoryRecord {
   readonly id: string;
   readonly projectId: string;
@@ -134,6 +140,15 @@ export class PostgresSyncStore {
     };
   }
 
+  /** Removes one plan. Owner-scoped, so a foreign plan id changes nothing. */
+  async deletePlan(planId: string): Promise<void> {
+    const owner = requireOwner();
+    await this.query.query('delete from sync_plans where id = $1 and owner_ref = $2', [
+      planId,
+      owner,
+    ]);
+  }
+
   async listPlans(projectId: string, limit = 20): Promise<SyncPlanRecord[]> {
     const owner = requireOwner();
     const rows = await this.query.query<{
@@ -180,6 +195,64 @@ export class PostgresSyncStore {
         record.createdAt,
       ],
     );
+  }
+
+  /**
+   * Everything this owner has, in one round trip per table.
+   *
+   * The sync manager reads its state synchronously through the `SyncStore`
+   * port, so the API keeps a per-owner mirror and fills it from here at the
+   * start of a request. Scoping comes from the request's owner, never from a
+   * parameter, so this cannot be asked for somebody else's rows.
+   */
+  async loadOwner(): Promise<OwnerSyncState> {
+    const owner = requireOwner();
+    const connections = await this.query.query<{ project_id: string; payload: unknown }>(
+      'select project_id, payload from sync_connections where owner_ref = $1',
+      [owner],
+    );
+    const plans = await this.query.query<{
+      id: string;
+      project_id: string;
+      payload: unknown;
+      created_at: Date;
+      expires_at: Date;
+    }>(
+      `select id, project_id, payload, created_at, expires_at
+         from sync_plans where owner_ref = $1 order by created_at asc`,
+      [owner],
+    );
+    const history = await this.query.query<{
+      id: string;
+      project_id: string;
+      status: string;
+      payload: unknown;
+      created_at: Date;
+    }>(
+      `select id, project_id, status, payload, created_at
+         from sync_history where owner_ref = $1 order by created_at asc`,
+      [owner],
+    );
+    return {
+      connections: connections.rows.map((row) => ({
+        projectId: row.project_id,
+        payload: (row.payload ?? {}) as Record<string, unknown>,
+      })),
+      plans: plans.rows.map((row) => ({
+        id: row.id,
+        projectId: row.project_id,
+        payload: (row.payload ?? {}) as Record<string, unknown>,
+        createdAt: row.created_at.toISOString(),
+        expiresAt: row.expires_at.toISOString(),
+      })),
+      history: history.rows.map((row) => ({
+        id: row.id,
+        projectId: row.project_id,
+        status: row.status,
+        payload: (row.payload ?? {}) as Record<string, unknown>,
+        createdAt: row.created_at.toISOString(),
+      })),
+    };
   }
 
   /** Newest-first, bounded. `limit` is the caller's page size. */
