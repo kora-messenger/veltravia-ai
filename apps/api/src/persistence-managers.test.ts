@@ -61,7 +61,7 @@ describeDb('managers survive a restart', () => {
       method: 'POST',
       url: '/api/projects',
       headers: { 'x-veltravia-owner-ref': owner },
-      payload: { name: 'Durable restart', projectType: 'web' },
+      payload: { name: 'Durable restart', description: 'Restart fixture', projectType: 'web' },
     });
     expect(project.statusCode).toBe(201);
     const { id: projectId } = project.json() as { id: string };
@@ -199,9 +199,9 @@ describeDb('managers survive a restart', () => {
       headers: { 'x-veltravia-owner-ref': owner },
     });
     expect(read.statusCode).toBe(200);
-    const body = read.json() as { status: string; live: boolean; view: { id: string } };
+    const body = read.json() as { status: string; live: boolean; runId: string };
     expect(body.status).toBe('completed');
-    expect(body.view.id).toBe(runId);
+    expect(body.runId).toBe(runId);
     // History, not a control surface: the run itself is not resumable here.
     expect(body.live).toBe(false);
 
