@@ -151,6 +151,16 @@ export class ExportManager {
         excluded: error instanceof ExportError ? error.excluded : [],
       };
     }
+    if (this.sink !== null) {
+      // The finished view, not the pending one written before the work started.
+      // A store that only ever saw the pending record would report a completed
+      // export as unfinished to any process that read it back.
+      await this.sink.save({
+        view: record.view,
+        ownerRef: record.ownerRef,
+        fileName: record.view.fileName ?? record.fileName,
+      });
+    }
     return record.view;
   }
 

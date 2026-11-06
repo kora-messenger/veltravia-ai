@@ -5,6 +5,7 @@ import { ExportManager } from './manager.js';
 import { EXPORT_LIMITS } from './types.js';
 import { FakeProject } from './testing-fakes.js';
 import { InMemoryArchiveStore } from './store.js';
+import type { ExportView } from './types.js';
 
 const OWNER = 'owner-a';
 const FAKE_KEY = 'ghp_' + 'a1B2c3D4e5F6g7H8i9J0k1L2m3';
@@ -501,5 +502,57 @@ describe('expiry, cleanup and failures', () => {
     expect(view.failure?.code).toBe('EXPORT_INTERNAL');
     expect(JSON.stringify(view)).not.toContain('/secret/path');
     expect(JSON.stringify(view)).not.toContain(FAKE_KEY);
+  });
+});
+
+describe('a durable record sink', () => {
+  it('receives the finished view, not only the pending one', async () => {
+    const project = seeded();
+    const store = new InMemoryArchiveStore();
+    const saved: ExportView[] = [];
+    const manager = new ExportManager({
+      source: project,
+      store,
+      now: () => new Date('2026-11-05T10:00:00Z'),
+      sink: {
+        save: async (seed) => {
+          saved.push(seed.view);
+        },
+        delete: async () => {},
+      },
+    });
+
+    const view = await manager.createExport(OWNER, { projectId: project.projectId });
+    expect(view.status).toBe('ready');
+    // Two writes: the in-progress record so an id exists, then the result.
+    expect(saved.length).toBe(2);
+    expect(saved[0]?.status).toBe('running');
+    expect(saved[1]?.status).toBe('ready');
+    expect(saved[1]?.exportId).toBe(view.exportId);
+    // Without a file name a process reading the row back cannot serve it.
+    expect(saved[1]?.fileName).toBe(view.fileName);
+    expect(saved[1]?.archiveHash).toBe(view.archiveHash);
+  });
+
+  it('records a failure as failed, with its reason', async () => {
+    const project = new FakeProject();
+    const store = new InMemoryArchiveStore();
+    const saved: ExportView[] = [];
+    const manager = new ExportManager({
+      source: project,
+      store,
+      now: () => new Date('2026-11-05T10:00:00Z'),
+      sink: {
+        save: async (seed) => {
+          saved.push(seed.view);
+        },
+        delete: async () => {},
+      },
+    });
+
+    const view = await manager.createExport(OWNER, { projectId: project.projectId });
+    expect(view.status).toBe('failed');
+    expect(saved[saved.length - 1]?.status).toBe('failed');
+    expect(saved[saved.length - 1]?.failure).not.toBeNull();
   });
 });
