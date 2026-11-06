@@ -26,6 +26,7 @@
     "@veltravia/connector-github": "*",
     "@veltravia/connector-mock": "*",
     "@veltravia/export-core": "*",
+    "@veltravia/sync-core": "*",
     "@veltravia/file-intelligence-core": "0.1.0",
     "@veltravia/file-intelligence-mock": "0.1.0",
     "@veltravia/generation-core": "*",

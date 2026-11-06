@@ -16,6 +16,11 @@ import { registerAppBuilderRoutes } from './routes/app-builder.js';
 import { registerSourceRoutes } from './routes/source.js';
 import { registerExportRoutes } from './routes/exports.js';
 import { createExportService } from './export-service.js';
+import { createSyncService } from './sync-service.js';
+import { registerSyncRoutes } from './routes/sync.js';
+import type { SyncManager } from '@veltravia/sync-core';
+import type { GitHubApiConnector } from './github.js';
+import type { RateLimiter } from './rate-limit.js';
 import type { ExportManager } from '@veltravia/export-core';
 import { registerBackendRoutes } from './routes/backend.js';
 import { registerUnifiedRoutes } from './routes/unified.js';
@@ -146,6 +151,12 @@ export interface BuildAppOptions {
   readonly appBuilder?: AppBuilderManager;
   /** Pre-built native source storage manager (tests inject one). */
   readonly sourceStorage?: SourceRepositoryManager;
+  /** Pre-built GitHub sync manager (tests inject one). */
+  readonly githubSync?: SyncManager;
+  /** The existing GitHub connector (tests inject a fake-backed one). */
+  readonly githubConnector?: GitHubApiConnector;
+  /** Rate limiter for sync routes (tests use a tiny window). */
+  readonly syncLimiter?: RateLimiter;
   /** Pre-built TestingManager (tests inject one); defaults to the demo testing engine. */
   readonly testing?: TestingManager;
   /** Project memory (Step 15). Defaults to an in-process manager. */
@@ -335,8 +346,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // connections over the multi-connector foundation. Read-only for the
   // catalog; connections are metadata only - no endpoint here executes
   // anything or can touch a secret.
-  const integrations =
-    options.integrations ?? createIntegrationSystem({ github: createGitHubApiConnector({}) });
+  // One GitHub connector for the whole server: the integration system and the
+  // Step 40 synchroniser share it, so there is one token, one repository scope
+  // and one set of operations. Never a second GitHub integration.
+  const githubConnector = options.githubConnector ?? createGitHubApiConnector({});
+  const integrations = options.integrations ?? createIntegrationSystem({ github: githubConnector });
   registerIntegrationRoutes(app, integrations);
 
   // Agent execution endpoints: bounded runs, confirmation flow, cancellation.
@@ -683,6 +697,14 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // is not involved and nothing here writes to the project.
   registerExportRoutes(app, {
     exports: options.exports ?? createExportService({ projectEngine }),
+  });
+
+  // GitHub synchronisation (Step 40, phase 3): OPTIONAL. It rides the existing
+  // GitHub connector, keeps both sides of every conflict, and never writes to
+  // the remote without an approved plan. Native use and export never need it.
+  registerSyncRoutes(app, {
+    sync: options.githubSync ?? createSyncService({ projectEngine, github: githubConnector }),
+    ...(options.syncLimiter === undefined ? {} : { limiter: options.syncLimiter }),
   });
 
   // Backend Builder (Step 33): a descriptive scan of the SAME tree. Read-only,
