@@ -36,7 +36,7 @@ integration references, memories, revisions with their snapshots, checkpoints,
 branches and the active branch, rollback operations, run records, export jobs,
 stored-object metadata, and GitHub sync state (connections, plans, history).
 
-Eighteen tables across two migrations:
+Eighteen tables across three migrations (003 adds indexes only):
 
 ```
 projects            workspaces          file_nodes          project_contexts
@@ -50,22 +50,47 @@ File contents live in `file_nodes.content` beside their metadata, so a write and
 its size update are one statement. Tree reads never select `content`; a
 thousand-file tree does not drag its source over the wire to draw a tree.
 
+## What each manager does now
+
+The important distinction is not "table or no table" but how a manager writes:
+
+- **Directly on the repository.** Projects, workspaces, files, context,
+  integrations, version control (revisions, checkpoints, branches, rollbacks)
+  and memory. Their stores were already asynchronous, so PostgreSQL sits
+  underneath with no adapter.
+- **Mirror with write-through.** The GitHub sync and export managers read their
+  state through _synchronous_ ports (`SyncStore`, `ArchiveStore`), because their
+  public API has synchronous methods that routes call directly. Rather than turn
+  those interfaces inside out, `apps/api/src/durable-state.ts` keeps a per-owner
+  mirror of the rows, loads it once per process (`prepare`), and queues every
+  write; the server waits for the queue (`flush`) before sending a mutating
+  response. So a 2xx from `POST /api/projects/:id/exports` means the job row is
+  in PostgreSQL, not merely queued. If the flush fails, the response is a 503
+  `PERSISTENCE_UNAVAILABLE` that says nothing was recorded.
+- **Recorded at the edge.** A run (coding, application testing, agent) is a live
+  state machine with a model call and a sandbox behind it, so its control surface
+  stays in the process that started it. Its _record_ - request, status, plan,
+  report, findings - is written to `run_records` and is readable after a restart
+  at `GET /api/run-records/:kind/:runId`, which reports `live: false` for exactly
+  that reason. Resuming or cancelling a run in a different process is not
+  claimed and does not work.
+- **Archive bytes** stay out of the database behind the `ObjectStore` port. They
+  live under `VELTRAVIA_ARCHIVE_DIR`, or `<VELTRAVIA_DATA_DIR>/archives`, and a
+  restart can serve them again because the local driver has a synchronous read.
+  With neither variable set the export records are still durable but the ZIPs are
+  not, and the storage status says so instead of pretending.
+
 ## What is still in memory
 
-Saying this plainly matters more than the list above:
-
-- **Wired to the database:** projects, workspaces, files, context, integrations.
-  These are the engine under every project route, so a restart no longer loses
-  them.
-- **Table and repository exist and are tested, but the manager above them is
-  still in-process:** version control (revisions, checkpoints, branches), memory,
-  GitHub sync, exports, run records. Restarting still loses that data through the
-  API even though the storage layer is ready.
-- **Never durable:** preview runtimes, sandbox processes, agent run steps in
-  flight, and the AI gateway's in-process usage counters.
-
-The next increment is switching those managers to the repositories that already
-exist; nothing about the schema or the adapter needs to change for it.
+- **Live runs and their steps** - the run's in-flight state, not its record.
+- **Preview runtimes and sandbox processes.** They are processes; a restart ends
+  them, and the API says a runtime is gone rather than resuming a phantom.
+- **The AI gateway's usage counters** until the next flush of their own store.
+- **The export/sync mirror is per process.** It is filled from the database per
+  owner and never shared between instances. Two API processes pointed at the same
+  database both write correctly, but each sees rows it has not loaded yet. Run
+  one instance, or accept that a second one can be behind until it loads the
+  owner. This is a documented limit, not a hidden one.
 
 ## Ownership
 
@@ -139,6 +164,11 @@ Two suites cover this, and both need a real server:
   database and proves a created project is a row, that another owner cannot see
   it, that `/ready` reports the database, and that a second app instance (a
   restart) reads what the first wrote.
+- `apps/api/src/persistence-managers.test.ts` - the restart claim per manager:
+  an export created by one instance is listed and **downloaded with its bytes**
+  by a second instance, a GitHub connection and the base a later sync compares
+  against come back, and a run record is readable at `/api/run-records` while a
+  different owner gets the same 404 as a missing one.
 
 Both skip when `VELTRAVIA_TEST_DATABASE_URL` is unset. CI runs a `postgres:16`
 service and sets it, because a skip must never be how CI passes.
@@ -150,6 +180,11 @@ service and sets it, because a skip must never be how CI passes.
   no down-migration for data you care about.
 - Retention sweeps (`deleteExpired`, `trimHistory`, `sweep`) exist and are tested
   but are not yet driven by a scheduler.
+- The sync and export mirror is per process (see above): one instance per
+  database is the supported deployment today.
+- Archive bytes are durable on the local filesystem driver only. A remote driver
+  has no synchronous read, so `download` needs the route to stream asynchronously
+  before S3 or R2 can be supported.
 - The `pg` driver returns an **array** of results for a multi-statement query.
   Everything goes through `normalizeResult`, which unwraps the last statement;
   adding a call site that talks to `pg` directly reintroduces that bug.

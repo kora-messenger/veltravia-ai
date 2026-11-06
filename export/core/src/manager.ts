@@ -21,9 +21,34 @@ import {
   type IncludedFile,
 } from './types.js';
 
+/**
+ * One export's durable record: the view the API returns plus the two facts the
+ * archive needs in order to be served again after a restart.
+ */
+export interface ExportRecordSeed {
+  readonly view: ExportView;
+  readonly ownerRef: string;
+  readonly fileName: string | null;
+}
+
+/**
+ * Where export records are kept outside the process.
+ *
+ * The bytes go through `ArchiveStore`; this is the job itself - status,
+ * checksum, included and excluded files, expiry - which must outlive the
+ * process so a finished export can still be listed and downloaded. Writes are
+ * queued by the implementation, so a sink may return before the row is written;
+ * `flush()` on that side is what makes a response mean "durable".
+ */
+export interface ExportRecordSink {
+  save(seed: ExportRecordSeed): void | Promise<void>;
+  delete(exportId: string): void | Promise<void>;
+}
+
 export interface ExportManagerOptions {
   readonly source: ExportSourcePort;
   readonly store?: ArchiveStore;
+  readonly sink?: ExportRecordSink;
   readonly now?: () => Date;
 }
 
@@ -52,10 +77,12 @@ export class ExportManager {
   private readonly store: ArchiveStore;
   private readonly now: () => Date;
   private readonly records = new Map<string, ExportRecord>();
+  private readonly sink: ExportRecordSink | null;
 
   constructor(options: ExportManagerOptions) {
     this.source = options.source;
     this.store = options.store ?? new InMemoryArchiveStore();
+    this.sink = options.sink ?? null;
     this.now = options.now ?? (() => new Date());
   }
 
@@ -96,6 +123,15 @@ export class ExportManager {
     };
     const record: ExportRecord = { view: base, ownerRef, fileName: null };
     this.records.set(exportId, record);
+    if (this.sink !== null) {
+      // Awaited: when a durable sink is configured, the caller must not see a
+      // finished export that the store has not been told about.
+      await this.sink.save({
+        view: record.view,
+        ownerRef: record.ownerRef,
+        fileName: record.fileName,
+      });
+    }
 
     try {
       record.view = await this.run(record, project, scope, selection);
@@ -301,6 +337,28 @@ export class ExportManager {
     return { bytes: stored.bytes, fileName: view.fileName, sha256: view.archiveHash };
   }
 
+  /**
+   * Seeds records read back from a durable store.
+   *
+   * Used at startup and per request by a deployment that keeps export records
+   * outside the process: an export created before a restart can be listed and
+   * downloaded again, and an id already held here is left alone so a live
+   * record is never replaced by a stale one.
+   */
+  hydrate(seeds: readonly ExportRecordSeed[]): number {
+    let added = 0;
+    for (const seed of seeds) {
+      if (this.records.has(seed.view.exportId)) continue;
+      this.records.set(seed.view.exportId, {
+        view: seed.view,
+        ownerRef: seed.ownerRef,
+        fileName: seed.fileName,
+      });
+      added += 1;
+    }
+    return added;
+  }
+
   /** Re-open the stored archive and check it against the export's own record. */
   validate(ownerRef: string, exportId: string): ArchiveValidation & { readonly exportId: string } {
     this.sweep();
@@ -322,6 +380,7 @@ export class ExportManager {
     this.ownedRecord(ownerRef, exportId);
     this.store.delete(exportId);
     this.records.delete(exportId);
+    void this.sink?.delete(exportId);
   }
 
   // -- housekeeping ---------------------------------------------------------

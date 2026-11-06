@@ -3,6 +3,7 @@ import {
   ExportManager,
   type ArchiveStore,
   type ExportNode,
+  type ExportRecordSink,
   type ExportSourcePort,
 } from '@veltravia/export-core';
 
@@ -55,6 +56,8 @@ export function createExportSourcePort(projectEngine: ProjectEngine): ExportSour
 export interface ExportServiceOptions {
   readonly projectEngine: ProjectEngine;
   readonly store?: ArchiveStore;
+  /** Where export records outlive the process. Absent means in memory. */
+  readonly sink?: ExportRecordSink;
   readonly now?: () => Date;
 }
 
@@ -62,6 +65,7 @@ export function createExportService(options: ExportServiceOptions): ExportManage
   return new ExportManager({
     source: createExportSourcePort(options.projectEngine),
     ...(options.store === undefined ? {} : { store: options.store }),
+    ...(options.sink === undefined ? {} : { sink: options.sink }),
     ...(options.now === undefined ? {} : { now: options.now }),
   });
 }

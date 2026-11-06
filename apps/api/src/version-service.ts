@@ -3,8 +3,10 @@ import {
   InMemoryBranchStore,
   VersionControlManager,
   VersionError,
+  type BranchStore,
   type BranchWorkspaceGateway,
   type GatewayNode,
+  type RevisionStore,
   type VersionWorkspaceGateway,
 } from '@veltravia/version-core';
 import { InMemoryRevisionStore } from '@veltravia/version-mock';
@@ -17,10 +19,11 @@ import { isProjectError, type ProjectEngine } from '@veltravia/project-core';
  * gateway port: the engine stays the single authority for tree state, and
  * every restore step flows through its validated file-tree operations.
  *
- * Development/CI limitation (honest, same as every current service): the
- * revision store is the DETERMINISTIC IN-MEMORY mock - state lives per
- * process and is wiped on restart. Swapping in a persistent store means
- * implementing the same RevisionStore interface; nothing else changes.
+ * Which store backs the history is a startup decision, not a code path: the
+ * in-memory store (a laptop, the test suite) or the PostgreSQL one
+ * (`VELTRAVIA_DATABASE_URL`). Both implement the same RevisionStore and
+ * BranchStore interfaces, so the manager, the routes and the conflict checks
+ * above them are untouched.
  */
 
 /** Maps a ProjectEngine typed error into the version-control namespace. */
@@ -47,6 +50,13 @@ export interface VersionControlServiceOptions {
    * THAT manager, so they see the same revisions rather than a second store.
    */
   readonly manager?: VersionControlManager;
+  /**
+   * Where revisions, checkpoints and restores live. Absent means the in-memory
+   * store, which is wiped on restart.
+   */
+  readonly revisionStore?: RevisionStore;
+  /** Where branches live. Absent means the in-memory store. */
+  readonly branchStore?: BranchStore;
   readonly now?: () => Date;
   readonly onAudit?: (event: { readonly type: string }) => void;
   readonly retention?: {
@@ -138,7 +148,7 @@ export function createVersionControlService(
   const manager =
     options.manager ??
     new VersionControlManager({
-      store: new InMemoryRevisionStore(),
+      store: options.revisionStore ?? new InMemoryRevisionStore(),
       gateway,
       now,
       auditSink: (event) => {
@@ -173,7 +183,7 @@ export function createVersionControlService(
 
   const branches = new BranchManager({
     versions: manager,
-    store: new InMemoryBranchStore(),
+    store: options.branchStore ?? new InMemoryBranchStore(),
     workspaces: branchWorkspaces,
     now,
   });

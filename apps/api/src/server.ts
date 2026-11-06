@@ -16,6 +16,7 @@ import { registerAppBuilderRoutes } from './routes/app-builder.js';
 import { registerSourceRoutes } from './routes/source.js';
 import { registerExportRoutes } from './routes/exports.js';
 import { createExportService } from './export-service.js';
+import { runWithOwner } from '@veltravia/storage-postgres';
 import { createSyncService } from './sync-service.js';
 import { registerSyncRoutes } from './routes/sync.js';
 import type { SyncManager } from '@veltravia/sync-core';
@@ -69,6 +70,9 @@ import { createConnectorManager } from './connectors.js';
 import { createAgentManager } from './agents.js';
 import { createEngine } from './projects.js';
 import { type Persistence, registerOwnerScope } from './persistence.js';
+import { withRunRecording } from './durable-state.js';
+import { resolveCallerOwnerRef } from './project-access.js';
+import { registerRunRecordRoutes } from './routes/run-records.js';
 import { createToolManager } from './tools.js';
 import { createSandboxManager, describeSandboxRuntime } from './sandboxes.js';
 import { registerSandboxRoutes } from './routes/sandboxes.js';
@@ -229,6 +233,45 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // durable storage only when the deployment claims to have some, and the
   // database only when one is configured.
   const persistence = options.persistence;
+
+  /*
+   * Durable state plumbing, present only when a database is configured.
+   *
+   * `preHandler` loads this owner's rows into the mirror the synchronous sync
+   * and export ports read from, and hands export records back to the export
+   * manager so an export created before a restart can still be listed.
+   * `onSend` waits for queued writes before the response leaves, so a 2xx from
+   * a mutating request means the row is in PostgreSQL, not merely queued.
+   */
+  if (persistence?.durable !== undefined && persistence.durable !== null) {
+    const durable = persistence.durable;
+    app.addHook('preHandler', async (request) => {
+      const owner = resolveCallerOwnerRef(request);
+      await runWithOwner(owner, async () => {
+        const seeds = await durable.prepare(owner);
+        if (seeds.length > 0) exportManager.hydrate(seeds);
+      });
+    });
+    app.addHook('onSend', async (request, reply, payload) => {
+      if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS') {
+        return payload;
+      }
+      const owner = resolveCallerOwnerRef(request);
+      try {
+        await runWithOwner(owner, () => durable.flush());
+        return payload;
+      } catch {
+        reply.status(503);
+        return JSON.stringify({
+          error: {
+            code: 'PERSISTENCE_UNAVAILABLE',
+            message: 'The change could not be saved. Nothing was recorded; try again.',
+          },
+        });
+      }
+    });
+  }
+
   registerHealthRoutes(app, {
     config,
     dependencies: {
@@ -269,9 +312,17 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Version Control (Step 18): immutable revisions, checkpoints, diffs, and
   // Tool-System-gated rollback over the SAME Project Engine. Created BEFORE
   // the tool manager so its tools can ride the controlled pipeline.
+  // Which store holds the history follows the process: PostgreSQL when a
+  // database is configured, in memory otherwise. Same manager, same conflict
+  // checks, same routes above it.
+  const durableStores = persistence?.mode === 'postgres' ? persistence.stores : null;
+  const durableState = persistence?.durable ?? null;
   const versionService = createVersionControlService({
     projectEngine,
     ...(options.versionManager !== undefined ? { manager: options.versionManager } : {}),
+    ...(durableStores === null
+      ? {}
+      : { revisionStore: durableStores.revisions, branchStore: durableStores.branches }),
   });
   const versionManager = versionService.manager;
   const branchManager = versionService.branches;
@@ -394,8 +445,18 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // review of every AI-extracted candidate. Memory enters agent runs as
   // UNTRUSTED reference data only - never as instructions.
   const memory =
-    options.memory ?? new MemoryManager({ repository: new InMemoryMemoryRepository() });
-  registerAgentRoutes(app, agents, projectEngine, memory, { gateway: aiGateway });
+    options.memory ??
+    new MemoryManager({
+      repository: durableStores?.memory ?? new InMemoryMemoryRepository(),
+    });
+  registerAgentRoutes(
+    app,
+    durableState === null ? agents : withRunRecording(agents, 'agent', durableState),
+    projectEngine,
+    memory,
+    { gateway: aiGateway },
+  );
+  if (durableState !== null) registerRunRecordRoutes(app, { durable: durableState });
 
   // Project & Workspace Engine: safe project/workspace/file management over
   // in-memory repositories. No filesystem, execution, connector, or GitHub
@@ -436,7 +497,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         })
       : null;
 
-  const coding =
+  const codingManager =
     options.coding ??
     // The coding agent gets its OWN Tool System instance, seeded with the
     // sandbox tools and the project file tools, with explicit server-side
@@ -457,6 +518,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
           ? createDemoCodingDecisionSource()
           : codingDecision,
     });
+  const coding =
+    durableState === null ? codingManager : withRunRecording(codingManager, 'coding', durableState);
   registerCodingRoutes(
     app,
     coding,
@@ -510,7 +573,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const testingLedger = new TestingRunLedger(projectEngine);
   // A test run, and the repair run it spawns, may touch only the workspace the test run was started on.
   runOwnership.addScopeSource((runId) => testingLedger.scopeOf(runId));
-  registerTestingRoutes(app, testing, testingLedger, { version: versionManager });
+  registerTestingRoutes(
+    app,
+    durableState === null ? testing : withRunRecording(testing, 'testing', durableState),
+    testingLedger,
+    { version: versionManager },
+  );
   // Application testing (Step 39): inspection, generated tests, security checks
   // and reports over the SAME testing manager. The environment is stated from
   // the sandbox runtime, never assumed.
@@ -720,15 +788,37 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Native export (Step 40): ZIP archives of a project, read through the SAME
   // project engine. Owner-scoped, revision-consistent, secrets left out. GitHub
   // is not involved and nothing here writes to the project.
-  registerExportRoutes(app, {
-    exports: options.exports ?? createExportService({ projectEngine }),
-  });
+  const exportManager =
+    options.exports ??
+    createExportService({
+      projectEngine,
+      ...(durableState === null
+        ? {}
+        : {
+            store: durableState.archiveStore,
+            sink: {
+              save: (seed: { view: { exportId: string } }) => {
+                durableState?.saveExportRecord(seed as never);
+              },
+              delete: (exportId: string) => {
+                durableState?.deleteExportRecord(exportId);
+              },
+            },
+          }),
+    });
+  registerExportRoutes(app, { exports: exportManager });
 
   // GitHub synchronisation (Step 40, phase 3): OPTIONAL. It rides the existing
   // GitHub connector, keeps both sides of every conflict, and never writes to
   // the remote without an approved plan. Native use and export never need it.
   registerSyncRoutes(app, {
-    sync: options.githubSync ?? createSyncService({ projectEngine, github: githubConnector }),
+    sync:
+      options.githubSync ??
+      createSyncService({
+        projectEngine,
+        github: githubConnector,
+        ...(durableState === null ? {} : { store: durableState.syncStore }),
+      }),
     ...(options.syncLimiter === undefined ? {} : { limiter: options.syncLimiter }),
   });
 

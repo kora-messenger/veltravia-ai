@@ -8,6 +8,7 @@ import {
   type RepositoryChoice,
   type BranchChoice,
   type PublishInput,
+  type SyncStore,
 } from '@veltravia/sync-core';
 
 /**
@@ -254,6 +255,8 @@ export function createRemotePort(options: RemotePortOptions): RemotePort {
 export interface SyncServiceOptions {
   readonly projectEngine: ProjectEngine;
   readonly github: GitHubApiConnector;
+  /** Where connections, plans, bases and history live. Absent means in memory. */
+  readonly store?: SyncStore;
   readonly ensureConnected?: () => Promise<void>;
   readonly now?: () => Date;
 }
@@ -267,6 +270,7 @@ export function createSyncService(options: SyncServiceOptions): SyncManager {
         ? {}
         : { ensureConnected: options.ensureConnected }),
     }),
+    ...(options.store === undefined ? {} : { store: options.store }),
     ...(options.now !== undefined ? { now: options.now } : {}),
   });
 }
