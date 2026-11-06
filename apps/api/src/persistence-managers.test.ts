@@ -10,7 +10,9 @@
  * Skipped without `VELTRAVIA_TEST_DATABASE_URL`; CI provides postgres:16.
  */
 
-import { mkdir } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -24,7 +26,8 @@ import { resolveDeploymentConfig } from './deployment/config.js';
 const databaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
 const describeDb = databaseUrl === '' ? describe.skip : describe;
 
-const ARCHIVE_DIR = '/app/tmp/veltravia-restart-archives';
+// A real directory: the local object store refuses to invent one.
+let archiveDir = '';
 
 function makeApp(persistence: Persistence): FastifyInstance {
   return buildApp({
@@ -42,8 +45,8 @@ describeDb('managers survive a restart', () => {
   const owner = 'restart-owner';
 
   beforeAll(async () => {
-    await mkdir(ARCHIVE_DIR, { recursive: true });
-    first = await createPersistence({ url: databaseUrl, archiveDirectory: ARCHIVE_DIR });
+    archiveDir = await mkdtemp(join(tmpdir(), 'veltravia-archives-'));
+    first = await createPersistence({ url: databaseUrl, archiveDirectory: archiveDir });
     app = makeApp(first);
     await app.ready();
   }, 60_000);
@@ -72,6 +75,14 @@ describeDb('managers survive a restart', () => {
     expect(workspace.statusCode).toBe(201);
     const { id: workspaceId } = workspace.json() as { id: string };
 
+    const directory = await app.inject({
+      method: 'POST',
+      url: `/api/workspaces/${workspaceId}/directories`,
+      headers: { 'x-veltravia-owner-ref': owner },
+      payload: { path: 'src' },
+    });
+    expect([201, 200]).toContain(directory.statusCode);
+
     const file = await app.inject({
       method: 'POST',
       url: `/api/workspaces/${workspaceId}/files`,
@@ -86,7 +97,7 @@ describeDb('managers survive a restart', () => {
   /** Everything the second instance needs, then the instance itself. */
   async function reopen(): Promise<void> {
     if (reopenedApp !== undefined) await reopenedApp.close();
-    reopened = await createPersistence({ url: databaseUrl, archiveDirectory: ARCHIVE_DIR });
+    reopened = await createPersistence({ url: databaseUrl, archiveDirectory: archiveDir });
     reopenedApp = makeApp(reopened);
     await reopenedApp.ready();
   }
