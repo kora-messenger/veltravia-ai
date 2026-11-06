@@ -80,6 +80,7 @@ export type RouteId =
   | 'project-backend'
   | 'project-testing'
   | 'project-export'
+  | 'project-github'
   | 'project-app'
   | 'ai-providers'
   | 'model-routing'
@@ -99,6 +100,7 @@ const BUILDER_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/builder$/;
 const BACKEND_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/backend$/;
 const TESTING_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/testing$/;
 const EXPORT_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/export$/;
+const GITHUB_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/github$/;
 const APP_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/app$/;
 
 function routeForHash(hash: string): RouteState {
@@ -190,6 +192,14 @@ function routeForHash(hash: string): RouteState {
       id: 'project-export',
       title: 'Export source code',
       projectId: exportMatch[1] ?? null,
+    };
+  }
+  const githubMatch = GITHUB_PATTERN.exec(hash);
+  if (githubMatch !== null) {
+    return {
+      id: 'project-github',
+      title: 'GitHub sync',
+      projectId: githubMatch[1] ?? null,
     };
   }
   const workspaceMatch = WORKSPACE_PATTERN.exec(hash);

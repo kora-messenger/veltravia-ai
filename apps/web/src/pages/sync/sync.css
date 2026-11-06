@@ -1,0 +1,277 @@
+/*
+ * GitHub sync (Step 40, phase 3).
+ *
+ * The page reads top to bottom as the work happens: connection, comparison,
+ * conflicts, history. Two columns of changes under 900px, one above it. Paths
+ * wrap instead of widening the page, because the shell sidebar eats width.
+ */
+
+.v-sync {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-4);
+  min-height: 0;
+  min-width: 0;
+  padding-bottom: var(--v-space-5);
+}
+
+.v-sync--loading {
+  padding: var(--v-space-6);
+}
+
+.v-sync__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.v-sync__identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-1);
+  min-width: 0;
+}
+
+.v-sync__title {
+  margin: 0;
+  font-size: var(--v-text-2xl);
+  font-weight: var(--v-weight-semibold);
+  color: var(--v-text-primary);
+}
+
+.v-sync__subtitle {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--v-text-sm);
+  line-height: 1.55;
+  color: var(--v-text-secondary);
+}
+
+.v-sync__state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  align-items: center;
+}
+
+.v-sync__where {
+  font-family: var(--v-font-mono);
+  font-size: var(--v-text-xs);
+  color: var(--v-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.v-sync__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  padding: var(--v-space-4);
+  border: 1px solid var(--v-border-subtle);
+  border-radius: var(--v-radius-lg);
+  background: var(--v-surface-raised);
+  min-width: 0;
+}
+
+.v-sync__panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.v-sync__heading {
+  margin: 0;
+  font-size: var(--v-text-lg);
+  font-weight: var(--v-weight-semibold);
+  color: var(--v-text-primary);
+}
+
+.v-sync__subheading {
+  margin: 0 0 var(--v-space-2);
+  font-size: var(--v-text-xs);
+  font-weight: var(--v-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--v-text-secondary);
+}
+
+.v-sync__note {
+  margin: 0;
+  font-size: var(--v-text-sm);
+  line-height: 1.5;
+  color: var(--v-text-secondary);
+}
+
+.v-sync__error,
+.v-sync__notice {
+  margin: 0;
+  padding: var(--v-space-2) var(--v-space-3);
+  border-radius: var(--v-radius-md);
+  font-size: var(--v-text-sm);
+}
+
+.v-sync__error {
+  border: 1px solid var(--v-danger-border, var(--v-border-subtle));
+  color: var(--v-danger-text, var(--v-text-primary));
+}
+
+.v-sync__notice {
+  border: 1px solid var(--v-border-subtle);
+  color: var(--v-text-primary);
+}
+
+.v-sync__form {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--v-space-3);
+  align-items: end;
+}
+
+.v-sync__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.v-sync__plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  min-width: 0;
+}
+
+.v-sync__plan-headline {
+  margin: 0;
+  font-size: var(--v-text-md);
+  font-weight: var(--v-weight-semibold);
+  color: var(--v-text-primary);
+}
+
+.v-sync__plan-meta {
+  margin: 0;
+  font-size: var(--v-text-xs);
+  color: var(--v-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.v-sync__blockers {
+  margin: 0;
+  padding-left: var(--v-space-4);
+  font-size: var(--v-text-sm);
+  line-height: 1.5;
+  color: var(--v-text-primary);
+}
+
+.v-sync__columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--v-space-4);
+  min-width: 0;
+}
+
+.v-sync__changes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.v-sync__change {
+  font-family: var(--v-font-mono);
+  font-size: var(--v-text-xs);
+  line-height: 1.6;
+  color: var(--v-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.v-sync__change--muted {
+  color: var(--v-text-secondary);
+}
+
+.v-sync__conflicts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+}
+
+.v-sync__conflict {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  padding: var(--v-space-3);
+  border: 1px solid var(--v-border-subtle);
+  border-radius: var(--v-radius-md);
+  min-width: 0;
+}
+
+.v-sync__conflict-line {
+  margin: 0;
+  font-family: var(--v-font-mono);
+  font-size: var(--v-text-xs);
+  overflow-wrap: anywhere;
+}
+
+.v-sync__history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+}
+
+.v-sync__history-row {
+  display: flex;
+  gap: var(--v-space-3);
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--v-space-2) 0;
+  border-bottom: 1px solid var(--v-border-subtle);
+  min-width: 0;
+}
+
+.v-sync__history-row:last-child {
+  border-bottom: none;
+}
+
+.v-sync__history-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.v-sync__history-when {
+  font-size: var(--v-text-xs);
+  color: var(--v-text-secondary);
+}
+
+.v-sync__history-line {
+  font-size: var(--v-text-sm);
+  color: var(--v-text-primary);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .v-sync__columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .v-sync__form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .v-sync__actions {
+    justify-content: flex-start;
+  }
+}

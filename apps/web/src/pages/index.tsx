@@ -22,4 +22,5 @@ export { FrontendBuilderPage } from './builder/FrontendBuilderPage';
 export { BackendBuilderPage } from './backend/BackendBuilderPage';
 export { TestingPage } from './testing/TestingPage';
 export { ExportPage } from './export/ExportPage';
+export { SyncPage } from './sync/SyncPage';
 export { UnifiedAppPage } from './unified/UnifiedAppPage';
