@@ -67,6 +67,7 @@ export default defineConfig({
       '@veltravia/api': r('./apps/api/src/server.ts'),
       '@veltravia/reasoning-core': r('./reasoning/core/src/index.ts'),
       '@veltravia/reasoning-mock': r('./reasoning/mock/src/index.ts'),
+      '@veltravia/storage-postgres': r('./storage/postgres/src/index.ts'),
     },
   },
   test: {
@@ -101,6 +102,7 @@ export default defineConfig({
       'agent/**/src/**/*.test.ts',
       'project-engine/**/src/**/*.test.ts',
       'security/**/src/**/*.test.ts',
+      'storage/*/src/**/*.test.ts',
       'tests/**/*.test.ts',
     ],
   },

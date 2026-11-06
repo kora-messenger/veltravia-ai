@@ -136,6 +136,17 @@ export function resolveDeploymentConfig(options: ResolveOptions = {}): Deploymen
     warnings.push('VELTRAVIA_STORAGE_DRIVER=memory: credentials and usage will be lost on restart');
   }
 
+  // A remote deployment with no database loses every project on restart. That
+  // is not a configuration error (the API still serves), so it warns loudly
+  // rather than refusing to start.
+  const hasDatabase =
+    (readEnv('VELTRAVIA_DATABASE_URL', { env }) ?? readEnv('DATABASE_URL', { env })) !== undefined;
+  if (!hasDatabase && remote) {
+    warnings.push(
+      'no VELTRAVIA_DATABASE_URL: projects, files and workspaces are in memory and will be lost on restart',
+    );
+  }
+
   const hasCredentialKey = readEnv('VELTRAVIA_CREDENTIAL_KEY', { env }) !== undefined;
   if (!hasCredentialKey) {
     if (remote) {

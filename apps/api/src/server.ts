@@ -68,6 +68,7 @@ import { createAICore } from './ai.js';
 import { createConnectorManager } from './connectors.js';
 import { createAgentManager } from './agents.js';
 import { createEngine } from './projects.js';
+import { type Persistence, registerOwnerScope } from './persistence.js';
 import { createToolManager } from './tools.js';
 import { createSandboxManager, describeSandboxRuntime } from './sandboxes.js';
 import { registerSandboxRoutes } from './routes/sandboxes.js';
@@ -186,6 +187,11 @@ export interface BuildAppOptions {
   readonly reasoning?: ReasoningService;
   /** Model router (Step 28). Defaults to the gateway-backed router. */
   readonly modelRouter?: ModelRouterService;
+  /**
+   * Where data lives (Step 41). main.ts supplies a Postgres-backed one when a
+   * database is configured; tests and laptops get the in-memory engine.
+   */
+  readonly persistence?: Persistence;
 }
 
 /**
@@ -206,12 +212,31 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // send and what an error may say, so no route can answer before it applies.
   registerSecurity(app, { config });
 
+  // The database pool must not outlive the server, or a test suite that builds
+  // several apps leaks a pool per app and never exits.
+  if (options.persistence !== undefined) {
+    app.addHook('onClose', async () => {
+      await options.persistence?.close();
+    });
+  }
+
+  // The caller goes into scope before anything reads a repository: every
+  // durable query is owner-scoped and refuses to run without it. Harmless in
+  // memory mode, required in postgres mode.
+  registerOwnerScope(app);
+
   // Liveness for the load balancer, readiness for traffic. Readiness verifies
-  // durable storage only when the deployment claims to have some.
+  // durable storage only when the deployment claims to have some, and the
+  // database only when one is configured.
+  const persistence = options.persistence;
   registerHealthRoutes(app, {
     config,
-    dependencies:
-      options.verifyStorage === undefined ? {} : { verifyStorage: options.verifyStorage },
+    dependencies: {
+      ...(options.verifyStorage === undefined ? {} : { verifyStorage: options.verifyStorage }),
+      ...(persistence !== undefined && persistence.mode === 'postgres'
+        ? { extra: [{ name: 'database', check: () => persistence.verify() }] }
+        : {}),
+    },
   });
 
   const aiCore = options.aiCore ?? createAICore();
@@ -225,7 +250,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // execution flows through the SandboxManager into the runtime behind the
   // isolation boundary - never in the API process, never with inherited
   // environment, never unrestricted.
-  const projectEngine = options.projectEngine ?? createEngine();
+  const projectEngine = options.projectEngine ?? persistence?.engine ?? createEngine();
 
   // Ownership guard. Registered BEFORE any route that names a project or a
   // workspace: Fastify applies a hook only to routes added after it.

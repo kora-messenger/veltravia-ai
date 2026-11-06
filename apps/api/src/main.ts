@@ -8,6 +8,7 @@ import {
 import { createLogger } from './deployment/logger.js';
 import { installGracefulShutdown } from './deployment/shutdown.js';
 import { createDurableGatewayStores } from './deployment/durable-stores.js';
+import { createPersistence, resolveDatabaseUrl } from './persistence.js';
 
 /**
  * Process entry point.
@@ -39,8 +40,24 @@ const durable =
     ? createDurableGatewayStores(config.dataDir)
     : null;
 
+// The database is resolved before the app is built: a schema that cannot be
+// migrated must fail the boot, not the first request that needs a table.
+const databaseUrl = resolveDatabaseUrl();
+let persistence: Awaited<ReturnType<typeof createPersistence>> | undefined;
+if (databaseUrl !== null) {
+  try {
+    persistence = await createPersistence({ url: databaseUrl });
+    log.info('database ready');
+  } catch (error) {
+    console.error('[veltravia-api] refusing to start: the database could not be prepared.');
+    console.error(`  - ${error instanceof Error ? error.message : 'unknown database error'}`);
+    process.exit(78);
+  }
+}
+
 const app = buildApp({
   deployment: config,
+  ...(persistence === undefined ? {} : { persistence }),
   ...(durable === null
     ? {}
     : {
