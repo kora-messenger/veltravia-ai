@@ -737,3 +737,39 @@ Steps 5, 9, 18 and 34.
     <provider> · <model>", or says the offline script planned it, or says no model is connected.
 14. **Audit stays scrubbed.** Model errors are classified and scrubbed: no prompt text, no
     credential, no raw provider body in a stored event.
+
+## 7. GitHub sync (Step 40, `sync/core` + `connectors/github` + `apps/api`)
+
+Sync writes to a repository outside this system, so the rules are about what may leave and
+what may overwrite.
+
+1. **One scope, checked on every call.** The connector holds one operator token and a
+   repository allowlist (`GITHUB_REPOSITORIES`, `owner/repo[@defaultBranch]`). A repository
+   outside it is not available to anyone, and the caller gets the same 404 as a project that
+   does not exist. There is no per-user GitHub sign-in, and the product token is never the
+   repository owner's personal token.
+2. **Secrets are refused, not shipped.** Credential files and secret-shaped content are left
+   out of a plan by path and reason (never by content). If a secret would be published, the
+   sync is refused with `422 SYNC_SECRET_REJECTED` rather than publishing a partial tree.
+3. **No force push.** The branch update is fast-forward only. A branch that is not an ancestor
+   of the new commit is an error, never an overwrite.
+4. **Stale decisions cannot be applied.** A plan records the remote head it compared against
+   and expires after 15 minutes. A branch that moved in between fails the apply
+   (`SYNC_PLAN_STALE`, `SYNC_REMOTE_CHANGED`) instead of applying an out-of-date decision to
+   newer files.
+5. **Remote paths are untrusted.** Paths from GitHub are validated like workspace paths.
+   Traversal, absolute and control-character paths are skipped and named; a remote file is
+   never fetched to a location outside the workspace.
+6. **Atomic publish.** Local changes land as one commit or not at all. Every write is prepared
+   before the branch moves, so a failure leaves the branch where it was.
+7. **Owner-scoped, like everything else.** Each sync route resolves the caller through the same
+   project guard used by projects and workspaces. Another owner's project id is a 404.
+8. **Bounded.** 500 files per commit, 512 KiB per file, 2,000 remote files per plan, 200
+   history entries per project. A larger change is refused with a clear message, not truncated
+   silently.
+9. **Honest reporting.** A failure is recorded on the plan and in the history with its code,
+   and the screen shows that code. A publish is claimed only from the commit sha the server
+   returned; nothing is invented.
+10. **Not a backup, and not a leak channel.** Binary remote files are left untouched on GitHub
+    and never enter the workspace, and the AI tools do not expose sync at all: it is a
+    person-driven action on its own screen.
