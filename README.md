@@ -382,3 +382,10 @@ gateway waits as long as the provider asks (capped at 20s), waits at least 5s on
 no wait, and names the provider's own reason - an exhausted daily quota reads as one. Metered keys
 can also pace decisions with `VELTRAVIA_CODING_MODEL_MIN_INTERVAL_MS`. What none of that does is
 make a spent quota work; the run ends as a typed failure that says so.
+
+## Step 44 - model-powered Superagents
+
+Workers think with a real model through the existing AI gateway, use only the tools
+their assignment named, stay inside their path scope and return evidence plus usage.
+`SimulatedExecutor` still exists but is opt-in (`VELTRAVIA_WORKER_EXECUTOR=simulated`).
+What is real and what is not is enumerated in `docs/superagent-execution.md`.
