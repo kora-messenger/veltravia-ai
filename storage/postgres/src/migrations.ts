@@ -22,6 +22,7 @@ import { DatabaseError } from './errors.js';
 import { migration001 } from './migrations/001-core-schema.js';
 import { migration002 } from './migrations/002-history-runs-exports-sync.js';
 import { migration003 } from './migrations/003-owner-lookup-indexes.js';
+import { migration004 } from './migrations/004-task-orchestration.js';
 
 export interface Migration {
   readonly version: string;
@@ -29,9 +30,12 @@ export interface Migration {
   readonly sql: string;
 }
 
-export const MIGRATIONS: readonly Migration[] = [migration001, migration002, migration003].sort(
-  (a, b) => a.version.localeCompare(b.version),
-);
+export const MIGRATIONS: readonly Migration[] = [
+  migration001,
+  migration002,
+  migration003,
+  migration004,
+].sort((a, b) => a.version.localeCompare(b.version));
 
 const MIGRATION_TABLE = 'veltravia_schema_migrations';
 

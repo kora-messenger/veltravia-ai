@@ -7,6 +7,10 @@
  * moving archives to object storage, does not touch a service.
  */
 
+import { PostgresTaskStore } from './repositories/tasks.js';
+
+export { PostgresTaskStore };
+
 export {
   type DatabaseConfig,
   type DatabaseSslMode,
@@ -118,6 +122,7 @@ export interface PostgresStores {
   readonly runs: PostgresRunRecordStore;
   readonly exports: PostgresExportJobStore;
   readonly sync: PostgresSyncStore;
+  readonly tasks: PostgresTaskStore;
 }
 
 export function createPostgresStores(database: Database): PostgresStores {
@@ -133,6 +138,7 @@ export function createPostgresStores(database: Database): PostgresStores {
     runs: new PostgresRunRecordStore(database),
     exports: new PostgresExportJobStore(database),
     sync: new PostgresSyncStore(database),
+    tasks: new PostgresTaskStore(database),
   };
 }
 
