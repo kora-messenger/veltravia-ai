@@ -1,0 +1,24 @@
+{
+  "name": "@veltravia/orchestration-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia task orchestration foundation: the one Central Primary Agent contract, task identity boundaries, a validated task lifecycle, owner-scoped task records and structured worker assignments. No worker execution runs here.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/project-core": "*"
+  }
+}
