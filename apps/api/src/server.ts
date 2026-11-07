@@ -73,6 +73,8 @@ import { type Persistence, registerOwnerScope } from './persistence.js';
 import { withRunRecording } from './durable-state.js';
 import { resolveCallerOwnerRef } from './project-access.js';
 import { registerRunRecordRoutes } from './routes/run-records.js';
+import { registerTaskRoutes } from './routes/tasks.js';
+import { createTaskService } from './task-service.js';
 import { createToolManager } from './tools.js';
 import { createSandboxManager, describeSandboxRuntime } from './sandboxes.js';
 import { registerSandboxRoutes } from './routes/sandboxes.js';
@@ -457,6 +459,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     { gateway: aiGateway },
   );
   if (durableState !== null) registerRunRecordRoutes(app, { durable: durableState });
+
+  // Task orchestration (Step 42): the Central Primary Agent's task records.
+  // Durable when a database is configured, and honest about it when not.
+  const taskService = createTaskService({ persistence, projects: projectEngine });
+  registerTaskRoutes(app, { tasks: taskService });
 
   // Project & Workspace Engine: safe project/workspace/file management over
   // in-memory repositories. No filesystem, execution, connector, or GitHub
