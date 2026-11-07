@@ -199,3 +199,5 @@ export function createPostgresProjectEngine(
     }),
   };
 }
+
+export { prepareIsolatedTestSchema, testSchemaName } from './test-schema.js';

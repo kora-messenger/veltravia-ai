@@ -13,12 +13,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 
-import { runWithOwner } from '@veltravia/storage-postgres';
+import { prepareIsolatedTestSchema, runWithOwner } from '@veltravia/storage-postgres';
 import { createPersistence, resolveDatabaseUrl, type Persistence } from './persistence.js';
 import { buildApp } from './server.js';
 import { resolveDeploymentConfig } from './deployment/config.js';
 
-const databaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
+const baseDatabaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
+/** This file's own schema, bound in beforeAll so parallel files cannot collide. */
+let databaseUrl = baseDatabaseUrl;
 const describeDb = databaseUrl === '' ? describe.skip : describe;
 
 describeDb('API on postgres', () => {
@@ -26,6 +28,7 @@ describeDb('API on postgres', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
+    databaseUrl = (await prepareIsolatedTestSchema(baseDatabaseUrl, 'persistence')) ?? '';
     persistence = await createPersistence({ url: databaseUrl });
     app = buildApp({
       persistence,

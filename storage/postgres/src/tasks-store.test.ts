@@ -19,8 +19,11 @@ import {
   parseDatabaseUrl,
   runWithOwner,
 } from './index.js';
+import { prepareIsolatedTestSchema } from './test-schema.js';
 
-const databaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
+const baseDatabaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
+/** This file's own schema, bound in beforeAll so parallel files cannot collide. */
+let databaseUrl = baseDatabaseUrl;
 const describeDb = databaseUrl === '' ? describe.skip : describe;
 
 const OWNER = 'tasks-db-owner';
@@ -62,6 +65,7 @@ function taskRecord(overrides: Partial<Record<string, unknown>> = {}) {
 
 describeDb('task rows in PostgreSQL', () => {
   beforeAll(async () => {
+    databaseUrl = (await prepareIsolatedTestSchema(baseDatabaseUrl, 'tasks-store')) ?? '';
     database = createDatabase(parseDatabaseUrl(databaseUrl));
     await migrate(database);
     store = new PostgresTaskStore(database);

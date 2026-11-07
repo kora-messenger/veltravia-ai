@@ -17,13 +17,15 @@ import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { runWithOwner } from '@veltravia/storage-postgres';
+import { prepareIsolatedTestSchema, runWithOwner } from '@veltravia/storage-postgres';
 import { DurableState } from './durable-state.js';
 import { createPersistence, type Persistence } from './persistence.js';
 import { buildApp } from './server.js';
 import { resolveDeploymentConfig } from './deployment/config.js';
 
-const databaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
+const baseDatabaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
+/** This file's own schema, bound in beforeAll so parallel files cannot collide. */
+let databaseUrl = baseDatabaseUrl;
 const describeDb = databaseUrl === '' ? describe.skip : describe;
 
 // A real directory: the local object store refuses to invent one.
@@ -45,6 +47,7 @@ describeDb('managers survive a restart', () => {
   const owner = 'restart-owner';
 
   beforeAll(async () => {
+    databaseUrl = (await prepareIsolatedTestSchema(baseDatabaseUrl, 'persistence-managers')) ?? '';
     archiveDir = await mkdtemp(join(tmpdir(), 'veltravia-archives-'));
     first = await createPersistence({ url: databaseUrl, archiveDirectory: archiveDir });
     app = makeApp(first);

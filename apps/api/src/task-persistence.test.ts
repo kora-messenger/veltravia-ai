@@ -14,8 +14,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { resolveDeploymentConfig } from './deployment/config.js';
 import { createPersistence, type Persistence } from './persistence.js';
 import { buildApp } from './server.js';
+import { prepareIsolatedTestSchema } from '@veltravia/storage-postgres';
 
-const databaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
+const baseDatabaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
+/** This file's own schema, bound in beforeAll so parallel files cannot collide. */
+let databaseUrl = baseDatabaseUrl;
 const describeDb = databaseUrl === '' ? describe.skip : describe;
 
 // Unique per run: the database outlives the process, and the suite must not
@@ -41,6 +44,7 @@ describeDb('task records survive a restart', () => {
   const headers = (owner = OWNER) => ({ 'x-veltravia-owner-ref': owner });
 
   beforeAll(async () => {
+    databaseUrl = (await prepareIsolatedTestSchema(baseDatabaseUrl, 'task-persistence')) ?? '';
     first = await createPersistence({ url: databaseUrl });
     app = makeApp(first);
     await app.ready();

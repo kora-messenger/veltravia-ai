@@ -33,8 +33,11 @@ import {
   runWithOwner,
   schemaStatus,
 } from './index.js';
+import { prepareIsolatedTestSchema } from './test-schema.js';
 
-const databaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
+const baseDatabaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
+/** This file's own schema, bound in beforeAll so parallel files cannot collide. */
+let databaseUrl = baseDatabaseUrl;
 const describeIntegration = databaseUrl === '' ? describe.skip : describe;
 
 const OWNER = 'owner-alpha';
@@ -83,6 +86,7 @@ async function newWorkspace(projectId: string, owner = OWNER): Promise<string> {
 
 describeIntegration('postgres storage', () => {
   beforeAll(async () => {
+    databaseUrl = (await prepareIsolatedTestSchema(baseDatabaseUrl, 'storage')) ?? '';
     database = createDatabase(parseDatabaseUrl(databaseUrl, {}));
     await migrate(database);
     stores = createPostgresStores(database);

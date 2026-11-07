@@ -22,11 +22,14 @@ import {
   type PostgresStores,
 } from './index.js';
 import type { WorkerRecord, WorkerEvent, WorkerAssignment } from '@veltravia/worker-core';
+import { prepareIsolatedTestSchema } from './test-schema.js';
 
 const RUN = Math.random().toString(36).slice(2, 8);
 const id = (base: string): string => `${base}_${RUN}`;
 
-const databaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
+const baseDatabaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
+/** This file's own schema, bound in beforeAll so parallel files cannot collide. */
+let databaseUrl = baseDatabaseUrl;
 const describeDb = databaseUrl === '' ? describe.skip : describe;
 
 const owner = 'workers-db-owner';
@@ -96,6 +99,7 @@ describeDb('worker records in PostgreSQL', () => {
   let stores: PostgresStores;
 
   beforeAll(async () => {
+    databaseUrl = (await prepareIsolatedTestSchema(baseDatabaseUrl, 'workers-store')) ?? '';
     database = createDatabase(parseDatabaseUrl(databaseUrl, { maxConnections: 4 }));
     await migrate(database);
     stores = createPostgresStores(database);

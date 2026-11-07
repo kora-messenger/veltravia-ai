@@ -13,11 +13,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createPersistence, type Persistence } from './persistence.js';
 import { buildApp } from './server.js';
 import { resolveDeploymentConfig } from './deployment/config.js';
+import { prepareIsolatedTestSchema } from '@veltravia/storage-postgres';
 
 // These tests are about durability across a restart, so the scripted executor is pinned.
 process.env['VELTRAVIA_WORKER_EXECUTOR'] = 'simulated';
 
-const databaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
+const baseDatabaseUrl = process.env.VELTRAVIA_TEST_DATABASE_URL?.trim() ?? '';
+/** This file's own schema, bound in beforeAll so parallel files cannot collide. */
+let databaseUrl = baseDatabaseUrl;
 const describeDb = databaseUrl === '' ? describe.skip : describe;
 
 function makeApp(persistence: Persistence): FastifyInstance {
@@ -54,6 +57,7 @@ describeDb('workers survive a restart', () => {
   let workerId = '';
 
   beforeAll(async () => {
+    databaseUrl = (await prepareIsolatedTestSchema(baseDatabaseUrl, 'worker-persistence')) ?? '';
     first = await createPersistence({ url: databaseUrl });
     second = await createPersistence({ url: databaseUrl });
     app = makeApp(first);
