@@ -23,6 +23,7 @@
     "@veltravia/memory-core": "*",
     "@veltravia/orchestration-core": "*",
     "@veltravia/project-core": "*",
+    "@veltravia/recovery-core": "*",
     "@veltravia/verification-core": "*",
     "@veltravia/version-core": "*",
     "@veltravia/worker-core": "*",

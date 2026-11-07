@@ -10,6 +10,7 @@
 import { PostgresTaskStore } from './repositories/tasks.js';
 import { PostgresWorkerStore } from './repositories/workers.js';
 import { PostgresVerificationStore } from './repositories/verification.js';
+import { PostgresRecoveryStore } from './repositories/recovery.js';
 import {
   PostgresChangeArtifacts,
   PostgresChangeSetStore,
@@ -21,6 +22,7 @@ import {
 export { PostgresTaskStore };
 export { PostgresWorkerStore };
 export { PostgresVerificationStore };
+export { PostgresRecoveryStore };
 
 export {
   type DatabaseConfig,
@@ -141,6 +143,7 @@ export interface PostgresStores {
   readonly integrationApprovals: PostgresIntegrationApprovalStore;
   readonly changeIntegrations: PostgresIntegrationRecordStore;
   readonly integrationLocks: PostgresIntegrationLocks;
+  readonly recovery: PostgresRecoveryStore;
 }
 
 export function createPostgresStores(database: Database): PostgresStores {
@@ -164,6 +167,7 @@ export function createPostgresStores(database: Database): PostgresStores {
     integrationApprovals: new PostgresIntegrationApprovalStore(database),
     changeIntegrations: new PostgresIntegrationRecordStore(database),
     integrationLocks: new PostgresIntegrationLocks(database),
+    recovery: new PostgresRecoveryStore(database),
   };
 }
 

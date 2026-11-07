@@ -26,6 +26,7 @@ import { migration004 } from './migrations/004-task-orchestration.js';
 import { migration005 } from './migrations/005-superagent-workers.js';
 import { migration006 } from './migrations/006-verification-runs.js';
 import { migration007 } from './migrations/007-change-integration.js';
+import { migration008 } from './migrations/008-superagent-recovery.js';
 
 export interface Migration {
   readonly version: string;
@@ -41,6 +42,7 @@ export const MIGRATIONS: readonly Migration[] = [
   migration005,
   migration006,
   migration007,
+  migration008,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 const MIGRATION_TABLE = 'veltravia_schema_migrations';

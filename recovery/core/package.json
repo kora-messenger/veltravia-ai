@@ -1,0 +1,21 @@
+{
+  "name": "@veltravia/recovery-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia recovery engine: failure classification, evidence-backed diagnosis, bounded repair budgets, worker reassignment, verification-gated recovery and escalation. It owns no execution, no task engine and no change integration; those are ports.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
+}
