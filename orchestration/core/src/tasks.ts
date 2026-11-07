@@ -11,7 +11,7 @@
  *  - text that looks like a credential is refused rather than stored.
  */
 
-import { containsSecretShapedContent } from '@veltravia/project-core';
+import { containsSecretShaped } from './secrets.js';
 
 import { assessCompletion, validateAssignment } from './assignment.js';
 import type { CompletionEvidence } from './assignment.js';
@@ -113,27 +113,7 @@ function optionalText(value: unknown, field: string, max: number): string | null
   return cleanText(value, field, max);
 }
 
-/**
- * Secret detection for task text.
- *
- * `containsSecretShapedContent` anchors most of its patterns to a whole value,
- * so it fires on a key on its own but not on a sentence that contains one. The
- * platform already answers this in codebase intelligence by scanning quoted
- * literals; task text has no quoting contract, so each whitespace-delimited
- * token is scanned as well. Bounded, and only presence is ever recorded.
- */
-const DEFAULT_SECRET_SCAN = (text: string): boolean => {
-  try {
-    if (containsSecretShapedContent(text)) return true;
-    const tokens = text.split(/[\s"'`,;:(){}()<>[\]]+/).slice(0, 400);
-    return tokens.some((token) => {
-      const trimmed = token.replace(/[.!?]+$/, '');
-      return trimmed.length >= 12 && containsSecretShapedContent(trimmed);
-    });
-  } catch {
-    return false;
-  }
-};
+const DEFAULT_SECRET_SCAN = containsSecretShaped;
 
 export class TaskManager {
   private readonly store: TaskStore;

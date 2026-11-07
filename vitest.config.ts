@@ -69,6 +69,7 @@ export default defineConfig({
       '@veltravia/reasoning-mock': r('./reasoning/mock/src/index.ts'),
       '@veltravia/storage-postgres': r('./storage/postgres/src/index.ts'),
       '@veltravia/orchestration-core': r('./orchestration/core/src/index.ts'),
+      '@veltravia/worker-core': r('./orchestration/worker/src/index.ts'),
     },
   },
   test: {

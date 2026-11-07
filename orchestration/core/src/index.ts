@@ -10,6 +10,7 @@
 
 export * from './types.js';
 export * from './errors.js';
+export * from './secrets.js';
 export * from './lifecycle.js';
 export * from './contract.js';
 export * from './assignment.js';
