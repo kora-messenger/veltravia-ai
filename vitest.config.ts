@@ -40,6 +40,7 @@ export default defineConfig({
       '@veltravia/generation-core': r('./generation/core/src/index.ts'),
       '@veltravia/app-builder-core': r('./app-builder/core/src/index.ts'),
       '@veltravia/source-storage-core': r('./source-storage/core/src/index.ts'),
+      '@veltravia/change-integration-core': r('./change-integration/core/src/index.ts'),
       '@veltravia/export-core': r('./export/core/src/index.ts'),
       '@veltravia/sync-core': r('./sync/core/src/index.ts'),
       '@veltravia/generation-mock': r('./generation/mock/src/index.ts'),
