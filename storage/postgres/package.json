@@ -19,13 +19,14 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@veltravia/change-integration-core": "*",
     "@veltravia/memory-core": "*",
     "@veltravia/orchestration-core": "*",
     "@veltravia/project-core": "*",
+    "@veltravia/verification-core": "*",
     "@veltravia/version-core": "*",
     "@veltravia/worker-core": "*",
-    "pg": "^8.13.1",
-    "@veltravia/verification-core": "*"
+    "pg": "^8.13.1"
   },
   "devDependencies": {
     "@types/pg": "^8.11.10"

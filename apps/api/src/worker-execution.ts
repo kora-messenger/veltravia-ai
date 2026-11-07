@@ -23,6 +23,7 @@ import {
 import type { ProjectEngine } from '@veltravia/project-core';
 import type { GatewayService } from './ai-gateway-service.js';
 import type { VerificationService } from './verification.js';
+import type { WorkerStagingRegistry } from './worker-staging.js';
 
 export type WorkerExecutionMode = 'model' | 'simulated';
 
@@ -47,7 +48,11 @@ export function createProjectToolHandlers(
   engine: ProjectEngine,
   workspaceFor: (projectId: string | null) => Promise<string | null> = async (projectId) =>
     projectId === null ? null : firstWorkspaceId(engine, projectId),
-  options: { readonly verification?: VerificationService | undefined } = {},
+  options: {
+    readonly verification?: VerificationService | undefined;
+    /** When present, worker writes go to an isolated staging tree. */
+    readonly staging?: WorkerStagingRegistry | undefined;
+  } = {},
 ): Record<string, WorkerToolHandler> {
   const workspace = async (projectId: string | null): Promise<string | null> =>
     projectId === null ? null : workspaceFor(projectId);
@@ -139,6 +144,31 @@ export function createProjectToolHandlers(
           'WORKER_OUTPUT_TOO_LARGE',
           'That file is larger than one worker may write in one call.',
         );
+      }
+      // Step 46: a worker never writes the shared project. Its writes land in
+      // its own staging tree and become a change set the Primary Agent reviews.
+      if (options.staging !== undefined) {
+        try {
+          const area = options.staging.get(context.workerId);
+          if (area === null) {
+            return refuse(
+              'WORKER_TOOL_UNAVAILABLE',
+              'No staging tree was opened for this worker, so nothing was written.',
+            );
+          }
+          await options.staging.write(area, path, content);
+          return {
+            ok: true,
+            output: `staged ${path}`,
+            bytes: content.length,
+            changedPaths: [path],
+          };
+        } catch (error) {
+          return refuse(
+            'WORKER_TOOL_FAILED',
+            error instanceof Error ? error.message : 'The staging tree refused that file.',
+          );
+        }
       }
       try {
         const current = await engine.files.readFile(workspaceId, path);
@@ -298,6 +328,8 @@ export interface WorkerExecutorOptions {
   readonly verification?: VerificationService | undefined;
   readonly mode?: WorkerExecutionMode;
   readonly env?: NodeJS.ProcessEnv;
+  /** Isolated staging, so worker writes never touch the project (Step 46). */
+  readonly staging?: WorkerStagingRegistry | undefined;
 }
 
 export function createWorkerExecutor(options: WorkerExecutorOptions): WorkerExecutor {
@@ -307,6 +339,7 @@ export function createWorkerExecutor(options: WorkerExecutorOptions): WorkerExec
   const gateway = options.gateway.gateway;
   const handlers = createProjectToolHandlers(options.engine, undefined, {
     verification: options.verification,
+    staging: options.staging,
   });
 
   const pinnedModel = (options.env ?? process.env).VELTRAVIA_WORKER_MODEL?.trim();
@@ -339,7 +372,7 @@ export function createWorkerExecutor(options: WorkerExecutorOptions): WorkerExec
     return files;
   };
 
-  return new ModelWorkerExecutor({
+  const model = new ModelWorkerExecutor({
     handlers,
     contextFiles: readContext,
     ...(pinnedModel === undefined || pinnedModel === '' ? {} : { modelId: pinnedModel }),
@@ -380,6 +413,35 @@ export function createWorkerExecutor(options: WorkerExecutorOptions): WorkerExec
       };
     },
   });
+
+  const staging = options.staging;
+  if (staging === undefined) return model;
+
+  /**
+   * Opens the worker's staging tree before its first turn, using the
+   * assignment's own scope, so authorization at review time is the same
+   * envelope the worker ran under.
+   */
+  return {
+    simulated: model.simulated,
+    async run(input) {
+      if (input.projectId !== null) {
+        const workspaceId = await firstWorkspaceId(options.engine, input.projectId);
+        if (workspaceId !== null) {
+          await staging.open({
+            workerId: input.workerId,
+            projectId: input.projectId,
+            mainWorkspaceId: workspaceId,
+            taskId: input.taskId,
+            allowedPaths: input.assignment.scope,
+            excludedPaths: input.assignment.exclusions,
+            allowedTools: input.assignment.allowedTools,
+          });
+        }
+      }
+      return model.run(input);
+    },
+  };
 }
 
 export type { WorkerAssignment };

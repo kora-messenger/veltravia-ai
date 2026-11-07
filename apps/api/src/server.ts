@@ -75,6 +75,9 @@ import { resolveCallerOwnerRef } from './project-access.js';
 import { registerRunRecordRoutes } from './routes/run-records.js';
 import { registerWorkerRoutes } from './routes/workers.js';
 import { registerVerificationRoutes } from './routes/verification.js';
+import { registerChangeIntegrationRoutes } from './routes/change-integration.js';
+import { WorkerStagingRegistry } from './worker-staging.js';
+import { createChangeIntegrationService } from './change-integration-service.js';
 import { registerTaskRoutes } from './routes/tasks.js';
 import { createTaskService } from './task-service.js';
 import { createWorkerService } from './worker-service.js';
@@ -481,6 +484,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const verificationService: VerificationService =
     options.verification ?? createVerificationService({ projects: projectEngine, persistence });
 
+  // Step 46: worker writes land in a staging tree, never the shared project.
+  const workerStaging = new WorkerStagingRegistry(projectEngine);
+
   const workerService = createWorkerService({
     persistence,
     projects: projectEngine,
@@ -489,6 +495,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       gateway: aiGateway,
       engine: projectEngine,
       verification: verificationService,
+      staging: workerStaging,
     }),
   });
   registerWorkerRoutes(app, { workers: workerService, verification: verificationService });
@@ -809,6 +816,23 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Native source storage (Step 31): history, atomic change sets and snapshots
   // over the SAME project engine. No second project system, no filesystem.
   const sourceStorage = options.sourceStorage ?? createSourceService({ projectEngine });
+
+  // Step 46: change integration, over the same source layer and verification
+  // runtime, so an integration is the only way a worker's proposal reaches the
+  // project and a stored run is the only evidence a check passed.
+  const changeIntegrationService = createChangeIntegrationService({
+    projects: projectEngine,
+    source: sourceStorage,
+    verification: verificationService,
+    persistence,
+  });
+  registerChangeIntegrationRoutes(app, {
+    changeIntegration: changeIntegrationService,
+    source: sourceStorage,
+    projects: projectEngine,
+    staging: workerStaging,
+    workers: workerService,
+  });
   registerSourceRoutes(app, {
     source: sourceStorage,
     // Framework-aware structure: detection reads manifests through the project

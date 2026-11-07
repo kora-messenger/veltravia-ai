@@ -83,6 +83,7 @@ export default defineConfig({
       'generation/*/src/**/*.test.ts',
       'app-builder/*/src/**/*.test.ts',
       'source-storage/*/src/**/*.test.ts',
+      'change-integration/*/src/**/*.test.ts',
       'export/*/src/**/*.test.ts',
       'sync/*/src/**/*.test.ts',
       'testing/*/src/**/*.test.ts',

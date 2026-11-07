@@ -69,6 +69,19 @@ export function registerSourceRoutes(app: FastifyInstance, deps: SourceRouteDeps
         error: { code: error.code, message: error.message, details: error.details },
       });
     }
+    // A project-engine lookup that found nothing is a 404, not a failure: the
+    // source layer reads through the engine's file tree, and "no such file"
+    // was being reported as an internal error.
+    const name = error instanceof Error ? `${error.name}` : '';
+    const code =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? String((error as { code?: unknown }).code ?? '')
+        : '';
+    if (name.includes('NotFound') || code.includes('NOT_FOUND')) {
+      return reply.status(404).send({
+        error: { code: 'SOURCE_FILE_NOT_FOUND', message: 'That path is not in this project.' },
+      });
+    }
     const message = error instanceof Error ? error.message : 'Unexpected source storage failure.';
     return reply.status(500).send({ error: { code: 'SOURCE_FAILED', message } });
   };
