@@ -588,7 +588,9 @@ describe('a message that does not reach the server', () => {
     expect(screen.queryByText('Something went wrong')).toBeNull();
     // Retried with the same words, and the box no longer holds a live copy.
     expect(startRun).toHaveBeenLastCalledWith(expect.objectContaining({ task: 'Find the bug' }));
-    expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe('');
+    await waitFor(() => {
+      expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe('');
+    });
   });
 
   it('retries the edited words from the box, not the abandoned ones', async () => {

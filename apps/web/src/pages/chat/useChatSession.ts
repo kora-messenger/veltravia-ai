@@ -73,6 +73,14 @@ export function useChatSession(): ChatSession {
   // Retry sends the words the warning is holding, so the box must not keep a
   // second live copy of them.
   const retry = useCallback(() => {
+    // Mark any hand-back as already applied before clearing. A restore that is
+    // still queued from the failed render must not land after the retry and
+    // put a second live copy of the words in the box.
+    const restore = chat.restore;
+    if (restore !== null) {
+      appliedRestore.current = restore.token;
+      chat.clearRestore();
+    }
     setDraft('');
     chat.retry();
   }, [chat]);
