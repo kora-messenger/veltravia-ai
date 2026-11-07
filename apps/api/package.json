@@ -26,7 +26,6 @@
     "@veltravia/connector-github": "*",
     "@veltravia/connector-mock": "*",
     "@veltravia/export-core": "*",
-    "@veltravia/sync-core": "*",
     "@veltravia/file-intelligence-core": "0.1.0",
     "@veltravia/file-intelligence-mock": "0.1.0",
     "@veltravia/generation-core": "*",
@@ -40,6 +39,9 @@
     "@veltravia/sandbox-core": "*",
     "@veltravia/sandbox-mock": "*",
     "@veltravia/shared": "*",
+    "@veltravia/storage-postgres": "*",
+    "@veltravia/superagent-core": "*",
+    "@veltravia/sync-core": "*",
     "@veltravia/testing-core": "*",
     "@veltravia/testing-mock": "*",
     "@veltravia/tool-core": "*",
@@ -48,8 +50,7 @@
     "@veltravia/video-intelligence-core": "0.1.0",
     "@veltravia/video-intelligence-mock": "0.1.0",
     "fastify": "^5.2.0",
-    "pino": "^10.3.1",
-    "@veltravia/storage-postgres": "*"
+    "pino": "^10.3.1"
   },
   "devDependencies": {
     "tsx": "^4.19.2"

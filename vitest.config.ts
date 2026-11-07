@@ -70,6 +70,7 @@ export default defineConfig({
       '@veltravia/storage-postgres': r('./storage/postgres/src/index.ts'),
       '@veltravia/orchestration-core': r('./orchestration/core/src/index.ts'),
       '@veltravia/worker-core': r('./orchestration/worker/src/index.ts'),
+      '@veltravia/superagent-core': r('./orchestration/superagent/src/index.ts'),
     },
   },
   test: {

@@ -1,0 +1,25 @@
+{
+  "name": "@veltravia/superagent-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia model-powered Superagent execution: worker specialization, a bounded model loop, server-enforced tool authorization, resource governance and evidence. Providers come from the existing AI gateway; nothing here calls a vendor directly.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/orchestration-core": "*",
+    "@veltravia/worker-core": "*"
+  }
+}

@@ -45,6 +45,9 @@ import { WORKER_LIMITS } from './types.js';
 
 export interface WorkerExecutorInput {
   readonly workerId: string;
+  readonly ownerRef: string;
+  readonly taskId: string;
+  readonly projectId: string | null;
   readonly workerType: WorkerType;
   readonly assignment: WorkerAssignment;
   readonly signal: AbortSignal;
@@ -59,6 +62,8 @@ export interface WorkerExecution {
   readonly notes?: string | null;
   readonly blockedReason?: string | null;
   readonly failure?: { readonly code: string; readonly message: string } | null;
+  /** What the execution cost, when a model ran. */
+  readonly usage?: WorkerResult['usage'];
 }
 
 export interface WorkerExecutor {
@@ -310,7 +315,7 @@ export class WorkerManager {
     }
 
     // Read once so a finished task is refused before an attempt is opened.
-    await this.tasks.getTask(owner, worker.taskId);
+    const task = await this.tasks.getTask(owner, worker.taskId);
     const attempt = await this.tasks.startAttempt(owner, worker.taskId, {
       runId: worker.id,
       worker: worker.workerType,
@@ -373,6 +378,9 @@ export class WorkerManager {
       execution = await Promise.race([
         this.executor.run({
           workerId: worker.id,
+          ownerRef: owner,
+          taskId: worker.taskId,
+          projectId: task?.projectId ?? null,
           workerType: worker.workerType,
           assignment: worker.assignment,
           signal: controller.signal,
@@ -432,6 +440,9 @@ export class WorkerManager {
       notes: execution.notes ?? null,
       finishedAt,
       simulated: this.executor.simulated,
+      ...(execution.usage === undefined || execution.usage === null
+        ? {}
+        : { usage: execution.usage }),
     };
     const status: WorkerStatus =
       execution.outcome === 'completed' || execution.outcome === 'partial'

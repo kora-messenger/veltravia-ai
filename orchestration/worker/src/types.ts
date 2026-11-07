@@ -43,6 +43,11 @@ export const WORKER_TYPES = [
   'testing',
   'documentation',
   'analysis',
+  'ui',
+  'security',
+  'research',
+  'review',
+  'performance',
   'general',
 ] as const;
 
@@ -134,6 +139,20 @@ export interface WorkerResult {
   readonly finishedAt: string;
   /** True when the executor that produced this result is a simulation. */
   readonly simulated: boolean;
+  /** Provider, model and spend, when a model actually ran. */
+  readonly usage?: WorkerUsageRecord | null;
+}
+
+/** What one worker's execution cost. Secrets are never part of this. */
+export interface WorkerUsageRecord {
+  readonly providerId: string | null;
+  readonly modelId: string | null;
+  readonly modelCalls: number;
+  readonly toolCalls: number;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  /** True only when a real provider answered over the network. */
+  readonly live: boolean;
 }
 
 export interface ReviewCheck {
