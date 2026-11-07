@@ -8,8 +8,10 @@
  */
 
 import { PostgresTaskStore } from './repositories/tasks.js';
+import { PostgresWorkerStore } from './repositories/workers.js';
 
 export { PostgresTaskStore };
+export { PostgresWorkerStore };
 
 export {
   type DatabaseConfig,
@@ -123,6 +125,7 @@ export interface PostgresStores {
   readonly exports: PostgresExportJobStore;
   readonly sync: PostgresSyncStore;
   readonly tasks: PostgresTaskStore;
+  readonly workers: PostgresWorkerStore;
 }
 
 export function createPostgresStores(database: Database): PostgresStores {
@@ -139,6 +142,7 @@ export function createPostgresStores(database: Database): PostgresStores {
     exports: new PostgresExportJobStore(database),
     sync: new PostgresSyncStore(database),
     tasks: new PostgresTaskStore(database),
+    workers: new PostgresWorkerStore(database),
   };
 }
 

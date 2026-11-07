@@ -23,6 +23,7 @@
     "@veltravia/orchestration-core": "*",
     "@veltravia/project-core": "*",
     "@veltravia/version-core": "*",
+    "@veltravia/worker-core": "*",
     "pg": "^8.13.1"
   },
   "devDependencies": {
