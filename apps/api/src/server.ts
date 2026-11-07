@@ -73,8 +73,10 @@ import { type Persistence, registerOwnerScope } from './persistence.js';
 import { withRunRecording } from './durable-state.js';
 import { resolveCallerOwnerRef } from './project-access.js';
 import { registerRunRecordRoutes } from './routes/run-records.js';
+import { registerWorkerRoutes } from './routes/workers.js';
 import { registerTaskRoutes } from './routes/tasks.js';
 import { createTaskService } from './task-service.js';
+import { createWorkerService } from './worker-service.js';
 import { createToolManager } from './tools.js';
 import { createSandboxManager, describeSandboxRuntime } from './sandboxes.js';
 import { registerSandboxRoutes } from './routes/sandboxes.js';
@@ -464,6 +466,15 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Durable when a database is configured, and honest about it when not.
   const taskService = createTaskService({ persistence, projects: projectEngine });
   registerTaskRoutes(app, { tasks: taskService });
+
+  // Bounded Superagent workers (Step 43) over the same task service, so a
+  // delegated task is the same record whichever route touches it.
+  const workerService = createWorkerService({
+    persistence,
+    projects: projectEngine,
+    tasks: taskService,
+  });
+  registerWorkerRoutes(app, { workers: workerService });
 
   // Project & Workspace Engine: safe project/workspace/file management over
   // in-memory repositories. No filesystem, execution, connector, or GitHub
