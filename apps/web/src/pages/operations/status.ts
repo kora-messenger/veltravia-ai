@@ -447,3 +447,22 @@ export function notificationsFor(
 export function rememberNotifications(seen: Set<string>, keys: readonly string[]): void {
   for (const key of keys) seen.add(key);
 }
+
+/**
+ * A refusal keeps the server's own words. The server can list bare check codes
+ * ("acceptance_criteria_met"), so the codes are shown on their own line, spaced
+ * for reading, and the surrounding sentence is left untouched.
+ */
+export function describeRefusal(message: string): { intro: string; codes: string[] } {
+  const marker = 'blocking problems:';
+  const at = message.toLowerCase().indexOf(marker);
+  if (at < 0) return { intro: message, codes: [] };
+  const intro = message.slice(0, at + marker.length).trim();
+  const rest = message.slice(at + marker.length).trim();
+  const codes = rest
+    .replace(/\.$/, '')
+    .split(',')
+    .map((code) => code.trim().replace(/_/g, ' '))
+    .filter((code) => code.length > 0);
+  return { intro, codes };
+}

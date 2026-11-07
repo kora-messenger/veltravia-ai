@@ -19,6 +19,7 @@ import {
   providerLabel,
   relativeTime,
   summariseUsage,
+  describeRefusal,
   workerDuration,
   workerGroup,
   workerGroupTone,
@@ -277,8 +278,8 @@ export function WorkerDetailPanel({ workerId, onChanged, onClose }: WorkerDetail
           <>
             <p className="v-ops__label">Acceptance criteria</p>
             <ul className="v-ops__list">
-              {assignment.acceptanceCriteria.map((criterion) => (
-                <li key={criterion}>{criterion}</li>
+              {assignment.acceptanceCriteria.map((criterion, index) => (
+                <li key={`${index}-${criterion}`}>{criterion}</li>
               ))}
             </ul>
           </>
@@ -302,8 +303,8 @@ export function WorkerDetailPanel({ workerId, onChanged, onClose }: WorkerDetail
               <p className="v-ops__muted">No files were delivered.</p>
             ) : (
               <ul className="v-ops__list">
-                {worker.result.deliverables.map((deliverable) => (
-                  <li key={`${deliverable.name}-${deliverable.path ?? 'none'}`}>
+                {worker.result.deliverables.map((deliverable, index) => (
+                  <li key={`${index}-${deliverable.name}-${deliverable.path ?? 'none'}`}>
                     <span>{deliverable.name}</span>
                     {deliverable.path !== null && (
                       <code className="v-ops__chip">{deliverable.path}</code>
@@ -317,8 +318,8 @@ export function WorkerDetailPanel({ workerId, onChanged, onClose }: WorkerDetail
               <>
                 <p className="v-ops__label">Evidence</p>
                 <ul className="v-ops__list">
-                  {worker.result.evidence.map((item) => (
-                    <li key={`${item.kind}-${item.ref}`}>
+                  {worker.result.evidence.map((item, index) => (
+                    <li key={`${index}-${item.kind}-${item.ref}`}>
                       <Badge
                         tone={
                           item.passed === true
@@ -415,8 +416,8 @@ export function WorkerDetailPanel({ workerId, onChanged, onClose }: WorkerDetail
             </p>
             <p className="v-ops__muted">{worker.review.summary}</p>
             <ul className="v-ops__list">
-              {worker.review.checks.map((check) => (
-                <li key={check.name}>
+              {worker.review.checks.map((check, index) => (
+                <li key={`${index}-${check.name}`}>
                   <Badge tone={check.passed ? 'success' : 'warning'}>
                     {check.passed ? 'met' : 'unmet'}
                   </Badge>{' '}
@@ -507,14 +508,28 @@ export function WorkerDetailPanel({ workerId, onChanged, onClose }: WorkerDetail
       )}
 
       {controlError !== null && (
-        <p className="v-ops__error" role="alert">
-          {controlError}
-        </p>
+        <div className="v-ops__error" role="alert">
+          <p>{describeRefusal(controlError).intro}</p>
+          {describeRefusal(controlError).codes.length > 0 && (
+            <ul className="v-ops__codes">
+              {describeRefusal(controlError).codes.map((code, index) => (
+                <li key={`${code}-${index}`}>{code}</li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
       {notice !== null && (
-        <p className="v-ops__notice" role="status">
-          {notice}
-        </p>
+        <div className="v-ops__notice" role="status">
+          <p>{describeRefusal(notice).intro}</p>
+          {describeRefusal(notice).codes.length > 0 && (
+            <ul className="v-ops__codes">
+              {describeRefusal(notice).codes.map((code, index) => (
+                <li key={`${code}-${index}`}>{code}</li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       <Divider />
@@ -528,8 +543,8 @@ export function WorkerDetailPanel({ workerId, onChanged, onClose }: WorkerDetail
           <p className="v-ops__muted">No events recorded.</p>
         ) : (
           <ol className="v-ops__timeline">
-            {[...events].reverse().map((event) => (
-              <li key={`${event.workerId}-${event.seq}`} className="v-ops__timeline-row">
+            {[...events].reverse().map((event, index) => (
+              <li key={`${index}-${event.seq}`} className="v-ops__timeline-row">
                 <span className="v-ops__timeline-dot" aria-hidden="true" />
                 <div>
                   <p className="v-ops__timeline-title">

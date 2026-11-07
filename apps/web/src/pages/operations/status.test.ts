@@ -7,6 +7,7 @@ import {
   countByOp,
   formatDuration,
   notificationsFor,
+  describeRefusal,
   summariseUsage,
   summariseVerification,
   workerGroup,
@@ -128,6 +129,21 @@ describe('verification honesty', () => {
     expect(summary.tone).toBe('error');
     expect(summary.counts).toEqual({ passed: 3, failed: 2, skipped: 0 });
     expect(summary.headline).toContain('2 failing tests');
+  });
+});
+
+describe('refusals', () => {
+  it('keeps the server sentence and spaces the bare check codes', () => {
+    const refusal = describeRefusal(
+      'The review found blocking problems: acceptance_criteria_len, acceptance_criteria_met.',
+    );
+    expect(refusal.intro).toBe('The review found blocking problems:');
+    expect(refusal.codes).toEqual(['acceptance criteria len', 'acceptance criteria met']);
+  });
+
+  it('passes an ordinary message through untouched', () => {
+    const message = 'The claimed test run does not exist.';
+    expect(describeRefusal(message)).toEqual({ intro: message, codes: [] });
   });
 });
 

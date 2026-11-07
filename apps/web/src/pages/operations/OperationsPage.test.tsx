@@ -51,7 +51,7 @@ function worker(overrides: Partial<WorkerView> = {}): WorkerView {
     id: 'wrk_1',
     taskId: 'task_1',
     parentTaskId: null,
-    workerType: 'implementation',
+    workerType: 'backend',
     status: 'awaiting_review',
     assignment: {
       objective: 'Add the settings loader',
@@ -284,7 +284,7 @@ describe('OperationsPage', () => {
     renderPage();
     await screen.findByText('Settings loader');
 
-    fireEvent.click(screen.getByRole('button', { name: /View details for implementation wrk_1/ }));
+    fireEvent.click(screen.getByRole('button', { name: /View details for backend wrk_1/ }));
     await screen.findByText('openrouter · openai/gpt-4o-mini');
     expect(screen.getByText('Real provider call')).toBeTruthy();
     expect(screen.getByText(/Costs are not shown/)).toBeTruthy();
@@ -320,7 +320,7 @@ describe('OperationsPage', () => {
     vi.mocked(listWorkerEvents).mockResolvedValue([]);
 
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: /View details for implementation/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /View details for backend/ }));
     await screen.findByText('Simulated (not billed)');
     expect(screen.getByText(/No model was called and no real work ran/)).toBeTruthy();
   });
@@ -365,7 +365,7 @@ describe('OperationsPage', () => {
     fireEvent.click(within(tiles).getByRole('button', { name: 'Failed1' }));
     await waitFor(() => {
       // Only the failed worker's row remains: the implementation worker is gone.
-      expect(screen.queryByText('implementation')).toBeNull();
+      expect(screen.queryByText('backend')).toBeNull();
     });
     expect(screen.getByText('research')).toBeTruthy();
   });
@@ -508,7 +508,7 @@ describe('OperationsPage', () => {
     );
 
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: /View details for implementation/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /View details for backend/ }));
     const accept = await screen.findByRole('button', { name: 'Accept' });
     fireEvent.click(accept);
 
@@ -529,7 +529,7 @@ describe('OperationsPage', () => {
     vi.mocked(cancelWorker).mockResolvedValue(worker({ status: 'cancelled' }));
 
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: /View details for implementation/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /View details for backend/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel this work' }));
 
     // Nothing is cancelled until the confirmation is answered.

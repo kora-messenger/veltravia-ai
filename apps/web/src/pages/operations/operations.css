@@ -614,8 +614,29 @@
     max-height: none;
   }
 
+  /*
+   * Below the split breakpoint the detail pane is a full-screen sheet: the
+   * table sits above it, so a sticky pane opened 1,400px down the page and
+   * looked like nothing happened. The sheet is scrolled to its own top and
+   * closed with the same Close control.
+   */
   .v-ops__drawer {
-    position: static;
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    margin: 0;
+    background: var(--v-neutral-0);
+  }
+
+  .v-ops__drawer .v-ops__panel,
+  .v-ops__drawer .v-ops__review-pane {
+    max-height: none;
+    height: 100%;
+    width: 100%;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    overflow-y: auto;
   }
 }
 
@@ -652,4 +673,11 @@
   .v-ops__objective-cell {
     max-width: none;
   }
+}
+
+.v-ops__codes {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--v-text-dim, #6b6880);
 }
