@@ -143,6 +143,28 @@ export function registerChangeIntegrationRoutes(
     }
   });
 
+  /**
+   * What a reviewer reads before approving: both sides of every file.
+   *
+   * Read-only, owner-scoped, and bounded. A missing artifact says so through
+   * `contentAvailable: false` rather than pretending the file is empty.
+   */
+  app.get('/api/change-sets/:changeSetId/diff', async (request, reply) => {
+    try {
+      const { changeSetId } = request.params as { changeSetId: string };
+      const query = (request.query ?? {}) as { maxChars?: string };
+      const maxChars = Number.parseInt(query.maxChars ?? '', 10);
+      const diff = await manager.diff(owner(request), changeSetId, {
+        ...(Number.isFinite(maxChars) && maxChars > 0
+          ? { maxChars: Math.min(maxChars, 60_000) }
+          : {}),
+      });
+      return reply.send({ diff });
+    } catch (error) {
+      return failure(reply, error);
+    }
+  });
+
   app.post('/api/change-sets/analyze', async (request, reply) => {
     try {
       const body = (request.body ?? {}) as { projectId?: string; changeSetIds?: string[] };

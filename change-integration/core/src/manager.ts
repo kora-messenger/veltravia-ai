@@ -28,6 +28,8 @@ import {
   type ApprovalStore,
   type ChangeArtifactPort,
   type ChangeFile,
+  type ChangeSetDiff,
+  type ChangeSetDiffFile,
   type ChangeSetDraft,
   type ChangeSetStore,
   type IntegrationApproval,
@@ -63,6 +65,11 @@ interface ProjectState {
 }
 
 const DEFAULT_OPERATIONS = ['unit', 'typecheck'] as const;
+
+/** One side of a review, bounded so a huge file cannot flood the browser. */
+function clip(content: string, maxChars: number): string {
+  return content.length <= maxChars ? content : content.slice(0, maxChars);
+}
 
 export class IntegrationManager {
   private readonly projects: IntegrationProjectsPort;
@@ -253,6 +260,53 @@ export class IntegrationManager {
     const changeSet = await this.changeSets.get(ownerRef.trim(), changeSetId);
     if (changeSet === null) throw new IntegrationError('INTEGRATION_CHANGE_SET_NOT_FOUND');
     return changeSet;
+  }
+
+  /**
+   * The content a reviewer needs to judge a change set.
+   *
+   * Base content is read from the project as it stands NOW, so a stale set is
+   * visible: `baseStale` is true when the project no longer matches the hash the
+   * worker started from. Both sides are bounded and marked truncated rather than
+   * silently cut, and a missing artifact is reported as unknown, never as empty.
+   */
+  async diff(
+    ownerRef: string,
+    changeSetId: string,
+    options: { readonly maxChars?: number; readonly maxFiles?: number } = {},
+  ): Promise<ChangeSetDiff> {
+    const changeSet = await this.getChangeSet(ownerRef, changeSetId);
+    const target = this.target(changeSet);
+    const maxChars = options.maxChars ?? 20_000;
+    const maxFiles = options.maxFiles ?? 200;
+    const proposed = await this.contentsOf(changeSet);
+    const files: ChangeSetDiffFile[] = [];
+    for (const file of changeSet.files.slice(0, maxFiles)) {
+      const current = file.op === 'create' ? null : await this.tree.read(target, file.path);
+      const base = current === null ? null : current.content;
+      const next = file.op === 'delete' ? null : (proposed.get(file.path) ?? null);
+      files.push({
+        path: file.path,
+        op: file.op,
+        baseHash: file.baseHash,
+        proposedHash: file.proposedHash,
+        size: file.size,
+        base: base === null ? null : clip(base, maxChars),
+        proposed: next === null ? null : clip(next, maxChars),
+        baseStale:
+          file.op === 'update' && (current === null || contentHash(base ?? '') !== file.baseHash),
+        contentAvailable: file.op === 'delete' ? true : next !== null || file.artifactRef === null,
+      });
+    }
+    return {
+      changeSetId: changeSet.id,
+      title: changeSet.title,
+      status: changeSet.status,
+      baseRevision: changeSet.baseRevision,
+      files,
+      omittedFiles: Math.max(0, changeSet.files.length - files.length),
+      maxChars,
+    };
   }
 
   /**

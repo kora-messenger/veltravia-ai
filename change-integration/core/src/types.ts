@@ -83,6 +83,34 @@ export interface WorkerChangeSet {
 }
 
 /** The pieces of a change set a caller supplies. */
+/** One file of a change set, ready to review: both sides, bounded. */
+export interface ChangeSetDiffFile {
+  readonly path: string;
+  readonly op: ChangeOp;
+  readonly baseHash: string | null;
+  readonly proposedHash: string | null;
+  readonly size: number;
+  /** Project content now, or null when the file does not exist yet. */
+  readonly base: string | null;
+  /** What the worker proposed, or null for a delete. */
+  readonly proposed: string | null;
+  /** True when the project moved away from the revision this set was built on. */
+  readonly baseStale: boolean;
+  /** False when the proposed bytes are no longer stored; never assume empty. */
+  readonly contentAvailable: boolean;
+}
+
+export interface ChangeSetDiff {
+  readonly changeSetId: string;
+  readonly title: string;
+  readonly status: ChangeSetStatus;
+  readonly baseRevision: number;
+  readonly files: readonly ChangeSetDiffFile[];
+  readonly omittedFiles: number;
+  /** Per-side character ceiling applied to every file above. */
+  readonly maxChars: number;
+}
+
 export interface ChangeSetDraft {
   readonly projectId: string;
   readonly workspaceId?: string;

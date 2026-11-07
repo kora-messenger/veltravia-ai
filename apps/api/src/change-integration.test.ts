@@ -457,4 +457,160 @@ describe('rollback', () => {
     expect(reverted.statusCode).toBe(409);
     expect(await fileContent(fixture, 'src/a.ts')).toBe('edited later');
   });
+  /**
+   * The review surface reads both sides of a proposal. A reviewer must see what
+   * the worker wants to write, against what the project holds right now, and be
+   * told when the project has moved on since the proposal was made.
+   */
+});
+
+describe('GET /api/change-sets/:id/diff', () => {
+  it('returns both sides of an update, a create and a delete', async () => {
+    server();
+    const fixture = await seed('veltravia-dev-user', { 'src/keep.ts': 'const a = 1;\n' });
+    const hashes = await treeFiles(fixture);
+    const created = await proposal(fixture, {
+      files: [
+        {
+          path: 'src/keep.ts',
+          op: 'update',
+          content: 'const a = 2;\n',
+          baseHash: hashes.get('src/keep.ts')?.hash ?? null,
+        },
+        { path: 'src/new.ts', op: 'create', content: 'export const b = 3;\n' },
+        {
+          path: 'src/gone.ts',
+          op: 'delete',
+          baseHash: null,
+          content: '',
+        },
+      ],
+    });
+    expect(created.statusCode, JSON.stringify(created.json()).slice(0, 300)).toBe(201);
+    const changeSetId = (created.json() as { changeSet: { id: string } }).changeSet.id;
+
+    const response = await app!.inject({
+      method: 'GET',
+      url: `/api/change-sets/${changeSetId}/diff`,
+      headers: ownerHeader('veltravia-dev-user'),
+    });
+    expect(response.statusCode).toBe(200);
+    const { diff } = response.json() as {
+      diff: {
+        changeSetId: string;
+        status: string;
+        baseRevision: number;
+        maxChars: number;
+        omittedFiles: number;
+        files: {
+          path: string;
+          op: string;
+          base: string | null;
+          proposed: string | null;
+          baseStale: boolean;
+          contentAvailable: boolean;
+          size: number;
+        }[];
+      };
+    };
+    expect(diff.changeSetId).toBe(changeSetId);
+    expect(diff.status).toBe('open');
+    expect(diff.maxChars).toBeGreaterThan(0);
+    expect(diff.omittedFiles).toBe(0);
+
+    const update = diff.files.find((file) => file.path === 'src/keep.ts');
+    expect(update?.op).toBe('update');
+    expect(update?.base).toBe('const a = 1;\n');
+    expect(update?.proposed).toBe('const a = 2;\n');
+    expect(update?.baseStale).toBe(false);
+    expect(update?.contentAvailable).toBe(true);
+
+    const create = diff.files.find((file) => file.path === 'src/new.ts');
+    expect(create?.op).toBe('create');
+    expect(create?.base).toBeNull();
+    expect(create?.proposed).toBe('export const b = 3;\n');
+
+    const removed = diff.files.find((file) => file.path === 'src/gone.ts');
+    expect(removed?.op).toBe('delete');
+    expect(removed?.proposed).toBeNull();
+  });
+
+  it('marks a proposal stale when the project moved on underneath it', async () => {
+    server();
+    const fixture = await seed('veltravia-dev-user', { 'src/a.ts': 'one\n' });
+    const hashes = await treeFiles(fixture);
+    const created = await proposal(fixture, {
+      files: [
+        {
+          path: 'src/a.ts',
+          op: 'update',
+          content: 'two\n',
+          baseHash: hashes.get('src/a.ts')?.hash ?? null,
+        },
+      ],
+    });
+    const changeSetId = (created.json() as { changeSet: { id: string } }).changeSet.id;
+
+    const edited = await app!.inject({
+      method: 'PATCH',
+      url: `/api/projects/${fixture.projectId}/source/file`,
+      headers: ownerHeader('veltravia-dev-user'),
+      payload: {
+        path: 'src/a.ts',
+        content: 'three\n',
+        expectedRevision: hashes.get('src/a.ts')?.revision ?? 1,
+      },
+    });
+    expect(edited.statusCode, JSON.stringify(edited.json()).slice(0, 300)).toBeLessThan(300);
+
+    const response = await app!.inject({
+      method: 'GET',
+      url: `/api/change-sets/${changeSetId}/diff`,
+      headers: ownerHeader('veltravia-dev-user'),
+    });
+    const { diff } = response.json() as {
+      diff: { files: { base: string | null; baseStale: boolean }[] };
+    };
+    expect(diff.files[0]?.base).toBe('three\n');
+    expect(diff.files[0]?.baseStale).toBe(true);
+  });
+
+  it('refuses to show another owner a change set', async () => {
+    server();
+    const fixture = await seed('veltravia-dev-user', { 'src/a.ts': 'a' });
+    const created = await proposal(fixture, {
+      files: [{ path: 'src/b.ts', content: 'b' }],
+    });
+    const changeSetId = (created.json() as { changeSet: { id: string } }).changeSet.id;
+
+    const response = await app!.inject({
+      method: 'GET',
+      url: `/api/change-sets/${changeSetId}/diff`,
+      headers: ownerHeader('someone-else'),
+    });
+    expect(response.statusCode).toBe(404);
+    expect((response.json() as { diff?: unknown }).diff).toBeUndefined();
+  });
+
+  it('honours the character ceiling instead of returning a huge file whole', async () => {
+    server();
+    const fixture = await seed();
+    const big = 'x'.repeat(5000);
+    const created = await proposal(fixture, {
+      files: [{ path: 'src/big.txt', content: big }],
+    });
+    const changeSetId = (created.json() as { changeSet: { id: string } }).changeSet.id;
+
+    const response = await app!.inject({
+      method: 'GET',
+      url: `/api/change-sets/${changeSetId}/diff?maxChars=100`,
+      headers: ownerHeader('veltravia-dev-user'),
+    });
+    const { diff } = response.json() as {
+      diff: { maxChars: number; files: { proposed: string | null; size: number }[] };
+    };
+    expect(diff.maxChars).toBe(100);
+    expect(diff.files[0]?.proposed?.length).toBe(100);
+    expect(diff.files[0]?.size).toBe(5000);
+  });
 });

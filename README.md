@@ -402,3 +402,22 @@ refused unless a stored run backs the claim, with the recorded status agreeing.
 No operating-system isolation is provided by the local runtime and every record says so;
 with no runtime configured a run is stored as having executed nothing. Details, routes and
 configuration: `docs/sandbox-verification.md`.
+
+## Step 46 - conflict-safe change integration
+
+A worker's writes no longer land in the project. They are staged as a change set against
+the revision the worker started from, validated (scope, exclusions, credential-shaped
+content, size, base hash), and integrated only after a recorded approval. Two proposals
+that touch the same path, overlap inside a file, race a delete or rename, or disagree
+about a schema are refused rather than merged, and a cross-process project lock means one
+integration runs at a time. Details: `docs/change-integration.md`.
+
+## Step 47 - Superagent operations dashboard
+
+One page, `#/operations`, over everything Steps 42-46 record: the fleet by status, each
+Superagent's assignment, progress, deliverables, evidence, usage and review, task
+coordination, staged change sets with both sides of every file, verification runs, the
+integration history and the scheduler's own decisions. It reads and never starts work;
+cancel, re-queue, review, approve and integrate call the existing routes, and a refusal is
+shown in the server's words. The page polls and says so rather than pretending to be live.
+Details, including the one new read (`GET /api/change-sets/:id/diff`): `docs/operations-dashboard.md`.

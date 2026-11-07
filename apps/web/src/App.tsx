@@ -27,6 +27,7 @@ import {
   SyncPage,
   UnifiedAppPage,
   ExecutePage,
+  OperationsPage,
   SettingsPage,
 } from './pages';
 
@@ -86,6 +87,8 @@ export function App() {
                   return <ModelRoutingPage />;
                 case 'execute':
                   return <ExecutePage />;
+                case 'operations':
+                  return <OperationsPage />;
                 case 'settings':
                   return <SettingsPage />;
                 default:

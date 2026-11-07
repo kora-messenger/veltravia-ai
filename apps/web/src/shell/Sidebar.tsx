@@ -148,6 +148,40 @@ const ICONS: Record<string, ReactNode> = {
       <circle cx="6" cy="6" r="0.9" fill="currentColor" />
     </svg>
   ),
+  operations: (
+    <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
+      <rect
+        x="2"
+        y="2.5"
+        width="12"
+        height="2.4"
+        rx="1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+      <rect
+        x="2"
+        y="6.8"
+        width="7.5"
+        height="2.4"
+        rx="1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+      <rect
+        x="2"
+        y="11.1"
+        width="9.5"
+        height="2.4"
+        rx="1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+    </svg>
+  ),
   settings: (
     <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
       <circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" strokeWidth="1.4" />

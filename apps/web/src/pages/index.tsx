@@ -18,6 +18,7 @@ export { AiProvidersPage } from './AiProvidersPage';
 export { ModelRoutingPage } from './ModelRoutingPage';
 export { BuilderPage } from './BuilderPage';
 export { ExecutePage } from './ExecutePage';
+export { OperationsPage } from './operations/OperationsPage';
 export { FrontendBuilderPage } from './builder/FrontendBuilderPage';
 export { BackendBuilderPage } from './backend/BackendBuilderPage';
 export { TestingPage } from './testing/TestingPage';
