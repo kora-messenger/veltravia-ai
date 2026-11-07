@@ -78,6 +78,8 @@ import { registerVerificationRoutes } from './routes/verification.js';
 import { registerChangeIntegrationRoutes } from './routes/change-integration.js';
 import { WorkerStagingRegistry } from './worker-staging.js';
 import { createChangeIntegrationService } from './change-integration-service.js';
+import { createRecoveryService } from './recovery-service.js';
+import { registerRecoveryRoutes } from './routes/recovery.js';
 import { registerTaskRoutes } from './routes/tasks.js';
 import { createTaskService } from './task-service.js';
 import { createWorkerService } from './worker-service.js';
@@ -833,6 +835,36 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     staging: workerStaging,
     workers: workerService,
   });
+
+  // Step 48: recovery reads what 42-46 recorded and decides whether a failed
+  // unit of work is retried, handed to another worker, or escalated. The
+  // project context is resolved from the task, never from the request.
+  const recoveryService = createRecoveryService({
+    workers: workerService,
+    workerStore: workerService.workers,
+    verification: verificationService,
+    changeSets: changeIntegrationService.changeSets,
+    integrations: changeIntegrationService.integrations,
+    persistence,
+    contextFor: async (ownerRef, taskId) => {
+      const task = await taskService.manager.getTask(ownerRef, taskId).catch(() => null);
+      if (task === null || task.projectId === null) {
+        return { projectId: null, workspaceId: null, revision: null };
+      }
+      const workspaceId = task.workspaceId;
+      if (workspaceId === null) {
+        return { projectId: task.projectId, workspaceId: null, revision: null };
+      }
+      const revision = await sourceStorage
+        .tree(ownerRef, { projectId: task.projectId, workspaceId })
+        // Recovery compares revisions for staleness; the source layer's
+        // numeric root becomes a stable string here.
+        .then((tree) => (tree.rootRevision === null ? null : String(tree.rootRevision)))
+        .catch(() => null);
+      return { projectId: task.projectId, workspaceId, revision };
+    },
+  });
+  registerRecoveryRoutes(app, { recovery: recoveryService });
   registerSourceRoutes(app, {
     source: sourceStorage,
     // Framework-aware structure: detection reads manifests through the project

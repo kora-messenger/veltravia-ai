@@ -34,6 +34,8 @@ export const WORKER_TOOL_CATALOG = [
 export interface WorkerService {
   readonly manager: WorkerManager;
   readonly scheduler: Scheduler;
+  /** The store behind the manager, for read-only evidence assembly. */
+  readonly workers: WorkerStore;
   readonly tasks: TaskService;
   readonly store: 'memory' | 'postgres';
   readonly durable: boolean;
@@ -70,6 +72,7 @@ export function createWorkerService(input: {
   return {
     manager,
     scheduler,
+    workers,
     tasks: taskService,
     store: durableStore === null ? 'memory' : 'postgres',
     durable: durableStore !== null,

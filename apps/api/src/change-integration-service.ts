@@ -51,6 +51,9 @@ function bareHash(raw: string | null | undefined): string | null {
 export interface ChangeIntegrationService {
   readonly manager: IntegrationManager;
   readonly durability: 'memory' | 'postgres';
+  /** Read side of the change sets, for evidence reads outside the engine. */
+  readonly changeSets: ChangeSetStore;
+  readonly integrations: IntegrationStore;
   /** True when a real verification runtime can execute a command. */
   readonly canVerify: boolean;
 }
@@ -292,8 +295,11 @@ export function createChangeIntegrationService(
   const durable = stores?.changeSets !== undefined;
   return {
     manager,
+    changeSets,
+    integrations,
     durability: durable ? 'postgres' : 'memory',
-    canVerify: options.verification?.execution.runtimeId !== null,
+    canVerify:
+      options.verification !== undefined && options.verification.execution.runtimeId !== null,
   };
 }
 

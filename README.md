@@ -421,3 +421,17 @@ integration history and the scheduler's own decisions. It reads and never starts
 cancel, re-queue, review, approve and integrate call the existing routes, and a refusal is
 shown in the server's words. The page polls and says so rather than pretending to be live.
 Details, including the one new read (`GET /api/change-sets/:id/diff`): `docs/operations-dashboard.md`.
+
+## Step 48 - autonomous repair, retry and recovery
+
+A failed Superagent is now diagnosed from what was actually observed - status, failure code,
+declared against produced deliverables, review refusals, verification results, attempt
+history - and repaired inside stated limits. `@veltravia/recovery-core` classifies the
+failure and grades its own confidence; with no usable signal it escalates as
+`insufficient_evidence` instead of inventing a cause. A repair inherits the failed
+assignment's checks and permissions but never widens them, runs on a child task so the
+failed task keeps its record, and the superseded worker is cancelled so its resource claims
+are released. A case becomes `recovered` only when a stored verification run passed and the
+change set is integrated or preserved; a claim alone is refused. Migration 008 stores cases,
+attempts and an append-only event trail, and `resume` rebuilds a case after a restart without
+double-advancing it. Details: `docs/recovery-orchestration.md`.
