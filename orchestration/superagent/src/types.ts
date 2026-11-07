@@ -30,6 +30,8 @@ export type WorkerToolOutcome =
       readonly bytes: number;
       readonly changedPaths?: readonly string[];
       readonly passed?: boolean;
+      /** Stable reference for review, e.g. the verification run id. */
+      readonly evidenceRef?: string;
     }
   | { readonly ok: false; readonly code: string; readonly message: string };
 
@@ -43,6 +45,8 @@ export interface WorkerToolContext {
   readonly workerType: string;
   readonly taskId: string;
   readonly projectId: string | null;
+  /** Verification operations the assignment authorises; empty when none. */
+  readonly verificationOperations: readonly string[];
   readonly signal: AbortSignal;
   readonly deadline: number;
   readonly record: (message: string, detail?: Record<string, unknown>) => void;

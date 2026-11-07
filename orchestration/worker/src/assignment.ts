@@ -17,6 +17,7 @@ import type {
   WorkerType,
 } from './types.js';
 import { WorkerError } from './errors.js';
+import { VERIFICATION_OPERATIONS as WORKER_VALIDATION_OPERATIONS } from './verification.js';
 
 export interface AssignmentContext {
   /** Tool names this deployment may hand to a worker. */
@@ -236,6 +237,30 @@ export function validateAssignment(value: unknown, context: AssignmentContext): 
     fail('network access must come through the network.fetch tool, so name it.');
   }
 
+  // Verification scope: absent means the default checks, not "anything".
+  let verification: { operations: readonly string[] } | null = null;
+  if (input.verification !== undefined && input.verification !== null) {
+    const raw = input.verification as { operations?: unknown };
+    if (typeof raw !== 'object' || !Array.isArray(raw.operations)) {
+      fail('verification.operations must be a list of verification operations.');
+    }
+    const requested = (raw.operations as unknown[]).map((entry) => String(entry));
+    const unknown = requested.filter(
+      (operation) => !(WORKER_VALIDATION_OPERATIONS as readonly string[]).includes(operation),
+    );
+    if (unknown.length > 0) {
+      fail(
+        `verification.operations names operations the sandbox does not offer: ${unknown.join(', ')}.`,
+      );
+    }
+    if (requested.length === 0 || requested.length > WORKER_VALIDATION_OPERATIONS.length) {
+      fail('verification.operations must list between 1 and every supported operation.');
+    }
+    verification = { operations: [...new Set(requested)] };
+  } else if (tools.includes('tests.run')) {
+    verification = null;
+  }
+
   const acceptance = textList(
     input.acceptanceCriteria,
     'acceptanceCriteria',
@@ -278,6 +303,7 @@ export function validateAssignment(value: unknown, context: AssignmentContext): 
     acceptanceCriteria: acceptance,
     allowedTools: tools,
     permissions: perms,
+    ...(verification === null ? {} : { verification }),
     limits: limitsValue,
     dependencies,
     checkpoints,

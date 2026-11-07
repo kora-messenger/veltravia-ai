@@ -389,3 +389,16 @@ Workers think with a real model through the existing AI gateway, use only the to
 their assignment named, stay inside their path scope and return evidence plus usage.
 `SimulatedExecutor` still exists but is opt-in (`VELTRAVIA_WORKER_EXECUTOR=simulated`).
 What is real and what is not is enumerated in `docs/superagent-execution.md`.
+
+## Step 45 - sandbox verification and evidence
+
+Workers can now run the project's own checks - unit, integration, e2e, typecheck, lint,
+format, build, dependency audit - in a sandbox, and the result is recorded as a run with
+argv, exit codes, counts and evidence rather than a claim. Operations are resolved from the
+project's configuration, never from a tool argument, and a worker may only ask for the
+operations its assignment lists. Acceptance of a worker that claims a test result is
+refused unless a stored run backs the claim, with the recorded status agreeing.
+
+No operating-system isolation is provided by the local runtime and every record says so;
+with no runtime configured a run is stored as having executed nothing. Details, routes and
+configuration: `docs/sandbox-verification.md`.

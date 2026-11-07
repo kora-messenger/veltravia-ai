@@ -74,10 +74,12 @@ import { withRunRecording } from './durable-state.js';
 import { resolveCallerOwnerRef } from './project-access.js';
 import { registerRunRecordRoutes } from './routes/run-records.js';
 import { registerWorkerRoutes } from './routes/workers.js';
+import { registerVerificationRoutes } from './routes/verification.js';
 import { registerTaskRoutes } from './routes/tasks.js';
 import { createTaskService } from './task-service.js';
 import { createWorkerService } from './worker-service.js';
 import { createWorkerExecutor } from './worker-execution.js';
+import { createVerificationService, type VerificationService } from './verification.js';
 import { createToolManager } from './tools.js';
 import { createSandboxManager, describeSandboxRuntime } from './sandboxes.js';
 import { registerSandboxRoutes } from './routes/sandboxes.js';
@@ -171,6 +173,8 @@ export interface BuildAppOptions {
   readonly testing?: TestingManager;
   /** Project memory (Step 15). Defaults to an in-process manager. */
   readonly memory?: MemoryManager;
+  /** Verification service (Step 45); tests inject a scripted executor. */
+  readonly verification?: VerificationService;
   /** Codebase intelligence (Step 16). Defaults to an in-process manager. */
   readonly codebase?: CodebaseIntelligenceManager;
   /** Preview runtime manager (Step 17). Defaults to the mock-executor-backed manager. */
@@ -470,13 +474,25 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   // Bounded Superagent workers (Step 43) over the same task service, so a
   // delegated task is the same record whichever route touches it.
+  // Real verification (Step 45): discovery from project configuration, an
+  // operation allowlist, and an execution seam that reports exactly how much
+  // containment it has. Without a real runtime every run is recorded as
+  // blocked - a simulated result is never stored as evidence.
+  const verificationService: VerificationService =
+    options.verification ?? createVerificationService({ projects: projectEngine, persistence });
+
   const workerService = createWorkerService({
     persistence,
     projects: projectEngine,
     tasks: taskService,
-    executor: createWorkerExecutor({ gateway: aiGateway, engine: projectEngine }),
+    executor: createWorkerExecutor({
+      gateway: aiGateway,
+      engine: projectEngine,
+      verification: verificationService,
+    }),
   });
-  registerWorkerRoutes(app, { workers: workerService });
+  registerWorkerRoutes(app, { workers: workerService, verification: verificationService });
+  registerVerificationRoutes(app, { verification: verificationService, projects: projectEngine });
 
   // Project & Workspace Engine: safe project/workspace/file management over
   // in-memory repositories. No filesystem, execution, connector, or GitHub

@@ -11,6 +11,7 @@
  */
 
 import {
+  allowedVerificationOperations,
   WorkerError,
   type WorkerAssignment,
   type WorkerExecution,
@@ -244,6 +245,8 @@ export class ModelWorkerExecutor implements WorkerExecutor {
         scope: assignment.scope,
         exclusions: assignment.exclusions,
         permissions: assignment.permissions,
+        // Resolved server-side from the assignment: the model never widens it.
+        verification: { operations: allowedVerificationOperations(assignment) },
       },
       handlers: this.options.handlers,
       signal: input.signal,
@@ -350,7 +353,7 @@ export class ModelWorkerExecutor implements WorkerExecutor {
         ) {
           evidence.push({
             kind: 'test_run',
-            ref: 'tests',
+            ref: outcome.evidenceRef ?? 'tests',
             summary: outcome.output.slice(0, 200),
             passed: outcome.passed,
           });

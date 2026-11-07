@@ -29,6 +29,8 @@ export default defineConfig({
       '@veltravia/project-mock': r('./project-engine/mock/src/index.ts'),
       '@veltravia/sandbox-core': r('./security/sandbox/src/index.ts'),
       '@veltravia/sandbox-mock': r('./security/sandbox-mock/src/index.ts'),
+      '@veltravia/sandbox-local': r('./security/sandbox-local/src/index.ts'),
+      '@veltravia/verification-core': r('./verification/core/src/index.ts'),
       '@veltravia/connector-github': r('./connectors/github/src/index.ts'),
       '@veltravia/integration-core': r('./integrations/core/src/index.ts'),
       '@veltravia/integration-mocks': r('./connectors/integration-mocks/src/index.ts'),
@@ -76,6 +78,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: [
+      'verification/*/src/**/*.test.ts',
       'coding-agent/*/src/**/*.test.ts',
       'generation/*/src/**/*.test.ts',
       'app-builder/*/src/**/*.test.ts',

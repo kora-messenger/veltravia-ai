@@ -24,7 +24,8 @@
     "@veltravia/project-core": "*",
     "@veltravia/version-core": "*",
     "@veltravia/worker-core": "*",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "@veltravia/verification-core": "*"
   },
   "devDependencies": {
     "@types/pg": "^8.11.10"

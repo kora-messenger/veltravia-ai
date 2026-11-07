@@ -22,6 +22,7 @@ import {
 } from '@veltravia/superagent-core';
 import type { ProjectEngine } from '@veltravia/project-core';
 import type { GatewayService } from './ai-gateway-service.js';
+import type { VerificationService } from './verification.js';
 
 export type WorkerExecutionMode = 'model' | 'simulated';
 
@@ -46,6 +47,7 @@ export function createProjectToolHandlers(
   engine: ProjectEngine,
   workspaceFor: (projectId: string | null) => Promise<string | null> = async (projectId) =>
     projectId === null ? null : firstWorkspaceId(engine, projectId),
+  options: { readonly verification?: VerificationService | undefined } = {},
 ): Record<string, WorkerToolHandler> {
   const workspace = async (projectId: string | null): Promise<string | null> =>
     projectId === null ? null : workspaceFor(projectId);
@@ -168,12 +170,6 @@ export function createProjectToolHandlers(
     // Documentation writes go through exactly the same guarded file write.
     'docs.write': (invocation, context) => handlers['project.write']!(invocation, context),
 
-    'tests.run': async () =>
-      refuse(
-        'WORKER_TOOL_UNAVAILABLE',
-        'Running tests from a worker is not wired to a sandbox runner in this build.',
-      ),
-
     'schema.inspect': async (_invocation, context) => {
       const workspaceId = await workspace(context.projectId);
       if (workspaceId === null)
@@ -199,13 +195,107 @@ export function createProjectToolHandlers(
       const output = blocks.join('\n');
       return { ok: true, output, bytes: output.length };
     },
+
+    /**
+     * Real verification (Step 45). The worker names OPERATIONS; the server
+     * resolves them to commands the project itself declares, runs them in a
+     * sandbox and records an evidence-bearing run the Primary Agent can check.
+     * A worker cannot name a command, widen its own scope, or claim a pass
+     * that no command produced.
+     */
+    'tests.run': async (invocation, context) => {
+      const verification = options.verification;
+      if (verification === undefined) {
+        return refuse(
+          'WORKER_TOOL_UNAVAILABLE',
+          'No verification runtime is configured on this server, so nothing was executed.',
+        );
+      }
+      if (context.projectId === null) {
+        return refuse('WORKER_TOOL_UNAVAILABLE', 'That worker is not attached to a project.');
+      }
+      const raw = invocation.arguments['operations'];
+      const requested = Array.isArray(raw) ? raw.map((entry) => String(entry)) : [];
+      if (requested.length === 0) {
+        return refuse(
+          'WORKER_TOOL_ARGUMENTS_INVALID',
+          'Name at least one verification operation, for example ["unit"] or ["typecheck","build"].',
+        );
+      }
+      const authorised = context.verificationOperations;
+      if (authorised.length === 0) {
+        return refuse(
+          'WORKER_TOOL_NOT_ASSIGNED',
+          'This assignment does not authorise running verification operations.',
+        );
+      }
+      const outside = requested.filter((operation) => !authorised.includes(operation));
+      if (outside.length > 0) {
+        return refuse(
+          'WORKER_TOOL_OUT_OF_SCOPE',
+          `The assignment does not authorise these operations: ${outside.join(', ')}. Allowed: ${authorised.join(', ')}.`,
+        );
+      }
+      if (requested.length > MAX_WORKER_VERIFICATION_OPERATIONS) {
+        return refuse(
+          'WORKER_TOOL_ARGUMENTS_INVALID',
+          `Ask for at most ${MAX_WORKER_VERIFICATION_OPERATIONS} operations at once.`,
+        );
+      }
+      const path =
+        typeof invocation.arguments['path'] === 'string' ? invocation.arguments['path'] : null;
+
+      const run = await verification.runner.run({
+        ownerRef: context.ownerRef,
+        projectId: context.projectId,
+        taskId: context.taskId,
+        workerId: context.workerId,
+        operations: requested,
+        authorized: authorised as never,
+        path,
+        limits: {
+          maxOperations: MAX_WORKER_VERIFICATION_OPERATIONS,
+          maxRepairAttempts: 1,
+        },
+      });
+
+      const lines = [
+        `Verification run ${run.id}: ${run.status}.`,
+        `Revision: ${run.revision ?? 'unknown'}. Executed: ${run.evidence?.executedCount ?? 0} operation(s).`,
+      ];
+      for (const result of run.results) {
+        const counts =
+          result.counts.discovered === null
+            ? ''
+            : ` (${result.counts.passed ?? 0} passed, ${result.counts.failed ?? 0} failed of ${result.counts.discovered})`;
+        lines.push(`- ${result.operation}: ${result.status}${counts} via ${result.argv.join(' ')}`);
+        if (result.errorSummary !== null) lines.push(`  ${result.errorSummary}`);
+      }
+      for (const blocked of run.blocked) {
+        lines.push(`- ${blocked.operation}: did not run (${blocked.reason}) ${blocked.detail}`);
+      }
+      const output = lines.join('\n');
+      return {
+        ok: true,
+        output,
+        bytes: output.length,
+        passed: run.status === 'passed',
+        // The review gate checks this id against the stored run.
+        evidenceRef: run.id,
+      };
+    },
   };
   return handlers;
 }
 
+/** Kept small on purpose: a worker's verification is always a bounded check. */
+const MAX_WORKER_VERIFICATION_OPERATIONS = 3;
+
 export interface WorkerExecutorOptions {
   readonly gateway: GatewayService;
   readonly engine: ProjectEngine;
+  /** Real verification, so `tests.run` reports what actually ran. */
+  readonly verification?: VerificationService | undefined;
   readonly mode?: WorkerExecutionMode;
   readonly env?: NodeJS.ProcessEnv;
 }
@@ -215,7 +305,9 @@ export function createWorkerExecutor(options: WorkerExecutorOptions): WorkerExec
   if (mode === 'simulated') return new SimulatedExecutor();
 
   const gateway = options.gateway.gateway;
-  const handlers = createProjectToolHandlers(options.engine);
+  const handlers = createProjectToolHandlers(options.engine, undefined, {
+    verification: options.verification,
+  });
 
   const pinnedModel = (options.env ?? process.env).VELTRAVIA_WORKER_MODEL?.trim();
   const readContext = async (input: {

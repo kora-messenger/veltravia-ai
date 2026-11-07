@@ -99,6 +99,8 @@ export interface ToolboxOptions {
       readonly runTools: boolean;
       readonly network: boolean;
     };
+    /** Resolved verification scope; absent means the handler decides. */
+    readonly verification?: { readonly operations: readonly string[] } | null;
   };
   readonly handlers: Readonly<Record<string, WorkerToolHandler>>;
   readonly signal: AbortSignal;
@@ -220,6 +222,7 @@ export class WorkerToolbox {
         workerType: this.options.workerType,
         taskId: this.options.taskId,
         projectId: this.options.projectId,
+        verificationOperations: this.options.assignment.verification?.operations ?? [],
         signal: this.options.signal,
         deadline: this.options.deadline,
         record: this.options.record ?? (() => undefined),

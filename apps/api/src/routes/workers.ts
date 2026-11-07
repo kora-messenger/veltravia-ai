@@ -10,6 +10,8 @@ import {
 
 import { resolveCallerOwnerRef } from '../project-access.js';
 import type { WorkerService } from '../worker-service.js';
+import type { VerificationService } from '../verification.js';
+import { checkTestEvidence } from '../evidence-gate.js';
 
 /**
  * Superagent worker routes (Step 43).
@@ -26,6 +28,12 @@ import type { WorkerService } from '../worker-service.js';
 
 export interface WorkerRouteDeps {
   readonly workers: WorkerService;
+  /**
+   * When present, a worker's claimed test result must be backed by a stored
+   * verification run (Step 45). Absent means the gate is off and a claim is
+   * simply a claim.
+   */
+  readonly verification?: VerificationService | undefined;
 }
 
 const idParam = {
@@ -162,6 +170,26 @@ export function registerWorkerRoutes(app: FastifyInstance, deps: WorkerRouteDeps
     },
   );
 
+  /**
+   * The evidence gate. Refusing to accept is always allowed; accepting a claimed
+   * test result requires the run that produced it.
+   */
+  const evidenceProblem = async (caller: string, workerId: string) => {
+    if (deps.verification === undefined) return null;
+    let worker;
+    try {
+      worker = await manager.get(caller, workerId);
+    } catch {
+      return null;
+    }
+    return checkTestEvidence({
+      verification: deps.verification,
+      ownerRef: caller,
+      workerId,
+      evidence: worker.result?.evidence ?? [],
+    });
+  };
+
   app.post(
     '/api/workers/:workerId/review',
     { schema: { params: idParam } },
@@ -174,6 +202,18 @@ export function registerWorkerRoutes(app: FastifyInstance, deps: WorkerRouteDeps
         changedPaths?: readonly string[];
       };
       try {
+        if (body?.decision === 'accept' && deps.verification !== undefined) {
+          const problem = await evidenceProblem(owner(request), workerId);
+          if (problem !== null) {
+            return reply.status(409).send({
+              error: {
+                code: 'WORKER_REVIEW_REFUSED',
+                message: problem.message,
+                reason: problem.code,
+              },
+            });
+          }
+        }
         const outcome = await manager.review(owner(request), workerId, {
           decision: body?.decision,
           summary: String(body?.summary ?? ''),

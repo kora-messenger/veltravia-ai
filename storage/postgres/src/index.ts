@@ -9,9 +9,11 @@
 
 import { PostgresTaskStore } from './repositories/tasks.js';
 import { PostgresWorkerStore } from './repositories/workers.js';
+import { PostgresVerificationStore } from './repositories/verification.js';
 
 export { PostgresTaskStore };
 export { PostgresWorkerStore };
+export { PostgresVerificationStore };
 
 export {
   type DatabaseConfig,
@@ -126,6 +128,7 @@ export interface PostgresStores {
   readonly sync: PostgresSyncStore;
   readonly tasks: PostgresTaskStore;
   readonly workers: PostgresWorkerStore;
+  readonly verification: PostgresVerificationStore;
 }
 
 export function createPostgresStores(database: Database): PostgresStores {
@@ -143,6 +146,7 @@ export function createPostgresStores(database: Database): PostgresStores {
     sync: new PostgresSyncStore(database),
     tasks: new PostgresTaskStore(database),
     workers: new PostgresWorkerStore(database),
+    verification: new PostgresVerificationStore(database),
   };
 }
 

@@ -93,6 +93,10 @@ export interface WorkerLimits {
   readonly maxDeliverables: number;
 }
 
+export interface WorkerVerificationScope {
+  readonly operations: readonly string[];
+}
+
 export interface WorkerPermissions {
   readonly readProject: boolean;
   readonly writeProject: boolean;
@@ -115,6 +119,11 @@ export interface WorkerAssignment {
   readonly acceptanceCriteria: readonly string[];
   readonly allowedTools: readonly string[];
   readonly permissions: WorkerPermissions;
+  /**
+   * Verification operations this worker may run through `tests.run`. Omitted
+   * means the default scope in `verification.ts`, never "everything".
+   */
+  readonly verification?: WorkerVerificationScope | null;
   readonly limits: WorkerLimits;
   readonly dependencies: readonly string[];
   readonly checkpoints: readonly string[];
