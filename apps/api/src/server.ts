@@ -77,6 +77,7 @@ import { registerWorkerRoutes } from './routes/workers.js';
 import { registerTaskRoutes } from './routes/tasks.js';
 import { createTaskService } from './task-service.js';
 import { createWorkerService } from './worker-service.js';
+import { createWorkerExecutor } from './worker-execution.js';
 import { createToolManager } from './tools.js';
 import { createSandboxManager, describeSandboxRuntime } from './sandboxes.js';
 import { registerSandboxRoutes } from './routes/sandboxes.js';
@@ -473,6 +474,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     persistence,
     projects: projectEngine,
     tasks: taskService,
+    executor: createWorkerExecutor({ gateway: aiGateway, engine: projectEngine }),
   });
   registerWorkerRoutes(app, { workers: workerService });
 

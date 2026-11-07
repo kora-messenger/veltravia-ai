@@ -12,6 +12,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from './server.js';
 import { resolveDeploymentConfig } from './deployment/config.js';
 
+// These tests exercise the lifecycle, so they pin the scripted executor on purpose.
+process.env['VELTRAVIA_WORKER_EXECUTOR'] = 'simulated';
+
 let app: FastifyInstance | null = null;
 
 afterEach(async () => {
