@@ -39,6 +39,55 @@ vi.mock('../../api/operations', () => ({
   rollbackIntegration: vi.fn(),
 }));
 
+// Step 49: the page also reads recovery records. These tests are about the
+// worker/task surfaces, so recovery answers with an empty, honest zero.
+vi.mock('../../api/recovery', () => ({
+  listRecoveryCases: vi.fn(async () => []),
+  getRecoveryOverview: vi.fn(async () => ({
+    total: 0,
+    byStatus: {},
+    byCategory: {},
+    awaitingDiagnosis: 0,
+    repairing: 0,
+    awaitingVerification: 0,
+    recovered: 0,
+    needsIntervention: 0,
+    insufficientEvidence: 0,
+    verificationFailed: 0,
+    exhausted: 0,
+    attemptsUsed: 0,
+    attemptsRemaining: 0,
+    truncated: false,
+    generatedAt: new Date().toISOString(),
+  })),
+  getRecoveryCase: vi.fn(),
+  reanalyseRecoveryCase: vi.fn(),
+  cancelRecoveryCase: vi.fn(),
+  RECOVERY_STATUSES: [
+    'open',
+    'diagnosing',
+    'repairing',
+    'awaiting_verification',
+    'recovered',
+    'escalated',
+    'blocked',
+    'cancelled',
+  ],
+  FAILURE_CATEGORIES: [
+    'missing_deliverables',
+    'unverified_completion',
+    'verification_failed',
+    'worker_timeout',
+    'worker_cancelled',
+    'worker_blocked',
+    'permission_refused',
+    'change_conflict',
+    'incompatible_output',
+    'repeated_attempts',
+    'unknown',
+  ],
+}));
+
 const mockedListWorkers = vi.mocked(listWorkers);
 const mockedListTasks = vi.mocked(listTasks);
 const mockedListChangeSets = vi.mocked(listChangeSets);

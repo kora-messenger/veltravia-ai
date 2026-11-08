@@ -681,3 +681,255 @@
   font-size: 12px;
   color: var(--v-text-dim, #6b6880);
 }
+
+/* ---- recovery (Step 49) ------------------------------------------------- */
+
+/*
+ * The recovery section reuses the page's tiles, filters and table so it reads
+ * as part of the same dashboard. Everything below is layout the existing
+ * classes do not already provide: the served facts grid, the two-column
+ * observed/inferred split, the attempt timeline and its mobile sheet.
+ */
+
+.v-recovery__tiles {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.v-recovery__filters {
+  flex-wrap: wrap;
+}
+
+.v-ops__link-button {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--v-brand-600);
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.v-ops__link-button:hover {
+  color: var(--v-brand-700);
+}
+
+.v-ops__link-button:focus-visible {
+  outline: 2px solid var(--v-brand-500);
+  outline-offset: 2px;
+  border-radius: var(--v-radius-sm);
+}
+
+.v-ops__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.v-ops__input {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 1px solid var(--v-neutral-300);
+  border-radius: var(--v-radius-sm);
+  background: var(--v-neutral-0);
+  color: var(--v-text, #1b1a24);
+}
+
+.v-ops__input:focus-visible {
+  outline: 2px solid var(--v-brand-500);
+  outline-offset: 1px;
+}
+
+.v-ops__task--highlight {
+  border-color: var(--v-brand-400);
+  background: var(--v-brand-50);
+}
+
+.v-recovery__detail {
+  border: 1px solid var(--v-neutral-200);
+  border-radius: var(--v-radius-md);
+  background: var(--v-neutral-0);
+  padding: var(--v-space-4);
+}
+
+.v-recovery__detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--v-space-3);
+  flex-wrap: wrap;
+}
+
+.v-recovery__detail-head h4 {
+  margin: 0;
+  font-size: 15px;
+  font-family: var(--v-font-mono, ui-monospace, SFMono-Regular, monospace);
+  word-break: break-all;
+}
+
+.v-recovery__case {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-4);
+  margin-top: var(--v-space-3);
+}
+
+.v-recovery__headline {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-3);
+  flex-wrap: wrap;
+}
+
+.v-recovery__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--v-space-3);
+  margin: 0;
+}
+
+.v-recovery__facts dt,
+.v-recovery__attempt-meta dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--v-text-dim, #6b6880);
+}
+
+.v-recovery__facts dd,
+.v-recovery__attempt-meta dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.v-recovery__columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--v-space-4);
+}
+
+.v-recovery__columns h5,
+.v-recovery__attempts h5,
+.v-recovery__verification h5,
+.v-recovery__escalation h5 {
+  margin: 0 0 var(--v-space-2);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--v-text-dim, #6b6880);
+}
+
+.v-recovery__list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.v-recovery__insufficient {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.v-recovery__evidence li {
+  margin-bottom: 4px;
+}
+
+.v-recovery__evidence-kind {
+  display: inline-block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--v-text-dim, #6b6880);
+}
+
+.v-recovery__timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+}
+
+.v-recovery__attempt {
+  border-left: 3px solid var(--v-neutral-200);
+  padding-left: var(--v-space-3);
+}
+
+.v-recovery__attempt-head {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  flex-wrap: wrap;
+}
+
+.v-recovery__attempt-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--v-space-2);
+  margin: var(--v-space-2) 0;
+}
+
+.v-recovery__verification,
+.v-recovery__escalation {
+  border: 1px solid var(--v-neutral-200);
+  border-radius: var(--v-radius-md);
+  padding: var(--v-space-3);
+  background: var(--v-neutral-50);
+}
+
+.v-recovery__actions {
+  display: flex;
+  gap: var(--v-space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.v-recovery__confirm {
+  border: 1px solid var(--v-neutral-300);
+  border-radius: var(--v-radius-md);
+  padding: var(--v-space-3);
+  background: var(--v-neutral-50);
+  font-size: 13px;
+}
+
+.v-recovery__confirm p {
+  margin: 0 0 var(--v-space-2);
+}
+
+@media (max-width: 980px) {
+  /* Same rule as the other detail panes: a full-screen sheet, not a sticky box. */
+  .v-recovery__detail--open {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    overflow-y: auto;
+  }
+
+  .v-recovery__columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .v-recovery__tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .v-recovery__detail {
+    padding: var(--v-space-3);
+  }
+}

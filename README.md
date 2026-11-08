@@ -435,3 +435,15 @@ are released. A case becomes `recovered` only when a stored verification run pas
 change set is integrated or preserved; a claim alone is refused. Migration 008 stores cases,
 attempts and an append-only event trail, and `resume` rebuilds a case after a restart without
 double-advancing it. Details: `docs/recovery-orchestration.md`.
+
+## Step 49 - recovery operations dashboard
+
+The recovery records appear on `#/operations`: a tally over the owner's cases, filters the
+server applies (status, failure category, verification outcome, worker, project, date), and
+a case view that keeps observed facts and inferred diagnosis in separate columns. Every
+repair attempt is listed with its child task, its worker, its verification run and the
+attempts left. A case is only displayed as recovered when a stored verification run both
+executed and passed; a record that claims recovery without that evidence is shown as
+awaiting verification with a warning. The page reads and never repairs - re-read, re-diagnose
+and cancel are the only controls, and all three are existing routes. Details:
+`docs/recovery-dashboard.md`.

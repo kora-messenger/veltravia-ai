@@ -16,7 +16,19 @@ import {
   type VerificationRunView,
   type WorkerView,
 } from '../../api/operations';
+import {
+  getRecoveryOverview,
+  listRecoveryCases,
+  type RecoveryCaseView,
+  type RecoveryFilters,
+  type RecoveryOverviewView,
+} from '../../api/recovery';
 import { ChangeSetReview } from './ChangeSetReview';
+import { RecoveryPanel } from './RecoveryPanel';
+import {
+  RECOVERY_NOTIFICATION_LABEL as RECOVERY_NOTIFICATION_COPY,
+  recoveryNotificationsFor,
+} from './recovery-status';
 import { WorkerDetailPanel } from './WorkerDetailPanel';
 import {
   WORKER_GROUP_LABEL,
@@ -48,17 +60,30 @@ interface Snapshot {
   readonly records: readonly IntegrationRecordView[];
   readonly verifications: readonly VerificationRunView[];
   readonly decisions: readonly SchedulingDecisionView[];
+  readonly recovery: readonly RecoveryCaseView[];
+  readonly recoveryOverview: RecoveryOverviewView;
   readonly at: number;
 }
 
-async function loadSnapshot(): Promise<Snapshot> {
-  const [workers, tasks, changeSets, records, verifications, decisions] = await Promise.all([
+async function loadSnapshot(recoveryFilters: RecoveryFilters): Promise<Snapshot> {
+  const [
+    workers,
+    tasks,
+    changeSets,
+    records,
+    verifications,
+    decisions,
+    recovery,
+    recoveryOverview,
+  ] = await Promise.all([
     listWorkers({ limit: 200 }),
     listTasks(200),
     listChangeSets({ limit: 100 }),
     listIntegrations(),
     listVerificationRuns({ limit: 50 }),
     listSchedulingDecisions(),
+    listRecoveryCases({ ...recoveryFilters, limit: 200 }),
+    getRecoveryOverview(recoveryFilters),
   ]);
   return {
     workers: workers.workers,
@@ -67,6 +92,8 @@ async function loadSnapshot(): Promise<Snapshot> {
     records,
     verifications,
     decisions,
+    recovery,
+    recoveryOverview,
     at: Date.now(),
   };
 }
@@ -94,21 +121,27 @@ export function OperationsPage() {
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [selectedChangeSetId, setSelectedChangeSetId] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
+  const [recoveryFilters, setRecoveryFilters] = useState<RecoveryFilters>({});
+  const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
   const seen = useRef<Set<string>>(new Set());
   const previous = useRef<Snapshot | null>(null);
 
-  const refresh = useCallback(async (options: { silent?: boolean } = {}) => {
-    if (options.silent !== true) setState((current) => (current === 'ready' ? current : 'loading'));
-    try {
-      const next = await loadSnapshot();
-      setSnapshot(next);
-      setError(null);
-      setState('ready');
-    } catch (cause) {
-      setError(cause);
-      setState((current) => (current === 'ready' ? current : 'error'));
-    }
-  }, []);
+  const refresh = useCallback(
+    async (options: { silent?: boolean } = {}) => {
+      if (options.silent !== true)
+        setState((current) => (current === 'ready' ? current : 'loading'));
+      try {
+        const next = await loadSnapshot(recoveryFilters);
+        setSnapshot(next);
+        setError(null);
+        setState('ready');
+      } catch (cause) {
+        setError(cause);
+        setState((current) => (current === 'ready' ? current : 'error'));
+      }
+    },
+    [recoveryFilters],
+  );
 
   useEffect(() => {
     void refresh();
@@ -132,6 +165,16 @@ export function OperationsPage() {
     if (before === null) {
       // The first read is the baseline: nothing "just happened".
       for (const worker of snapshot.workers) seen.current.add(`${worker.id}:failed`);
+      for (const record of snapshot.recovery) {
+        seen.current.add(`${record.id}:started`);
+        seen.current.add(`${record.id}:cancelled`);
+        seen.current.add(`${record.id}:recovered`);
+        seen.current.add(`${record.id}:${record.status}:escalated`);
+        seen.current.add(`${record.id}:budget:exhausted`);
+        for (let attempt = 1; attempt <= record.attempts; attempt += 1) {
+          seen.current.add(`${record.id}:${attempt}:repair`);
+        }
+      }
       return;
     }
     const events = notificationsFor(
@@ -145,6 +188,22 @@ export function OperationsPage() {
       },
       seen.current,
     );
+    for (const event of recoveryNotificationsFor(
+      before.recovery,
+      snapshot.recovery,
+      seen.current,
+    )) {
+      seen.current.add(event.key);
+      toast(RECOVERY_NOTIFICATION_COPY[event.event], {
+        tone:
+          event.event === 'recovery_needs_intervention' ||
+          event.event === 'recovery_budget_exhausted'
+            ? 'error'
+            : event.event === 'recovery_recovered'
+              ? 'success'
+              : 'info',
+      });
+    }
     for (const event of events) {
       seen.current.add(event.key);
       toast(NOTIFICATION_LABEL[event.event], {
@@ -446,7 +505,11 @@ export function OperationsPage() {
                   (worker) => workerGroup(worker.status) === 'awaiting_review',
                 );
                 return (
-                  <li key={task.id} className="v-ops__task">
+                  <li
+                    key={task.id}
+                    id={`v-ops-task-${task.id}`}
+                    className={`v-ops__task ${highlightTaskId === task.id ? 'v-ops__task--highlight' : ''}`}
+                  >
                     <div className="v-ops__task-head">
                       <span className="v-ops__strong">{task.title}</span>
                       <Badge tone={taskStatusTone(task.status)}>
@@ -661,6 +724,29 @@ export function OperationsPage() {
           )}
         </section>
       </div>
+
+      <RecoveryPanel
+        cases={data.recovery}
+        overview={data.recoveryOverview}
+        filters={recoveryFilters}
+        onFiltersChange={setRecoveryFilters}
+        tasks={data.tasks}
+        workers={data.workers}
+        projects={projects}
+        readAt={data.at}
+        onRefresh={() => void refresh({ silent: true })}
+        onChanged={onChanged}
+        onNotifyFailed={onNotifyFailed}
+        onOpenTask={(taskId) => {
+          setHighlightTaskId(taskId);
+          if (typeof document !== 'undefined') {
+            const row = document.getElementById(`v-ops-task-${taskId}`);
+            row?.scrollIntoView?.({ block: 'center' });
+          }
+        }}
+        onOpenWorker={(workerId) => setSelectedWorkerId(workerId)}
+        onOpenChangeSet={(changeSetId) => setSelectedChangeSetId(changeSetId)}
+      />
 
       {selectedWorker !== null && (
         <div className="v-ops__drawer" role="region" aria-label="Selected Superagent">
