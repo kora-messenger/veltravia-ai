@@ -43,6 +43,7 @@
     "recovery/core",
     "execution/core",
     "reliability/core",
+    "usage/*",
     "export/core",
     "sync/core",
     "testing/core",

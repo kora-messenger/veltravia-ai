@@ -20,11 +20,12 @@
   },
   "dependencies": {
     "@veltravia/change-integration-core": "*",
+    "@veltravia/execution-core": "*",
     "@veltravia/memory-core": "*",
     "@veltravia/orchestration-core": "*",
     "@veltravia/project-core": "*",
     "@veltravia/recovery-core": "*",
-    "@veltravia/execution-core": "*",
+    "@veltravia/usage-core": "*",
     "@veltravia/verification-core": "*",
     "@veltravia/version-core": "*",
     "@veltravia/worker-core": "*",

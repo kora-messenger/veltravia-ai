@@ -17,6 +17,8 @@ import {
   PostgresLeaseStore,
   PostgresOrchestrationRecoveryStore,
 } from './repositories/reliability.js';
+import { PostgresUsageStore } from './repositories/usage.js';
+
 import { PostgresRecoveryStore } from './repositories/recovery.js';
 import {
   PostgresChangeArtifacts,
@@ -157,6 +159,7 @@ export interface PostgresStores {
   readonly leases: PostgresLeaseStore;
   readonly inbox: PostgresEventInbox;
   readonly orchestratorRecoveries: PostgresOrchestrationRecoveryStore;
+  readonly usage: PostgresUsageStore;
 }
 
 export function createPostgresStores(database: Database): PostgresStores {
@@ -186,6 +189,7 @@ export function createPostgresStores(database: Database): PostgresStores {
     leases: new PostgresLeaseStore(database),
     inbox: new PostgresEventInbox(database),
     orchestratorRecoveries: new PostgresOrchestrationRecoveryStore(database),
+    usage: new PostgresUsageStore(database),
   };
 }
 
