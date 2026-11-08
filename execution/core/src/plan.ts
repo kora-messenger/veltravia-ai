@@ -385,11 +385,11 @@ export function revisePlan(input: {
       input.plan.tasks.filter((task) => task.taskId !== null).map((task) => task.key),
   );
   const kept = input.plan.tasks.filter((task) => started.has(task.key) || !removed.has(task.key));
-  const keptNotes = input.plan.tasks
+  const keptRisks = input.plan.tasks
     .filter((task) => started.has(task.key) && removed.has(task.key))
     .map(
       (task) =>
-        `Kept ${task.key}: it already has work, so it stays in the plan until that work is closed.`,
+        `Kept ${task.key}: it already has work, so removing it from the plan would leave that work running unmentioned.`,
     );
   const added = (input.change.add ?? []).map((task) => ({ ...task, taskId: null }));
   const dependencies = input.change.dependsOn ?? {};
@@ -402,7 +402,7 @@ export function revisePlan(input: {
     ...input.plan,
     version: input.plan.version + 1,
     tasks,
-    notes: [...(input.plan.notes ?? []), ...keptNotes],
+    risks: [...(input.plan.risks ?? []), ...keptRisks],
     revisionReason: input.reason,
     summary: `${tasks.length} tasks after revision ${input.plan.version + 1}: ${input.reason}`,
     createdAt: input.createdAt,

@@ -64,10 +64,15 @@ export interface PlannedTaskView {
 }
 
 export interface PlanView {
+  readonly version: number;
   readonly objective: string;
   readonly tasks: readonly PlannedTaskView[];
-  readonly approvals: readonly { readonly reason: string; readonly taskKey: string }[];
-  readonly notes: readonly string[];
+  readonly inspection: readonly string[];
+  readonly risks: readonly string[];
+  readonly restrictions: readonly string[];
+  readonly verificationRequirements: readonly string[];
+  readonly summary: string;
+  readonly revisionReason: string | null;
 }
 
 export interface ProgressLineView {

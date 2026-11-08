@@ -47,7 +47,14 @@ function view(overrides: Partial<ExecutionView> = {}): ExecutionView & { report:
   const base = {
     execution: summary,
     plan: {
+      version: 1,
       objective: 'Add a settings loader',
+      inspection: [],
+      risks: [],
+      restrictions: [],
+      verificationRequirements: [],
+      summary: '2 tasks',
+      revisionReason: null,
       tasks: [
         {
           key: 'understand',
@@ -72,8 +79,6 @@ function view(overrides: Partial<ExecutionView> = {}): ExecutionView & { report:
           taskId: 'tsk_2',
         },
       ],
-      approvals: [],
-      notes: [],
     },
     progress: {
       outcome: 'executing',
