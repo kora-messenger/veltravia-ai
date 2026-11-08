@@ -11,6 +11,12 @@ import { PostgresTaskStore } from './repositories/tasks.js';
 import { PostgresWorkerStore } from './repositories/workers.js';
 import { PostgresVerificationStore } from './repositories/verification.js';
 import { PostgresExecutionStore } from './repositories/executions.js';
+import {
+  PostgresEventInbox,
+  PostgresIdempotencyStore,
+  PostgresLeaseStore,
+  PostgresOrchestrationRecoveryStore,
+} from './repositories/reliability.js';
 import { PostgresRecoveryStore } from './repositories/recovery.js';
 import {
   PostgresChangeArtifacts,
@@ -147,6 +153,10 @@ export interface PostgresStores {
   readonly integrationLocks: PostgresIntegrationLocks;
   readonly recovery: PostgresRecoveryStore;
   readonly executions: PostgresExecutionStore;
+  readonly idempotency: PostgresIdempotencyStore;
+  readonly leases: PostgresLeaseStore;
+  readonly inbox: PostgresEventInbox;
+  readonly orchestratorRecoveries: PostgresOrchestrationRecoveryStore;
 }
 
 export function createPostgresStores(database: Database): PostgresStores {
@@ -172,6 +182,10 @@ export function createPostgresStores(database: Database): PostgresStores {
     integrationLocks: new PostgresIntegrationLocks(database),
     recovery: new PostgresRecoveryStore(database),
     executions: new PostgresExecutionStore(database),
+    idempotency: new PostgresIdempotencyStore(database),
+    leases: new PostgresLeaseStore(database),
+    inbox: new PostgresEventInbox(database),
+    orchestratorRecoveries: new PostgresOrchestrationRecoveryStore(database),
   };
 }
 

@@ -1,0 +1,21 @@
+{
+  "name": "@veltravia/reliability-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia production reliability: owner-scoped idempotency records with request fingerprints, coordinator leases with expiry and renewal, a deduplicating event inbox, a bounded sweep decision and an observation-only health snapshot. Storage is a port; this package adds coordination primitives and never a second task, worker, verification or recovery engine.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
+}
