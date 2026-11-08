@@ -28,6 +28,7 @@
     "@veltravia/usage-core": "*",
     "@veltravia/verification-core": "*",
     "@veltravia/version-core": "*",
+    "@veltravia/wallet-core": "*",
     "@veltravia/worker-core": "*",
     "pg": "^8.13.1"
   },

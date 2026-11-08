@@ -497,3 +497,13 @@ provider key would need a paid plan. The Usage region of `#/operations` shows th
 limits, both cost columns and the recent records. Plan and limit changes are operator work
 behind `VELTRAVIA_USAGE_ADMIN_TOKEN`, and the routes fail closed when it is unset. Details:
 `docs/usage-metering.md`.
+
+## Step 53 - Credit wallet
+
+Veltravia credits are held in a ledger-backed wallet (personal and per workspace) with
+atomic deductions, reservations, refunds, reversals and reconciliation. Billable metered
+usage from Step 52 is charged exactly once, at a documented and configurable rate; a user's
+own provider spend is never converted into credits. See `docs/credit-wallet.md`.
+
+Not delivered: payment processing or real-money credit purchases. `purchase` is an entry
+kind, not a working checkout.

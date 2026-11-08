@@ -142,19 +142,35 @@ export function createDatabase(
           }
         },
       };
+      let result: T;
+      await client.query('BEGIN');
       try {
-        await client.query('BEGIN');
-        const result = await fn(tx);
+        result = await fn(tx);
+      } catch (error) {
+        // An error thrown by the caller's own work is not a database failure:
+        // a wallet refusal, an exhausted limit or a domain conflict must reach
+        // the caller as itself, or every refusal in the app turns into "the
+        // database rejected the statement". Errors from `tx.query` are already
+        // DatabaseError and are rethrown unchanged.
+        try {
+          await client.query('ROLLBACK');
+        } catch {
+          // A rollback can fail when the connection itself died. The caller's
+          // error is still the useful one.
+        }
+        client.release();
+        throw error;
+      }
+      try {
         await client.query('COMMIT');
         return result;
       } catch (error) {
         try {
           await client.query('ROLLBACK');
         } catch {
-          // A rollback can fail when the connection itself died. The original
-          // error is the useful one, and the client is released below.
+          // See above.
         }
-        throw error instanceof DatabaseError ? error : toDatabaseError(error);
+        throw toDatabaseError(error);
       } finally {
         client.release();
       }

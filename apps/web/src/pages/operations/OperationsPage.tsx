@@ -28,6 +28,7 @@ import { ExecutionPanel } from './ExecutionPanel';
 import { RecoveryPanel } from './RecoveryPanel';
 import { ReliabilityPanel } from './ReliabilityPanel';
 import { UsagePanel } from './UsagePanel';
+import { WalletPanel } from './WalletPanel';
 import {
   RECOVERY_NOTIFICATION_LABEL as RECOVERY_NOTIFICATION_COPY,
   recoveryNotificationsFor,
@@ -756,6 +757,9 @@ export function OperationsPage() {
       <ReliabilityPanel onChanged={() => void refresh({ silent: true })} />
       {/* Step 52: metering, below the machinery it measures. */}
       <UsagePanel />
+
+      {/* Step 53: credits, what they were spent on, and the rate table. */}
+      <WalletPanel />
 
       {selectedWorker !== null && (
         <div className="v-ops__drawer" role="region" aria-label="Selected Superagent">

@@ -30,6 +30,7 @@ import { migration008 } from './migrations/008-superagent-recovery.js';
 import { migration009 } from './migrations/009-executions.js';
 import { migration010 } from './migrations/010-reliability.js';
 import { migration011 } from './migrations/011-usage-metering.js';
+import { migration012 } from './migrations/012-credit-wallet.js';
 
 export interface Migration {
   readonly version: string;
@@ -49,6 +50,7 @@ export const MIGRATIONS: readonly Migration[] = [
   migration009,
   migration010,
   migration011,
+  migration012,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 const MIGRATION_TABLE = 'veltravia_schema_migrations';

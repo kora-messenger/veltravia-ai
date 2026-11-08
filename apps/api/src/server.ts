@@ -86,7 +86,9 @@ import { registerReliabilityRoutes } from './routes/reliability.js';
 import { randomUUID } from 'node:crypto';
 
 import { registerUsageRoutes } from './routes/usage.js';
+import { registerWalletRoutes } from './routes/wallet.js';
 import { createUsageService } from './usage-service.js';
+import { createWalletService } from './wallet-service.js';
 import { registerIdempotency } from './idempotency.js';
 import { createReliabilityService } from './reliability-service.js';
 import { registerTaskRoutes } from './routes/tasks.js';
@@ -525,9 +527,19 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
    * happens. Nothing here duplicates a worker, task or execution decision; it
    * only records what they consumed.
    */
+  // The wallet exists before the meter because the meter bills into it: the
+  // wallet is created first and handed to the usage service as a hook.
+  const walletService = createWalletService({
+    env,
+    store: persistence?.stores?.wallet,
+  });
+
   const usageService = createUsageService({
     env,
     store: persistence?.stores?.usage,
+    onRecorded: async (record) => {
+      await walletService.billUsage({ ownerRef: record.ownerRef, record });
+    },
     measureFileBytes: async (ownerRef, projectId) => {
       const assets = await fileManager.listFiles(
         { ownerRef },
@@ -549,6 +561,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     },
   });
   registerUsageRoutes(app, { usage: usageService }, env);
+  registerWalletRoutes(app, { wallet: walletService }, env);
   registerWorkerRoutes(app, {
     workers: workerService,
     verification: verificationService,

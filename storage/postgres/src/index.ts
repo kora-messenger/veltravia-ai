@@ -18,6 +18,7 @@ import {
   PostgresOrchestrationRecoveryStore,
 } from './repositories/reliability.js';
 import { PostgresUsageStore } from './repositories/usage.js';
+import { PostgresWalletStore } from './repositories/wallet.js';
 
 import { PostgresRecoveryStore } from './repositories/recovery.js';
 import {
@@ -160,6 +161,7 @@ export interface PostgresStores {
   readonly inbox: PostgresEventInbox;
   readonly orchestratorRecoveries: PostgresOrchestrationRecoveryStore;
   readonly usage: PostgresUsageStore;
+  readonly wallet: PostgresWalletStore;
 }
 
 export function createPostgresStores(database: Database): PostgresStores {
@@ -190,6 +192,7 @@ export function createPostgresStores(database: Database): PostgresStores {
     inbox: new PostgresEventInbox(database),
     orchestratorRecoveries: new PostgresOrchestrationRecoveryStore(database),
     usage: new PostgresUsageStore(database),
+    wallet: new PostgresWalletStore(database),
   };
 }
 

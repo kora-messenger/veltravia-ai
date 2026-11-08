@@ -259,6 +259,14 @@ export interface UsageServiceOptions {
   /** Jobs or executions currently running for an owner. */
   readonly measureOpenJobs?:
     ((ownerRef: string, projectId?: string | null) => Promise<number | null>) | undefined;
+  /**
+   * Called once for a newly written usage record, never for a replayed one.
+   *
+   * This is how the credit wallet (Step 53) is billed without a second meter:
+   * the record is written first and is the thing billed, and a failure here must
+   * never turn work that already ran into an error, so it is caught and dropped.
+   */
+  readonly onRecorded?: ((record: UsageRecord) => Promise<void> | void) | undefined;
 }
 
 const CATEGORIES: readonly UsageCategory[] = [
@@ -423,6 +431,26 @@ export function createUsageService(options: UsageServiceOptions = {}): UsageServ
     const bound = bindStore(base, ownerRef);
     stores.set(ownerRef, bound);
     return bound;
+  };
+
+  /**
+   * One place that writes a record and, when it is a new one, tells the billing
+   * hook. A duplicate (the meter recognised a retry) is not billed again.
+   */
+  const recordWithBilling = async (
+    ownerRef: string,
+    input: Parameters<UsageLedger['record']>[0],
+  ): Promise<UsageRecord> => {
+    const { record, duplicate } = await ledgerFor(ownerRef).record(input);
+    if (!duplicate && options.onRecorded !== undefined) {
+      try {
+        await options.onRecorded(record);
+      } catch {
+        // Billing is downstream of metering: a wallet that refuses a charge must
+        // not make the metered work look like it failed.
+      }
+    }
+    return record;
   };
 
   const ledgerFor = (ownerRef: string): UsageLedger => {
@@ -814,7 +842,7 @@ export function createUsageService(options: UsageServiceOptions = {}): UsageServ
     if (input.outcome === 'completed') {
       await ledger.commit(input.operationKey);
       // The hold becomes a record, so the month keeps the job after the hold ends.
-      await ledger.record({
+      await recordWithBilling(input.ownerRef, {
         ownerRef: input.ownerRef,
         projectId: input.projectId ?? hold.projectId,
         category: 'background_jobs',
@@ -1002,7 +1030,7 @@ export function createUsageService(options: UsageServiceOptions = {}): UsageServ
       if (!Number.isFinite(started) || !Number.isFinite(finished) || finished <= started)
         return null;
       const entitlement = await entitlementOf(input.ownerRef);
-      const { record } = await ledgerFor(input.ownerRef).record({
+      const record = await recordWithBilling(input.ownerRef, {
         ownerRef: input.ownerRef,
         projectId: input.projectId ?? null,
         category: 'backend_execution',
@@ -1031,7 +1059,7 @@ export function createUsageService(options: UsageServiceOptions = {}): UsageServ
         reportedCostUsd: input.reportedCostUsd ?? null,
         priceTable: parsePriceTable(env),
       });
-      const { record } = await ledgerFor(input.ownerRef).record({
+      const record = await recordWithBilling(input.ownerRef, {
         ownerRef: input.ownerRef,
         projectId: input.projectId ?? null,
         category: 'ai_provider',
@@ -1060,7 +1088,7 @@ export function createUsageService(options: UsageServiceOptions = {}): UsageServ
       const bytes = await measuredFileBytes(input.ownerRef, input.projectId ?? null);
       if (bytes === null) return null;
       const day = now().toISOString().slice(0, 10);
-      const { record } = await ledgerFor(input.ownerRef).record({
+      const record = await recordWithBilling(input.ownerRef, {
         ownerRef: input.ownerRef,
         projectId: input.projectId ?? null,
         category: 'file_storage',
