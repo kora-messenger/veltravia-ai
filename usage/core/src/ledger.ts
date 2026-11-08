@@ -82,6 +82,39 @@ export interface UsageStore {
   }): Promise<readonly UsageReservation[]>;
   /** Live holds, used for concurrency decisions and health. */
   countLiveReservations(category: UsageCategory): Promise<number>;
+
+  // --- optional configuration surface -------------------------------------
+  // A store without these still meters and enforces plan limits; it just cannot
+  // remember an operator's plan or per-project overrides. Each method is
+  // owner-scoped by the store itself (the caller never passes an owner), which is
+  // the same rule every other repository follows.
+
+  /** The unexplained hold, so a settle can find what it is closing. */
+  findReservation?(operationKey: string): Promise<UsageReservation | null>;
+  /** Frees holds whose window closed. Returns how many were freed. */
+  expireReservations?(now: string): Promise<number>;
+  readOverrides?(): Promise<UsageOverrides>;
+  writeOverride?(input: {
+    readonly scope: 'owner' | 'project';
+    readonly scopeId: string;
+    readonly key: QuotaLimitKey;
+    readonly value: number | null;
+    readonly actor: string;
+    readonly now: string;
+  }): Promise<void>;
+  readPlan?(): Promise<{ readonly planId: string; readonly source: string } | null>;
+  writePlan?(input: {
+    readonly planId: string;
+    readonly source: 'default' | 'operator';
+    readonly actor: string;
+    readonly now: string;
+  }): Promise<void>;
+}
+
+/** Limits configured for one owner, plus the ones set for each of its projects. */
+export interface UsageOverrides {
+  readonly owner: QuotaOverrides;
+  readonly project: Readonly<Record<string, QuotaOverrides>>;
 }
 
 export interface LedgerOptions {

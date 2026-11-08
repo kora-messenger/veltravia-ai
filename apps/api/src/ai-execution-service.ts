@@ -141,6 +141,21 @@ export interface AiExecutionServiceOptions {
   readonly maxOutputTokensCeiling?: number;
   readonly maxRunsPerOwner?: number;
   readonly maxBufferedEvents?: number;
+  /**
+   * Step 52: metering. Called once with the tokens a run actually reported, so
+   * usage is written down where the numbers are already known instead of being
+   * guessed later from a run record. A failure here must never fail a run.
+   */
+  readonly onUsage?:
+    | ((input: {
+        readonly ownerRef: string;
+        readonly runId: string;
+        readonly providerId: string;
+        readonly modelId: string;
+        readonly inputTokens: number | null;
+        readonly outputTokens: number | null;
+      }) => void)
+    | undefined;
 }
 
 interface RunState {
@@ -884,6 +899,16 @@ export class AiExecutionService {
     };
     state.run = { ...state.run, usage };
     this.emit(state, usage);
+    // Written after the event reaches the caller: metering reports, it does not
+    // gate a call that has already been paid for.
+    this.options.onUsage?.({
+      ownerRef: state.run.ownerRef,
+      runId: state.run.id,
+      providerId: input.providerId,
+      modelId: input.modelId,
+      inputTokens: input.inputTokens,
+      outputTokens: input.outputTokens,
+    });
   }
 }
 

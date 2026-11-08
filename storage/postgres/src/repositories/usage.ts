@@ -412,6 +412,21 @@ export class PostgresUsageStore implements UsageStore {
     return result.rows.map(toReservation);
   }
 
+  /** The one hold an operation key names, so a settle closes that row. */
+  async findReservation(operationKey: string): Promise<UsageReservation | null> {
+    const owner = requireOwner();
+    const result = await this.query.query<ReservationRow>(
+      `select id, owner_ref, project_id, category, quantity, unit, operation_key,
+              operation_id, status, created_at, expires_at, settled_at, note
+         from usage_reservations
+        where owner_ref = $1 and operation_key = $2
+        limit 1`,
+      [owner, operationKey],
+    );
+    const row = result.rows[0];
+    return row === undefined ? null : toReservation(row);
+  }
+
   async countLiveReservations(category: UsageCategory): Promise<number> {
     const owner = requireOwner();
     const result = await this.query.query<{ live: string }>(

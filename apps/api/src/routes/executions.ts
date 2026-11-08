@@ -15,11 +15,31 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import { ExecutionError, executionHttpStatus } from '@veltravia/execution-core';
 
+import { UsageLimitError } from '../usage-service.js';
+
 import { resolveCallerOwnerRef } from '../project-access.js';
 import type { ExecutionService } from '../execution-service.js';
 
 export interface ExecutionRouteDeps {
   readonly executions: ExecutionService;
+  /**
+   * Step 52: metering. `beforeStart` refuses an intake whose background-job
+   * allowance is spent, `afterStart` commits the hold the refusal path was
+   * judged against. Both are optional so the routes still work unmetered.
+   */
+  readonly usage?:
+    | {
+        /**
+         * Judges the allowance and takes a hold. Throws (429/402) when the
+         * intake must not happen. The returned pair closes the hold either way:
+         * `settle` keeps the job, `release` gives it back.
+         */
+        readonly beforeStart: (input: { ownerRef: string; projectId: string }) => Promise<{
+          readonly settle: () => Promise<void>;
+          readonly release: () => Promise<void>;
+        } | null>;
+      }
+    | undefined;
 }
 
 const idParam = {
@@ -41,6 +61,15 @@ const owner = (request: { headers: Record<string, unknown> }): string =>
   resolveCallerOwnerRef(request as never);
 
 function fail(reply: FastifyReply, error: unknown): FastifyReply {
+  if (error instanceof UsageLimitError) {
+    return reply.status(error.status).send({
+      error: {
+        code: error.code,
+        message: error.message,
+        ...(error.decision === null ? {} : { decision: error.decision }),
+      },
+    });
+  }
   if (error instanceof ExecutionError) {
     return reply.status(error.status).send({ error: { code: error.code, message: error.message } });
   }
@@ -96,6 +125,17 @@ export function registerExecutionRoutes(app: FastifyInstance, deps: ExecutionRou
         workspaceId?: string;
         maxConcurrent?: number;
       };
+      // Nothing is planned until the allowance answers yes. The hold taken here
+      // is what stops two simultaneous requests from spending one job.
+      let hold: { settle: () => Promise<void>; release: () => Promise<void> } | null;
+      try {
+        hold =
+          deps.usage === undefined
+            ? null
+            : await deps.usage.beforeStart({ ownerRef: owner(request), projectId: body.projectId });
+      } catch (error) {
+        return fail(reply, error);
+      }
       try {
         const view = await executions.start({
           ownerRef: owner(request),
@@ -104,8 +144,13 @@ export function registerExecutionRoutes(app: FastifyInstance, deps: ExecutionRou
           ...(body.workspaceId === undefined ? {} : { workspaceId: body.workspaceId }),
           ...(body.maxConcurrent === undefined ? {} : { maxConcurrent: body.maxConcurrent }),
         });
+        // The job exists now: the hold becomes a recorded job. A metering write
+        // that fails must not turn a created execution into an error.
+        await hold?.settle().catch(() => undefined);
         return reply.status(201).send(view);
       } catch (error) {
+        // The plan never started, so the hold goes back.
+        await hold?.release().catch(() => undefined);
         return fail(reply, error);
       }
     },

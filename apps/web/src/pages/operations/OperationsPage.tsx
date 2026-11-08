@@ -27,6 +27,7 @@ import { ChangeSetReview } from './ChangeSetReview';
 import { ExecutionPanel } from './ExecutionPanel';
 import { RecoveryPanel } from './RecoveryPanel';
 import { ReliabilityPanel } from './ReliabilityPanel';
+import { UsagePanel } from './UsagePanel';
 import {
   RECOVERY_NOTIFICATION_LABEL as RECOVERY_NOTIFICATION_COPY,
   recoveryNotificationsFor,
@@ -753,6 +754,8 @@ export function OperationsPage() {
       />
 
       <ReliabilityPanel onChanged={() => void refresh({ silent: true })} />
+      {/* Step 52: metering, below the machinery it measures. */}
+      <UsagePanel />
 
       {selectedWorker !== null && (
         <div className="v-ops__drawer" role="region" aria-label="Selected Superagent">

@@ -1,5 +1,10 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
+import { UsageLimitError } from '../usage-service.js';
+
+const isUsageLimitError = (error: unknown): error is UsageLimitError =>
+  error instanceof UsageLimitError;
+
 import { isOrchestrationError, orchestrationHttpStatus } from '@veltravia/orchestration-core';
 import {
   WORKER_STATUSES,
@@ -34,6 +39,23 @@ export interface WorkerRouteDeps {
    * simply a claim.
    */
   readonly verification?: VerificationService | undefined;
+  /**
+   * Step 52: metering. `beforeStart` refuses a start that would exceed an
+   * allowance (it throws, and the route answers 429/402); `afterReview` writes
+   * down what the worker actually consumed. Both are optional so the route layer
+   * still works with no metering configured, which is what the unit tests use.
+   */
+  readonly usage?:
+    | {
+        readonly beforeStart: (input: { ownerRef: string; workerId: string }) => Promise<void>;
+        readonly afterReview: (input: {
+          ownerRef: string;
+          workerId: string;
+          startedAt: string | null;
+          finishedAt: string;
+        }) => Promise<void>;
+      }
+    | undefined;
 }
 
 const idParam = {
@@ -60,6 +82,15 @@ export function registerWorkerRoutes(app: FastifyInstance, deps: WorkerRouteDeps
       return reply
         .status(workerHttpStatus(error.code))
         .send({ error: { code: error.code, message: error.message } });
+    }
+    if (isUsageLimitError(error)) {
+      return reply.status(error.status).send({
+        error: {
+          code: error.code,
+          message: error.message,
+          ...(error.decision === null ? {} : { decision: error.decision }),
+        },
+      });
     }
     if (isOrchestrationError(error)) {
       return reply
@@ -163,6 +194,11 @@ export function registerWorkerRoutes(app: FastifyInstance, deps: WorkerRouteDeps
     async (request, reply) => {
       const { workerId } = request.params as { workerId: string };
       try {
+        // Refused before anything is claimed: a spent allowance must not leave a
+        // half-started worker behind.
+        if (deps.usage !== undefined) {
+          await deps.usage.beforeStart({ ownerRef: owner(request), workerId });
+        }
         return reply.send({ worker: await manager.start(owner(request), workerId) });
       } catch (error) {
         return fail(reply, error);
@@ -220,6 +256,19 @@ export function registerWorkerRoutes(app: FastifyInstance, deps: WorkerRouteDeps
           criteriaResults: Array.isArray(body?.criteriaResults) ? body.criteriaResults : [],
           changedPaths: Array.isArray(body?.changedPaths) ? body.changedPaths : undefined,
         });
+        if (deps.usage !== undefined) {
+          // Measured wall clock, written once per worker, after the decision is
+          // made: metering never decides whether work was accepted, so a failure
+          // to write it down must not turn an accepted review into an error.
+          await deps.usage
+            .afterReview({
+              ownerRef: owner(request),
+              workerId,
+              startedAt: outcome.worker.startedAt ?? null,
+              finishedAt: outcome.worker.updatedAt,
+            })
+            .catch(() => undefined);
+        }
         return reply.send({ worker: outcome.worker, checks: outcome.checks });
       } catch (error) {
         return fail(reply, error);

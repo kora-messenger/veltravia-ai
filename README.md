@@ -479,3 +479,21 @@ keys and outstanding side effects are readable under `/api/reliability`, and the
 region of `#/operations` shows them. When no database is configured the state is in memory and
 the snapshot says so with an amber finding instead of a green tick. Details:
 `docs/production-reliability.md`.
+
+## Step 52 - backend usage metering and infrastructure quotas
+
+The platform can now say what an owner used this month and what happens at the line. A record
+is written only where a number is already known - a queued job at intake, a worker's measured
+wall clock at review, the tokens a run reported - so metering never becomes a second source of
+truth. Three distinctions are load-bearing. Counters (tokens, milliseconds, jobs) accumulate and
+come from the ledger, while gauges (file bytes, open jobs) are probed as they are now, because
+summing monthly storage rows would keep charging for a deleted file. A limit that nothing in the
+deployment measures is published and reported as **not enforced** rather than drawn as a bar:
+database storage, bandwidth and realtime fall there today. And provider spend is never added to
+infrastructure spend - a BYOK call is the caller's own provider bill, recorded for transparency
+and excluded from what an allowance spent. Intake is refused with `429 USAGE_LIMIT_REACHED`
+before anything is planned, a worker start is refused past the concurrency limit, and a managed
+provider key would need a paid plan. The Usage region of `#/operations` shows the month, the
+limits, both cost columns and the recent records. Plan and limit changes are operator work
+behind `VELTRAVIA_USAGE_ADMIN_TOKEN`, and the routes fail closed when it is unset. Details:
+`docs/usage-metering.md`.

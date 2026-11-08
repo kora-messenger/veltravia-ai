@@ -83,6 +83,10 @@ import { createExecutionService } from './execution-service.js';
 import { registerRecoveryRoutes } from './routes/recovery.js';
 import { registerExecutionRoutes } from './routes/executions.js';
 import { registerReliabilityRoutes } from './routes/reliability.js';
+import { randomUUID } from 'node:crypto';
+
+import { registerUsageRoutes } from './routes/usage.js';
+import { createUsageService } from './usage-service.js';
 import { registerIdempotency } from './idempotency.js';
 import { createReliabilityService } from './reliability-service.js';
 import { registerTaskRoutes } from './routes/tasks.js';
@@ -215,6 +219,12 @@ export interface BuildAppOptions {
    * database is configured; tests and laptops get the in-memory engine.
    */
   readonly persistence?: Persistence;
+  /**
+   * Environment for this instance (Step 52). Tests pass their own so a metering
+   * token or deployment mode can be exercised without mutating `process.env` for
+   * every other test in the file.
+   */
+  readonly env?: NodeJS.ProcessEnv;
 }
 
 /**
@@ -222,6 +232,7 @@ export interface BuildAppOptions {
  * Tests use this entry point via fastify.inject(); main.ts starts the listener.
  */
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
+  const env = options.env ?? process.env;
   const config = options.deployment ?? resolveDeploymentConfig();
   const app = Fastify({
     logger: false,
@@ -505,7 +516,57 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       staging: workerStaging,
     }),
   });
-  registerWorkerRoutes(app, { workers: workerService, verification: verificationService });
+  /*
+   * Step 52: metering.
+   *
+   * Two gauges are measured rather than inferred: bytes actually stored (from
+   * the file records) and workers actually running (from the worker store). The
+   * counters come from the ledger, which the guards below write to as work
+   * happens. Nothing here duplicates a worker, task or execution decision; it
+   * only records what they consumed.
+   */
+  const usageService = createUsageService({
+    env,
+    store: persistence?.stores?.usage,
+    measureFileBytes: async (ownerRef, projectId) => {
+      const assets = await fileManager.listFiles(
+        { ownerRef },
+        { projectId: projectId ?? undefined },
+      );
+      let bytes = 0;
+      for (const asset of assets) {
+        const size = (asset as { byteLength?: unknown }).byteLength;
+        // An asset whose size is unknown contributes nothing rather than a guess;
+        // the gauge is then a lower bound, which the capability matrix says.
+        if (typeof size === 'number' && Number.isFinite(size) && size > 0) bytes += size;
+      }
+      return bytes;
+    },
+    measureOpenJobs: async (ownerRef) => {
+      const workers = await workerService.workers.list(ownerRef);
+      return workers.filter((worker) => worker.status === 'starting' || worker.status === 'running')
+        .length;
+    },
+  });
+  registerUsageRoutes(app, { usage: usageService }, env);
+  registerWorkerRoutes(app, {
+    workers: workerService,
+    verification: verificationService,
+    usage: {
+      beforeStart: async ({ ownerRef }) => {
+        const running = await workerService.workers.list(ownerRef);
+        await usageService.guardConcurrency({
+          ownerRef,
+          running: running.filter(
+            (worker) => worker.status === 'starting' || worker.status === 'running',
+          ).length,
+        });
+      },
+      afterReview: async ({ ownerRef, workerId, startedAt, finishedAt }) => {
+        await usageService.recordWorkerExecution({ ownerRef, workerId, startedAt, finishedAt });
+      },
+    },
+  });
   registerVerificationRoutes(app, { verification: verificationService, projects: projectEngine });
 
   // Project & Workspace Engine: safe project/workspace/file management over
@@ -527,6 +588,27 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       gateway: aiGateway.gateway ?? null,
       router: modelRouter,
       ...(aiGateway.blockedReason ? { blockedReason: aiGateway.blockedReason } : {}),
+      onUsage: (input) => {
+        /*
+         * Every provider call here uses the caller's own connected key (the
+         * gateway's vault is per owner), so the tokens are the caller's bill and
+         * nothing is deducted from an allowance. They are still written down:
+         * "what did this run cost" should not depend on the caller's provider
+         * dashboard. The day a Veltravia-managed key exists, `byok` becomes the
+         * flag that decides whether an allowance pays for it.
+         */
+        void usageService
+          .recordProviderCall({
+            ownerRef: input.ownerRef,
+            runId: input.runId,
+            providerId: input.providerId,
+            modelId: input.modelId,
+            inputTokens: input.inputTokens,
+            outputTokens: input.outputTokens,
+            byok: true,
+          })
+          .catch(() => undefined);
+      },
     });
 
   // Step 35: the model-powered decision source. Scripted plans are a
@@ -883,7 +965,24 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     recovery: recoveryService,
     store: persistence?.stores?.executions,
   });
-  registerExecutionRoutes(app, { executions: executionService });
+  registerExecutionRoutes(app, {
+    executions: executionService,
+    usage: {
+      beforeStart: async ({ ownerRef, projectId }) => {
+        // A hold is only taken when the job count is actually measurable; with no
+        // measurement the decision is "not enforced" and nothing is held.
+        const operationKey = `intake:${randomUUID()}`;
+        const hold = await usageService.guardBackgroundJob({ ownerRef, projectId, operationKey });
+        if (hold === null) return null;
+        return {
+          settle: () =>
+            usageService.settleJob({ ownerRef, operationKey, projectId, outcome: 'completed' }),
+          release: () =>
+            usageService.settleJob({ ownerRef, operationKey, projectId, outcome: 'released' }),
+        };
+      },
+    },
+  });
 
   // Step 51: the coordination the pipeline was missing. Idempotency keys, leases
   // around every state change, a sweep for interrupted work and health from
