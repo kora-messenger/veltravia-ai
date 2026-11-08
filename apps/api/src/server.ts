@@ -79,7 +79,9 @@ import { registerChangeIntegrationRoutes } from './routes/change-integration.js'
 import { WorkerStagingRegistry } from './worker-staging.js';
 import { createChangeIntegrationService } from './change-integration-service.js';
 import { createRecoveryService } from './recovery-service.js';
+import { createExecutionService } from './execution-service.js';
 import { registerRecoveryRoutes } from './routes/recovery.js';
+import { registerExecutionRoutes } from './routes/executions.js';
 import { registerTaskRoutes } from './routes/tasks.js';
 import { createTaskService } from './task-service.js';
 import { createWorkerService } from './worker-service.js';
@@ -865,6 +867,20 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     },
   });
   registerRecoveryRoutes(app, { recovery: recoveryService });
+
+  // Step 50: one coordinator over the engines above. It owns the plan, the
+  // approvals and the delivery report; it never schedules, verifies, merges or
+  // repairs anything itself, so there is still exactly one of each.
+  const executionService = createExecutionService({
+    projects: projectEngine,
+    tasks: taskService,
+    workers: workerService,
+    verification: verificationService,
+    changeIntegration: changeIntegrationService,
+    recovery: recoveryService,
+    store: persistence?.stores?.executions,
+  });
+  registerExecutionRoutes(app, { executions: executionService });
   registerSourceRoutes(app, {
     source: sourceStorage,
     // Framework-aware structure: detection reads manifests through the project
