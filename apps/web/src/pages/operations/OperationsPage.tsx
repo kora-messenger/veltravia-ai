@@ -24,6 +24,7 @@ import {
   type RecoveryOverviewView,
 } from '../../api/recovery';
 import { ChangeSetReview } from './ChangeSetReview';
+import { ExecutionPanel } from './ExecutionPanel';
 import { RecoveryPanel } from './RecoveryPanel';
 import {
   RECOVERY_NOTIFICATION_LABEL as RECOVERY_NOTIFICATION_COPY,
@@ -724,6 +725,8 @@ export function OperationsPage() {
           )}
         </section>
       </div>
+
+      <ExecutionPanel onChanged={() => void refresh({ silent: true })} />
 
       <RecoveryPanel
         cases={data.recovery}

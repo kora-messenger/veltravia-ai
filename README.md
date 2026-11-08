@@ -447,3 +447,17 @@ executed and passed; a record that claims recovery without that evidence is show
 awaiting verification with a warning. The page reads and never repairs - re-read, re-diagnose
 and cancel are the only controls, and all three are existing routes. Details:
 `docs/recovery-dashboard.md`.
+
+## Step 50 - end-to-end autonomous execution
+
+A sentence becomes a delivered, reported piece of work. `@veltravia/execution-core` takes the
+request, plans it against the project's real files, and drives the existing engines: the task
+engine creates the work, the worker engine runs it, verification proves it, integration lands
+it and recovery picks up what breaks. Nothing is invented along the way - progress is
+recomputed from stored task, worker and verification records on every sync, so work that is
+waiting for the owner reads "needs review" and a task without a stored passing verification
+run says so instead of implying a proof. Delivery is reported as complete, partial, blocked or
+failed with the verification runs that back it. Executions are stored in PostgreSQL
+(migration 009) and owner-scoped end to end. The Executions region of `#/operations` shows the
+plan, the per-task state and the delivery report, and its only controls are the existing
+dispatch, sync, review and cancel routes. Details: `docs/execution-orchestration.md`.
