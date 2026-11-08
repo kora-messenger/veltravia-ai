@@ -1,0 +1,21 @@
+{
+  "name": "@veltravia/usage-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia infrastructure usage metering (Step 52): durable usage records with provider cost kept separate from Veltravia infrastructure cost, reservations that cannot overshoot a hard limit, configurable allowances and quota decisions. Measurement is a value on every record, so an estimate is never presented as a measurement.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
+}
