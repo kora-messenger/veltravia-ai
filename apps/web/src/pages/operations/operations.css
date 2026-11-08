@@ -933,3 +933,71 @@
     padding: var(--v-space-3);
   }
 }
+
+/* Reliability panel (Step 51). Findings and sweep decisions read as short
+   records with their evidence underneath, so a person can check the answer
+   against the rows it came from. Nothing here is coloured for decoration:
+   amber means a person should look, red means work is stuck. */
+.v-reliability__findings,
+.v-reliability__decisions {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.v-reliability__finding,
+.v-reliability__decision {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  align-items: start;
+  padding: 12px 14px;
+  border: 1px solid var(--v-border);
+  border-radius: 10px;
+  background: var(--v-surface);
+}
+
+.v-reliability__finding p,
+.v-reliability__decision p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--v-text);
+}
+
+.v-reliability__reason {
+  font-weight: 500;
+}
+
+.v-reliability__action {
+  margin-top: 6px;
+  color: var(--v-warning-strong, #8a5a00);
+}
+
+.v-reliability__evidence {
+  display: grid;
+  gap: 2px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.v-reliability__evidence li {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--v-text-muted);
+}
+
+.v-reliability__hint {
+  font-size: 11px;
+  color: var(--v-text-muted);
+}
+
+@media (max-width: 640px) {
+  .v-reliability__finding,
+  .v-reliability__decision {
+    grid-template-columns: 1fr;
+  }
+}

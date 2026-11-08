@@ -85,7 +85,12 @@ export class LeaseCoordinator {
   }
 
   release(ownerRef: string, resource: string): Promise<boolean> {
-    return this.store.release(ownerRef, resource, this.options.holder, this.options.now().toISOString());
+    return this.store.release(
+      ownerRef,
+      resource,
+      this.options.holder,
+      this.options.now().toISOString(),
+    );
   }
 
   /**

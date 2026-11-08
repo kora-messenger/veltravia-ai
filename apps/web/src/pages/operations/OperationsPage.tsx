@@ -26,6 +26,7 @@ import {
 import { ChangeSetReview } from './ChangeSetReview';
 import { ExecutionPanel } from './ExecutionPanel';
 import { RecoveryPanel } from './RecoveryPanel';
+import { ReliabilityPanel } from './ReliabilityPanel';
 import {
   RECOVERY_NOTIFICATION_LABEL as RECOVERY_NOTIFICATION_COPY,
   recoveryNotificationsFor,
@@ -750,6 +751,8 @@ export function OperationsPage() {
         onOpenWorker={(workerId) => setSelectedWorkerId(workerId)}
         onOpenChangeSet={(changeSetId) => setSelectedChangeSetId(changeSetId)}
       />
+
+      <ReliabilityPanel onChanged={() => void refresh({ silent: true })} />
 
       {selectedWorker !== null && (
         <div className="v-ops__drawer" role="region" aria-label="Selected Superagent">

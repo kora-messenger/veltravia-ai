@@ -55,6 +55,10 @@ const EXECUTION_STATUS: Readonly<Record<string, number>> = {
   EXECUTION_REQUEST_TOO_SHORT: 400,
   EXECUTION_REVISION_REASON_REQUIRED: 400,
   EXECUTION_PROJECT_UNAVAILABLE: 422,
+  EXECUTION_PROJECT_NOT_FOUND: 404,
+  EXECUTION_APPROVAL_NOT_FOUND: 404,
+  EXECUTION_BUSY: 409,
+  EXECUTION_BACKPRESSURE: 429,
 };
 
 /** Status for a coordinator error code; unknown codes are a plain 400. */
@@ -117,8 +121,25 @@ export interface ExecutionPorts {
   readonly openRecovery: (ownerRef: string, workerId: string) => Promise<string>;
 }
 
+/**
+ * Coordination between API instances. The coordinator itself has no opinion
+ * about how a resource is claimed: it asks this port to run a section under a
+ * lease, and refuses the operation when another holder owns it. Without the port
+ * the coordinator runs single-process, which is what the tests use.
+ */
+export interface ExecutionCoordination {
+  run<T>(
+    ownerRef: string,
+    resource: string,
+    work: () => Promise<T>,
+  ): Promise<{ readonly held: true; readonly value: T } | { readonly held: false }>;
+}
+
 export interface ExecutionManagerOptions {
   readonly store: ExecutionStore;
+  readonly coordination?: ExecutionCoordination;
+  /** Open executions one owner may have at once before intake is refused. */
+  readonly maxOpenExecutions?: number;
   readonly ports: ExecutionPorts;
   readonly now?: () => Date;
   readonly generateId?: () => string;
@@ -144,12 +165,16 @@ export class ExecutionManager {
   private readonly now: () => Date;
   private readonly generateId: () => string;
   private readonly maxConcurrent: number;
+  private readonly maxOpenExecutions: number;
+  private coordination: ExecutionCoordination | undefined;
 
   constructor(private readonly options: ExecutionManagerOptions) {
     this.now = options.now ?? (() => new Date());
     this.generateId =
       options.generateId ?? (() => `exe_${Math.random().toString(36).slice(2, 11)}`);
     this.maxConcurrent = Math.min(Math.max(options.maxConcurrent ?? 3, 1), 6);
+    this.maxOpenExecutions = Math.min(Math.max(options.maxOpenExecutions ?? 10, 1), 50);
+    this.coordination = options.coordination;
   }
 
   /** Intake: inspect, plan, and create the task graph. Nothing is started yet. */
@@ -167,6 +192,20 @@ export class ExecutionManager {
         'Describe what you want built or changed, in a sentence or two.',
       );
     }
+    // Backpressure: an owner with many executions already open is told so
+    // rather than being allowed to pile on more work nothing is draining.
+    const open = await this.options.store.listExecutions(input.ownerRef, {
+      openOnly: true,
+      limit: 200,
+    });
+    if (open.length >= this.maxOpenExecutions) {
+      throw new ExecutionError(
+        'EXECUTION_BACKPRESSURE',
+        `You already have ${open.length} executions open. Finish or cancel one before starting another.`,
+        429,
+      );
+    }
+
     let facts;
     try {
       facts = await this.options.ports.inspect(input.ownerRef, input.projectId);
@@ -260,6 +299,54 @@ export class ExecutionManager {
   }
 
   /**
+   * Run a section of work under this execution's coordination lease.
+   *
+   * Without a coordination port the coordinator is single-process and the work
+   * simply runs. With one, a second process asking for the same execution is
+   * told so (409) instead of both of them writing the record, which is how two
+   * API instances used to fight over one execution after a restart.
+   */
+  private async guarded<T>(
+    ownerRef: string,
+    executionId: string,
+    work: () => Promise<T>,
+  ): Promise<T> {
+    const coordination = this.coordination;
+    if (coordination === undefined) return work();
+    const outcome = await coordination.run(ownerRef, `execution:${executionId}`, work);
+    if (!outcome.held) {
+      throw new ExecutionError(
+        'EXECUTION_BUSY',
+        'Another process is advancing this execution right now. Read it again in a moment.',
+        409,
+      );
+    }
+    return outcome.value;
+  }
+
+  /**
+   * Attach coordination after construction.
+   *
+   * The reliability service needs this coordinator to exist (its sweep reads
+   * executions), and this coordinator needs the service's leases, so the lease
+   * port is attached once both exist. Single-process callers never attach one.
+   */
+  useCoordination(coordination: ExecutionCoordination | undefined): void {
+    this.coordination = coordination;
+  }
+
+  /** A closed execution keeps the decision that closed it. */
+  private assertOpen(record: ExecutionRecord, action: string): void {
+    if (['completed', 'cancelled', 'failed'].includes(record.status)) {
+      throw new ExecutionError(
+        'EXECUTION_CLOSED',
+        `This execution is ${record.status}, so it cannot ${action}.`,
+        409,
+      );
+    }
+  }
+
+  /**
    * Dispatch ready tasks to workers. Ready means: dependencies finished, the
    * task exists, the owner has approved anything that needed approval, the
    * concurrency ceiling is not reached, and no running task writes the same
@@ -267,6 +354,13 @@ export class ExecutionManager {
    * planner declining to propose something the scheduler will refuse.
    */
   async dispatch(
+    ownerRef: string,
+    executionId: string,
+  ): Promise<ExecutionView & { readonly dispatched: readonly string[] }> {
+    return this.guarded(ownerRef, executionId, () => this.dispatchLocked(ownerRef, executionId));
+  }
+
+  private async dispatchLocked(
     ownerRef: string,
     executionId: string,
   ): Promise<ExecutionView & { readonly dispatched: readonly string[] }> {
@@ -376,6 +470,31 @@ export class ExecutionManager {
    * worker failure turns into recovery work.
    */
   async sync(ownerRef: string, executionId: string): Promise<ExecutionView> {
+    return this.guarded(ownerRef, executionId, () => this.syncLocked(ownerRef, executionId));
+  }
+
+  /**
+   * Reconcile without taking the lease. Only a caller that already holds the
+   * execution's lease may use this: the sweep does, so that one pass over an
+   * execution is one claim rather than a claim inside a claim.
+   */
+  /**
+   * The stored records themselves, without building a view.
+   *
+   * The view is what a person reads; a sweep or a health count needs the row and
+   * must not pay for progress computation on two hundred of them.
+   */
+  async readRecords(
+    ownerRef: string,
+    filter: { readonly openOnly?: boolean; readonly limit?: number } = {},
+  ): Promise<readonly ExecutionRecord[]> {
+    return this.options.store.listExecutions(ownerRef, {
+      openOnly: filter.openOnly === true,
+      limit: Math.min(Math.max(filter.limit ?? 200, 1), 500),
+    });
+  }
+
+  async syncLocked(ownerRef: string, executionId: string): Promise<ExecutionView> {
     const record = await this.requireExecution(ownerRef, executionId);
     const evidence = await this.evidenceFor(record);
     const progress = computeProgress({
@@ -436,7 +555,22 @@ export class ExecutionManager {
     decision: 'accept' | 'reject',
     note: string,
   ): Promise<ExecutionView> {
+    return this.guarded(ownerRef, executionId, () =>
+      this.reviewLocked(ownerRef, executionId, taskId, decision, note),
+    );
+  }
+
+  private async reviewLocked(
+    ownerRef: string,
+    executionId: string,
+    taskId: string,
+    decision: 'accept' | 'reject',
+    note: string,
+  ): Promise<ExecutionView> {
     const record = await this.requireExecution(ownerRef, executionId);
+    // Work cannot be accepted after the execution was closed: the closure
+    // already decided the outcome for every task in it.
+    this.assertOpen(record, 'review work');
     if (!record.taskIds.includes(taskId)) {
       throw new ExecutionError(
         'EXECUTION_TASK_NOT_FOUND',
@@ -469,12 +603,17 @@ export class ExecutionManager {
     // The worker review gate still runs: this names the decision, it does not
     // vouch for the work.
     await this.options.ports.reviewWorker(ownerRef, worker.workerId, decision, note);
-    return this.sync(ownerRef, executionId);
+    return this.syncLocked(ownerRef, executionId);
   }
 
   /** Integrate accepted change sets through Step 46. Nothing is merged here. */
   async integrate(ownerRef: string, executionId: string): Promise<ExecutionView> {
+    return this.guarded(ownerRef, executionId, () => this.integrateLocked(ownerRef, executionId));
+  }
+
+  private async integrateLocked(ownerRef: string, executionId: string): Promise<ExecutionView> {
     const record = await this.requireExecution(ownerRef, executionId);
+    this.assertOpen(record, 'integrate changes');
     const changeSets = await this.options.ports.changeSets({
       ownerRef,
       projectId: record.projectId,
@@ -507,7 +646,7 @@ export class ExecutionManager {
       },
       fresh.version,
     );
-    return this.sync(ownerRef, saved.id);
+    return this.syncLocked(ownerRef, saved.id);
   }
 
   /** Approve or refuse work that needed the owner's decision. */
@@ -564,7 +703,24 @@ export class ExecutionManager {
       readonly scopeChange?: string;
     },
   ): Promise<ExecutionView> {
+    return this.guarded(ownerRef, executionId, () =>
+      this.reviseLocked(ownerRef, executionId, input),
+    );
+  }
+
+  private async reviseLocked(
+    ownerRef: string,
+    executionId: string,
+    input: {
+      readonly reason: string;
+      readonly add?: readonly Omit<PlannedTask, 'taskId'>[];
+      readonly remove?: readonly string[];
+      readonly dependsOn?: Readonly<Record<string, readonly string[]>>;
+      readonly scopeChange?: string;
+    },
+  ): Promise<ExecutionView> {
     const record = await this.requireExecution(ownerRef, executionId);
+    this.assertOpen(record, 'change its plan');
     if (input.reason.trim().length < 8) {
       throw new ExecutionError(
         'EXECUTION_REVISION_REASON_REQUIRED',
@@ -645,6 +801,16 @@ export class ExecutionManager {
 
   /** Cancel everything this execution owns. Workers and tasks are asked, not assumed. */
   async cancel(ownerRef: string, executionId: string, reason: string): Promise<ExecutionView> {
+    return this.guarded(ownerRef, executionId, () =>
+      this.cancelLocked(ownerRef, executionId, reason),
+    );
+  }
+
+  private async cancelLocked(
+    ownerRef: string,
+    executionId: string,
+    reason: string,
+  ): Promise<ExecutionView> {
     const record = await this.requireExecution(ownerRef, executionId);
     if (['completed', 'cancelled'].includes(record.status)) {
       throw new ExecutionError('EXECUTION_CLOSED', `This execution is ${record.status}.`, 409);

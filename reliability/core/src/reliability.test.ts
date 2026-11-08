@@ -54,12 +54,22 @@ describe('idempotency', () => {
     const { guard: idempotent, store } = guard();
     const fingerprint = fingerprintRequest({ projectId: 'p1', request: 'build it' });
 
-    const first = await idempotent.begin({ ownerRef: 'o1', scope: 'POST /api/executions', key: 'k1', fingerprint });
+    const first = await idempotent.begin({
+      ownerRef: 'o1',
+      scope: 'POST /api/executions',
+      key: 'k1',
+      fingerprint,
+    });
     expect(first.outcome).toBe('claimed');
     if (first.outcome !== 'claimed') throw new Error('unreachable');
     await idempotent.complete(first.record, { status: 201, body: { execution: { id: 'exe_1' } } });
 
-    const again = await idempotent.begin({ ownerRef: 'o1', scope: 'POST /api/executions', key: 'k1', fingerprint });
+    const again = await idempotent.begin({
+      ownerRef: 'o1',
+      scope: 'POST /api/executions',
+      key: 'k1',
+      fingerprint,
+    });
     expect(again.outcome).toBe('replay');
     if (again.outcome !== 'replay') throw new Error('unreachable');
     expect(again.record.response).toEqual({ status: 201, body: { execution: { id: 'exe_1' } } });
@@ -101,7 +111,10 @@ describe('idempotency', () => {
     const fingerprint = fingerprintRequest({ request: 'same' });
     const first = await idempotent.begin({ ownerRef: 'o1', scope: 's', key: 'k1', fingerprint });
     if (first.outcome !== 'claimed') throw new Error('unreachable');
-    await idempotent.fail(first.record, { code: 'EXECUTION_CONFLICT', message: 'changed underneath' });
+    await idempotent.fail(first.record, {
+      code: 'EXECUTION_CONFLICT',
+      message: 'changed underneath',
+    });
 
     const retry = await idempotent.begin({ ownerRef: 'o1', scope: 's', key: 'k1', fingerprint });
     expect(retry.outcome).toBe('claimed');
@@ -114,7 +127,12 @@ describe('idempotency', () => {
     const fingerprint = fingerprintRequest({ request: 'same' });
     await idempotent.begin({ ownerRef: 'o1', scope: 's', key: 'k1', fingerprint });
     time.advance(61_000);
-    const reclaimed = await idempotent.begin({ ownerRef: 'o1', scope: 's', key: 'k1', fingerprint });
+    const reclaimed = await idempotent.begin({
+      ownerRef: 'o1',
+      scope: 's',
+      key: 'k1',
+      fingerprint,
+    });
     expect(reclaimed.outcome).toBe('claimed');
   });
 
@@ -132,7 +150,10 @@ describe('idempotency', () => {
     const stored = await store.get('o1', 's', 'k1');
     expect(stored?.status).toBe('in_progress');
     await idempotent.complete(second.record, { status: 200, body: { fresh: true } });
-    expect((await store.get('o1', 's', 'k1'))?.response).toEqual({ status: 200, body: { fresh: true } });
+    expect((await store.get('o1', 's', 'k1'))?.response).toEqual({
+      status: 200,
+      body: { fresh: true },
+    });
   });
 
   it('keeps one owner\u2019s key out of another owner\u2019s records', async () => {
@@ -142,7 +163,12 @@ describe('idempotency', () => {
     if (mine.outcome !== 'claimed') throw new Error('unreachable');
     await idempotent.complete(mine.record, { status: 201, body: { owner: 'o1' } });
 
-    const theirs = await idempotent.begin({ ownerRef: 'o2', scope: 's', key: 'shared', fingerprint });
+    const theirs = await idempotent.begin({
+      ownerRef: 'o2',
+      scope: 's',
+      key: 'shared',
+      fingerprint,
+    });
     expect(theirs.outcome).toBe('claimed');
     expect(await store.get('o2', 's', 'shared')).not.toBeNull();
     expect(await store.get('o1', 's', 'shared')).not.toBeNull();
@@ -201,7 +227,9 @@ describe('leases', () => {
     await holder.claim('o1', 'task:t1');
     time.advance(8_000);
     const renewed = await holder.renew('o1', 'task:t1');
-    expect(renewed?.expiresAt).toBe(new Date(Date.parse(time.now().toISOString()) + 10_000).toISOString());
+    expect(renewed?.expiresAt).toBe(
+      new Date(Date.parse(time.now().toISOString()) + 10_000).toISOString(),
+    );
     const other = new LeaseCoordinator(store, { now: time.now, holder: 'api-b' });
     expect(await other.renew('o1', 'task:t1')).toBeNull();
   });

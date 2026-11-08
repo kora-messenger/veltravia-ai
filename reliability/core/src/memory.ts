@@ -96,9 +96,7 @@ export class InMemoryIdempotencyStore implements IdempotencyStore {
     return [...this.records.values()]
       .filter((record) => record.ownerRef === ownerRef)
       .filter((record) => filter.scope === undefined || record.scope === filter.scope)
-      .filter(
-        (record) => filter.status === undefined || filter.status.includes(record.status),
-      )
+      .filter((record) => filter.status === undefined || filter.status.includes(record.status))
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
       .slice(0, Math.min(Math.max(filter.limit ?? 100, 1), 500));
   }
@@ -122,9 +120,7 @@ export class InMemoryLeaseStore implements LeaseStore {
     const id = this.id(input.ownerRef, input.resource);
     const existing = this.leases.get(id);
     const free =
-      existing === undefined ||
-      existing.releasedAt !== null ||
-      existing.expiresAt <= input.now;
+      existing === undefined || existing.releasedAt !== null || existing.expiresAt <= input.now;
     if (!free) return null;
     const record: LeaseRecord = {
       ownerRef: input.ownerRef,

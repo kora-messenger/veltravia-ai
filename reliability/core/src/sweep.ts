@@ -91,9 +91,9 @@ export function decideSweep(subject: SweepSubject): SweepDecision {
       evidence.push(
         worker.heartbeatAgeMs === null
           ? `${worker.workerId} is ${worker.status} and has never reported a heartbeat`
-          : `${worker.workerId} is ${worker.status} and last reported ${
-              Math.round((worker.heartbeatAgeMs ?? 0) / 1000)
-            }s ago`,
+          : `${worker.workerId} is ${worker.status} and last reported ${Math.round(
+              (worker.heartbeatAgeMs ?? 0) / 1000,
+            )}s ago`,
       );
     }
     return {

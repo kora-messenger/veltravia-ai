@@ -461,3 +461,21 @@ failed with the verification runs that back it. Executions are stored in Postgre
 (migration 009) and owner-scoped end to end. The Executions region of `#/operations` shows the
 plan, the per-task state and the delivery report, and its only controls are the existing
 dispatch, sync, review and cancel routes. Details: `docs/execution-orchestration.md`.
+
+## Step 51 - production reliability, idempotency and crash-safe orchestration
+
+The machinery around the work is now guarded. `@veltravia/reliability-core` adds three
+primitives and a sweep, and none of them execute or complete anything: they decide whether a
+request already ran, whether anyone still holds a resource, and what happened to work that was
+interrupted. A mutating request may carry `Idempotency-Key`; the first answer is stored and
+replayed, a retry while the first is still running gets 409, and the same key on a different
+body is refused instead of being silently treated as a new request. Leases are one atomic
+statement on a resource, so two API instances cannot advance the same execution, and expiry is
+treated as evidence of absence rather than proof of failure. The sweep re-reads the stored
+records before deciding: it resumes what someone is still holding, recovers what is genuinely
+abandoned, waits when the work is waiting for a person, and leaves what it cannot prove - it
+can never mark a task done, accept a deliverable or approve an integration. Health, decisions,
+keys and outstanding side effects are readable under `/api/reliability`, and the Reliability
+region of `#/operations` shows them. When no database is configured the state is in memory and
+the snapshot says so with an amber finding instead of a green tick. Details:
+`docs/production-reliability.md`.

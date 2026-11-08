@@ -112,11 +112,16 @@ describeDb('reliability stores (PostgreSQL)', () => {
     expect(wrong).toBe(false);
 
     const right = await runWithOwner(owner, () =>
-      stores.idempotency.complete(owner, record.scope, record.key, record.operationId, {
-        status: 201,
-        body: { executionId: 'exe_1' },
-      },
-      at,
+      stores.idempotency.complete(
+        owner,
+        record.scope,
+        record.key,
+        record.operationId,
+        {
+          status: 201,
+          body: { executionId: 'exe_1' },
+        },
+        at,
       ),
     );
     expect(right).toBe(true);
@@ -195,9 +200,9 @@ describeDb('reliability stores (PostgreSQL)', () => {
     expect(await runWithOwner(owner, () => stores.leases.release(owner, resource, loser, at))).toBe(
       false,
     );
-    expect(await runWithOwner(owner, () => stores.leases.release(owner, resource, winner, at))).toBe(
-      true,
-    );
+    expect(
+      await runWithOwner(owner, () => stores.leases.release(owner, resource, winner, at)),
+    ).toBe(true);
 
     // A released lease can be taken again.
     const taken = await claim(loser);
@@ -258,9 +263,7 @@ describeDb('reliability stores (PostgreSQL)', () => {
 
     const notYetDue = await runWithOwner(owner, () => stores.inbox.due(owner, { at, limit: 10 }));
     expect(notYetDue.map((entry) => entry.eventKey)).not.toContain(eventKey);
-    const due = await runWithOwner(owner, () =>
-      stores.inbox.due(owner, { at: later, limit: 10 }),
-    );
+    const due = await runWithOwner(owner, () => stores.inbox.due(owner, { at: later, limit: 10 }));
     expect(due.map((entry) => entry.eventKey)).toContain(eventKey);
 
     await runWithOwner(owner, () => stores.inbox.markProcessed(owner, eventKey, later));

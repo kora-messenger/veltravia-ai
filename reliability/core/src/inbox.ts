@@ -97,7 +97,11 @@ export class EventInbox {
     }
     try {
       await input.handle(fresh);
-      await this.store.markProcessed(input.ownerRef, input.eventKey, this.options.now().toISOString());
+      await this.store.markProcessed(
+        input.ownerRef,
+        input.eventKey,
+        this.options.now().toISOString(),
+      );
       return 'processed';
     } catch (error) {
       const message = error instanceof Error ? error.message : 'The side effect failed.';
@@ -112,6 +116,18 @@ export class EventInbox {
       );
       return 'failed';
     }
+  }
+
+  /** The owner's recorded side effects, newest first. Read-only. */
+  async list(
+    ownerRef: string,
+    filter: {
+      readonly status?: readonly InboxEvent['status'][];
+      readonly topic?: string;
+      readonly limit?: number;
+    } = {},
+  ): Promise<readonly InboxEvent[]> {
+    return this.store.list(ownerRef, filter);
   }
 
   /** Retry what is due. One pass, bounded, so a caller controls the cadence. */

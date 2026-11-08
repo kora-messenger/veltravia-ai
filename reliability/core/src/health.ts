@@ -283,9 +283,14 @@ export function buildReliabilityHealth(input: ReliabilityHealthInput): Reliabili
     );
   }
   if (findings.length === 0) {
-    add('HEALTHY', 'ok', 'No expired lease, abandoned execution or failed side effect is recorded.', [
-      `${input.executions.length} executions, ${input.workers.length} workers, ${input.tasks.length} tasks read`,
-    ]);
+    add(
+      'HEALTHY',
+      'ok',
+      'No expired lease, abandoned execution or failed side effect is recorded.',
+      [
+        `${input.executions.length} executions, ${input.workers.length} workers, ${input.tasks.length} tasks read`,
+      ],
+    );
   }
 
   return {
@@ -294,7 +299,8 @@ export function buildReliabilityHealth(input: ReliabilityHealthInput): Reliabili
     queue: {
       openExecutions: open.length,
       openExecutionLimit: input.maxOpenExecutions,
-      tasksQueued: input.tasks.filter((task) => ['queued', 'planning'].includes(task.status)).length,
+      tasksQueued: input.tasks.filter((task) => ['queued', 'planning'].includes(task.status))
+        .length,
       workersQueued,
       workersRunning,
       awaitingReview,
@@ -326,9 +332,8 @@ export function buildReliabilityHealth(input: ReliabilityHealthInput): Reliabili
     },
     integration: {
       failed: failedIntegrations,
-      pending: input.integrations.filter((entry) =>
-        ['pending', 'running'].includes(entry.status),
-      ).length,
+      pending: input.integrations.filter((entry) => ['pending', 'running'].includes(entry.status))
+        .length,
     },
     idempotency: {
       inFlight: input.idempotency.filter((entry) => entry.status === 'in_progress').length,

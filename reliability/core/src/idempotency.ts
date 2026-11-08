@@ -41,7 +41,10 @@ export interface IdempotencyStore {
    * in-flight. Returns false when none of those hold, which is the case that
    * must stay a refusal.
    */
-  reclaim(record: IdempotencyRecord, options: { readonly now: string; readonly staleMs: number }): Promise<boolean>;
+  reclaim(
+    record: IdempotencyRecord,
+    options: { readonly now: string; readonly staleMs: number },
+  ): Promise<boolean>;
   get(ownerRef: string, scope: string, key: string): Promise<IdempotencyRecord | null>;
   complete(
     ownerRef: string,
@@ -61,7 +64,11 @@ export interface IdempotencyStore {
   ): Promise<boolean>;
   list(
     ownerRef: string,
-    filter: { readonly scope?: string; readonly status?: readonly IdempotencyRecord['status'][]; readonly limit?: number },
+    filter: {
+      readonly scope?: string;
+      readonly status?: readonly IdempotencyRecord['status'][];
+      readonly limit?: number;
+    },
   ): Promise<readonly IdempotencyRecord[]>;
 }
 
@@ -190,6 +197,18 @@ export class IdempotencyGuard {
       response,
       this.options.now().toISOString(),
     );
+  }
+
+  /** The owner's keyed requests, newest first. Read-only. */
+  async list(
+    ownerRef: string,
+    filter: {
+      readonly scope?: string;
+      readonly status?: readonly IdempotencyRecord['status'][];
+      readonly limit?: number;
+    } = {},
+  ): Promise<readonly IdempotencyRecord[]> {
+    return this.store.list(ownerRef, filter);
   }
 
   /**

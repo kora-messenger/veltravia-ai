@@ -9,6 +9,7 @@
  */
 
 import {
+  ExecutionError,
   ExecutionManager,
   InMemoryExecutionStore,
   type ExecutionPorts,
@@ -49,7 +50,20 @@ async function inspectProject(
   ownerRef: string,
   projectId: string,
 ): Promise<ProjectFacts> {
-  const project = await projects.projects.getProject(projectId);
+  // A project that does not exist, or belongs to someone else, is a 404 like
+  // every other route in the app. Letting the engine's own error through would
+  // surface as a 500 and read as if the caller's request were malformed.
+  // A project that does not exist, or belongs to someone else, is a 404 like
+  // every other route in the app. The engine's own getter is not owner-scoped,
+  // so ownership is checked here rather than assumed: without this the plan was
+  // built for another owner's project and the task engine refused the write,
+  // which surfaced as a 500 and read as if the caller's request were malformed.
+  const project = await projects.projects.getProject(projectId).catch(() => {
+    throw new ExecutionError('EXECUTION_PROJECT_NOT_FOUND', 'That project does not exist.', 404);
+  });
+  if (project.ownerRef !== ownerRef || project.status === 'deleted') {
+    throw new ExecutionError('EXECUTION_PROJECT_NOT_FOUND', 'That project does not exist.', 404);
+  }
   const unknown: string[] = [];
   const workspaces = await projects.workspaces.listWorkspaces(project.id);
   const workspace = workspaces.find((entry) => entry.status === 'active') ?? workspaces[0];

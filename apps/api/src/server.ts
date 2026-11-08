@@ -82,6 +82,9 @@ import { createRecoveryService } from './recovery-service.js';
 import { createExecutionService } from './execution-service.js';
 import { registerRecoveryRoutes } from './routes/recovery.js';
 import { registerExecutionRoutes } from './routes/executions.js';
+import { registerReliabilityRoutes } from './routes/reliability.js';
+import { registerIdempotency } from './idempotency.js';
+import { createReliabilityService } from './reliability-service.js';
 import { registerTaskRoutes } from './routes/tasks.js';
 import { createTaskService } from './task-service.js';
 import { createWorkerService } from './worker-service.js';
@@ -881,6 +884,37 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     store: persistence?.stores?.executions,
   });
   registerExecutionRoutes(app, { executions: executionService });
+
+  // Step 51: the coordination the pipeline was missing. Idempotency keys, leases
+  // around every state change, a sweep for interrupted work and health from
+  // stored records. The coordinator above takes the leases; nothing here
+  // duplicates a task, worker, verification, integration or recovery decision.
+  const reliabilityService = createReliabilityService({
+    executions: executionService,
+    tasks: taskService,
+    workers: workerService,
+    verification: verificationService,
+    recovery: recoveryService,
+    persistence,
+    holder: `api_${process.pid}`,
+  });
+  executionService.manager.useCoordination({
+    run: async (ownerRef, resource, work) => {
+      // A lease claimed and released around one section of work: a second
+      // process asking for the same execution is refused, not served twice.
+      const held = await reliabilityService.leases.withLease(ownerRef, resource, work);
+      return held;
+    },
+  });
+  registerIdempotency(app, () => reliabilityService.guard);
+  registerReliabilityRoutes(app, { reliability: reliabilityService });
+  app.get('/api/reliability/ready', async () => ({
+    reliability: {
+      durable: reliabilityService.durable,
+      holder: reliabilityService.holder,
+      store: persistence === null ? 'memory' : 'postgres',
+    },
+  }));
   registerSourceRoutes(app, {
     source: sourceStorage,
     // Framework-aware structure: detection reads manifests through the project

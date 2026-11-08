@@ -90,8 +90,17 @@ export const RELIABILITY_LIMITS = {
   inboxRetryBaseMs: 5 * 1000,
 } as const;
 
-export interface ReliabilityErrorShape {
+/** A refusal from the reliability layer, with the status a route should send. */
+export class ReliabilityError extends Error {
   readonly code: string;
-  readonly message: string;
   readonly status: number;
+
+  constructor(code: string, message: string, status = 400) {
+    super(message);
+    this.name = 'ReliabilityError';
+    this.code = code;
+    this.status = status;
+  }
 }
+
+export type ReliabilityErrorShape = Pick<ReliabilityError, 'code' | 'message' | 'status'>;

@@ -54,9 +54,9 @@ const toIdempotencyRecord = (row: IdempotencyRow): IdempotencyRecord => ({
   operationId: row.operation_id,
   response: row.response,
   failure: row.failure,
-  createdAt: (iso(row.created_at) as string),
-  updatedAt: (iso(row.updated_at) as string),
-  expiresAt: (iso(row.expires_at) as string),
+  createdAt: iso(row.created_at) as string,
+  updatedAt: iso(row.updated_at) as string,
+  expiresAt: iso(row.expires_at) as string,
 });
 
 export class PostgresIdempotencyStore implements IdempotencyStore {
@@ -97,9 +97,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
     options: { readonly now: string; readonly staleMs: number },
   ): Promise<boolean> {
     const owner = requireOwner();
-    const staleBefore = new Date(
-      Date.parse(options.now) - options.staleMs,
-    ).toISOString();
+    const staleBefore = new Date(Date.parse(options.now) - options.staleMs).toISOString();
     const result = await this.query.query<{ key: string }>(
       `update idempotency_records
           set fingerprint = $4,
