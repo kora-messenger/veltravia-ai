@@ -51,6 +51,41 @@ export class InMemoryRecoveryStore implements RecoveryStore {
         filter.status === undefined ? true : filter.status.includes(record.status),
       )
       .filter((record) =>
+        filter.workerId === undefined ? true : record.workerId === filter.workerId,
+      )
+      .filter((record) =>
+        filter.category === undefined || filter.category.length === 0
+          ? true
+          : record.diagnosis !== null &&
+            record.diagnosis.primary !== null &&
+            filter.category.includes(record.diagnosis.primary),
+      )
+      .filter((record) => {
+        if (filter.verification === undefined) return true;
+        const status = record.verification?.status ?? null;
+        if (filter.verification === 'not_run') return status === null;
+        if (filter.verification === 'passed') return status === 'passed';
+        return status !== null && status !== 'passed';
+      })
+      .filter((record) =>
+        filter.insufficientEvidence !== true
+          ? true
+          : record.diagnosis === null || record.diagnosis.insufficient === true,
+      )
+      .filter((record) =>
+        filter.exhausted !== true
+          ? true
+          : record.attempts >= record.limits.maxAttempts &&
+            (['open', 'diagnosing', 'repairing', 'awaiting_verification'].includes(record.status) ||
+              record.escalation?.reason === 'budget_exhausted'),
+      )
+      .filter((record) =>
+        filter.createdAfter === undefined ? true : record.createdAt >= filter.createdAfter,
+      )
+      .filter((record) =>
+        filter.createdBefore === undefined ? true : record.createdAt < filter.createdBefore,
+      )
+      .filter((record) =>
         filter.openOnly === true
           ? ['open', 'diagnosing', 'repairing', 'awaiting_verification'].includes(record.status)
           : true,

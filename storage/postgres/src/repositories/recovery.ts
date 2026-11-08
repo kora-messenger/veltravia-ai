@@ -103,6 +103,9 @@ export class PostgresRecoveryStore implements RecoveryStore {
     const owner = requireOwner();
     void ownerRef;
     const limit = Math.min(Math.max(filter.limit ?? 100, 1), 500);
+    // Verification lives inside the record; the dashboard filters on it, so the
+    // predicate reads the same JSON the detail view shows.
+    const verificationStatus = filter.verification === undefined ? null : filter.verification;
     const rows = await this.query.query<CaseRow>(
       `select id, record, version from recovery_cases
         where owner_ref = $1
@@ -111,15 +114,38 @@ export class PostgresRecoveryStore implements RecoveryStore {
           and ($4::text[] is null or status = any($4))
           and ($5::boolean is not true or status in
                ('open','diagnosing','repairing','awaiting_verification'))
+          and ($6::text is null or worker_id = $6)
+          and ($7::text[] is null or diagnosis_primary = any($7))
+          and ($8::text is null
+               or ($8 = 'not_run' and record -> 'verification' = 'null'::jsonb)
+               or ($8 = 'passed' and record -> 'verification' ->> 'status' = 'passed')
+               or ($8 = 'failed' and record -> 'verification' is not null
+                   and record -> 'verification' ->> 'status' <> 'passed'))
+          and ($12::boolean is not true
+               or record -> 'diagnosis' = 'null'::jsonb
+               or (record -> 'diagnosis' ->> 'insufficient')::boolean is true)
+          and ($13::boolean is not true
+               or (attempts >= coalesce((record -> 'limits' ->> 'maxAttempts')::int, 3)
+                   and (status in ('open','diagnosing','repairing','awaiting_verification')
+                        or record -> 'escalation' ->> 'reason' = 'budget_exhausted')))
+          and ($9::timestamptz is null or created_at >= $9)
+          and ($10::timestamptz is null or created_at < $10)
         order by created_at desc
-        limit $6`,
+        limit $11`,
       [
         owner,
         filter.projectId ?? null,
         filter.taskId ?? null,
         filter.status === undefined ? null : [...filter.status],
         filter.openOnly === true,
+        filter.workerId ?? null,
+        filter.category === undefined || filter.category.length === 0 ? null : [...filter.category],
+        verificationStatus,
+        filter.createdAfter ?? null,
+        filter.createdBefore ?? null,
         limit,
+        filter.insufficientEvidence === true,
+        filter.exhausted === true,
       ],
     );
     return rows.rows.map((row) => row.record as RecoveryCaseRecord);

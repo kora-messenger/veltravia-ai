@@ -310,3 +310,144 @@ describe('repairing', () => {
     expect((open.json() as { cases: unknown[] }).cases).toHaveLength(0);
   });
 });
+
+describe('recovery overview and filters (Step 49)', () => {
+  const ownerHeader = (owner: string) => ({ 'x-veltravia-owner-ref': owner });
+
+  async function openCase(taskId: string): Promise<string> {
+    const workerId = await failedWorker(taskId);
+    const opened = await server().inject({
+      method: 'POST',
+      url: '/api/recovery/cases',
+      payload: { workerId },
+    });
+    expect(opened.statusCode).toBe(201);
+    return (opened.json() as { case: { id: string } }).case.id;
+  }
+
+  it('counts the owner cases by status, category and verification', async () => {
+    const { taskId } = await seedTask();
+    await openCase(taskId);
+
+    const response = await server().inject({ method: 'GET', url: '/api/recovery/overview' });
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as {
+      overview: {
+        total: number;
+        awaitingDiagnosis: number;
+        recovered: number;
+        needsIntervention: number;
+        insufficientEvidence: number;
+        attemptsRemaining: number;
+        truncated: boolean;
+        byStatus: Record<string, number>;
+        byCategory: Record<string, number>;
+      };
+    };
+    expect(body.overview.total).toBeGreaterThanOrEqual(1);
+    expect(body.overview.truncated).toBe(false);
+    // Every case just opened is open: recovery is never claimed by a tally.
+    expect(body.overview.recovered).toBe(0);
+    expect(body.overview.awaitingDiagnosis).toBe(body.overview.byStatus.open);
+    expect(body.overview.attemptsRemaining).toBeGreaterThan(0);
+    expect(
+      Object.values(body.overview.byCategory).reduce((sum, value) => sum + value, 0),
+    ).toBeLessThanOrEqual(body.overview.total);
+  });
+
+  it('filters by status, category, worker and verification, and refuses a bad one', async () => {
+    const { taskId } = await seedTask();
+    const caseId = await openCase(taskId);
+    const detail = await server().inject({ method: 'GET', url: `/api/recovery/cases/${caseId}` });
+    const category = (detail.json() as { case: { diagnosis: { primary: string | null } } }).case
+      .diagnosis.primary;
+
+    const byStatus = await server().inject({
+      method: 'GET',
+      url: `/api/recovery/cases?status=open,repairing&taskId=${taskId}`,
+    });
+    expect(byStatus.statusCode).toBe(200);
+    expect((byStatus.json() as { cases: { taskId: string }[] }).cases).toHaveLength(1);
+
+    if (category !== null) {
+      const byCategory = await server().inject({
+        method: 'GET',
+        url: `/api/recovery/cases?category=${category}&taskId=${taskId}`,
+      });
+      expect((byCategory.json() as { cases: unknown[] }).cases).toHaveLength(1);
+      const otherCategory = await server().inject({
+        method: 'GET',
+        url: '/api/recovery/cases?category=permission_refused',
+      });
+      expect((otherCategory.json() as { cases: unknown[] }).cases).toHaveLength(0);
+    }
+
+    const noVerification = await server().inject({
+      method: 'GET',
+      url: `/api/recovery/cases?verification=not_run&taskId=${taskId}`,
+    });
+    expect((noVerification.json() as { cases: unknown[] }).cases).toHaveLength(1);
+    const passed = await server().inject({
+      method: 'GET',
+      url: `/api/recovery/cases?verification=passed&taskId=${taskId}`,
+    });
+    expect((passed.json() as { cases: unknown[] }).cases).toHaveLength(0);
+
+    const future = new Date(Date.now() + 3_600_000).toISOString();
+    const afterFuture = await server().inject({
+      method: 'GET',
+      url: `/api/recovery/cases?since=${encodeURIComponent(future)}`,
+    });
+    expect((afterFuture.json() as { cases: unknown[] }).cases).toHaveLength(0);
+
+    const bad = await server().inject({
+      method: 'GET',
+      url: '/api/recovery/cases?status=nonsense',
+    });
+    expect(bad.statusCode).toBe(400);
+    expect((bad.json() as { error: { code: string } }).error.code).toBe('RECOVERY_FILTER_INVALID');
+
+    const badDate = await server().inject({
+      method: 'GET',
+      url: '/api/recovery/cases?since=not-a-date',
+    });
+    expect(badDate.statusCode).toBe(400);
+  });
+
+  it('keeps cases invisible to another owner, on both the list and the detail', async () => {
+    const { taskId } = await seedTask();
+    const caseId = await openCase(taskId);
+
+    const foreign = { ...ownerHeader('someone-else-49') };
+    const list = await server().inject({
+      method: 'GET',
+      url: '/api/recovery/cases',
+      headers: foreign,
+    });
+    expect(list.statusCode).toBe(200);
+    expect((list.json() as { cases: unknown[] }).cases).toHaveLength(0);
+
+    const overview = await server().inject({
+      method: 'GET',
+      url: '/api/recovery/overview',
+      headers: foreign,
+    });
+    expect((overview.json() as { overview: { total: number } }).overview.total).toBe(0);
+
+    const detail = await server().inject({
+      method: 'GET',
+      url: `/api/recovery/cases/${caseId}`,
+      headers: foreign,
+    });
+    // A foreign id is a 404 exactly like a missing one.
+    expect(detail.statusCode).toBe(404);
+
+    const cancel = await server().inject({
+      method: 'POST',
+      url: `/api/recovery/cases/${caseId}/cancel`,
+      headers: foreign,
+      payload: { message: 'not mine' },
+    });
+    expect(cancel.statusCode).toBe(404);
+  });
+});

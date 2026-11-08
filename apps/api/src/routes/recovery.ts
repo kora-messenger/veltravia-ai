@@ -15,9 +15,11 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import {
+  FAILURE_CATEGORIES,
   RECOVERY_CASE_STATUSES,
   RecoveryError,
   recoveryHttpStatus,
+  type RecoveryCaseFilter,
 } from '@veltravia/recovery-core';
 
 import { resolveCallerOwnerRef } from '../project-access.js';
@@ -35,6 +37,86 @@ const caseParam = {
 
 const owner = (request: { headers: Record<string, unknown> }): string =>
   resolveCallerOwnerRef(request as never);
+
+/**
+ * Shared parsing for the read filters. An unknown status or category is a 400
+ * rather than a silently empty list, so a typo in a dashboard URL is visible.
+ */
+function splitList(value: string | undefined): readonly string[] | undefined {
+  if (value === undefined) return undefined;
+  const parts = value
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '');
+  return parts.length === 0 ? undefined : parts;
+}
+
+function caseFilters(
+  query: {
+    readonly projectId?: string;
+    readonly taskId?: string;
+    readonly workerId?: string;
+    readonly status?: string;
+    readonly category?: string;
+    readonly verification?: 'passed' | 'failed' | 'not_run';
+    readonly since?: string;
+    readonly until?: string;
+    readonly insufficient?: boolean;
+    readonly exhausted?: boolean;
+  },
+  reply: FastifyReply,
+): RecoveryCaseFilter | null {
+  const status = splitList(query.status);
+  const category = splitList(query.category);
+  for (const entry of status ?? []) {
+    if (!RECOVERY_CASE_STATUSES.includes(entry as never)) {
+      void reply.status(400).send({
+        error: {
+          code: 'RECOVERY_FILTER_INVALID',
+          message: `That is not a recovery status: ${entry}.`,
+        },
+      });
+      return null;
+    }
+  }
+  for (const entry of category ?? []) {
+    if (!FAILURE_CATEGORIES.includes(entry as never)) {
+      void reply.status(400).send({
+        error: {
+          code: 'RECOVERY_FILTER_INVALID',
+          message: `That is not a failure category: ${entry}.`,
+        },
+      });
+      return null;
+    }
+  }
+  for (const [name, value] of [
+    ['since', query.since],
+    ['until', query.until],
+  ] as const) {
+    if (value !== undefined && Number.isNaN(Date.parse(value))) {
+      void reply.status(400).send({
+        error: {
+          code: 'RECOVERY_FILTER_INVALID',
+          message: `That is not a timestamp for ${name}: ${value}.`,
+        },
+      });
+      return null;
+    }
+  }
+  return {
+    ...(query.projectId === undefined ? {} : { projectId: query.projectId }),
+    ...(query.taskId === undefined ? {} : { taskId: query.taskId }),
+    ...(query.workerId === undefined ? {} : { workerId: query.workerId }),
+    ...(status === undefined ? {} : { status: status as never }),
+    ...(category === undefined ? {} : { category: category as never }),
+    ...(query.verification === undefined ? {} : { verification: query.verification }),
+    ...(query.since === undefined ? {} : { createdAfter: query.since }),
+    ...(query.until === undefined ? {} : { createdBefore: query.until }),
+    ...(query.insufficient === undefined ? {} : { insufficientEvidence: query.insufficient }),
+    ...(query.exhausted === undefined ? {} : { exhausted: query.exhausted }),
+  };
+}
 
 export function registerRecoveryRoutes(app: FastifyInstance, deps: RecoveryRouteDeps): void {
   const { recovery } = deps;
@@ -76,26 +158,74 @@ export function registerRecoveryRoutes(app: FastifyInstance, deps: RecoveryRoute
           properties: {
             projectId: { type: 'string', minLength: 1, maxLength: 64 },
             taskId: { type: 'string', minLength: 1, maxLength: 64 },
+            workerId: { type: 'string', minLength: 1, maxLength: 64 },
+            /** Comma-separated, checked against the vocabulary below. */
+            status: { type: 'string', maxLength: 200 },
+            category: { type: 'string', maxLength: 400 },
+            verification: { type: 'string', enum: ['passed', 'failed', 'not_run'] },
+            /** ISO instants; a case counts inside [since, until). */
+            since: { type: 'string', maxLength: 40 },
+            until: { type: 'string', maxLength: 40 },
+            insufficient: { type: 'boolean' },
+            exhausted: { type: 'boolean' },
             openOnly: { type: 'boolean' },
             limit: { type: 'integer', minimum: 1, maximum: 200 },
           },
         },
       },
     },
-    async (request) => {
+    async (request, reply) => {
       const query = request.query as {
         projectId?: string;
         taskId?: string;
+        workerId?: string;
+        status?: string;
+        category?: string;
+        verification?: 'passed' | 'failed' | 'not_run';
+        since?: string;
+        until?: string;
         openOnly?: boolean;
         limit?: number;
       };
+      const filters = caseFilters(query, reply);
+      if (filters === null) return reply;
       const cases = await recovery.manager.list(owner(request), {
-        ...(query.projectId === undefined ? {} : { projectId: query.projectId }),
-        ...(query.taskId === undefined ? {} : { taskId: query.taskId }),
+        ...filters,
         ...(query.openOnly === undefined ? {} : { openOnly: query.openOnly }),
         ...(query.limit === undefined ? {} : { limit: query.limit }),
       });
       return { cases, storage: { kind: recovery.durability } };
+    },
+  );
+
+  app.get(
+    '/api/recovery/overview',
+    {
+      schema: {
+        querystring: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            projectId: { type: 'string', minLength: 1, maxLength: 64 },
+            taskId: { type: 'string', minLength: 1, maxLength: 64 },
+            workerId: { type: 'string', minLength: 1, maxLength: 64 },
+            status: { type: 'string', maxLength: 200 },
+            category: { type: 'string', maxLength: 400 },
+            verification: { type: 'string', enum: ['passed', 'failed', 'not_run'] },
+            since: { type: 'string', maxLength: 40 },
+            until: { type: 'string', maxLength: 40 },
+            insufficient: { type: 'boolean' },
+            exhausted: { type: 'boolean' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const query = request.query as Record<string, string | undefined>;
+      const filters = caseFilters(query, reply);
+      if (filters === null) return reply;
+      const overview = await recovery.manager.overview(owner(request), filters);
+      return { overview, storage: { kind: recovery.durability } };
     },
   );
 

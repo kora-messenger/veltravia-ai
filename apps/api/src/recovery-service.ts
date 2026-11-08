@@ -321,10 +321,21 @@ export function createRecoveryService(options: RecoveryServiceOptions): Recovery
       // from taking the same paths. The origin is therefore cancelled, which is
       // accurate: that unit of work is superseded, and the repair is tracked as
       // a child task of it. Nothing is reported as succeeded either way.
-      const origin = await options.workerStore.read(ownerRef, current.workerId ?? '');
-      if (origin !== null && !['completed', 'cancelled'].includes(origin.status)) {
+      const prior = await manager.attempts(ownerRef, caseId);
+      const toRetire = new Set<string>();
+      if (current.workerId !== null) toRetire.add(current.workerId);
+      for (const attempt of prior) {
+        if (attempt.workerId !== null) toRetire.add(attempt.workerId);
+      }
+      for (const priorWorkerId of toRetire) {
+        const holder = await options.workerStore.read(ownerRef, priorWorkerId);
+        if (holder === null || ['completed', 'cancelled'].includes(holder.status)) continue;
+        // A worker at review still holds its claims, and a claim is what stops
+        // the next attempt from taking the same paths. Cancelling it is the
+        // honest record: that unit is superseded, and the repair is a child
+        // task of it. Nothing here reports the work as succeeded.
         await options.workers.manager
-          .cancel(ownerRef, origin.id, 'Superseded by a governed repair attempt.')
+          .cancel(ownerRef, holder.id, 'Superseded by a governed repair attempt.')
           .catch(() => null);
       }
 
@@ -432,6 +443,28 @@ export function createRecoveryService(options: RecoveryServiceOptions): Recovery
         const changeSet = await options.changeSets.get(input.ownerRef, changeSetId);
         integrated = changeSet !== null && changeSet.status === 'integrated';
       }
+      // An attempt that already reported success without proof is not
+      // re-finished: the evidence is attached to the case itself, and the
+      // engine still decides whether the run is enough.
+      if (running.length === 0) {
+        const concluded = await manager.recordEvidence({
+          ownerRef: input.ownerRef,
+          caseId: record.id,
+          verification: toVerificationSnapshot(run),
+          changeSetId,
+          integrated,
+          summary: input.summary ?? `Verification run ${run.id} is ${run.status}.`,
+          currentRevision: record.observation.revision.now,
+        });
+        return {
+          record: concluded.record,
+          recovered: concluded.recovered,
+          reason: concluded.reason,
+          attemptId: attempt.id,
+          repairWorker: null,
+        };
+      }
+
       const finished = await manager.finishAttempt({
         ownerRef: input.ownerRef,
         caseId: record.id,

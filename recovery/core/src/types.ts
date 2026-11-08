@@ -358,9 +358,47 @@ export interface RecoveryEscalation {
 export interface RecoveryCaseFilter {
   readonly projectId?: string;
   readonly taskId?: string;
+  readonly workerId?: string;
   readonly status?: readonly RecoveryCaseStatus[];
+  readonly category?: readonly FailureCategory[];
+  /** Whether a stored verification run backs the case, and how it ended. */
+  readonly verification?: 'passed' | 'failed' | 'not_run';
+  /** Cases whose diagnosis declined to name a cause. */
+  readonly insufficientEvidence?: boolean;
+  /** Cases that have used every attempt the plan allows. */
+  readonly exhausted?: boolean;
+  /** Inclusive lower bound and exclusive upper bound on createdAt. */
+  readonly createdAfter?: string;
+  readonly createdBefore?: string;
   readonly openOnly?: boolean;
   readonly limit?: number;
+}
+
+/**
+ * Counts over the owner's cases. Every figure is derived from stored records;
+ * `insufficientEvidence` counts cases where the engine declined to diagnose,
+ * which is a fact about the case, not a guess about the failure.
+ */
+export interface RecoveryOverview {
+  readonly total: number;
+  readonly byStatus: Readonly<Record<RecoveryCaseStatus, number>>;
+  /** Counted by category; a case with no diagnosis is not counted here. */
+  readonly byCategory: Readonly<Record<string, number>>;
+  readonly awaitingDiagnosis: number;
+  readonly repairing: number;
+  readonly awaitingVerification: number;
+  readonly recovered: number;
+  readonly needsIntervention: number;
+  readonly insufficientEvidence: number;
+  readonly verificationFailed: number;
+  /** Open cases whose attempt budget is spent. */
+  readonly exhausted: number;
+  /** Sum of attempts across the counted cases, and what is left on open ones. */
+  readonly attemptsUsed: number;
+  readonly attemptsRemaining: number;
+  /** True when the count covers only the most recent records. */
+  readonly truncated: boolean;
+  readonly generatedAt: string;
 }
 
 /** A bounded repair assignment. Every field is derived, never invented. */

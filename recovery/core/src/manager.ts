@@ -10,11 +10,15 @@
 
 import { diagnose } from './diagnose.js';
 import { RecoveryError } from './errors.js';
+
+/** How many cases an overview counts. Beyond this it says so rather than guess. */
+const OVERVIEW_LIMIT = 500;
 import { assessRecovery, buildRepairPlan } from './repair.js';
 import { budgetOf, canAttempt, clampLimits, exhaustionMessage } from './policy.js';
 import type { RecoveryStore } from './store.js';
 import {
   OPEN_CASE_STATUSES,
+  RECOVERY_CASE_STATUSES,
   type RecoveryAction,
   type RecoveryCaseFilter,
   type RecoveryCaseRecord,
@@ -23,6 +27,8 @@ import {
   type RecoveryEvent,
   type RecoveryEventType,
   type RecoveryLimits,
+  type RecoveryOverview,
+  type RecoveryCaseStatus,
   type RepairAttempt,
   type RepairAttemptOutcome,
   type RepairPlan,
@@ -161,6 +167,67 @@ export class RecoveryManager {
 
   list(ownerRef: string, filter: RecoveryCaseFilter = {}): Promise<readonly RecoveryCaseRecord[]> {
     return this.store.listCases(ownerRef, filter);
+  }
+
+  /**
+   * Counts over the owner's cases, for the operations dashboard. Nothing is
+   * inferred: every figure is a tally of a stored field, and `truncated` says
+   * when only the most recent records were counted.
+   */
+  async overview(ownerRef: string, filter: RecoveryCaseFilter = {}): Promise<RecoveryOverview> {
+    const cases = await this.store.listCases(ownerRef, { ...filter, limit: OVERVIEW_LIMIT });
+    const byStatus = Object.fromEntries(
+      RECOVERY_CASE_STATUSES.map((status) => [status, 0]),
+    ) as Record<RecoveryCaseStatus, number>;
+    const byCategory: Record<string, number> = {};
+    let insufficientEvidence = 0;
+    let verificationFailed = 0;
+    let attemptsUsed = 0;
+    let attemptsRemaining = 0;
+
+    for (const record of cases) {
+      byStatus[record.status] = (byStatus[record.status] ?? 0) + 1;
+      const category = record.diagnosis?.primary ?? null;
+      if (category !== null) byCategory[category] = (byCategory[category] ?? 0) + 1;
+      if (record.diagnosis === null || record.diagnosis.insufficient === true) {
+        insufficientEvidence += 1;
+      }
+      const verification = record.verification;
+      if (verification !== null && verification.executed && verification.status !== 'passed') {
+        verificationFailed += 1;
+      }
+      attemptsUsed += record.attempts;
+      if (OPEN_CASE_STATUSES.includes(record.status)) {
+        attemptsRemaining += Math.max(record.limits.maxAttempts - record.attempts, 0);
+      }
+    }
+
+    // A case that spent every attempt is exhausted whether it is still open or
+    // has already been handed back for that reason.
+    const exhausted = cases.filter(
+      (record) =>
+        record.attempts >= record.limits.maxAttempts &&
+        (OPEN_CASE_STATUSES.includes(record.status) ||
+          record.escalation?.reason === 'budget_exhausted'),
+    ).length;
+
+    return {
+      total: cases.length,
+      byStatus,
+      byCategory,
+      awaitingDiagnosis: byStatus.open ?? 0,
+      repairing: byStatus.repairing ?? 0,
+      awaitingVerification: byStatus.awaiting_verification ?? 0,
+      recovered: byStatus.recovered ?? 0,
+      needsIntervention: byStatus.escalated ?? 0,
+      insufficientEvidence,
+      verificationFailed,
+      exhausted,
+      attemptsUsed,
+      attemptsRemaining,
+      truncated: cases.length >= OVERVIEW_LIMIT,
+      generatedAt: this.now().toISOString(),
+    };
   }
 
   attempts(ownerRef: string, caseId: string): Promise<readonly RepairAttempt[]> {
@@ -337,8 +404,19 @@ export class RecoveryManager {
     };
     await this.store.insertAttempt(attempt);
 
+    // A reassignment is work moving to a DIFFERENT kind of Superagent, not a
+    // fresh instance of the same kind. Retrying with another testing worker is
+    // a retry; handing the work from backend to testing is a reassignment. The
+    // distinction matters because the reassignment budget is small and must not
+    // be spent by ordinary retries.
+    const settled = existing.filter((item) => item.outcome !== 'running');
+    const previousAttempt = settled.length === 0 ? null : settled[settled.length - 1];
+    const previousType = previousAttempt?.workerType ?? record.observation.workerType;
+    const previousWorker = previousAttempt?.workerId ?? record.observation.workerId;
     const reassigned =
-      record.observation.workerId !== null && input.workerId !== record.observation.workerId;
+      previousType !== null &&
+      input.workerType !== previousType &&
+      input.workerId !== previousWorker;
     const events: RecoveryEvent[] = [
       {
         caseId: input.caseId,
@@ -373,6 +451,83 @@ export class RecoveryManager {
     };
     await this.save(updated, record.version, events);
     return { record: updated, attempt };
+  }
+
+  /**
+   * Attach stored evidence to a case whose attempt already reported success
+   * without proving it. Nothing is concluded on the claim: if the run did not
+   * execute and pass, the case is left exactly as it was and the refusal says
+   * what is missing.
+   */
+  async recordEvidence(input: {
+    readonly ownerRef: string;
+    readonly caseId: string;
+    readonly verification: VerificationSnapshot;
+    readonly changeSetId?: string | null;
+    readonly integrated?: boolean;
+    readonly summary?: string | null;
+    readonly currentRevision?: string | null;
+  }): Promise<{
+    readonly record: RecoveryCaseRecord;
+    readonly recovered: boolean;
+    readonly reason: string;
+  }> {
+    const record = await this.inspect(input.ownerRef, input.caseId);
+    if (record.status === 'recovered') {
+      throw new RecoveryError(
+        'RECOVERY_CASE_CLOSED',
+        'That case is already recorded as recovered; its evidence does not change.',
+        409,
+      );
+    }
+    if (!OPEN_CASE_STATUSES.includes(record.status)) {
+      throw new RecoveryError(
+        'RECOVERY_CASE_CLOSED',
+        'That case is no longer open, so new evidence cannot close it.',
+        409,
+      );
+    }
+    const verdict = assessRecovery({
+      verification: input.verification,
+      changeSetId: input.changeSetId ?? null,
+      integrated: input.integrated === true,
+      notes: [],
+    });
+    if (!verdict.recovered) {
+      throw new RecoveryError('RECOVERY_VERIFICATION_REQUIRED', verdict.reason, 409);
+    }
+    const at = this.now().toISOString();
+    const events: RecoveryEvent[] = [
+      {
+        caseId: input.caseId,
+        seq: record.eventSeq + 1,
+        type: 'verification_recorded',
+        at,
+        actor: 'primary_agent',
+        message: input.summary ?? `Verification run ${input.verification.runId} passed.`,
+        detail: { verificationRunId: input.verification.runId },
+      },
+      {
+        caseId: input.caseId,
+        seq: record.eventSeq + 2,
+        type: 'recovered',
+        at,
+        actor: 'primary_agent',
+        message: verdict.reason,
+      },
+    ];
+    const updated: RecoveryCaseRecord = {
+      ...record,
+      status: 'recovered',
+      verification: input.verification,
+      stoppedReason: null,
+      revisionAtRecovery: input.currentRevision ?? record.observation.revision.now,
+      updatedAt: at,
+      version: record.version + 1,
+      eventSeq: record.eventSeq + events.length,
+    };
+    await this.save(updated, record.version, events);
+    return { record: updated, recovered: true, reason: verdict.reason };
   }
 
   /**
