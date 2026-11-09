@@ -22,6 +22,7 @@
     "@veltravia/change-integration-core": "*",
     "@veltravia/execution-core": "*",
     "@veltravia/memory-core": "*",
+    "@veltravia/message-credits-core": "*",
     "@veltravia/orchestration-core": "*",
     "@veltravia/project-core": "*",
     "@veltravia/recovery-core": "*",

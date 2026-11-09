@@ -87,8 +87,10 @@ import { randomUUID } from 'node:crypto';
 
 import { registerUsageRoutes } from './routes/usage.js';
 import { registerWalletRoutes } from './routes/wallet.js';
+import { registerMessageCreditRoutes } from './routes/message-credits.js';
 import { createUsageService } from './usage-service.js';
 import { createWalletService } from './wallet-service.js';
+import { createMessageCreditService } from './message-credit-service.js';
 import { registerIdempotency } from './idempotency.js';
 import { createReliabilityService } from './reliability-service.js';
 import { registerTaskRoutes } from './routes/tasks.js';
@@ -560,8 +562,18 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         .length;
     },
   });
+  // Step 54: message credits sit on top of both. The plan comes from the meter,
+  // the money from the wallet, and the charge row is what the dashboard reads.
+  const messageCreditService = createMessageCreditService({
+    env,
+    store: persistence?.stores?.messageCredits,
+    wallet: walletService,
+    planOf: async (ownerRef) => (await usageService.entitlement(ownerRef)).planId,
+  });
+
   registerUsageRoutes(app, { usage: usageService }, env);
   registerWalletRoutes(app, { wallet: walletService }, env);
+  registerMessageCreditRoutes(app, { messageCredits: messageCreditService }, env);
   registerWorkerRoutes(app, {
     workers: workerService,
     verification: verificationService,
@@ -619,6 +631,20 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
             inputTokens: input.inputTokens,
             outputTokens: input.outputTokens,
             byok: true,
+          })
+          .catch(() => undefined);
+        void messageCreditService
+          .commitForRun({
+            ownerRef: input.ownerRef,
+            runId: input.runId,
+            // The provider reported tokens; cached tokens and tool calls were not
+            // reported on this path, so the charge records that as a limitation.
+            measurement: {
+              inputTokens: input.inputTokens,
+              outputTokens: input.outputTokens,
+              modelId: input.modelId,
+              providerId: input.providerId,
+            },
           })
           .catch(() => undefined);
       },
@@ -1139,7 +1165,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     },
   });
 
-  registerAiExecutionRoutes(app, { service: aiExecution });
+  registerAiExecutionRoutes(app, {
+    service: aiExecution,
+    messageCredits: messageCreditService,
+  });
 
   return app;
 }

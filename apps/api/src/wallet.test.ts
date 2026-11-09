@@ -41,6 +41,11 @@ const asAdmin = (actor = 'operator:test') => ({
   authorization: `Bearer ${ADMIN}`,
   'x-veltravia-actor': actor,
 });
+/** An operator acting on a named owner says so in the header as well as the body. */
+const asAdminFor = (ownerRef: string, actor = 'operator:test') => ({
+  ...asAdmin(actor),
+  'x-veltravia-owner': ownerRef,
+});
 
 async function credit(
   api: FastifyInstance,
@@ -51,7 +56,7 @@ async function credit(
   const response = await api.inject({
     method: 'POST',
     url: '/api/wallet/credits',
-    headers: asAdmin(),
+    headers: asAdminFor(ownerRef),
     payload: { ownerRef, amount, kind: 'grant', reason: 'test grant', idempotencyKey },
   });
   expect(response.statusCode).toBe(201);
@@ -127,7 +132,7 @@ describe('wallet balances and history', () => {
     await api.inject({
       method: 'POST',
       url: '/api/wallet/credits',
-      headers: asAdmin(),
+      headers: asAdminFor('w-5'),
       payload: {
         ownerRef: 'w-5',
         workspaceId: 'ws_team',
@@ -200,7 +205,7 @@ describe('operator authorisation', () => {
       const response = await api.inject({
         method: 'POST',
         url: '/api/wallet/credits',
-        headers: asAdmin(),
+        headers: asAdminFor('w-8'),
         payload: { ownerRef: 'w-8', amount, kind: 'grant', reason: 'bad amount' },
       });
       expect(response.statusCode).toBe(400);
@@ -319,7 +324,7 @@ describe('holds, refunds and duplicates over HTTP', () => {
     const refunded = await api.inject({
       method: 'POST',
       url: '/api/wallet/refunds',
-      headers: asAdmin(),
+      headers: asAdminFor('w-12'),
       payload: {
         ownerRef: 'w-12',
         entryId,
@@ -332,7 +337,7 @@ describe('holds, refunds and duplicates over HTTP', () => {
     const again = await api.inject({
       method: 'POST',
       url: '/api/wallet/refunds',
-      headers: asAdmin(),
+      headers: asAdminFor('w-12'),
       payload: {
         ownerRef: 'w-12',
         entryId,
@@ -355,7 +360,7 @@ describe('holds, refunds and duplicates over HTTP', () => {
     const again = await api.inject({
       method: 'POST',
       url: '/api/wallet/credits',
-      headers: asAdmin(),
+      headers: asAdminFor('w-13'),
       payload: {
         ownerRef: 'w-13',
         amount: 15,
@@ -379,7 +384,7 @@ describe('holds, refunds and duplicates over HTTP', () => {
     const adjustment = await api.inject({
       method: 'POST',
       url: '/api/wallet/adjustments',
-      headers: asAdmin(),
+      headers: asAdminFor('w-14'),
       payload: {
         ownerRef: 'w-14',
         amount: 5,
@@ -393,7 +398,7 @@ describe('holds, refunds and duplicates over HTTP', () => {
     const reversed = await api.inject({
       method: 'POST',
       url: '/api/wallet/reversals',
-      headers: asAdmin(),
+      headers: asAdminFor('w-14'),
       payload: { ownerRef: 'w-14', entryId, reason: 'It was a mistake.' },
     });
     expect(reversed.statusCode).toBe(201);
@@ -401,7 +406,7 @@ describe('holds, refunds and duplicates over HTTP', () => {
     const twice = await api.inject({
       method: 'POST',
       url: '/api/wallet/reversals',
-      headers: asAdmin(),
+      headers: asAdminFor('w-14'),
       payload: { ownerRef: 'w-14', entryId, reason: 'Again.' },
     });
     expect(twice.statusCode).toBe(409);

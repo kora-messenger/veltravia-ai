@@ -77,6 +77,27 @@ function num(value: unknown): number | undefined {
  * against the deployment's configured value, and no token configured means the
  * endpoints cannot be used at all rather than being open to anyone.
  */
+/**
+ * An operator route acts on a named owner. The owner is resolved from the header
+ * like every request, and a body that names a different owner is refused: the
+ * store writes under the bound owner, so a mismatch would file credit under the
+ * wrong account.
+ */
+function subjectMatches(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  target: string | null,
+): boolean {
+  if (target === null) return true;
+  const caller = resolveCallerOwnerRef(request);
+  if (caller === target) return true;
+  reply.status(400).send({
+    error: `ownerRef ${target} does not match the caller owner ${caller}.`,
+    code: 'OWNER_MISMATCH',
+  });
+  return false;
+}
+
 function requireAdmin(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -231,6 +252,12 @@ export function registerWalletRoutes(
     try {
       const body = (request.body ?? {}) as Record<string, unknown>;
       const target = str(body.ownerRef);
+      if (!subjectMatches(request, reply, target)) return reply;
+      if (!subjectMatches(request, reply, target)) return reply;
+      if (!subjectMatches(request, reply, target)) return reply;
+      if (!subjectMatches(request, reply, target)) return reply;
+      if (!subjectMatches(request, reply, target)) return reply;
+      if (!subjectMatches(request, reply, target)) return reply;
       if (target === null) {
         return reply
           .status(400)

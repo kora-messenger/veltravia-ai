@@ -1,8 +1,12 @@
+import { randomUUID } from 'node:crypto';
+
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 
 import { GatewayError, isGatewayError } from '@veltravia/ai-gateway';
 import { isTaskCategory } from '@veltravia/ai-router';
 import type { AiExecutionService, ExecutionEvent } from '../ai-execution-service.js';
+import type { MessageCreditService } from '../message-credit-service.js';
+import { messageCreditErrorBody } from './message-credits.js';
 /** Local env read: this route does not reach into another route module. */
 function readEnv(name: string): string | undefined {
   const value = process.env[name];
@@ -24,6 +28,12 @@ function readEnv(name: string): string | undefined {
 
 export interface AiExecutionDeps {
   readonly service: AiExecutionService;
+  /**
+   * Step 54: when present, a chat turn holds message credit before the provider
+   * is called and settles it when the run reports usage. Absent means this
+   * deployment charges nothing for messages, which is the development default.
+   */
+  readonly messageCredits?: MessageCreditService | undefined;
 }
 
 function ownerOf(request: FastifyRequest): string {
@@ -48,6 +58,7 @@ const EXECUTE_BODY = {
     temperature: { type: 'number', minimum: 0, maximum: 2 },
     stream: { type: 'boolean' },
     idempotencyKey: { type: 'string', minLength: 1, maxLength: 128 },
+    conversationId: { type: 'string', minLength: 1, maxLength: 128 },
     history: {
       type: 'array',
       maxItems: 20,
@@ -167,6 +178,7 @@ export function registerAiExecutionRoutes(app: FastifyInstance, deps: AiExecutio
       temperature?: number;
       stream?: boolean;
       idempotencyKey?: string;
+      conversationId?: string;
       history?: readonly { role: 'user' | 'assistant'; content: string }[];
     };
     const query = request.query as { stream?: string } | undefined;
@@ -182,6 +194,33 @@ export function registerAiExecutionRoutes(app: FastifyInstance, deps: AiExecutio
           message: `Unknown task category: ${body.category}`,
         },
       });
+    }
+
+    /*
+     * Step 54: hold the message credit first. A refusal here is the only place a
+     * request is stopped for money, and it stops before any provider call, so a
+     * request nobody can pay for costs nobody anything. The prompt is not
+     * discarded by the server: the caller still has it and the refusal says what
+     * is missing.
+     */
+    let hold: { charge: { id: string } } | null = null;
+    if (deps.messageCredits !== undefined) {
+      try {
+        hold = await deps.messageCredits.reserve({
+          ownerRef: owner,
+          kind: 'chat.message',
+          // The gateway calls the caller's own provider key, so the provider's
+          // tokens are theirs: only the platform's charge is owed here.
+          byok: true,
+          idempotencyKey: `chat:${body.idempotencyKey ?? randomUUID()}`,
+          ...(body.projectId === undefined ? {} : { projectId: body.projectId }),
+          ...(body.modelId === undefined ? {} : { modelId: body.modelId }),
+          ...(body.conversationId === undefined ? {} : { conversationId: body.conversationId }),
+        });
+      } catch (error) {
+        const mapped = messageCreditErrorBody(error);
+        return reply.status(mapped.status).send(mapped.body);
+      }
     }
 
     let started: ReturnType<AiExecutionService['start']>;
@@ -201,8 +240,25 @@ export function registerAiExecutionRoutes(app: FastifyInstance, deps: AiExecutio
         ...(body.history !== undefined ? { history: body.history } : {}),
       });
     } catch (error) {
+      if (hold !== null && deps.messageCredits !== undefined) {
+        await deps.messageCredits
+          .release({
+            ownerRef: owner,
+            chargeId: hold.charge.id,
+            reason: 'The provider refused to start the run.',
+          })
+          .catch(() => undefined);
+      }
       const mapped = errorBody(error);
       return reply.status(mapped.status).send(mapped.body);
+    }
+
+    if (hold !== null && deps.messageCredits !== undefined) {
+      // From here the charge is findable by run id, which is how the usage hook
+      // settles exactly the right hold.
+      await deps.messageCredits
+        .attachRun({ ownerRef: owner, chargeId: hold.charge.id, runId: started.run.id })
+        .catch(() => undefined);
     }
 
     if (!wantsStream) {
@@ -210,6 +266,18 @@ export function registerAiExecutionRoutes(app: FastifyInstance, deps: AiExecutio
       for await (const event of started.events) collected.push(event);
       const run = service.snapshot(owner, started.run.id);
       const status = run.status === 'completed' ? 200 : run.status === 'cancelled' ? 409 : 502;
+      if (run.status !== 'completed' && deps.messageCredits !== undefined) {
+        await deps.messageCredits
+          .releaseForRun({
+            ownerRef: owner,
+            runId: run.id,
+            reason:
+              run.status === 'cancelled'
+                ? 'The run was cancelled before it was charged.'
+                : 'The run failed before it could be charged.',
+          })
+          .catch(() => undefined);
+      }
       return reply.status(status).send({
         run,
         events: collected,
@@ -267,6 +335,21 @@ export function registerAiExecutionRoutes(app: FastifyInstance, deps: AiExecutio
       for await (const event of started.events) {
         if (closed) break;
         reply.raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+      }
+      // A stream that ends without a completed run holds nobody's credit: the
+      // usage hook only settles a run that reported tokens.
+      const finalRun = service.snapshot(owner, runId);
+      if (finalRun.status !== 'completed' && deps.messageCredits !== undefined) {
+        await deps.messageCredits
+          .releaseForRun({
+            ownerRef: owner,
+            runId,
+            reason:
+              finalRun.status === 'cancelled'
+                ? 'The stream was cancelled before the run was charged.'
+                : 'The stream ended before the run was charged.',
+          })
+          .catch(() => undefined);
       }
     } catch (error) {
       const mapped = errorBody(error);

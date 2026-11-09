@@ -449,13 +449,22 @@ export class CreditWallet {
     }
     const spend =
       input.amount === undefined ? reservation.amount : assertAmount(input.amount, 'amount');
+    // A hold is a floor, not a cap. Metered work regularly costs more than the
+    // estimate it was admitted against, and refusing the settlement would either
+    // lose the charge or force a second request. The excess is drawn from
+    // available in the same atomic step as the settlement, so a wallet without
+    // the difference is refused here rather than going negative.
     if (spend > reservation.amount) {
-      throw new WalletError(
-        'INVALID_AMOUNT',
-        `A hold of ${reservation.amount} cannot settle at ${spend}.`,
-        400,
-        { reserved: reservation.amount, requested: spend },
-      );
+      const extra = round4(spend - reservation.amount);
+      const walletNow = await this.requireWallet(input);
+      if (walletNow.available < extra && !walletNow.policy.allowNegative) {
+        throw insufficientCredits({
+          walletId: walletNow.id,
+          required: extra,
+          available: walletNow.available,
+          unit: walletNow.unit,
+        });
+      }
     }
     const wallet = await this.requireWallet(input);
     const settle = await this.store.settleReservation({
@@ -471,8 +480,9 @@ export class CreditWallet {
       });
     }
     // The whole hold leaves `reserved`; what was not spent comes back as
-    // available. availableDelta + reservedDelta + spentDelta is always zero,
-    // which is what keeps the total the same size.
+    // available, and what was spent beyond the hold is drawn from available.
+    // availableDelta + reservedDelta + spentDelta is always zero, which is what
+    // keeps the total the same size.
     const release = round4(reservation.amount - spend);
     const applied = await this.apply(wallet, {
       availableDelta: release,

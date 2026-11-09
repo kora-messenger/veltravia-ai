@@ -1343,3 +1343,101 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Message credits (Step 54) ------------------------------------------------ */
+
+.v-msgcredit {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.v-msgcredit__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.v-msgcredit__balances {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.v-msgcredit__balance {
+  border: 1px solid var(--v-border, #e4e4ef);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.v-msgcredit__label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--v-muted, #6b6a7d);
+}
+
+.v-msgcredit__warning {
+  border-left: 3px solid #b42318;
+  background: #fdf2f2;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.v-msgcredit__holds,
+.v-msgcredit__charges,
+.v-msgcredit__usage,
+.v-msgcredit__policy,
+.v-msgcredit__limits,
+.v-msgcredit__rates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.v-msgcredit__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.v-msgcredit__tabs button[aria-pressed='true'] {
+  background: #3b51e5;
+  color: #fff;
+  border-color: #3b51e5;
+}
+
+.v-msgcredit__usage table,
+.v-msgcredit__rates table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.v-msgcredit__usage th,
+.v-msgcredit__rates th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--v-muted, #6b6a7d);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--v-border, #e4e4ef);
+}
+
+.v-msgcredit__usage td,
+.v-msgcredit__rates td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--v-border, #f1f1f6);
+}
+
+.v-msgcredit__usage td:not(:first-child),
+.v-msgcredit__rates td:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

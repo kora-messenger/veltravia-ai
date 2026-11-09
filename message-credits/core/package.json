@@ -1,0 +1,21 @@
+{
+  "name": "@veltravia/message-credits-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia message credits (Step 54): configurable per-interaction charging policies, estimates before work starts, and measured charges that never invent a token count.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
+}

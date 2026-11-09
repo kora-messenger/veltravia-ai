@@ -507,3 +507,16 @@ own provider spend is never converted into credits. See `docs/credit-wallet.md`.
 
 Not delivered: payment processing or real-money credit purchases. `purchase` is an entry
 kind, not a working checkout.
+
+## Step 54 - message credits
+
+Each billable AI interaction is priced by a configurable policy, held against the wallet
+before the provider is called, and settled against what was actually measured. Rates are
+**configurable defaults, not market prices**, and the policy endpoint says which it is. A
+hold taken before a run is a floor, not a cap: a measured charge above it is drawn from
+available in the same atomic transition, and a hold whose operation never came back is
+swept. Missing measurements are recorded as limitations rather than filled with a guess,
+and a BYOK interaction is never charged for its tokens. See `docs/message-credits.md`.
+
+Not delivered: payment processing or real-money purchases of credits; token rates only
+apply to a managed-key deployment; only the chat path is wired end to end.

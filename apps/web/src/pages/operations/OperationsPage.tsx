@@ -28,6 +28,7 @@ import { ExecutionPanel } from './ExecutionPanel';
 import { RecoveryPanel } from './RecoveryPanel';
 import { ReliabilityPanel } from './ReliabilityPanel';
 import { UsagePanel } from './UsagePanel';
+import { MessageCreditsPanel } from './MessageCreditsPanel';
 import { WalletPanel } from './WalletPanel';
 import {
   RECOVERY_NOTIFICATION_LABEL as RECOVERY_NOTIFICATION_COPY,
@@ -759,6 +760,7 @@ export function OperationsPage() {
       <UsagePanel />
 
       {/* Step 53: credits, what they were spent on, and the rate table. */}
+      <MessageCreditsPanel />
       <WalletPanel />
 
       {selectedWorker !== null && (

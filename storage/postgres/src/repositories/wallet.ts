@@ -193,6 +193,12 @@ export class PostgresWalletStore implements WalletStore {
 
   async createWallet(wallet: Wallet): Promise<Wallet> {
     const owner = requireOwner();
+    // The caller's bound owner and the wallet's owner are the same thing. If they
+    // ever disagree, one of them is a bug and writing the row would file somebody
+    // else's credits under the wrong account.
+    if (wallet.ownerRef !== owner) {
+      throw new Error('wallet owner does not match the bound owner');
+    }
     await this.query.query(
       `insert into wallets (id, owner_ref, scope, workspace_id, unit, available, reserved, spent,
                             allow_negative, negative_floor, version, created_at, updated_at)
