@@ -229,7 +229,7 @@
   .v-drawer__card--chat {
     position: absolute;
     top: 40px;
-    right: 10px;
+    right: 14px;
     z-index: 2;
     width: 203px;
     margin: 0;
@@ -238,7 +238,10 @@
     display: flex;
     align-items: center;
     width: 100%;
-    height: 32px;
+    /* 28dp, measured off the reference: its three rows sit on a ~30dp pitch with
+       the card 85.6dp tall on a 314dp panel, which is 93dp once scaled to this
+       panel's 341dp. The whole row is the target, edge to edge. */
+    height: 28px;
     padding: 0 12px;
     border: 0;
     border-radius: 6px;
