@@ -194,7 +194,8 @@ export class PostgresMessageCreditStore implements MessageCreditStore {
               policy_id = $12, limitations = $13, reservation_id = $14, wallet_entry_id = $15,
               failure_reason = $16, settled_at = $17, refunded_at = $18, run_id = $19,
               conversation_id = $20, project_id = $21, model_id = $22, provider_id = $23,
-              workspace_id = $24, usage_operation_key = $25, byok = $26
+              workspace_id = $24, usage_operation_key = $25, byok = $26,
+              measurement_source = $28, cached_savings = $29
         where owner_ref = $1 and id = $2 and state = $27
         returning id`,
       [
@@ -225,6 +226,10 @@ export class PostgresMessageCreditStore implements MessageCreditStore {
         charge.usageOperationKey,
         charge.byok,
         expectedState,
+        // Which reporter produced the numbers, and what the cache saved. Without
+        // these two the row kept its tokens but forgot where they came from.
+        charge.measurementSource,
+        charge.cachedSavings,
       ],
     );
     return saved.rows.length > 0;

@@ -519,4 +519,25 @@ swept. Missing measurements are recorded as limitations rather than filled with 
 and a BYOK interaction is never charged for its tokens. See `docs/message-credits.md`.
 
 Not delivered: payment processing or real-money purchases of credits; token rates only
-apply to a managed-key deployment; only the chat path is wired end to end.
+apply to a managed-key deployment.
+
+## Step 55 - coding and agent credit integration
+
+Coding runs and agent workers are now billed the same way a chat message is. One operation
+opens one hold before any planning or model call, every model turn inside the run is tallied
+against that same operation, and the run settles once when it ends. A cancelled run, a
+refused worker and a stalled worker release their hold instead of leaving it to the sweep,
+so a half-finished plan costs nothing. A worker that cannot be paid for is refused before it
+claims anything, with the real credit error rather than a generic failure.
+
+Cached tokens are measured, not guessed: the gateway's cached count is taken from the
+provider's report, billed at the cache rate, and the saving is recorded on the charge beside
+the tokens it came from. A charge also remembers which reporter produced its numbers, and
+that survives a restart. See `docs/operation-billing.md`.
+
+A workspace is a label for reporting, not a second purse. A workspace wallet that somebody
+has funded pays for its own work; an unfunded one bills the account holder, because charging
+an empty workspace wallet refused work the account could plainly afford.
+
+Not delivered: no payment processing, no per-seat workspace funding flow, and the token
+rates still only bite on a managed-key deployment.

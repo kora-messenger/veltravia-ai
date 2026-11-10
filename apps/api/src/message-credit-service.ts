@@ -88,7 +88,20 @@ export interface MonthUsage {
   readonly charges: number;
   readonly credits: number;
   readonly refunded: number;
+  /** Charges still holding credit, and the credit they are holding. */
   readonly open: number;
+  readonly openCredits: number;
+  /**
+   * Tokens behind the settled charges. Cached input is billed at the cache rate,
+   * so it is counted apart from the rest of the input; the two always add up to
+   * the input total that was measured.
+   */
+  readonly tokens: {
+    readonly input: number;
+    readonly output: number;
+    readonly cached: number;
+    readonly uncached: number;
+  };
   readonly byKind: readonly UsageGroup[];
 }
 
@@ -191,10 +204,29 @@ export function createMessageCreditService(
   let seq = 0;
   const newId = (prefix: string): string => `${prefix}_${now().getTime().toString(36)}_${++seq}`;
 
-  const refOf = (ref: WalletRef) => ({
-    ownerRef: ref.ownerRef,
-    ...(ref.workspaceId == null ? {} : { workspaceId: ref.workspaceId }),
-  });
+  /**
+   * Which purse a charge draws from.
+   *
+   * A workspace wallet is a real purse once somebody funds it - the operator
+   * credit route can name a workspace - and from then on it pays its own way.
+   * A workspace nobody has funded is not a purse: charging its empty balance
+   * refused every coding run and worker on accounts that held credit, so an
+   * unfunded workspace defers to the account holder's own wallet.
+   *
+   * The decision sticks because a hold moves reserved above zero: while the
+   * charge is open, the purse it was taken from reads as funded, so settle and
+   * release resolve the same wallet.
+   */
+  const refOf = async (ref: WalletRef) => {
+    if (ref.workspaceId === undefined || ref.workspaceId === null) {
+      return { ownerRef: ref.ownerRef };
+    }
+    const view = await wallet.ensure({ ownerRef: ref.ownerRef, workspaceId: ref.workspaceId });
+    const funded = view.available > 0 || view.reserved > 0 || view.spent > 0;
+    return funded
+      ? { ownerRef: ref.ownerRef, workspaceId: ref.workspaceId }
+      : { ownerRef: ref.ownerRef };
+  };
 
   const assertAmount = (value: number, label: string): number => {
     if (!Number.isFinite(value) || value < 0) {
@@ -305,11 +337,30 @@ export function createMessageCreditService(
     );
     const refunded = inMonth.filter((charge) => charge.state === 'refunded');
     const open = inMonth.filter((charge) => charge.state === 'reserved');
+    const sum = (
+      rows: readonly (typeof committed)[number][],
+      pick: (row: (typeof committed)[number]) => number,
+    ) => rows.reduce((total, row) => total + pick(row), 0);
+    const counted = committed.filter((charge) => charge.byok !== true);
+    const input = sum(counted, (charge) => charge.inputTokens ?? 0);
+    const cached = Math.min(
+      sum(counted, (charge) => charge.cachedTokens ?? 0),
+      input,
+    );
     return {
       charges: committed.length,
       credits: creditRound(committed.reduce((total, charge) => total + charge.credits, 0)),
       refunded: creditRound(refunded.reduce((total, charge) => total + charge.credits, 0)),
       open: open.length,
+      openCredits: creditRound(
+        open.reduce((total, charge) => total + (charge.estimatedCredits ?? charge.credits ?? 0), 0),
+      ),
+      tokens: {
+        input,
+        output: sum(counted, (charge) => charge.outputTokens ?? 0),
+        cached,
+        uncached: Math.max(0, input - cached),
+      },
       byKind: await store.aggregate(ref.ownerRef, 'kind', {
         since,
         workspaceId: ref.workspaceId ?? null,
@@ -356,7 +407,7 @@ export function createMessageCreditService(
     },
 
     async summary(ref) {
-      const balances = await wallet.overview(refOf(ref));
+      const balances = await wallet.overview(await refOf(ref));
       const settings = await settingsOf(ref);
       const month = await monthTotals(ref);
       const open = await store.listOpen(ref.ownerRef, 20);
@@ -387,7 +438,7 @@ export function createMessageCreditService(
         maxOutputTokens: input.maxOutputTokens ?? null,
         ...(input.byok === true ? { byok: true } : {}),
       });
-      const balances = await wallet.overview(refOf(input));
+      const balances = await wallet.overview(await refOf(input));
       const available = balances.wallet.available;
       const affordable = estimate.exempt || available >= estimate.credits;
       return {
@@ -403,7 +454,7 @@ export function createMessageCreditService(
     async reserve(input) {
       const existing = await store.findByKey(input.ownerRef, input.idempotencyKey);
       if (existing !== null) {
-        const balances = await wallet.overview(refOf(input));
+        const balances = await wallet.overview(await refOf(input));
         return {
           charge: existing,
           created: false,
@@ -456,7 +507,7 @@ export function createMessageCreditService(
         const { charge } = await store.insertCharge(
           materialise(draftCharge(input, estimate), 'exempt'),
         );
-        const balances = await wallet.overview(refOf(input));
+        const balances = await wallet.overview(await refOf(input));
         return {
           charge,
           created: true,
@@ -472,7 +523,7 @@ export function createMessageCreditService(
       const draft = draftCharge(input, estimate);
       const { charge, created } = await store.insertCharge(materialise(draft, 'reserved'));
       if (!created) {
-        const balances = await wallet.overview(refOf(input));
+        const balances = await wallet.overview(await refOf(input));
         return {
           charge,
           created: false,
@@ -485,7 +536,7 @@ export function createMessageCreditService(
       let reservation;
       try {
         reservation = await wallet.reserve({
-          ...refOf(input),
+          ...(await refOf(input)),
           amount: estimate.credits,
           operationKey: `msg:${charge.id}`,
           reason: `Message credit hold for a ${input.kind.replace('.', ' ')}.`,
@@ -505,7 +556,7 @@ export function createMessageCreditService(
       }
 
       const held = await save({ ...charge, reservationId: reservation.reservation.id }, 'reserved');
-      const balances = await wallet.overview(refOf(input));
+      const balances = await wallet.overview(await refOf(input));
       return {
         charge: held,
         created: true,
@@ -554,7 +605,7 @@ export function createMessageCreditService(
 
       if (reservationId !== null && computed.credits > 0) {
         const result = await wallet.commit({
-          ...refOf({ ownerRef: input.ownerRef, workspaceId: charge.workspaceId }),
+          ...(await refOf({ ownerRef: input.ownerRef, workspaceId: charge.workspaceId })),
           reservationId,
           amount: computed.credits,
           reason: `Message charge for ${charge.kind.replace('.', ' ')} ${charge.id}.`,
@@ -568,7 +619,7 @@ export function createMessageCreditService(
           // charge is recorded as under-recovered rather than overdrawn.
           try {
             const extra = await wallet.adjust({
-              ...refOf({ ownerRef: input.ownerRef, workspaceId: charge.workspaceId }),
+              ...(await refOf({ ownerRef: input.ownerRef, workspaceId: charge.workspaceId })),
               amount: aboveHold,
               direction: 'debit',
               actor: 'message-credits',
@@ -586,7 +637,7 @@ export function createMessageCreditService(
       } else if (reservationId !== null) {
         // Nothing is owed: give the whole hold back rather than posting a zero.
         await wallet.release({
-          ...refOf({ ownerRef: input.ownerRef, workspaceId: charge.workspaceId }),
+          ...(await refOf({ ownerRef: input.ownerRef, workspaceId: charge.workspaceId })),
           reservationId,
           reason: 'The interaction used no chargeable credit.',
           actor: 'message-credits',
@@ -640,7 +691,7 @@ export function createMessageCreditService(
       if (charge.state !== 'reserved') return charge;
       if (charge.reservationId !== null) {
         await wallet.release({
-          ...refOf({ ownerRef: input.ownerRef, workspaceId: charge.workspaceId }),
+          ...(await refOf({ ownerRef: input.ownerRef, workspaceId: charge.workspaceId })),
           reservationId: charge.reservationId,
           reason: input.reason,
           actor: 'message-credits',
@@ -710,7 +761,7 @@ export function createMessageCreditService(
       }
       if (charge.walletEntryId !== null && charge.credits > 0) {
         await wallet.refund({
-          ...refOf({ ownerRef: input.ownerRef, workspaceId: charge.workspaceId }),
+          ...(await refOf({ ownerRef: input.ownerRef, workspaceId: charge.workspaceId })),
           entryId: charge.walletEntryId,
           reason: input.reason,
           actor: input.actor,
@@ -783,7 +834,7 @@ export function createMessageCreditService(
     },
 
     async integrity(ref) {
-      const walletReport = await wallet.reconcile(refOf(ref));
+      const walletReport = await wallet.reconcile(await refOf(ref));
       const page = await store.listCharges(ref.ownerRef, {
         limit: 500,
         workspaceId: ref.workspaceId ?? null,

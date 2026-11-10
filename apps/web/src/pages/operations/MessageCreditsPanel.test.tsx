@@ -39,12 +39,16 @@ afterEach(() => {
 
 function summary(over: Partial<MessageCreditSummary> = {}): MessageCreditSummary {
   return {
-    wallet: { available: 24, reserved: 6, spent: 70, spendable: 18 },
+    // Held credit and the open charge estimate are usually equal but need not be,
+    // so the fixture keeps them apart and each tile is asserted on its own.
+    wallet: { available: 24, reserved: 7, spent: 70, spendable: 17 },
     month: {
       charges: 12,
       credits: 70,
       refunded: 3,
       open: 1,
+      openCredits: 6,
+      tokens: { input: 12_000, output: 4_000, cached: 3_000, uncached: 9_000 },
       byKind: [{ key: 'chat.message', charges: 10, credits: 60 }],
     },
     openReservations: [
@@ -157,7 +161,24 @@ describe('the message-credit panel', () => {
     expect(screen.getByText('Available')).toBeTruthy();
     expect(screen.getByText('24 credits')).toBeTruthy();
     expect(screen.getByText('Held for work in flight')).toBeTruthy();
+    expect(screen.getByText('7 credits')).toBeTruthy();
+    // The estimate sitting on an unsettled charge is shown separately.
+    expect(screen.getByText('Credit held, not yet settled')).toBeTruthy();
     expect(screen.getByText('6 credits')).toBeTruthy();
+  });
+
+  it('counts cached input apart from the rest and says what a token count means', async () => {
+    prime();
+    render(<MessageCreditsPanel />);
+
+    await waitFor(() => expect(screen.getByText(/Tokens this month/)).toBeTruthy());
+    expect(screen.getByText('Input, uncached')).toBeTruthy();
+    expect(screen.getByText('9,000')).toBeTruthy();
+    expect(screen.getByText('Input, cached')).toBeTruthy();
+    expect(screen.getByText('3,000')).toBeTruthy();
+    expect(screen.getByText(/billed at the cache rate/)).toBeTruthy();
+    expect(screen.getByText('Output')).toBeTruthy();
+    expect(screen.getByText('4,000')).toBeTruthy();
   });
 
   it('labels the shipped rate table as configurable defaults, not prices', async () => {

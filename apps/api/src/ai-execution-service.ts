@@ -113,6 +113,17 @@ export interface ExecutionStartInput {
   readonly stream?: boolean;
   /** Duplicate protection: the same key twice returns the first run. */
   readonly idempotencyKey?: string;
+  /**
+   * Step 55: the billable operation this call belongs to. A coding run or an agent
+   * execution makes many provider calls; naming the same operation on each lets
+   * billing add them up into one charge instead of one charge per call.
+   */
+  readonly charge?: {
+    readonly kind: string;
+    readonly operationId: string;
+    readonly taskId?: string;
+    readonly parentChargeId?: string;
+  };
 }
 
 export interface ExecutionRun {
@@ -157,12 +168,28 @@ export interface AiExecutionServiceOptions {
         readonly inputTokens: number | null;
         readonly outputTokens: number | null;
         readonly cachedInputTokens: number | null;
+        /** Present when the call belonged to a billable operation. */
+        readonly charge?:
+          | {
+              readonly kind: string;
+              readonly operationId: string;
+              readonly taskId?: string;
+              readonly parentChargeId?: string;
+            }
+          | undefined;
       }) => void)
     | undefined;
 }
 
 interface RunState {
   run: ExecutionRun;
+  /** The billable operation this run's provider calls belong to, when any. */
+  charge?: {
+    readonly kind: string;
+    readonly operationId: string;
+    readonly taskId?: string;
+    readonly parentChargeId?: string;
+  };
   content: string;
   events: ExecutionEvent[];
   listeners: Set<(event: ExecutionEvent) => void>;
@@ -278,6 +305,7 @@ export class AiExecutionService {
     const id = `exe_${randomUUID()}`;
     const at = this.now().toISOString();
     const state: RunState = {
+      ...(input.charge === undefined ? {} : { charge: input.charge }),
       run: {
         id,
         ownerRef: input.ownerRef,
@@ -925,6 +953,7 @@ export class AiExecutionService {
       inputTokens: input.inputTokens,
       outputTokens: input.outputTokens,
       cachedInputTokens: input.cachedInputTokens ?? null,
+      ...(state.charge === undefined ? {} : { charge: state.charge }),
     });
   }
 }

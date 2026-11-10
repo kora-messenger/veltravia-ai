@@ -20,6 +20,12 @@ export interface CodingModelRequest {
   readonly temperature: number;
   /** Aborted when the run is cancelled. */
   readonly signal?: AbortSignal;
+  /**
+   * The coding run this call belongs to. Billing takes one hold per run and
+   * settles it from every call that names the same id, so a retried call is not
+   * a second charge.
+   */
+  readonly correlationId?: string;
 }
 
 export interface CodingModelReply {

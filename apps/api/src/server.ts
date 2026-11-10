@@ -91,6 +91,7 @@ import { registerMessageCreditRoutes } from './routes/message-credits.js';
 import { createUsageService } from './usage-service.js';
 import { createWalletService } from './wallet-service.js';
 import { createMessageCreditService } from './message-credit-service.js';
+import { createOperationBilling } from './operation-billing.js';
 import { registerIdempotency } from './idempotency.js';
 import { createReliabilityService } from './reliability-service.js';
 import { registerTaskRoutes } from './routes/tasks.js';
@@ -518,6 +519,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       engine: projectEngine,
       verification: verificationService,
       staging: workerStaging,
+      // Resolved per call: billing is assembled below, once the wallet that
+      // pays for it exists.
+      billing: () => operationBilling,
     }),
   });
   /*
@@ -571,12 +575,21 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     planOf: async (ownerRef) => (await usageService.entitlement(ownerRef)).planId,
   });
 
+  /*
+   * Step 55: one charge per billable operation. A coding run or an agent
+   * execution is held before its first model call and settled once when it
+   * finishes, so many calls do not become many charges and a retry of the same
+   * operation finds its first hold.
+   */
+  const operationBilling = createOperationBilling({ messageCredits: messageCreditService });
+
   registerUsageRoutes(app, { usage: usageService }, env);
   registerWalletRoutes(app, { wallet: walletService }, env);
   registerMessageCreditRoutes(app, { messageCredits: messageCreditService }, env);
   registerWorkerRoutes(app, {
     workers: workerService,
     verification: verificationService,
+    billing: operationBilling,
     usage: {
       beforeStart: async ({ ownerRef }) => {
         const running = await workerService.workers.list(ownerRef);
@@ -633,6 +646,33 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
             byok: true,
           })
           .catch(() => undefined);
+        if (input.charge !== undefined && input.charge.kind !== 'chat.message') {
+          /*
+           * Step 55: a coding run or an agent execution makes many provider calls.
+           * Each call is added to its operation's tally here, and the operation is
+           * settled once by whoever started it. Recording is synchronous on
+           * purpose: a tally that loses a call would silently under-charge.
+           */
+          operationBilling.record(
+            {
+              ownerRef: input.ownerRef,
+              kind: input.charge.kind as never,
+              operationId: input.charge.operationId,
+              ...(input.charge.taskId === undefined ? {} : { taskId: input.charge.taskId }),
+              ...(input.charge.parentChargeId === undefined
+                ? {}
+                : { parentChargeId: input.charge.parentChargeId }),
+            },
+            {
+              inputTokens: input.inputTokens,
+              outputTokens: input.outputTokens,
+              cachedInputTokens: input.cachedInputTokens,
+              modelId: input.modelId,
+              providerId: input.providerId,
+            },
+          );
+          return;
+        }
         void messageCreditService
           .commitForRun({
             ownerRef: input.ownerRef,
@@ -642,6 +682,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
             measurement: {
               inputTokens: input.inputTokens,
               outputTokens: input.outputTokens,
+              cachedTokens: input.cachedInputTokens,
               modelId: input.modelId,
               providerId: input.providerId,
             },
@@ -703,7 +744,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         options.coding !== undefined ? 'injected' : codingDemoMode ? 'scripted-demo' : 'model',
       planApprovalRequired: true,
     },
-    { runs: runOwnership, ...(codingDecision !== null ? { decisionSource: codingDecision } : {}) },
+    {
+      runs: runOwnership,
+      ...(codingDecision !== null ? { decisionSource: codingDecision } : {}),
+      billing: operationBilling,
+    },
   );
 
   // App Generation endpoints: bounded, state-machine-driven idea-to-app

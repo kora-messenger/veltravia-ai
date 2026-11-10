@@ -17,6 +17,8 @@ import { resolveCallerOwnerRef } from '../project-access.js';
 import type { WorkerService } from '../worker-service.js';
 import type { VerificationService } from '../verification.js';
 import { checkTestEvidence } from '../evidence-gate.js';
+import type { OperationBilling, OperationRef } from '../operation-billing.js';
+import { messageCreditErrorBody } from './message-credits.js';
 
 /**
  * Superagent worker routes (Step 43).
@@ -56,6 +58,13 @@ export interface WorkerRouteDeps {
         }) => Promise<void>;
       }
     | undefined;
+  /**
+   * Step 55: a worker is one billable operation. Its hold is taken before the
+   * first model turn and settled once - on acceptance - from every call the
+   * executor tallied. Refusing a start for money happens before anything is
+   * claimed, so an unaffordable worker leaves no half-started record.
+   */
+  readonly billing?: OperationBilling | undefined;
 }
 
 const idParam = {
@@ -97,9 +106,57 @@ export function registerWorkerRoutes(app: FastifyInstance, deps: WorkerRouteDeps
         .status(orchestrationHttpStatus(error.code))
         .send({ error: { code: error.code, message: error.message } });
     }
+    // A refused hold (no credit, a spending limit) is a payment answer, not an
+    // internal failure: it keeps its own code and status.
+    const credit = messageCreditErrorBody(error);
+    if (credit.status !== 500) {
+      return reply.status(credit.status).send(credit.body);
+    }
     return reply.status(500).send({
       error: { code: 'WORKER_INTERNAL', message: 'The worker request could not be completed.' },
     });
+  };
+
+  /**
+   * The operation a worker's provider calls are charged to. The project comes
+   * from its task, because a worker inherits the task's project rather than
+   * carrying a second copy of it.
+   */
+  const operationRefOf = async (
+    ownerRef: string,
+    worker: { readonly id: string; readonly taskId: string },
+  ): Promise<OperationRef> => {
+    const task = await workers.tasks.manager.getTask(ownerRef, worker.taskId).catch(() => null);
+    const projectId = task?.projectId ?? null;
+    return {
+      ownerRef,
+      kind: 'agent.execution',
+      operationId: worker.id,
+      taskId: worker.taskId,
+      ...(projectId === null ? {} : { projectId }),
+    };
+  };
+
+  /**
+   * Closes a worker's charge. Accepting the work settles what was measured;
+   * anything else (a refusal, a cancellation, a stalled worker) gives the hold
+   * back. Billing never decides whether work was accepted, so a settlement
+   * failure is reported by the charge row, not by turning the review into an
+   * error.
+   */
+  const closeWorkerCharge = async (
+    ownerRef: string,
+    worker: { readonly id: string; readonly taskId: string },
+    outcome: 'settle' | 'release',
+    reason: string,
+  ): Promise<void> => {
+    if (deps.billing === undefined) return;
+    const ref = await operationRefOf(ownerRef, worker);
+    if (outcome === 'release') {
+      await deps.billing.abandon(ref, reason).catch(() => undefined);
+      return;
+    }
+    await deps.billing.settle(ref).catch(() => undefined);
   };
 
   app.get('/api/worker-orchestration', async () => ({
@@ -199,7 +256,25 @@ export function registerWorkerRoutes(app: FastifyInstance, deps: WorkerRouteDeps
         if (deps.usage !== undefined) {
           await deps.usage.beforeStart({ ownerRef: owner(request), workerId });
         }
-        return reply.send({ worker: await manager.start(owner(request), workerId) });
+        // The hold comes before the first model turn, and a worker nobody can pay
+        // for is refused here rather than half-way through its assignment.
+        const pending = await manager.get(owner(request), workerId);
+        if (deps.billing !== undefined) {
+          await deps.billing.begin(await operationRefOf(owner(request), pending));
+        }
+        const started = await manager.start(owner(request), workerId);
+        if (started.status !== 'awaiting_review') {
+          // The executor is finished (a failure, a timeout, a cancellation) and no
+          // review will follow: give the hold back instead of leaving it to the
+          // sweep. Model spend is still written to the usage ledger.
+          await closeWorkerCharge(
+            owner(request),
+            started,
+            'release',
+            `The worker ended as ${started.status} without work to accept.`,
+          );
+        }
+        return reply.send({ worker: started });
       } catch (error) {
         return fail(reply, error);
       }
@@ -269,6 +344,12 @@ export function registerWorkerRoutes(app: FastifyInstance, deps: WorkerRouteDeps
             })
             .catch(() => undefined);
         }
+        await closeWorkerCharge(
+          owner(request),
+          outcome.worker,
+          outcome.worker.status === 'completed' ? 'settle' : 'release',
+          'The review did not accept this work, so its hold went back.',
+        );
         return reply.send({ worker: outcome.worker, checks: outcome.checks });
       } catch (error) {
         return fail(reply, error);
@@ -287,6 +368,12 @@ export function registerWorkerRoutes(app: FastifyInstance, deps: WorkerRouteDeps
           owner(request),
           workerId,
           String(body?.reason ?? 'The owner cancelled this work.'),
+        );
+        await closeWorkerCharge(
+          owner(request),
+          worker,
+          'release',
+          'The worker was cancelled before its work was accepted.',
         );
         return reply.send({ worker });
       } catch (error) {
@@ -365,6 +452,14 @@ export function registerWorkerRoutes(app: FastifyInstance, deps: WorkerRouteDeps
   app.post('/api/workers/recover', async (request, reply) => {
     try {
       const recovered = await manager.recoverStalled(owner(request));
+      for (const worker of recovered) {
+        await closeWorkerCharge(
+          owner(request),
+          worker,
+          'release',
+          'The worker stalled and was recovered without accepted work.',
+        );
+      }
       return reply.send({ recovered });
     } catch (error) {
       return fail(reply, error);

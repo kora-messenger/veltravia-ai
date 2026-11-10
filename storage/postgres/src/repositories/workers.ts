@@ -218,11 +218,17 @@ export class PostgresWorkerStore implements WorkerStore {
   ): Promise<void> {
     const owner = requireOwner();
     if (events.length === 0) return;
+    // The row's event_seq has to move with the log. Appending without advancing
+    // it let the next save reuse a sequence number already written, so Postgres
+    // refused the insert (worker_events_pkey) while the in-memory store, which
+    // keeps a plain array, never noticed.
+    const highest = events.reduce((max, event) => Math.max(max, event.seq), 0);
     await this.query.query(
       `update workers
-          set updated_at = $3, last_heartbeat_at = $3
+          set updated_at = $3, last_heartbeat_at = $3,
+              event_seq = greatest(event_seq, $4)
         where id = $1 and owner_ref = $2`,
-      [workerId, owner, updatedAt],
+      [workerId, owner, updatedAt, highest],
     );
     await this.writeEvents({ id: workerId } as WorkerRecord, events);
     void ownerRef;

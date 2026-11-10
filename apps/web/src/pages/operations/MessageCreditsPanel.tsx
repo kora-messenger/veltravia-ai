@@ -43,6 +43,11 @@ function credits(value: number | null | undefined): string {
   return `${rounded} ${rounded === 1 ? 'credit' : 'credits'}`;
 }
 
+function tokens(value: number | null | undefined): string {
+  if (value === null || value === undefined) return 'not measured';
+  return value.toLocaleString('en-GB');
+}
+
 function stateTone(state: string): 'success' | 'warning' | 'error' | 'neutral' {
   if (state === 'committed') return 'success';
   if (state === 'reserved') return 'warning';
@@ -162,6 +167,42 @@ export function MessageCreditsPanel() {
                 : ''}
             </span>
           </div>
+        </div>
+      )}
+
+      {month === undefined ? null : (
+        <div className="v-msgcredit__tokens" data-testid="credit-tokens">
+          <h3>Tokens this month</h3>
+          <div className="v-msgcredit__balances">
+            <div className="v-msgcredit__balance">
+              <span className="v-msgcredit__label">Input, uncached</span>
+              <strong>{tokens(month.tokens.uncached)}</strong>
+            </div>
+            <div className="v-msgcredit__balance">
+              <span className="v-msgcredit__label">Input, cached</span>
+              <strong>{tokens(month.tokens.cached)}</strong>
+              <span className="v-ops__muted">billed at the cache rate</span>
+            </div>
+            <div className="v-msgcredit__balance">
+              <span className="v-msgcredit__label">Output</span>
+              <strong>{tokens(month.tokens.output)}</strong>
+            </div>
+            <div className="v-msgcredit__balance">
+              <span className="v-msgcredit__label">Credit held, not yet settled</span>
+              <strong>{credits(month.openCredits)}</strong>
+              <span className="v-ops__muted">
+                {month.open === 0
+                  ? 'nothing open'
+                  : `${month.open} charge${month.open === 1 ? '' : 's'} not yet settled`}
+              </span>
+            </div>
+          </div>
+          {month.tokens.input === 0 && month.tokens.output === 0 ? (
+            <p className="v-ops__muted">
+              No tokens have been measured this month. A charge carrying no measurement says so
+              rather than counting as zero usage, so this can stay empty while credits are spent.
+            </p>
+          ) : null}
         </div>
       )}
 

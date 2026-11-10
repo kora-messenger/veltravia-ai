@@ -14,6 +14,8 @@
  */
 
 import { WorkerError, type WorkerAssignment, type WorkerExecutor } from '@veltravia/worker-core';
+
+import type { OperationBilling } from './operation-billing.js';
 import { SimulatedExecutor } from '@veltravia/worker-core';
 import {
   ModelWorkerExecutor,
@@ -330,6 +332,12 @@ export interface WorkerExecutorOptions {
   readonly env?: NodeJS.ProcessEnv;
   /** Isolated staging, so worker writes never touch the project (Step 46). */
   readonly staging?: WorkerStagingRegistry | undefined;
+  /**
+   * Step 55: where a worker's provider calls are tallied. Resolved lazily
+   * because the billing layer is assembled after the executor (it needs the
+   * wallet, which needs the worker store for its concurrency gauge).
+   */
+  readonly billing?: (() => OperationBilling | undefined) | undefined;
 }
 
 export function createWorkerExecutor(options: WorkerExecutorOptions): WorkerExecutor {
@@ -401,6 +409,28 @@ export function createWorkerExecutor(options: WorkerExecutorOptions): WorkerExec
           signal: request.signal,
           runId: request.runId,
         } as never,
+      );
+      /*
+       * Step 55: the worker's calls belong to the worker, not to one charge per
+       * turn. Every turn of this attempt is added to the same tally, and the
+       * worker's review or cancellation settles it once. Missing numbers stay
+       * missing so the charge can say what it did not measure.
+       */
+      options.billing?.()?.record(
+        {
+          ownerRef: request.ownerRef,
+          kind: 'agent.execution',
+          operationId: request.runId,
+          ...(request.projectId === null ? {} : { projectId: request.projectId }),
+        },
+        {
+          inputTokens: outcome.usage.inputTokens,
+          outputTokens: outcome.usage.outputTokens,
+          cachedInputTokens: outcome.usage.cachedInputTokens ?? null,
+          durationMs: outcome.latencyMs,
+          modelId: outcome.modelId,
+          providerId: outcome.providerId,
+        },
       );
       return {
         content: outcome.content,

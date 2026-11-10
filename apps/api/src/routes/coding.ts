@@ -10,6 +10,7 @@ import {
 } from '@veltravia/coding-agent-core';
 
 import type { ApiCodingDecisionSource } from '../coding-model.js';
+import type { OperationBilling } from '../operation-billing.js';
 
 /** Maps normalized coding error codes to HTTP status codes. */
 const CODING_ERROR_STATUS: Record<string, number> = {
@@ -139,6 +140,45 @@ export interface CodingRouteDeps {
   readonly runs: RunOwnership;
   /** Present when the API runs the model-powered source. */
   readonly decisionSource?: ApiCodingDecisionSource;
+  /**
+   * Step 55: charge for the run as one operation. A hold is taken before the
+   * first model call, every call is tallied against the run id, and the run is
+   * settled once it reaches a terminal state. Cancelling releases the hold.
+   */
+  readonly billing?: OperationBilling;
+}
+
+const TERMINAL = new Set(['completed', 'failed', 'cancelled']);
+
+/**
+ * Settles a coding run exactly once, and only when it is finished. A run waiting
+ * for approval keeps its hold on purpose: the work is not over, and billing a
+ * half-finished run would charge for a plan that may still change.
+ */
+async function settleIfFinished(
+  billing: OperationBilling | undefined,
+  ownerRef: string,
+  runId: string,
+  projectId: string,
+  workspaceId: string,
+  state: string,
+): Promise<void> {
+  if (billing === undefined || !TERMINAL.has(state)) return;
+  if (state === 'cancelled') {
+    await billing.abandon(
+      { ownerRef, kind: 'coding.run', operationId: runId, projectId, workspaceId, runId },
+      'The coding run was cancelled before it finished.',
+    );
+    return;
+  }
+  await billing.settle({
+    ownerRef,
+    kind: 'coding.run',
+    operationId: runId,
+    projectId,
+    workspaceId,
+    runId,
+  });
 }
 
 /**
@@ -219,13 +259,27 @@ export function registerCodingRoutes(
       // The caller must own the project, and the workspace must belong to it.
       // The ids are in the BODY, so the parameter guard never sees them.
       await deps.runs.assertCanStart(ownerOf(request), body.projectId, body.workspaceId);
+      // One id serves the run and its charge, so the hold opened here is the one
+      // the run's model calls are tallied against. The manager is told this id.
+      const runId = body.runId ?? `coding_${Date.now().toString(36)}`;
+      // Billing opens before any provider call: a run that cannot be afforded is
+      // refused here, not half-way through a plan.
+      if (deps.billing !== undefined) {
+        await deps.billing.begin({
+          ownerRef: ownerOf(request),
+          kind: 'coding.run',
+          operationId: runId,
+          projectId: body.projectId,
+          workspaceId: body.workspaceId,
+        });
+      }
       // Step 18: bracket the run - capture BEFORE the run starts (best-effort).
       await captureRunStart(captures, 'coding_before', body.projectId, body.workspaceId);
       const view = await manager.startRun({
         projectId: body.projectId,
         workspaceId: body.workspaceId,
         userRequirement: body.userRequirement,
-        ...(body.runId !== undefined ? { runId: body.runId } : {}),
+        runId,
         ...(body.targetFiles !== undefined ? { targetFiles: body.targetFiles } : {}),
         ...(body.constraints !== undefined ? { constraints: body.constraints } : {}),
         ...(body.acceptanceCriteria !== undefined
@@ -250,8 +304,17 @@ export function registerCodingRoutes(
     const { runId } = request.params as { runId: string };
     try {
       deps.runs.require(ownerOf(request), runId);
+      const run = manager.getRun(runId);
+      await settleIfFinished(
+        deps.billing,
+        ownerOf(request),
+        runId,
+        run.projectId,
+        run.workspaceId,
+        run.state,
+      );
       reply.code(200);
-      return toRunPayload(manager.getRun(runId), deps.decisionSource);
+      return toRunPayload(run, deps.decisionSource);
     } catch (error) {
       const { status, body } = toHttpError(error);
       reply.code(status);
@@ -267,6 +330,17 @@ export function registerCodingRoutes(
       // Abort the model call itself: cancelling should stop the spend, not
       // just make the answer unread.
       deps.decisionSource?.abortRun(runId);
+      // Cancelling releases the hold rather than charging for a half-finished
+      // plan. The calls already made are still recorded as usage, but nothing
+      // is billed for work the caller stopped.
+      await settleIfFinished(
+        deps.billing,
+        ownerOf(request),
+        runId,
+        view.projectId,
+        view.workspaceId,
+        view.state,
+      );
       await captureRunEnd(captures, 'coding_after', view.projectId, view.workspaceId, view.state);
       reply.code(200);
       return toRunPayload(view, deps.decisionSource);
@@ -286,6 +360,16 @@ export function registerCodingRoutes(
       try {
         deps.runs.require(ownerOf(request), runId);
         const view = await manager.submitApproval(runId, decision);
+        // A rejection can end the run, and a resumed run finishes the plan it was
+        // already holding credit for; either way it is settled here.
+        await settleIfFinished(
+          deps.billing,
+          ownerOf(request),
+          runId,
+          view.projectId,
+          view.workspaceId,
+          view.state,
+        );
         await captureRunEnd(captures, 'coding_after', view.projectId, view.workspaceId, view.state);
         reply.code(200);
         return toRunPayload(view, deps.decisionSource);

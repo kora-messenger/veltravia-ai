@@ -49,6 +49,13 @@ export interface MessageCreditSummary {
     readonly credits: number;
     readonly refunded: number;
     readonly open: number;
+    readonly openCredits: number;
+    readonly tokens: {
+      readonly input: number;
+      readonly output: number;
+      readonly cached: number;
+      readonly uncached: number;
+    };
     readonly byKind: readonly { key: string; charges: number; credits: number }[];
   };
   readonly openReservations: readonly {

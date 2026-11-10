@@ -116,7 +116,6 @@ describeDb('message credits on postgres', () => {
       headers: as(ref),
       payload: { measurement },
     });
-    if (response.statusCode >= 400) console.log('COMMIT-ERR', response.body);
     return {
       status: response.statusCode,
       ...(response.json() as { charge: ChargeView; credits: number; aboveHold: number }),
@@ -459,6 +458,46 @@ describeDb('message credits on postgres', () => {
     expect((otherOwner.json() as { charges: ChargeView[] }).charges).toHaveLength(0);
   });
 
+  it('bills an unfunded workspace to the account holder, and a funded one to itself', async () => {
+    const owner = 'purse-owner';
+    await paidOwner(owner, 10);
+
+    // Nobody has ever put credit into 'ws-empty', so it is not a purse: charging
+    // it refused work the account could plainly afford.
+    const empty = await reserve(owner, {
+      idempotencyKey: 'purse-owner-empty',
+      workspaceId: 'ws-empty',
+    });
+    expect(empty.status).toBe(201);
+    expect(empty.charge.workspaceId).toBe('ws-empty');
+    await commit(owner, empty.charge.id, { inputTokens: 1, outputTokens: 1 });
+    expect((await balance(owner)).available).toBe(9);
+
+    // A funded workspace pays for its own work.
+    const grant = await app.inject({
+      method: 'POST',
+      url: '/api/wallet/credits',
+      headers: { ...walletOperator, ...as(owner) },
+      payload: {
+        ownerRef: owner,
+        workspaceId: 'ws-funded',
+        amount: 4,
+        reason: 'workspace funding',
+        idempotencyKey: 'purse-owner-funding',
+      },
+    });
+    expect(grant.statusCode).toBe(201);
+
+    const funded = await reserve(owner, {
+      idempotencyKey: 'purse-owner-funded',
+      workspaceId: 'ws-funded',
+    });
+    expect(funded.status).toBe(201);
+    await commit(owner, funded.charge.id, { inputTokens: 1, outputTokens: 1 });
+    expect((await balance(owner)).available).toBe(9);
+    expect((await balance(owner, '?workspaceId=ws-funded')).available).toBe(3);
+  });
+
   it('reports usage by model, project and conversation, and proves the ledger agrees', async () => {
     const owner = 'report-owner';
     await paidOwner(owner, 20);
@@ -568,6 +607,27 @@ describeDb('message credits on postgres', () => {
     const rows = (read.json() as { charges: (ChargeView & { cachedTokens: number | null })[] })
       .charges;
     expect(rows.find((row) => row.id === hold.charge.id)?.cachedTokens).toBe(6_000);
+
+    // The month view splits the input it measured into cached and uncached, and
+    // the two add back up to the input total.
+    const summary = await app.inject({
+      method: 'GET',
+      url: '/api/message-credits',
+      headers: as(owner),
+    });
+    expect(summary.statusCode).toBe(200);
+    const month = (
+      summary.json() as {
+        month: {
+          tokens: { input: number; output: number; cached: number; uncached: number };
+          open: number;
+          openCredits: number;
+        };
+      }
+    ).month;
+    expect(month.tokens).toEqual({ input: 10_000, output: 1_000, cached: 6_000, uncached: 4_000 });
+    expect(month.open).toBe(0);
+    expect(month.openCredits).toBe(0);
   });
 
   it('says a charge had no measurement rather than implying zero usage', async () => {

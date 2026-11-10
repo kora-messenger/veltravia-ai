@@ -96,6 +96,16 @@ export function createExecutionModelClient(
           maxOutputTokens: request.maxOutputTokens,
           temperature: request.temperature,
           stream: false,
+          // Billing for a coding run is one charge for the whole run, keyed by
+          // the run id the decision source already carries.
+          ...(request.correlationId !== undefined
+            ? {
+                charge: {
+                  kind: 'coding.run',
+                  operationId: request.correlationId,
+                },
+              }
+            : {}),
         });
       } catch (error) {
         throw new ModelCodingError(

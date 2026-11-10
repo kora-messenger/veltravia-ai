@@ -79,6 +79,7 @@ export function createModelCodingDecisionSource(options: ModelCodingOptions): Mo
             maxOutputTokens,
             temperature,
             signal: options.signalFor?.(context.runId),
+            correlationId: context.runId,
           });
         } catch (error) {
           if (error instanceof ModelCodingError) throw error;

@@ -93,7 +93,14 @@ export class InMemoryWorkerStore implements WorkerStore {
     const key = this.key(ownerRef, workerId);
     const existing = this.workers.get(key);
     if (existing === undefined) return;
-    this.workers.set(key, { ...existing, updatedAt });
+    // Keep the record's counter ahead of the log, exactly as the durable store
+    // does: a later save must not reuse a sequence number already written.
+    const highest = events.reduce((max, event) => Math.max(max, event.seq), 0);
+    this.workers.set(key, {
+      ...existing,
+      updatedAt,
+      eventSeq: Math.max(existing.eventSeq, highest),
+    });
     this.log.set(key, [...(this.log.get(key) ?? []), ...events]);
   }
 
