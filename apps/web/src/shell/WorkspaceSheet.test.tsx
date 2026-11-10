@@ -113,6 +113,20 @@ describe('the workspace sheet', () => {
     expect(document.querySelector('.v-sheet__skeleton')).toBeNull();
   });
 
+  it('keeps the card its shape when credits cannot be read, so the sheet does not shrink', async () => {
+    setup(() => Promise.reject(new Error('down')));
+    await screen.findByRole('alert');
+    const card = document.querySelector('.v-sheet__credits') as HTMLElement;
+    // The reference's sheet is sized by this card, so the head and the meter stay
+    // and only the figures go unknown. A bare sentence would collapse the sheet.
+    expect(card.querySelector('.v-sheet__credits-title')?.textContent).toBe('Credits');
+    expect(card.querySelectorAll('.v-sheet__meter')).toHaveLength(1);
+    expect(card.querySelector('.v-sheet__meter-label')?.textContent).toBe('Message credits');
+    expect(card.querySelector('.v-sheet__figure')?.textContent).toBe('—');
+    // Unknown is not zero: no track claims a value it cannot know.
+    expect(card.querySelector('[role="progressbar"]')).toBeNull();
+  });
+
   it('closes, then opens settings, from the Settings row', async () => {
     const props = setup(() => Promise.resolve(summary()));
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));

@@ -470,9 +470,31 @@ export function WorkspaceSheet({
                 <span className="v-sheet__bone v-sheet__bone--block" />
               </div>
             ) : credits.kind === 'error' ? (
-              <p className="v-sheet__credits-error" role="alert">
-                Credits could not be loaded. Close this and open it again to retry.
-              </p>
+              /* An unreachable API must not shrink the card to a sentence: the
+                 reference's sheet is sized by its credit card, so the card keeps
+                 its head and its meter with the figure unknown ("—" is not a
+                 number) and the reason sits underneath. */
+              <>
+                <div className="v-sheet__credits-head">
+                  <span className="v-sheet__credits-title">Credits</span>
+                  <span className="v-sheet__credits-renew">{renewalLabel(new Date())}</span>
+                </div>
+                <ul className="v-sheet__meters">
+                  <li className="v-sheet__meter">
+                    <div className="v-sheet__meter-row">
+                      <span className="v-sheet__meter-label">Message credits</span>
+                      <span className="v-sheet__figure">—</span>
+                    </div>
+                    <div className="v-sheet__meter-row v-sheet__meter-row--bar">
+                      <span className="v-sheet__track" aria-hidden="true" />
+                      <span className="v-sheet__figure">—</span>
+                    </div>
+                  </li>
+                </ul>
+                <p className="v-sheet__credits-error" role="alert">
+                  Credits could not be loaded. Close this and open it again to retry.
+                </p>
+              </>
             ) : (
               <>
                 <div className="v-sheet__credits-head">

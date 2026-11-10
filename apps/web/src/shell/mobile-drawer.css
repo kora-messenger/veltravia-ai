@@ -708,7 +708,11 @@
     inset: auto 0 0 0;
     display: flex;
     flex-direction: column;
-    max-height: calc(100% - 232px);
+    /* The reference leaves a small dimmed strip above the sheet, not a third of
+       the screen: with its sheet fully populated it stands 681dp tall on a
+       753dp page and reaches the top on taller ones. Hence a fixed 72dp gap
+       rather than the 232dp the earlier build reserved. */
+    max-height: calc(100% - 72px);
     background: var(--v-sheet-bg);
     color: var(--v-text);
     border-radius: 20px 20px 0 0;
@@ -857,7 +861,9 @@
     background: #bf2124;
   }
   .v-sheet__credits-error {
-    margin: 0;
+    margin: 10px 0 0;
+    padding-block-start: 10px;
+    border-block-start: 1px solid var(--v-sheet-inner-rule);
     font-size: 15px;
     line-height: 20px;
     color: var(--v-sheet-muted);

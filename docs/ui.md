@@ -1139,3 +1139,19 @@ puts it away rather than letting the card drift away from its row.
 
 The scrim behind the drawer measures 0.25 black in the reference (its page reads
 #BEBDBB once open), not the 0.45 built earlier.
+
+## The workspace sheet's height
+
+Measured from a capture of the reference with its sheet open: the sheet covers the
+page down to a 72dp dimmed strip and stands 681dp tall on a 753dp page. It is
+sized by its content, and its content is mostly the credit card, so the earlier
+`calc(100% - 232px)` cap was wrong twice over: it reserved a third of the screen
+for nothing and it clipped the sheet's own rows. The cap is now
+`calc(100% - 72px)`.
+
+Because the sheet's height is driven by the credit card, an unreadable card must
+not collapse into a sentence. When `/api/message-credits` fails the card keeps its
+head, its "Message credits" row and its track, with the figures printed as "—"
+(unknown, not zero: no progress bar claims a value) and the reason underneath.
+With that, the sheet stands at the reference's 681dp even on a deployment where
+credits cannot be read at all.
