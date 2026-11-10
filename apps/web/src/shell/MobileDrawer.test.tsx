@@ -64,11 +64,22 @@ describe('the website drawer', () => {
     setup();
     expect(screen.getByText('My Engineer')).toBeDefined();
     expect(screen.getByRole('button', { name: 'New conversation' })).toBeDefined();
-    const labels = Array.from(document.querySelectorAll('.v-drawer__label')).map(
-      (node) => node.textContent,
-    );
-    // No Chat row: the app already opens on the conversation.
-    expect(labels).toEqual(['Projects', 'App Builder', 'Files & artifacts', 'Dashboard', 'More']);
+    const labels = Array.from(
+      document.querySelectorAll('.v-drawer__list:not([hidden]) .v-drawer__row .v-drawer__label'),
+    ).map((node) => node.textContent);
+    // This list is the whole navigation, because the desktop shows this same
+    // panel: every page the app has is reachable from it.
+    expect(labels).toEqual([
+      'Chat',
+      'Projects',
+      'Dashboard',
+      'App Builder',
+      'Superagent operations',
+      'Model routing',
+      'Settings',
+    ]);
+    // "More" is a row of its own, outside the list, opening a card.
+    expect(screen.getByRole('button', { name: /More/ })).toBeDefined();
   });
 
   it('puts the conversations away when the heading is tapped, and turns the chevron', () => {

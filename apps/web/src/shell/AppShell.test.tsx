@@ -1,12 +1,35 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { AppShell } from './AppShell';
 
+/**
+ * jsdom has no layout, so the shell's "is this a wide screen" question is answered
+ * by the stub below. Tests that care about the phone assert narrow explicitly.
+ */
+function stubWidth(wide: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches: wide && query.includes('min-width: 1024px'),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })),
+  );
+}
+
+beforeEach(() => stubWidth(true));
+
 afterEach(() => {
   cleanup();
   window.location.hash = '';
+  vi.unstubAllGlobals();
 });
 
 function renderShell() {
@@ -20,7 +43,7 @@ function renderShell() {
 describe('AppShell', () => {
   it('renders the brand, primary navigation, and top bar', () => {
     renderShell();
-    expect(screen.getAllByText('Veltravia AI').length).toBeGreaterThan(0);
+    expect(screen.getByText('Veltravia')).toBeDefined();
     const nav = screen.getByRole('navigation', { name: 'Primary' });
     expect(nav).toBeDefined();
     for (const label of ['Dashboard', 'Projects', 'Settings']) {
@@ -121,16 +144,25 @@ describe('AppShell', () => {
     expect(screen.getByTestId('page-chat')).toBeDefined();
   });
 
-  it('collapses and expands the sidebar', () => {
+  it('stands the navigation open on a wide screen, with no hamburger asked for', () => {
     renderShell();
-    const toggle = screen.getByRole('button', { name: 'Collapse sidebar' });
-    fireEvent.click(toggle);
-    expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
-    expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toBeDefined();
+    const drawer = screen.getByTestId('mobile-drawer');
+    // One panel, two frames: wide, it is the page's column and cannot be closed.
+    expect(drawer.classList.contains('v-drawer--docked')).toBe(true);
+    expect(drawer.classList.contains('v-drawer--open')).toBe(true);
+    expect(drawer.querySelector('.v-drawer__scrim')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Close navigation' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Open navigation' })).toBeNull();
+  });
+
+  it('keeps the old rail out of the website build', () => {
+    renderShell();
+    expect(document.querySelector('.v-sidebar')).toBeNull();
+    expect(screen.queryByTestId('sidebar')).toBeNull();
   });
 
   it('opens the phone drawer, navigates from it, and closes via the scrim and Escape', () => {
+    stubWidth(false);
     renderShell();
     // The browser gets the website drawer; the packaged app keeps its own menu.
     const drawer = screen.getByTestId('mobile-drawer');
@@ -167,8 +199,10 @@ describe('AppShell', () => {
     ).toBe('page');
   });
 
-  it('navigates to the documents page from the sidebar', () => {
+  it('navigates to the documents page from the panel', () => {
     renderShell();
+    // The AI workspace group folds away; its rows appear once it is opened.
+    fireEvent.click(screen.getByRole('button', { name: /AI workspace/ }));
     fireEvent.click(screen.getByRole('link', { name: /Document intelligence/ }));
     expect(window.location.hash).toBe('#/documents');
     expect(screen.getByTestId('page-documents')).toBeDefined();

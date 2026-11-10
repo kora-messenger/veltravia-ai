@@ -8,656 +8,650 @@
    middle scrolls. */
 
 .v-drawer {
-  display: none;
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 62;
+  pointer-events: none;
+}
+.v-drawer--open {
+  pointer-events: auto;
 }
 
-@media (max-width: 900px) {
-  .v-drawer {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 62;
-    pointer-events: none;
-  }
-  .v-drawer--open {
-    pointer-events: auto;
-  }
+.v-drawer__scrim {
+  position: absolute;
+  inset: 0;
+  /* The reference dims the page to about a quarter, not half: its page reads
+     #BEBDBB once the drawer is open, which is 0.25 black over white. */
+  background: rgb(0 0 0 / 0.25);
+  opacity: 0;
+  transition: opacity 200ms ease-in;
+}
+.v-drawer--open .v-drawer__scrim {
+  opacity: 1;
+  transition: opacity 270ms ease-out;
+}
 
-  .v-drawer__scrim {
-    position: absolute;
-    inset: 0;
-    /* The reference dims the page to about a quarter, not half: its page reads
-       #BEBDBB once the drawer is open, which is 0.25 black over white. */
-    background: rgb(0 0 0 / 0.25);
-    opacity: 0;
-    transition: opacity 200ms ease-in;
-  }
-  .v-drawer--open .v-drawer__scrim {
-    opacity: 1;
-    transition: opacity 270ms ease-out;
-  }
+.v-drawer__panel {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: flex;
+  flex-direction: column;
+  width: 83%;
+  max-width: 380px;
+  background: var(--v-drawer-surface, var(--v-surface));
+  color: var(--v-text);
+  outline: none;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.18);
+  transform: translateX(-100%);
+  transition: transform 200ms cubic-bezier(0.4, 0, 1, 1);
+}
+.v-drawer--open .v-drawer__panel {
+  transform: translateX(0);
+  transition: transform 270ms cubic-bezier(0.18, 0.9, 0.3, 1.02);
+}
 
-  .v-drawer__panel {
-    position: absolute;
-    inset: 0 auto 0 0;
-    display: flex;
-    flex-direction: column;
-    width: 83%;
-    max-width: 380px;
-    background: var(--v-drawer-surface, var(--v-surface));
-    color: var(--v-text);
-    outline: none;
-    box-shadow: 0 12px 40px rgb(0 0 0 / 0.18);
-    transform: translateX(-100%);
-    transition: transform 200ms cubic-bezier(0.4, 0, 1, 1);
-  }
+/* --- pinned head: brand lockup, close, hairline ------------------------- */
+/* Measured off the reference head: the mark's ink starts 15dp below the
+   panel's top, the name sits 6dp to its right, and a hairline closes the
+   head 53dp down. The 32px box carries a 22dp mark, because the artwork
+   keeps about a third of its square empty, so 10dp of padding puts the ink
+   at 15dp. */
+.v-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  /* 8 + the 40dp close control + 4 puts the rule 53dp down the panel, where
+     the reference draws it, and centres the mark's ink at 17dp. */
+  padding: calc(var(--v-safe-top, 0px) + 8px) 10px 4px 24px;
+  border-bottom: 1px solid var(--v-drawer-line);
+}
+.v-drawer__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.v-drawer__wordmark {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+  color: var(--v-text);
+}
+.v-drawer__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--v-text);
+  cursor: pointer;
+}
+.v-drawer__close:active {
+  background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+}
+
+/* --- pinned top: the agent, and a new conversation ---------------------- */
+.v-drawer__pinned {
+  flex: none;
+  /* The card sits 13dp in from the panel's edge and 13dp below the head's
+     rule, both measured off the reference. */
+  padding: 13px 13px 10px;
+}
+/* The agent card, as the reference draws it: 316 x 42dp with 6dp corners and
+   a hairline border on the panel's own colour, a 26dp round avatar 13dp in,
+   and the name 62dp in from the card's left edge. */
+.v-drawer__agent {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  height: 42px;
+  padding: 0 12px 0 13px;
+  border: 1px solid var(--v-drawer-edge);
+  border-radius: 6px;
+  color: var(--v-text);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.v-drawer__agent:active {
+  background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+}
+.v-drawer__agent-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  /* The reference's avatar blue (#3950E5) is the app's own accent blue. */
+  background: #3b51e5;
+  color: #ffffff;
+}
+.v-drawer__agent-avatar .v-drawer__icon {
+  width: 14px;
+  height: 14px;
+}
+.v-drawer__agent-name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v-drawer__new {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 47px;
+  margin-top: 15px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--v-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.v-drawer__new:active {
+  background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+}
+.v-drawer__new-icon {
+  display: inline-flex;
+  color: var(--v-text);
+}
+.v-drawer__new-icon .v-drawer__icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* --- the scrolling middle ---------------------------------------------- */
+.v-drawer__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* room so the last row is never buried under the pinned footer */
+  padding-bottom: 12px;
+}
+
+.v-drawer__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.v-drawer__row {
+  display: flex;
+  align-items: center;
+  /* Reference row: icon 22dp in and 16dp wide, label box 46dp in. */
+  gap: 8px;
+  width: 100%;
+  min-height: 47px;
+  padding: 0 12px 0 22px;
+  border: 0;
+  background: transparent;
+  color: var(--v-text);
+  font: inherit;
+  font-size: 15px;
+  line-height: 20px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.v-drawer__row:active,
+.v-drawer__row--active {
+  background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+}
+.v-drawer__row--active {
+  font-weight: 600;
+}
+.v-drawer__icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.v-drawer__label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* --- "More": a popup card flying out under the row -------------------- */
+/* Measured off the reference capture (411dp wide): the card is 193dp across
+   and 6dp in from the panel's right edge, its three rows are 32dp tall on a
+   32dp pitch, the icons sit 20dp in and are 16dp wide, and the labels start
+   45dp in at 16px. Corners 8dp, white surface, soft shadow. */
+.v-drawer__more-wrap {
+  position: relative;
+}
+.v-drawer__chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--v-text);
+}
+.v-drawer__chevron .v-drawer__icon {
+  width: 18px;
+  height: 18px;
+}
+.v-drawer__more-item {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  /* 32dp rows on the reference's 32.1dp pitch; the card's 10dp padding puts
+     the first row's icon 18dp in and its label 45.5dp in. */
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--v-text);
+  font: inherit;
+  font-size: 15px;
+  line-height: 32px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.v-drawer__more-item:active,
+.v-drawer__more-item:hover {
+  background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+}
+.v-drawer__more-item--soon {
+  cursor: default;
+}
+.v-drawer__more-item--soon:active,
+.v-drawer__more-item--soon:hover {
+  background: transparent;
+}
+.v-drawer__more-icon {
+  display: inline-flex;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--v-text);
+}
+.v-drawer__more-icon .v-drawer__icon {
+  width: 14px;
+  height: 14px;
+}
+.v-drawer__more-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v-drawer__more-soon {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+  color: var(--v-text-muted);
+  font-size: 10px;
+  line-height: 16px;
+  letter-spacing: 0.01em;
+}
+
+/* --- a small card: a chat's own actions -------------------- */
+.v-drawer__card {
+  margin: 2px 12px 8px;
+  padding: 4px;
+  border: 1px solid var(--v-border, rgb(0 0 0 / 0.1));
+  border-radius: 8px;
+  background: var(--v-surface);
+  box-shadow: 0 10px 26px rgb(0 0 0 / 0.16);
+}
+.v-drawer__card--chat {
+  position: absolute;
+  top: 40px;
+  right: 14px;
+  z-index: 2;
+  width: 203px;
+  margin: 0;
+}
+.v-drawer__card--more {
+  /* Measured off the reference capture: 192.6dp wide, its top flush with the
+     More row's top, and its right edge 10.7dp from the screen edge, so the
+     card overhangs the panel and floats over the scrim. Hence fixed
+     positioning from coordinates measured against the row, not a child of it:
+     the list scrolls and would otherwise clip the overhang. */
+  position: fixed;
+  z-index: 3;
+  box-sizing: border-box;
+  width: 193px;
+  margin: 0;
+  /* 3 x 32dp rows plus 10dp either side = 116dp, the reference's card height. */
+  padding: 10px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--v-surface-raised);
+  box-shadow:
+    0 8px 22px rgb(0 0 0 / 0.1),
+    0 2px 6px rgb(0 0 0 / 0.05);
+}
+
+.v-drawer__card-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  /* 28dp, measured off the reference: its three rows sit on a ~30dp pitch with
+     the card 85.6dp tall on a 314dp panel, which is 93dp once scaled to this
+     panel's 341dp. The whole row is the target, edge to edge. */
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--v-text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.v-drawer__card-item:active {
+  background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+}
+.v-drawer__card-item--danger {
+  color: var(--v-danger, #b3261e);
+}
+.v-drawer__card-note {
+  margin: 4px 12px 6px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--v-text-muted);
+}
+
+/* --- conversations ----------------------------------------------------- */
+.v-drawer__chats {
+  margin-top: 14px;
+}
+.v-drawer__chats-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px 0 18px;
+}
+.v-drawer__chats-heading {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+/* The heading is the toggle, the way the reference does it: the chevron sits
+   right after the word, points down while the list is open and turns to the
+   right once it is put away. */
+.v-drawer__chats-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--v-text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.v-drawer__chats-chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--v-text);
+  transition: transform var(--v-dur-fast, 120ms) var(--v-ease-out, ease-out);
+}
+.v-drawer__chats-chevron--closed {
+  transform: rotate(-90deg);
+}
+.v-drawer__chats-chevron .v-drawer__icon {
+  width: 14px;
+  height: 14px;
+}
+.v-drawer__chats-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--v-text);
+  cursor: pointer;
+}
+.v-drawer__chats-action:active,
+.v-drawer__chats-action[aria-pressed='true'] {
+  background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+  color: var(--v-text);
+}
+.v-drawer__chats-action .v-drawer__icon {
+  width: 18px;
+  height: 18px;
+}
+.v-drawer__chats-empty {
+  margin: 6px 18px 10px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--v-text-muted);
+}
+
+.v-drawer__chat-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.v-drawer__chat {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.v-drawer__chat-open {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 47px;
+  padding: 0 4px 0 18px;
+  border: 0;
+  background: transparent;
+  color: var(--v-text);
+  font: inherit;
+  font-size: 15px;
+  line-height: 20px;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.v-drawer__chat-open:active {
+  background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+}
+.v-drawer__chat-dot {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1.7px dashed var(--v-text-muted);
+  border-radius: 50%;
+}
+.v-drawer__chat-title {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v-drawer__chat-tag {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+  font-size: 11px;
+  color: var(--v-text-muted);
+}
+.v-drawer__chat-menu {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-right: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--v-text-muted);
+  cursor: pointer;
+}
+.v-drawer__chat-menu:active {
+  background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+}
+
+.v-drawer__rename {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 18px;
+}
+.v-drawer__rename-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--v-border, rgb(0 0 0 / 0.15));
+  border-radius: 8px;
+  background: var(--v-surface);
+  color: var(--v-text);
+  font: inherit;
+  font-size: 14px;
+}
+.v-drawer__rename-save {
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--v-primary);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.v-drawer__see-all {
+  display: block;
+  width: calc(100% - 30px);
+  margin: 2px 12px 10px 18px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--v-primary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* --- pinned footer ----------------------------------------------------- */
+/* Measured off the reference footer: a hairline closes the scrolling middle,
+   then 80dp of footer holding a 43dp rounded square 13dp in, with the
+   workspace name and who is signed in stacked beside it. The footer sits on
+   the panel's own milk, not on a white bar, and its rule is the warm hairline
+   rather than the app's cool border. */
+.v-drawer__foot {
+  flex: none;
+  padding: 18px 13px calc(var(--v-safe-bottom, 0px) + 18px);
+  border-top: 1px solid var(--v-drawer-edge);
+  background: transparent;
+}
+.v-drawer__workspace {
+  display: flex;
+  align-items: center;
+  /* Avatar 12.8dp in, the name's first glyph 65.6dp in: 43dp tile, 8dp gap
+     and the glyph's own bearing make up the difference. */
+  gap: 8px;
+  padding: 0;
+  border-radius: 10px;
+  color: var(--v-text);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.v-drawer__workspace:active {
+  opacity: 0.72;
+}
+/* The reference's workspace tile: 43dp square, barely rounded (5dp), the
+   pale green it derives for this workspace, with the two letters in near
+   black at 13px. */
+.v-drawer__workspace-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 43px;
+  height: 43px;
+  border-radius: 5px;
+  background: #d9ecdd;
+  color: #0f0e0e;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+.v-drawer__workspace-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+/* Baselines 22dp apart in the reference (24px line + 20px line here),
+   caps 12.4dp and 10.8dp tall. */
+.v-drawer__workspace-name {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 24px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v-drawer__workspace-owner {
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--v-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v-drawer__scrim,
+  .v-drawer__panel,
+  .v-drawer--open .v-drawer__scrim,
   .v-drawer--open .v-drawer__panel {
-    transform: translateX(0);
-    transition: transform 270ms cubic-bezier(0.18, 0.9, 0.3, 1.02);
-  }
-
-  /* --- pinned head: brand lockup, close, hairline ------------------------- */
-  /* Measured off the reference head: the mark's ink starts 15dp below the
-     panel's top, the name sits 6dp to its right, and a hairline closes the
-     head 53dp down. The 32px box carries a 22dp mark, because the artwork
-     keeps about a third of its square empty, so 10dp of padding puts the ink
-     at 15dp. */
-  .v-drawer__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex: none;
-    /* 8 + the 40dp close control + 4 puts the rule 53dp down the panel, where
-       the reference draws it, and centres the mark's ink at 17dp. */
-    padding: calc(var(--v-safe-top, 0px) + 8px) 10px 4px 24px;
-    border-bottom: 1px solid var(--v-drawer-line);
-  }
-  .v-drawer__brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-  }
-  .v-drawer__wordmark {
-    font-size: 24px;
-    font-weight: 600;
-    line-height: 28px;
-    letter-spacing: -0.01em;
-    color: var(--v-text);
-  }
-  .v-drawer__close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    border: 0;
-    border-radius: 12px;
-    background: transparent;
-    color: var(--v-text);
-    cursor: pointer;
-  }
-  .v-drawer__close:active {
-    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
-  }
-
-  /* --- pinned top: the agent, and a new conversation ---------------------- */
-  .v-drawer__pinned {
-    flex: none;
-    /* The card sits 13dp in from the panel's edge and 13dp below the head's
-       rule, both measured off the reference. */
-    padding: 13px 13px 10px;
-  }
-  /* The agent card, as the reference draws it: 316 x 42dp with 6dp corners and
-     a hairline border on the panel's own colour, a 26dp round avatar 13dp in,
-     and the name 62dp in from the card's left edge. */
-  .v-drawer__agent {
-    display: flex;
-    align-items: center;
-    gap: 22px;
-    height: 42px;
-    padding: 0 12px 0 13px;
-    border: 1px solid var(--v-drawer-edge);
-    border-radius: 6px;
-    color: var(--v-text);
-    text-decoration: none;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .v-drawer__agent:active {
-    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
-  }
-  .v-drawer__agent-avatar {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    /* The reference's avatar blue (#3950E5) is the app's own accent blue. */
-    background: #3b51e5;
-    color: #ffffff;
-  }
-  .v-drawer__agent-avatar .v-drawer__icon {
-    width: 14px;
-    height: 14px;
-  }
-  .v-drawer__agent-name {
-    font-size: 15px;
-    font-weight: 600;
-    line-height: 20px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .v-drawer__new {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    height: 47px;
-    margin-top: 15px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: 12px;
-    background: transparent;
-    color: var(--v-text);
-    font: inherit;
-    font-size: 15px;
-    font-weight: 600;
-    text-align: left;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .v-drawer__new:active {
-    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
-  }
-  .v-drawer__new-icon {
-    display: inline-flex;
-    color: var(--v-text);
-  }
-  .v-drawer__new-icon .v-drawer__icon {
-    width: 16px;
-    height: 16px;
-  }
-
-  /* --- the scrolling middle ---------------------------------------------- */
-  .v-drawer__scroll {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    /* room so the last row is never buried under the pinned footer */
-    padding-bottom: 12px;
-  }
-
-  .v-drawer__list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .v-drawer__row {
-    display: flex;
-    align-items: center;
-    /* Reference row: icon 22dp in and 16dp wide, label box 46dp in. */
-    gap: 8px;
-    width: 100%;
-    min-height: 47px;
-    padding: 0 12px 0 22px;
-    border: 0;
-    background: transparent;
-    color: var(--v-text);
-    font: inherit;
-    font-size: 15px;
-    line-height: 20px;
-    text-align: left;
-    text-decoration: none;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .v-drawer__row:active,
-  .v-drawer__row--active {
-    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
-  }
-  .v-drawer__row--active {
-    font-weight: 600;
-  }
-  .v-drawer__icon {
-    flex: none;
-    width: 16px;
-    height: 16px;
-  }
-  .v-drawer__label {
-    flex: 1;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  /* --- "More": a popup card flying out under the row -------------------- */
-  /* Measured off the reference capture (411dp wide): the card is 193dp across
-     and 6dp in from the panel's right edge, its three rows are 32dp tall on a
-     32dp pitch, the icons sit 20dp in and are 16dp wide, and the labels start
-     45dp in at 16px. Corners 8dp, white surface, soft shadow. */
-  .v-drawer__more-wrap {
-    position: relative;
-  }
-  .v-drawer__chevron {
-    display: inline-flex;
-    flex: none;
-    color: var(--v-text);
-  }
-  .v-drawer__chevron .v-drawer__icon {
-    width: 18px;
-    height: 18px;
-  }
-  .v-drawer__more-item {
-    display: flex;
-    align-items: center;
-    gap: 13px;
-    width: 100%;
-    /* 32dp rows on the reference's 32.1dp pitch; the card's 10dp padding puts
-       the first row's icon 18dp in and its label 45.5dp in. */
-    height: 32px;
-    padding: 0 8px;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--v-text);
-    font: inherit;
-    font-size: 15px;
-    line-height: 32px;
-    text-align: left;
-    text-decoration: none;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .v-drawer__more-item:active,
-  .v-drawer__more-item:hover {
-    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
-  }
-  .v-drawer__more-item--soon {
-    cursor: default;
-  }
-  .v-drawer__more-item--soon:active,
-  .v-drawer__more-item--soon:hover {
-    background: transparent;
-  }
-  .v-drawer__more-icon {
-    display: inline-flex;
-    flex: none;
-    width: 14px;
-    height: 14px;
-    color: var(--v-text);
-  }
-  .v-drawer__more-icon .v-drawer__icon {
-    width: 14px;
-    height: 14px;
-  }
-  .v-drawer__more-label {
-    flex: 1;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .v-drawer__more-soon {
-    flex: none;
-    padding: 0 6px;
-    border-radius: 999px;
-    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
-    color: var(--v-text-muted);
-    font-size: 10px;
-    line-height: 16px;
-    letter-spacing: 0.01em;
-  }
-
-  /* --- a small card: a chat's own actions -------------------- */
-  .v-drawer__card {
-    margin: 2px 12px 8px;
-    padding: 4px;
-    border: 1px solid var(--v-border, rgb(0 0 0 / 0.1));
-    border-radius: 8px;
-    background: var(--v-surface);
-    box-shadow: 0 10px 26px rgb(0 0 0 / 0.16);
-  }
-  .v-drawer__card--chat {
-    position: absolute;
-    top: 40px;
-    right: 14px;
-    z-index: 2;
-    width: 203px;
-    margin: 0;
-  }
-  .v-drawer__card--more {
-    /* Measured off the reference capture: 192.6dp wide, its top flush with the
-       More row's top, and its right edge 10.7dp from the screen edge, so the
-       card overhangs the panel and floats over the scrim. Hence fixed
-       positioning from coordinates measured against the row, not a child of it:
-       the list scrolls and would otherwise clip the overhang. */
-    position: fixed;
-    z-index: 3;
-    box-sizing: border-box;
-    width: 193px;
-    margin: 0;
-    /* 3 x 32dp rows plus 10dp either side = 116dp, the reference's card height. */
-    padding: 10px;
-    border: 0;
-    border-radius: 10px;
-    background: var(--v-surface-raised);
-    box-shadow:
-      0 8px 22px rgb(0 0 0 / 0.1),
-      0 2px 6px rgb(0 0 0 / 0.05);
-  }
-
-  .v-drawer__card-item {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    /* 28dp, measured off the reference: its three rows sit on a ~30dp pitch with
-       the card 85.6dp tall on a 314dp panel, which is 93dp once scaled to this
-       panel's 341dp. The whole row is the target, edge to edge. */
-    height: 28px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--v-text);
-    font: inherit;
-    font-size: 14px;
-    text-align: left;
-    text-decoration: none;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .v-drawer__card-item:active {
-    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
-  }
-  .v-drawer__card-item--danger {
-    color: var(--v-danger, #b3261e);
-  }
-  .v-drawer__card-note {
-    margin: 4px 12px 6px;
-    font-size: 12px;
-    line-height: 16px;
-    color: var(--v-text-muted);
-  }
-
-  /* --- conversations ----------------------------------------------------- */
-  .v-drawer__chats {
-    margin-top: 14px;
-  }
-  .v-drawer__chats-head {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    padding: 0 8px 0 18px;
-  }
-  .v-drawer__chats-heading {
-    flex: 1;
-    min-width: 0;
-    margin: 0;
-  }
-  /* The heading is the toggle, the way the reference does it: the chevron sits
-     right after the word, points down while the list is open and turns to the
-     right once it is put away. */
-  .v-drawer__chats-title {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    max-width: 100%;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--v-text);
-    font: inherit;
-    font-size: 13px;
-    line-height: 18px;
-    font-weight: 600;
-    text-align: left;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .v-drawer__chats-chevron {
-    display: inline-flex;
-    flex: none;
-    color: var(--v-text);
-    transition: transform var(--v-dur-fast, 120ms) var(--v-ease-out, ease-out);
-  }
-  .v-drawer__chats-chevron--closed {
-    transform: rotate(-90deg);
-  }
-  .v-drawer__chats-chevron .v-drawer__icon {
-    width: 14px;
-    height: 14px;
-  }
-  .v-drawer__chats-action {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--v-text);
-    cursor: pointer;
-  }
-  .v-drawer__chats-action:active,
-  .v-drawer__chats-action[aria-pressed='true'] {
-    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
-    color: var(--v-text);
-  }
-  .v-drawer__chats-action .v-drawer__icon {
-    width: 18px;
-    height: 18px;
-  }
-  .v-drawer__chats-empty {
-    margin: 6px 18px 10px;
-    font-size: 13px;
-    line-height: 18px;
-    color: var(--v-text-muted);
-  }
-
-  .v-drawer__chat-list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .v-drawer__chat {
-    position: relative;
-    display: flex;
-    align-items: center;
-  }
-  .v-drawer__chat-open {
-    display: flex;
-    flex: 1;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-    min-height: 47px;
-    padding: 0 4px 0 18px;
-    border: 0;
-    background: transparent;
-    color: var(--v-text);
-    font: inherit;
-    font-size: 15px;
-    line-height: 20px;
-    text-align: left;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .v-drawer__chat-open:active {
-    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
-  }
-  .v-drawer__chat-dot {
-    flex: none;
-    width: 18px;
-    height: 18px;
-    border: 1.7px dashed var(--v-text-muted);
-    border-radius: 50%;
-  }
-  .v-drawer__chat-title {
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .v-drawer__chat-tag {
-    flex: none;
-    padding: 1px 6px;
-    border-radius: 6px;
-    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
-    font-size: 11px;
-    color: var(--v-text-muted);
-  }
-  .v-drawer__chat-menu {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    margin-right: 6px;
-    padding: 0;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--v-text-muted);
-    cursor: pointer;
-  }
-  .v-drawer__chat-menu:active {
-    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
-  }
-
-  .v-drawer__rename {
-    display: flex;
-    flex: 1;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 12px 6px 18px;
-  }
-  .v-drawer__rename-input {
-    flex: 1;
-    min-width: 0;
-    height: 34px;
-    padding: 0 10px;
-    border: 1px solid var(--v-border, rgb(0 0 0 / 0.15));
-    border-radius: 8px;
-    background: var(--v-surface);
-    color: var(--v-text);
-    font: inherit;
-    font-size: 14px;
-  }
-  .v-drawer__rename-save {
-    height: 34px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: 8px;
-    background: var(--v-primary);
-    color: #fff;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .v-drawer__see-all {
-    display: block;
-    width: calc(100% - 30px);
-    margin: 2px 12px 10px 18px;
-    padding: 8px 0;
-    border: 0;
-    background: transparent;
-    color: var(--v-primary);
-    font: inherit;
-    font-size: 14px;
-    font-weight: 600;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  /* --- pinned footer ----------------------------------------------------- */
-  /* Measured off the reference footer: a hairline closes the scrolling middle,
-     then 80dp of footer holding a 43dp rounded square 13dp in, with the
-     workspace name and who is signed in stacked beside it. The footer sits on
-     the panel's own milk, not on a white bar, and its rule is the warm hairline
-     rather than the app's cool border. */
-  .v-drawer__foot {
-    flex: none;
-    padding: 18px 13px calc(var(--v-safe-bottom, 0px) + 18px);
-    border-top: 1px solid var(--v-drawer-edge);
-    background: transparent;
-  }
-  .v-drawer__workspace {
-    display: flex;
-    align-items: center;
-    /* Avatar 12.8dp in, the name's first glyph 65.6dp in: 43dp tile, 8dp gap
-       and the glyph's own bearing make up the difference. */
-    gap: 8px;
-    padding: 0;
-    border-radius: 10px;
-    color: var(--v-text);
-    text-decoration: none;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .v-drawer__workspace:active {
-    opacity: 0.72;
-  }
-  /* The reference's workspace tile: 43dp square, barely rounded (5dp), the
-     pale green it derives for this workspace, with the two letters in near
-     black at 13px. */
-  .v-drawer__workspace-avatar {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-    width: 43px;
-    height: 43px;
-    border-radius: 5px;
-    background: #d9ecdd;
-    color: #0f0e0e;
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1;
-    letter-spacing: 0.01em;
-  }
-  .v-drawer__workspace-text {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-  /* Baselines 22dp apart in the reference (24px line + 20px line here),
-     caps 12.4dp and 10.8dp tall. */
-  .v-drawer__workspace-name {
-    font-size: 17px;
-    font-weight: 600;
-    line-height: 24px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .v-drawer__workspace-owner {
-    font-size: 15px;
-    line-height: 20px;
-    color: var(--v-text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .v-drawer__scrim,
-    .v-drawer__panel,
-    .v-drawer--open .v-drawer__scrim,
-    .v-drawer--open .v-drawer__panel {
-      transition: none;
-    }
+    transition: none;
   }
 }
 
@@ -671,350 +665,348 @@
   display: none;
 }
 
-@media (max-width: 900px) {
-  .v-drawer__workspace {
-    width: 100%;
-    border: 0;
-    background: transparent;
-    font: inherit;
-    text-align: start;
-    cursor: pointer;
-  }
+.v-drawer__workspace {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
 
-  .v-sheet {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 70;
-    pointer-events: none;
-  }
-  .v-sheet--open {
-    pointer-events: auto;
-  }
+.v-sheet {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+}
+.v-sheet--open {
+  pointer-events: auto;
+}
 
-  .v-sheet__scrim {
-    position: absolute;
-    inset: 0;
-    background: rgb(0 0 0 / 0.32);
-    opacity: 0;
-    transition: opacity 180ms ease-out;
-  }
-  .v-sheet--open .v-sheet__scrim {
-    opacity: 1;
-  }
+.v-sheet__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.32);
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+.v-sheet--open .v-sheet__scrim {
+  opacity: 1;
+}
 
-  .v-sheet__panel {
-    position: absolute;
-    inset: auto 0 0 0;
-    display: flex;
-    flex-direction: column;
-    /* The reference leaves a small dimmed strip above the sheet, not a third of
-       the screen: with its sheet fully populated it stands 681dp tall on a
-       753dp page and reaches the top on taller ones. Hence a fixed 72dp gap
-       rather than the 232dp the earlier build reserved. */
-    max-height: calc(100% - 72px);
-    background: var(--v-sheet-bg);
-    color: var(--v-text);
-    border-radius: 20px 20px 0 0;
-    outline: none;
-    transform: translateY(100%);
-    transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
-    padding-bottom: var(--v-safe-bottom, 0px);
-  }
-  .v-sheet--open .v-sheet__panel {
-    transform: translateY(0);
-  }
+.v-sheet__panel {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  flex-direction: column;
+  /* The reference leaves a small dimmed strip above the sheet, not a third of
+     the screen: with its sheet fully populated it stands 681dp tall on a
+     753dp page and reaches the top on taller ones. Hence a fixed 72dp gap
+     rather than the 232dp the earlier build reserved. */
+  max-height: calc(100% - 72px);
+  background: var(--v-sheet-bg);
+  color: var(--v-text);
+  border-radius: 20px 20px 0 0;
+  outline: none;
+  transform: translateY(100%);
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+  padding-bottom: var(--v-safe-bottom, 0px);
+}
+.v-sheet--open .v-sheet__panel {
+  transform: translateY(0);
+}
 
-  .v-sheet__handle {
-    flex: none;
-    inline-size: 40px;
-    block-size: 4px;
-    margin: 6px auto 0;
-    border-radius: 2px;
-    background: var(--v-sheet-handle);
-  }
+.v-sheet__handle {
+  flex: none;
+  inline-size: 40px;
+  block-size: 4px;
+  margin: 6px auto 0;
+  border-radius: 2px;
+  background: var(--v-sheet-handle);
+}
 
-  /* Workspace line: tile 28dp in from the edge, name 17px/600, plan 15px under it. */
-  .v-sheet__workspace {
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 30px 20px 23px 20px;
-    border-bottom: 1px solid var(--v-sheet-rule);
-  }
-  .v-sheet__tile {
-    flex: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    inline-size: 48px;
-    block-size: 48px;
-    border-radius: 5px;
-    background: #d9ecdd;
-    color: #0f0e0e;
-    font-size: 14px;
-    font-weight: 500;
-  }
-  .v-sheet__who {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    flex: 1;
-  }
-  .v-sheet__name {
-    font-size: 18px;
-    font-weight: 600;
-    line-height: 26px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .v-sheet__plan {
-    font-size: 16px;
-    line-height: 24px;
-    color: var(--v-text-muted);
-  }
-  .v-sheet__switch {
-    flex: none;
-    color: #1a1826;
-    display: inline-flex;
-  }
+/* Workspace line: tile 28dp in from the edge, name 17px/600, plan 15px under it. */
+.v-sheet__workspace {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 30px 20px 23px 20px;
+  border-bottom: 1px solid var(--v-sheet-rule);
+}
+.v-sheet__tile {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 48px;
+  block-size: 48px;
+  border-radius: 5px;
+  background: #d9ecdd;
+  color: #0f0e0e;
+  font-size: 14px;
+  font-weight: 500;
+}
+.v-sheet__who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.v-sheet__name {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 26px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v-sheet__plan {
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--v-text-muted);
+}
+.v-sheet__switch {
+  flex: none;
+  color: #1a1826;
+  display: inline-flex;
+}
 
-  .v-sheet__body {
-    overflow-y: auto;
-    padding: 0;
-  }
+.v-sheet__body {
+  overflow-y: auto;
+  padding: 0;
+}
 
-  /* Credit card: #F7F5F3, inset 18dp, 16dp padding, 8dp corners. */
-  .v-sheet__credits {
-    margin: 2px 18px 11px;
-    padding: 22px 16px 14px;
-    border-radius: 8px;
-    background: var(--v-sheet-card);
-    min-block-size: 120px;
-  }
-  .v-sheet__credits-head {
-    display: flex;
-    flex-direction: column;
-    margin-block-end: 6px;
-  }
-  .v-sheet__credits-title {
-    font-size: 17px;
-    line-height: 24px;
-    color: var(--v-sheet-muted);
-  }
-  .v-sheet__credits-renew {
-    margin-block-start: 6px;
-    font-size: 14px;
-    line-height: 20px;
-    color: var(--v-sheet-faint);
-  }
-  .v-sheet__meters {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .v-sheet__meter {
-    padding: 14px 0 8px;
-    border-block-start: 1px solid var(--v-sheet-inner-rule);
-  }
-  .v-sheet__meter:first-child {
-    border-block-start: 0;
-  }
-  .v-sheet__meter-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .v-sheet__meter-row--bar {
-    margin-block-start: 6px;
-  }
-  .v-sheet__meter-label {
-    font-size: 16px;
-    line-height: 22px;
-    color: var(--v-sheet-icon);
-  }
-  .v-sheet__figure {
-    flex: none;
-    font-size: 15px;
-    line-height: 20px;
-    color: var(--v-sheet-muted);
-    font-variant-numeric: tabular-nums;
-  }
-  .v-sheet__track {
-    flex: 1;
-    display: block;
-    block-size: 6px;
-    border-radius: 3px;
-    background: var(--v-sheet-track);
-    overflow: hidden;
-  }
-  .v-sheet__fill {
-    display: block;
-    block-size: 100%;
-    border-radius: 3px;
-    background: #ff6a00;
-  }
-  .v-sheet__fill--full {
-    background: #bf2124;
-  }
-  .v-sheet__credits-error {
-    margin: 10px 0 0;
-    padding-block-start: 10px;
-    border-block-start: 1px solid var(--v-sheet-inner-rule);
-    font-size: 15px;
-    line-height: 20px;
-    color: var(--v-sheet-muted);
-  }
+/* Credit card: #F7F5F3, inset 18dp, 16dp padding, 8dp corners. */
+.v-sheet__credits {
+  margin: 2px 18px 11px;
+  padding: 22px 16px 14px;
+  border-radius: 8px;
+  background: var(--v-sheet-card);
+  min-block-size: 120px;
+}
+.v-sheet__credits-head {
+  display: flex;
+  flex-direction: column;
+  margin-block-end: 6px;
+}
+.v-sheet__credits-title {
+  font-size: 17px;
+  line-height: 24px;
+  color: var(--v-sheet-muted);
+}
+.v-sheet__credits-renew {
+  margin-block-start: 6px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--v-sheet-faint);
+}
+.v-sheet__meters {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.v-sheet__meter {
+  padding: 14px 0 8px;
+  border-block-start: 1px solid var(--v-sheet-inner-rule);
+}
+.v-sheet__meter:first-child {
+  border-block-start: 0;
+}
+.v-sheet__meter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.v-sheet__meter-row--bar {
+  margin-block-start: 6px;
+}
+.v-sheet__meter-label {
+  font-size: 16px;
+  line-height: 22px;
+  color: var(--v-sheet-icon);
+}
+.v-sheet__figure {
+  flex: none;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--v-sheet-muted);
+  font-variant-numeric: tabular-nums;
+}
+.v-sheet__track {
+  flex: 1;
+  display: block;
+  block-size: 6px;
+  border-radius: 3px;
+  background: var(--v-sheet-track);
+  overflow: hidden;
+}
+.v-sheet__fill {
+  display: block;
+  block-size: 100%;
+  border-radius: 3px;
+  background: #ff6a00;
+}
+.v-sheet__fill--full {
+  background: #bf2124;
+}
+.v-sheet__credits-error {
+  margin: 10px 0 0;
+  padding-block-start: 10px;
+  border-block-start: 1px solid var(--v-sheet-inner-rule);
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--v-sheet-muted);
+}
 
-  /* Loading: four blocks measured at 2.628px/dp: 103x21 title, full-width line,
-     a thin rule, then a 30dp block. They share one animation so they breathe
-     together. */
-  /* Reference blocks run 12dp in from the card edge (x 30.1 to 381), wider than
-     the loaded content's 16dp padding, and the first starts 13dp below the card
-     top. Negative margins undo the card padding for this state only. */
-  .v-sheet__skeleton {
-    display: flex;
-    flex-direction: column;
-    margin: -9px -4px -2px;
-  }
-  .v-sheet__bone {
-    display: block;
-    border-radius: 6px;
-    background: var(--v-sheet-bone-b);
-    animation: v-sheet-breathe 2s ease-in-out infinite;
-  }
-  .v-sheet__bone--title {
-    inline-size: 103px;
-    block-size: 21px;
-  }
-  .v-sheet__bone--line {
-    block-size: 17px;
-    margin-block-start: 13px;
-  }
-  .v-sheet__bone--thin {
-    block-size: 9px;
-    border-radius: 3px;
-    margin-block-start: 7px;
-  }
-  .v-sheet__bone--block {
-    block-size: 30px;
-    margin-block-start: 13px;
-  }
+/* Loading: four blocks measured at 2.628px/dp: 103x21 title, full-width line,
+   a thin rule, then a 30dp block. They share one animation so they breathe
+   together. */
+/* Reference blocks run 12dp in from the card edge (x 30.1 to 381), wider than
+   the loaded content's 16dp padding, and the first starts 13dp below the card
+   top. Negative margins undo the card padding for this state only. */
+.v-sheet__skeleton {
+  display: flex;
+  flex-direction: column;
+  margin: -9px -4px -2px;
+}
+.v-sheet__bone {
+  display: block;
+  border-radius: 6px;
+  background: var(--v-sheet-bone-b);
+  animation: v-sheet-breathe 2s ease-in-out infinite;
+}
+.v-sheet__bone--title {
+  inline-size: 103px;
+  block-size: 21px;
+}
+.v-sheet__bone--line {
+  block-size: 17px;
+  margin-block-start: 13px;
+}
+.v-sheet__bone--thin {
+  block-size: 9px;
+  border-radius: 3px;
+  margin-block-start: 7px;
+}
+.v-sheet__bone--block {
+  block-size: 30px;
+  margin-block-start: 13px;
+}
 
-  .v-sheet__section {
-    padding: 10px 20px 12px;
-    font-size: 16px;
-    line-height: 22px;
-    color: var(--v-text-muted);
-    border-block-start: 1px solid var(--v-sheet-rule);
-  }
-  .v-sheet__item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    inline-size: 100%;
-    padding: 0 20px;
-    block-size: 52px;
-    border: 0;
-    background: transparent;
-    font: inherit;
-    font-size: 16px;
-    color: var(--v-sheet-icon);
-    text-align: start;
-    cursor: pointer;
-  }
-  .v-sheet__item:active {
-    background: var(--v-sheet-active);
-  }
-  .v-sheet__item--static {
-    cursor: default;
-  }
-  .v-sheet__item--static:active {
-    background: transparent;
-  }
-  .v-sheet__item-icon {
-    display: inline-flex;
-    flex: none;
-    color: var(--v-sheet-icon);
-  }
-  .v-sheet__item-label {
-    flex: 1;
-    min-inline-size: 0;
-  }
-  .v-sheet__chevron {
-    flex: none;
-    display: inline-flex;
-    color: var(--v-sheet-muted);
-  }
-  .v-sheet__value {
-    flex: none;
-    font-size: 15px;
-    color: var(--v-sheet-muted);
-  }
-  /* A row the reference has and this build does not: labelled, never silent, and
-     never pretending a tap changed anything. */
-  .v-sheet__item--soon .v-sheet__item-label {
-    color: var(--v-sheet-muted);
-  }
-  .v-sheet__soon {
-    flex: none;
-    padding: 3px 8px;
-    border-radius: 999px;
-    border: 1px solid var(--v-sheet-rule);
-    font-size: 12px;
-    line-height: 1.4;
-    color: var(--v-sheet-muted);
-  }
-  .v-sheet__soon-body {
-    margin: 0;
-    font-size: 14px;
-    line-height: 21px;
-    color: var(--v-text-muted);
-  }
-  .v-sheet__rule {
-    block-size: 1px;
-    background: var(--v-sheet-rule);
-    margin: 6px 0 0;
-  }
-  .v-sheet__identity {
-    margin: 0;
-    padding: 14px 20px 6px;
-    font-size: 15px;
-    line-height: 20px;
-    color: var(--v-sheet-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+.v-sheet__section {
+  padding: 10px 20px 12px;
+  font-size: 16px;
+  line-height: 22px;
+  color: var(--v-text-muted);
+  border-block-start: 1px solid var(--v-sheet-rule);
+}
+.v-sheet__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  inline-size: 100%;
+  padding: 0 20px;
+  block-size: 52px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  color: var(--v-sheet-icon);
+  text-align: start;
+  cursor: pointer;
+}
+.v-sheet__item:active {
+  background: var(--v-sheet-active);
+}
+.v-sheet__item--static {
+  cursor: default;
+}
+.v-sheet__item--static:active {
+  background: transparent;
+}
+.v-sheet__item-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--v-sheet-icon);
+}
+.v-sheet__item-label {
+  flex: 1;
+  min-inline-size: 0;
+}
+.v-sheet__chevron {
+  flex: none;
+  display: inline-flex;
+  color: var(--v-sheet-muted);
+}
+.v-sheet__value {
+  flex: none;
+  font-size: 15px;
+  color: var(--v-sheet-muted);
+}
+/* A row the reference has and this build does not: labelled, never silent, and
+   never pretending a tap changed anything. */
+.v-sheet__item--soon .v-sheet__item-label {
+  color: var(--v-sheet-muted);
+}
+.v-sheet__soon {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--v-sheet-rule);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--v-sheet-muted);
+}
+.v-sheet__soon-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 21px;
+  color: var(--v-text-muted);
+}
+.v-sheet__rule {
+  block-size: 1px;
+  background: var(--v-sheet-rule);
+  margin: 6px 0 0;
+}
+.v-sheet__identity {
+  margin: 0;
+  padding: 14px 20px 6px;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--v-sheet-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  /* Appearance: three segments, 28dp tall, the chosen one in the surface tone. */
-  .v-sheet__segmented {
-    display: inline-flex;
-    flex: none;
-    padding: 2px;
-    border-radius: 8px;
-    background: var(--v-sheet-seg-bg);
-  }
-  .v-sheet__segment {
-    border: 0;
-    background: transparent;
-    font: inherit;
-    font-size: 13px;
-    line-height: 1;
-    padding: 7px 10px;
-    border-radius: 6px;
-    color: var(--v-sheet-muted);
-    cursor: pointer;
-  }
-  .v-sheet__segment--on {
-    background: var(--v-sheet-seg-on);
-    color: var(--v-sheet-icon);
-    font-weight: 600;
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
-  }
+/* Appearance: three segments, 28dp tall, the chosen one in the surface tone. */
+.v-sheet__segmented {
+  display: inline-flex;
+  flex: none;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--v-sheet-seg-bg);
+}
+.v-sheet__segment {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: var(--v-sheet-muted);
+  cursor: pointer;
+}
+.v-sheet__segment--on {
+  background: var(--v-sheet-seg-on);
+  color: var(--v-sheet-icon);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
 }
 
 @keyframes v-sheet-breathe {
@@ -1040,4 +1032,86 @@
   .v-sheet__scrim {
     transition: none;
   }
+}
+
+/* ----- The workspace sheet on a wide screen: the same card, not a banner ----- */
+/* Its rows were measured at 351dp wide, so it keeps that width and anchors to the
+   foot of the column it opens from instead of stretching across the window. */
+@media (min-width: 1024px) {
+  .v-sheet__panel {
+    inset: auto auto 16px 16px;
+    inline-size: 351px;
+    max-block-size: min(681px, calc(100% - 32px));
+    border-radius: 20px;
+    box-shadow: 0 18px 48px rgb(0 0 0 / 0.18);
+  }
+}
+
+/* ------------------- Docked: the same panel on a wide screen ------------------ */
+/* The website's desktop navigation is this panel standing open as a column, not a
+   second design: the reference's desktop has the same rows, the same conversations
+   and the same workspace footer as its phone drawer. Only the frame changes. */
+@media (min-width: 1024px) {
+  .v-drawer--docked {
+    position: sticky;
+    top: 0;
+    inset: auto;
+    z-index: 1;
+    display: block;
+    flex: none;
+    inline-size: 280px;
+    block-size: 100dvh;
+    pointer-events: auto;
+  }
+  .v-drawer--docked .v-drawer__scrim {
+    display: none;
+  }
+  .v-drawer--docked .v-drawer__panel {
+    position: static;
+    inline-size: 100%;
+    max-inline-size: none;
+    block-size: 100%;
+    box-shadow: none;
+    border-inline-end: 1px solid var(--v-border);
+    transform: none;
+    transition: none;
+  }
+  /* Nothing to close: the column is part of the page, not over it. */
+  .v-drawer--docked .v-drawer__close {
+    display: none;
+  }
+  /* The head keeps its rule, and without the close control the brand sits on the
+     same line by padding rather than by a taller neighbour. */
+  .v-drawer--docked .v-drawer__head {
+    padding: calc(var(--v-safe-top, 0px) + 15px) 24px 9px;
+  }
+}
+
+/* --- AI workspace: a labelled group of rows that folds away ------------- */
+.v-drawer__group {
+  margin-block-start: 4px;
+}
+.v-drawer__group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px 0 22px;
+  border: 0;
+  background: transparent;
+  color: var(--v-text-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.v-drawer__group-label {
+  flex: 1;
+  text-align: start;
+}
+.v-drawer__chevron--closed {
+  transform: rotate(-90deg);
 }

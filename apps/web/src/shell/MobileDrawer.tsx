@@ -11,7 +11,7 @@ import {
   restoreConversation,
   type ConversationRecord,
 } from '../pages/chat/conversations';
-import { ROUTES, type RouteDef } from './useHashRoute';
+import { AI_WORKSPACE_IDS, AI_WORKSPACE_LABEL, ROUTES, type RouteDef } from './useHashRoute';
 import { WorkspaceSheet } from './WorkspaceSheet';
 import { workspaceInitials } from './workspace-initials';
 
@@ -39,7 +39,20 @@ import { workspaceInitials } from './workspace-initials';
 const MORE_CARD_WIDTH = 193;
 const MORE_CARD_INSET = 11;
 
-const PRIMARY_IDS = ['projects', 'builder', 'files', 'dashboard'] as const;
+/**
+ * Every destination the panel carries, in the order a person reaches for them.
+ * This list is the whole navigation now that the desktop shows the same panel,
+ * so it is the old sidebar's everyday set plus the ones the drawer had.
+ */
+const PRIMARY_IDS = [
+  'chat',
+  'projects',
+  'dashboard',
+  'builder',
+  'operations',
+  'model-routing',
+  'settings',
+] as const;
 
 const glyph = (children: ReactNode) => (
   <svg viewBox="0 0 24 24" className="v-drawer__icon" aria-hidden="true">
@@ -198,6 +211,12 @@ const DOTS_GLYPH = (
 
 export interface MobileDrawerProps {
   readonly open: boolean;
+  /**
+   * Stands open as the page's own column instead of sliding over it. The website
+   * uses one panel for both: on a wide screen the same rows, conversations and
+   * workspace footer are the desktop navigation, so the two can never drift.
+   */
+  readonly docked?: boolean;
   readonly activeRouteId: string;
   readonly onNavigate: (route: RouteDef) => void;
   readonly onNewChat: () => void;
@@ -209,6 +228,15 @@ const routeById = (id: string): RouteDef | null => ROUTES.find((route) => route.
 
 /** The destinations a person reaches for daily, resolved from the one route list. */
 const primaryRoutes = PRIMARY_IDS.flatMap((id) => routeById(id) ?? []);
+
+/**
+ * The AI workspace group, as the desktop rail used to show it. Files and the App
+ * Builder are already rows of their own (and Files also sits behind More), so the
+ * group carries the rest rather than listing one page three times.
+ */
+const AI_ROWS = AI_WORKSPACE_IDS.filter(
+  (id) => !(PRIMARY_IDS as readonly string[]).includes(id) && id !== 'files',
+).flatMap((id) => routeById(id) ?? []);
 
 /**
  * What the reference keeps behind "More": Files, Memory and Data, in that order,
@@ -228,6 +256,7 @@ type MenuState =
 
 export function MobileDrawer({
   open,
+  docked = false,
   activeRouteId,
   onNavigate,
   onNewChat,
@@ -242,6 +271,7 @@ export function MobileDrawer({
   const [showArchived, setShowArchived] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [chatsOpen, setChatsOpen] = useState(true);
+  const [aiOpen, setAiOpen] = useState(false);
   const [menu, setMenu] = useState<MenuState>({ kind: 'none' });
   const [moreOpen, setMoreOpen] = useState(false);
   /** The popup's anchor in viewport coordinates. The reference floats the card
@@ -253,11 +283,15 @@ export function MobileDrawer({
   const moreButton = useRef<HTMLButtonElement>(null);
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
 
+  // Docked, the panel is simply part of the page: it is never closed and never
+  // takes focus on its own.
+  const isOpen = docked || open;
+
   // Opening hands focus to the panel so a keyboard or screen reader lands inside
   // it; closing is left to Escape or the scrim, as the shell already does.
   useEffect(() => {
-    if (open) panel.current?.focus();
-  }, [open]);
+    if (open && !docked) panel.current?.focus();
+  }, [open, docked]);
 
   // A closed drawer starts clean: nothing half-open waits for the next visit.
   useEffect(() => {
@@ -266,6 +300,7 @@ export function MobileDrawer({
       setMoreOpen(false);
       setRenaming(null);
       setExpanded(false);
+      setAiOpen(false);
     }
   }, [open]);
 
@@ -297,7 +332,12 @@ export function MobileDrawer({
       if (row === undefined) return;
       setMoreAnchor({
         top: Math.round(row.top),
-        left: Math.round(window.innerWidth - MORE_CARD_INSET - MORE_CARD_WIDTH),
+        // Over the page the card flies out past the panel's edge, as the
+        // reference does. Docked, the panel is a column of the page, so the card
+        // sits under its row instead of escaping to the window's edge.
+        left: docked
+          ? Math.round(row.left + 12)
+          : Math.round(window.innerWidth - MORE_CARD_INSET - MORE_CARD_WIDTH),
       });
     };
     // Scrolling the list would leave the card behind its row, so scrolling puts
@@ -315,7 +355,7 @@ export function MobileDrawer({
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [moreOpen]);
+  }, [moreOpen, docked]);
 
   const visible = conversations.filter((record) => showArchived || !record.archived);
   const shown = expanded ? visible : visible.slice(0, RECENT_LIMIT);
@@ -478,6 +518,10 @@ export function MobileDrawer({
     );
   };
 
+  // A page inside the group keeps it open, so arriving on one never hides the row
+  // that is marked as current.
+  const aiExpanded = aiOpen || AI_ROWS.some((route) => route.id === activeRouteId);
+
   const ownerName = profile.ownerName;
   const workspaceName =
     ownerName === null || ownerName.trim() === ''
@@ -485,16 +529,21 @@ export function MobileDrawer({
       : `${ownerName.trim().split(/\s+/)[0]}'s workspace`;
 
   return (
-    <div className={open ? 'v-drawer v-drawer--open' : 'v-drawer'} data-testid="mobile-drawer">
-      <div className="v-drawer__scrim" onClick={onClose} aria-hidden="true" />
+    <div
+      className={['v-drawer', isOpen ? 'v-drawer--open' : '', docked ? 'v-drawer--docked' : '']
+        .filter(Boolean)
+        .join(' ')}
+      data-testid="mobile-drawer"
+    >
+      {docked ? null : <div className="v-drawer__scrim" onClick={onClose} aria-hidden="true" />}
       <nav
         ref={panel}
         className="v-drawer__panel"
         aria-label="Primary"
-        aria-hidden={!open}
+        aria-hidden={!isOpen}
         tabIndex={-1}
         // A closed drawer must not be reachable by Tab or a screen reader.
-        inert={!open ? true : undefined}
+        inert={!isOpen ? true : undefined}
       >
         <header className="v-drawer__head">
           {/* The reference head is a brand lockup, not a lone mark: the mark, a
@@ -503,14 +552,16 @@ export function MobileDrawer({
             <BrandMark size={32} decorative />
             <span className="v-drawer__wordmark">Veltravia</span>
           </span>
-          <button
-            type="button"
-            className="v-drawer__close"
-            aria-label="Close navigation"
-            onClick={onClose}
-          >
-            {CLOSE_GLYPH}
-          </button>
+          {docked ? null : (
+            <button
+              type="button"
+              className="v-drawer__close"
+              aria-label="Close navigation"
+              onClick={onClose}
+            >
+              {CLOSE_GLYPH}
+            </button>
+          )}
         </header>
 
         <div className="v-drawer__pinned">
@@ -536,6 +587,28 @@ export function MobileDrawer({
 
         <div className="v-drawer__scroll">
           <ul className="v-drawer__list">{primaryRoutes.map(row)}</ul>
+
+          <section className="v-drawer__group" aria-label={AI_WORKSPACE_LABEL}>
+            <button
+              type="button"
+              className="v-drawer__group-toggle"
+              aria-expanded={aiExpanded}
+              aria-controls="v-drawer-ai"
+              onClick={() => setAiOpen((value) => !value)}
+            >
+              <span className="v-drawer__group-label">{AI_WORKSPACE_LABEL}</span>
+              <span
+                className={
+                  aiExpanded ? 'v-drawer__chevron' : 'v-drawer__chevron v-drawer__chevron--closed'
+                }
+              >
+                {CHEVRON_GLYPH}
+              </span>
+            </button>
+            <ul id="v-drawer-ai" className="v-drawer__list" hidden={!aiExpanded}>
+              {AI_ROWS.map(row)}
+            </ul>
+          </section>
 
           <div className="v-drawer__more-wrap" ref={moreWrap}>
             <button
@@ -691,7 +764,7 @@ export function MobileDrawer({
         </footer>
       </nav>
       <WorkspaceSheet
-        open={open && sheetOpen}
+        open={isOpen && sheetOpen}
         workspaceName={workspaceName}
         onClose={() => setSheetOpen(false)}
         onOpenSettings={() => {
