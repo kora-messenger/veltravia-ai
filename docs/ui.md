@@ -111,8 +111,9 @@ The web app is a rendering surface only:
 
 1. No credential material (tokens, API keys, secrets, private keys) may
    live in React state, localStorage, sessionStorage, source, HTML, URL
-   parameters, or browser-visible API responses. The only localStorage key
-   used today is the theme preference.
+   parameters, or browser-visible API responses. localStorage holds exactly
+   two things: the theme preference, and the browser's saved conversations
+   (a title, the turns, a timestamp — no credentials, no run records).
 2. Future integrations render credential REFERENCES and connection status
    (`StatusIndicator`/`Badge`), never raw credentials.
 3. Unimplemented backend features are rendered as clearly-unavailable UI
@@ -981,3 +982,42 @@ says so rather than failing quietly.
 
 Below the reference's three rows sit the actions this product actually has: new
 conversation, projects, app builder, model settings.
+
+## The website navigation drawer
+
+The browser gets a drawer of its own (`shell/MobileDrawer.tsx`); the packaged
+app keeps the older menu (`shell/MobileMenu.tsx`), chosen by `isPackagedApp()`
+rather than by width, because the two are built differently.
+
+The drawer is three zones, not one scrolling column: a pinned head (mark and a
+close control — no back arrow), a pinned top (the agent row and "New
+conversation"), a scrolling middle (the destinations, then the conversation
+list), and a pinned footer (the workspace). That is what the reference capture
+does: the head and footer hold still while the middle scrolls under them.
+
+Sizes are measured from the captures rather than chosen: the panel is 83% of
+the viewport (343dp of 411dp), rows are 47dp with labels 47dp in from the
+panel's left edge, and a row's own menu is a white card 203 × 120dp with 32dp
+rows and 8dp corners. The five everyday destinations stay on the list; the rest
+live behind **More**, which opens a separate small card rather than expanding
+inline. There is no upgrade card while the product is free.
+
+## Saved conversations (browser only)
+
+`pages/chat/conversations.ts` is the whole store: finished turns are written to
+localStorage under the words that started them, newest first, and one
+conversation is at most `MAX_TURNS` long. The drawer lists them, a row reopens
+the thread through the `veltravia:open-conversation` event (the chat page is the
+only thing that owns a thread), and a row's three-dot card does Rename
+(inline), Archive (hidden from the list, visible through the filter, restorable)
+and Delete (confirmed first). The list shows nine rows and offers "See all..."
+only when there are more than nine. Nothing here is on the server: another
+device, another browser profile, or cleared site data starts empty.
+
+The chat landing follows the reference too: the ways in are two stacked lines
+against the type box (icon, sentence, coloured action, close) rather than chips
+in the middle of the screen, the welcome is a headline again (its widest line
+337.6dp against the reference's 338dp, mark 72dp), and `index.html` sets
+`interactive-widget=resizes-content` so the keyboard shrinks the layout instead
+of covering it: the tips and the box rise together and the welcome scrolls out
+behind them.
