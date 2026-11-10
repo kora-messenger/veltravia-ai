@@ -100,6 +100,24 @@ describe('the website drawer', () => {
     expect(items.map((item) => item.textContent)).toEqual(['Files', 'MemorySoon', 'DataSoon']);
   });
 
+  it('floats the card at the reference corner: flush with the row, against the screen edge', () => {
+    setup();
+    document.querySelector('.v-drawer__scroll')?.scrollTo?.(0, 0);
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    const card = screen.getByRole('menu', { name: 'More' }) as HTMLElement;
+    // 193dp wide, 11dp from the screen edge, so it overhangs the 380dp panel.
+    expect(card.style.left).toBe(`${window.innerWidth - 11 - 193}px`);
+    expect(card.style.top).toBe('0px');
+  });
+
+  it('puts the card away when the list scrolls, rather than leaving it behind', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    expect(screen.queryByRole('menu')).not.toBeNull();
+    fireEvent.scroll(document.querySelector('.v-drawer__scroll') as HTMLElement);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
   it('sends Files to the files screen and closes the drawer', () => {
     const { props } = setup();
     fireEvent.click(screen.getByRole('button', { name: 'More' }));

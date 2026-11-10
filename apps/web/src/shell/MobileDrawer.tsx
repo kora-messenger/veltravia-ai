@@ -35,6 +35,10 @@ import { workspaceInitials } from './workspace-initials';
  */
 
 /** The everyday destinations, in the order the desktop sidebar lists them. */
+/** The reference's popup is 192.6dp wide and sits 10.7dp from the screen edge. */
+const MORE_CARD_WIDTH = 193;
+const MORE_CARD_INSET = 11;
+
 const PRIMARY_IDS = ['projects', 'builder', 'files', 'dashboard'] as const;
 
 const glyph = (children: ReactNode) => (
@@ -240,6 +244,10 @@ export function MobileDrawer({
   const [chatsOpen, setChatsOpen] = useState(true);
   const [menu, setMenu] = useState<MenuState>({ kind: 'none' });
   const [moreOpen, setMoreOpen] = useState(false);
+  /** The popup's anchor in viewport coordinates. The reference floats the card
+   *  outside the panel's edge, so it cannot be laid out by the row it belongs
+   *  to; its corner is measured from the row instead. */
+  const [moreAnchor, setMoreAnchor] = useState<{ top: number; left: number } | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const moreWrap = useRef<HTMLDivElement>(null);
   const moreButton = useRef<HTMLButtonElement>(null);
@@ -284,9 +292,26 @@ export function MobileDrawer({
       setMoreOpen(false);
       moreButton.current?.focus();
     };
+    const place = () => {
+      const row = moreButton.current?.getBoundingClientRect();
+      if (row === undefined) return;
+      setMoreAnchor({
+        top: Math.round(row.top),
+        left: Math.round(window.innerWidth - MORE_CARD_INSET - MORE_CARD_WIDTH),
+      });
+    };
+    // Scrolling the list would leave the card behind its row, so scrolling puts
+    // it away rather than letting the two drift apart.
+    const scroller = moreWrap.current?.closest('.v-drawer__scroll');
+    const onScroll = () => setMoreOpen(false);
+    place();
+    window.addEventListener('resize', place);
+    scroller?.addEventListener('scroll', onScroll, { passive: true });
     document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
     return () => {
+      window.removeEventListener('resize', place);
+      scroller?.removeEventListener('scroll', onScroll);
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
@@ -527,7 +552,16 @@ export function MobileDrawer({
             </button>
 
             {moreOpen ? (
-              <div className="v-drawer__card v-drawer__card--more" role="menu" aria-label="More">
+              <div
+                className="v-drawer__card v-drawer__card--more"
+                role="menu"
+                aria-label="More"
+                style={
+                  moreAnchor === null
+                    ? undefined
+                    : { top: `${moreAnchor.top}px`, left: `${moreAnchor.left}px` }
+                }
+              >
                 {MORE_ITEMS.map((item) =>
                   item.routeId === null ? (
                     <button

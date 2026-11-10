@@ -26,7 +26,9 @@
   .v-drawer__scrim {
     position: absolute;
     inset: 0;
-    background: rgb(0 0 0 / 0.45);
+    /* The reference dims the page to about a quarter, not half: its page reads
+       #BEBDBB once the drawer is open, which is 0.25 black over white. */
+    background: rgb(0 0 0 / 0.25);
     opacity: 0;
     transition: opacity 200ms ease-in;
   }
@@ -255,16 +257,18 @@
   .v-drawer__more-item {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 13px;
     width: 100%;
+    /* 32dp rows on the reference's 32.1dp pitch; the card's 10dp padding puts
+       the first row's icon 18dp in and its label 45.5dp in. */
     height: 32px;
-    padding: 0 12px 0 20px;
+    padding: 0 8px;
     border: 0;
     border-radius: 6px;
     background: transparent;
     color: var(--v-text);
     font: inherit;
-    font-size: 16px;
+    font-size: 15px;
     line-height: 32px;
     text-align: left;
     text-decoration: none;
@@ -285,13 +289,13 @@
   .v-drawer__more-icon {
     display: inline-flex;
     flex: none;
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     color: var(--v-text);
   }
   .v-drawer__more-icon .v-drawer__icon {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
   }
   .v-drawer__more-label {
     flex: 1;
@@ -306,8 +310,8 @@
     border-radius: 999px;
     background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
     color: var(--v-text-muted);
-    font-size: 11px;
-    line-height: 18px;
+    font-size: 10px;
+    line-height: 16px;
     letter-spacing: 0.01em;
   }
 
@@ -329,23 +333,26 @@
     margin: 0;
   }
   .v-drawer__card--more {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 6px;
+    /* Measured off the reference capture: 192.6dp wide, its top flush with the
+       More row's top, and its right edge 10.7dp from the screen edge, so the
+       card overhangs the panel and floats over the scrim. Hence fixed
+       positioning from coordinates measured against the row, not a child of it:
+       the list scrolls and would otherwise clip the overhang. */
+    position: fixed;
     z-index: 3;
     box-sizing: border-box;
     width: 193px;
     margin: 0;
-    /* 3 x 32dp rows plus 9dp either side and a hairline border = 116dp, the
-       card height measured off the reference capture. */
-    padding: 9px 0;
-    border: 1px solid var(--v-border);
-    border-radius: 8px;
+    /* 3 x 32dp rows plus 10dp either side = 116dp, the reference's card height. */
+    padding: 10px;
+    border: 0;
+    border-radius: 10px;
     background: var(--v-surface-raised);
     box-shadow:
-      0 12px 30px rgb(0 0 0 / 0.18),
-      0 2px 6px rgb(0 0 0 / 0.08);
+      0 8px 22px rgb(0 0 0 / 0.1),
+      0 2px 6px rgb(0 0 0 / 0.05);
   }
+
   .v-drawer__card-item {
     display: flex;
     align-items: center;

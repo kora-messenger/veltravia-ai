@@ -1118,3 +1118,24 @@ While credits load, the card shows the reference's skeleton: four grey blocks
 recording shows no travelling highlight; every block breathes together between
 `#F3F1EF` and `#E9E5DF` on a 2s cycle with a held top, so that is what is built.
 Reduced-motion users get a still block.
+
+## The More popup
+
+Measured from a capture of the reference with its More row open. The card is
+193dp wide and 116dp tall: three 32dp rows with 10dp of padding above and below,
+a 10dp radius, a soft shadow (about 8% darkening under the edge, fading inside
+10dp) and no border.
+
+Inside a row the icon sits 18dp from the card's edge at 14dp, the label 45dp in at
+15px, and the row's whole height is the target. That puts the three labels on the
+reference's 32.1dp pitch.
+
+The placement is the part worth knowing: the card's top is flush with the More
+row's top and its right edge sits 11dp from the screen edge, so it overhangs the
+380dp panel and floats over the scrim. It cannot therefore be a child of the
+scrolling list, which would clip it, so its corner is measured from the row when
+it opens and the card is fixed-positioned at those coordinates. Scrolling the list
+puts it away rather than letting the card drift away from its row.
+
+The scrim behind the drawer measures 0.25 black in the reference (its page reads
+#BEBDBB once open), not the 0.45 built earlier.
