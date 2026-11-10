@@ -203,11 +203,11 @@ describe('AppShell', () => {
     expect(screen.queryByRole('link', { name: /Document intelligence/ })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'More' }));
     const card = screen.getByRole('menu', { name: 'More' });
-    expect(within(card).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
-      'Files',
-      'MemorySoon',
-      'DataSoon',
-    ]);
+    expect(
+      within(card)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Files', 'MemorySoon', 'DataSoon']);
   });
 
   it('routes to the AI provider settings page', () => {
