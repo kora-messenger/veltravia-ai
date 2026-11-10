@@ -54,6 +54,10 @@ export function TopBar({ route, showMenuButton = true, onOpenMobileNav }: TopBar
   // own title.
   const showsAgentName = route.id === 'chat';
 
+  // One letter, upper case, from the agent's own name: the mark is the agent,
+  // so renaming the agent renames the mark.
+  const agentInitial = (profile.agentName.trim()[0] ?? 'V').toUpperCase();
+
   // Two rows, exactly as the reference shows them. Neither surface exists in
   // this release, so both read "Soon" and are disabled: a row that looks
   // tappable and does nothing would be worse than one that says it is not
@@ -84,20 +88,19 @@ export function TopBar({ route, showMenuButton = true, onOpenMobileNav }: TopBar
   return (
     <header className="v-topbar" data-testid="topbar">
       {showMenuButton ? (
+        /* The reference's top-left control is the agent itself, drawn as one
+           letter in a filled circle, and tapping it opens the navigation. A
+           hamburger beside a product mark was three marks in a 390dp bar; this
+           is one, and it is the one the page is about. */
         <button
           type="button"
-          className="v-topbar__menu-button"
+          className="v-topbar__avatar"
           aria-label="Open navigation"
           onClick={onOpenMobileNav}
         >
-          <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
-            <path
-              d="M2 4h12M2 8h12M2 12h12"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
+          <span className="v-topbar__avatar-initial" aria-hidden="true">
+            {agentInitial}
+          </span>
         </button>
       ) : null}
       <span className="v-topbar__brand">

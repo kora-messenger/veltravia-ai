@@ -172,6 +172,19 @@ describe('AppShell', () => {
     expect(drawer.classList.contains('v-drawer--open')).toBe(true);
   });
 
+  it('opens the navigation from the agent mark, not a hamburger', () => {
+    stubWidth(false);
+    renderShell();
+    const trigger = screen.getByRole('button', { name: 'Open navigation' });
+    // The reference's corner control is the agent: one letter in a filled
+    // circle. A hamburger glyph here would be a second, unrelated mark.
+    expect(trigger.className).toContain('v-topbar__avatar');
+    expect(trigger.textContent).toBe('M');
+    expect(trigger.querySelector('svg')).toBeNull();
+    fireEvent.click(trigger);
+    expect(screen.getByTestId('mobile-drawer').classList.contains('v-drawer--open')).toBe(true);
+  });
+
   it('keeps the column standing when a row navigates', () => {
     renderShell();
     const drawer = screen.getByTestId('mobile-drawer');

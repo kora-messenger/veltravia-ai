@@ -93,6 +93,12 @@
   color: var(--v-text);
   cursor: pointer;
 }
+.v-drawer__close .v-drawer__icon {
+  /* 18px in a 40px target: the reference's close reads at the weight of the
+     other head marks, not as a 16px speck in the corner. */
+  width: 18px;
+  height: 18px;
+}
 .v-drawer__close:active {
   background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
 }
