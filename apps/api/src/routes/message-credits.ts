@@ -187,6 +187,7 @@ const MEASUREMENT = {
     modelId: { type: 'string', maxLength: 160 },
     providerId: { type: 'string', maxLength: 64 },
     byok: { type: 'boolean' },
+    source: { type: 'string', enum: ['provider', 'caller', 'unavailable'] },
   },
 } as const;
 

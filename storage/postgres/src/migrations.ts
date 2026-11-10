@@ -31,6 +31,7 @@ import { migration009 } from './migrations/009-executions.js';
 import { migration010 } from './migrations/010-reliability.js';
 import { migration011 } from './migrations/011-usage-metering.js';
 import { migration013 } from './migrations/013-message-credits.js';
+import { migration014 } from './migrations/014-measurement-source.js';
 import { migration012 } from './migrations/012-credit-wallet.js';
 
 export interface Migration {
@@ -53,6 +54,7 @@ export const MIGRATIONS: readonly Migration[] = [
   migration011,
   migration012,
   migration013,
+  migration014,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 const MIGRATION_TABLE = 'veltravia_schema_migrations';

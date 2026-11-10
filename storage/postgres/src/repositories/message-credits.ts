@@ -27,6 +27,8 @@ interface ChargeRow {
   project_id: string | null;
   conversation_id: string | null;
   run_id: string | null;
+  task_id: string | null;
+  parent_charge_id: string | null;
   usage_operation_key: string | null;
   kind: MessageCharge['kind'];
   model_id: string | null;
@@ -43,6 +45,8 @@ interface ChargeRow {
   basis: MessageCharge['basis'];
   policy_id: string;
   limitations: MessageCharge['limitations'] | null;
+  measurement_source: MessageCharge['measurementSource'];
+  cached_savings: string | null;
   idempotency_key: string;
   reservation_id: string | null;
   wallet_entry_id: string | null;
@@ -65,6 +69,8 @@ const toCharge = (row: ChargeRow): MessageCharge => ({
   projectId: row.project_id,
   conversationId: row.conversation_id,
   runId: row.run_id,
+  taskId: row.task_id,
+  parentChargeId: row.parent_charge_id,
   usageOperationKey: row.usage_operation_key,
   kind: row.kind,
   modelId: row.model_id,
@@ -81,6 +87,8 @@ const toCharge = (row: ChargeRow): MessageCharge => ({
   basis: row.basis,
   policyId: row.policy_id,
   limitations: row.limitations ?? [],
+  measurementSource: row.measurement_source ?? null,
+  cachedSavings: num(row.cached_savings),
   idempotencyKey: row.idempotency_key,
   reservationId: row.reservation_id,
   walletEntryId: row.wallet_entry_id,
@@ -90,11 +98,11 @@ const toCharge = (row: ChargeRow): MessageCharge => ({
   refundedAt: row.refunded_at === null ? null : new Date(row.refunded_at).toISOString(),
 });
 
-const COLUMNS = `owner_ref, id, workspace_id, project_id, conversation_id, run_id,
-  usage_operation_key, kind, model_id, provider_id, byok, input_tokens, output_tokens, cached_tokens,
-  duration_ms, tool_calls, credits, estimated_credits, state, basis, policy_id, limitations,
-  idempotency_key, reservation_id, wallet_entry_id, failure_reason, created_at, settled_at,
-  refunded_at`;
+const COLUMNS = `owner_ref, id, workspace_id, project_id, conversation_id, run_id, task_id,
+  parent_charge_id, usage_operation_key, kind, model_id, provider_id, byok, input_tokens,
+  output_tokens, cached_tokens, duration_ms, tool_calls, credits, estimated_credits, state, basis,
+  policy_id, limitations, measurement_source, cached_savings, idempotency_key, reservation_id,
+  wallet_entry_id, failure_reason, created_at, settled_at, refunded_at`;
 
 export class PostgresMessageCreditStore implements MessageCreditStore {
   readonly kind = 'postgres' as const;
@@ -110,7 +118,7 @@ export class PostgresMessageCreditStore implements MessageCreditStore {
     const inserted = await this.query.query<ChargeRow>(
       `insert into message_charges (${COLUMNS})
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
-               $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+               $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
        on conflict (owner_ref, idempotency_key) do nothing
        returning ${COLUMNS}`,
       [
@@ -120,6 +128,8 @@ export class PostgresMessageCreditStore implements MessageCreditStore {
         charge.projectId,
         charge.conversationId,
         charge.runId,
+        charge.taskId,
+        charge.parentChargeId,
         charge.usageOperationKey,
         charge.kind,
         charge.modelId,
@@ -136,6 +146,8 @@ export class PostgresMessageCreditStore implements MessageCreditStore {
         charge.basis,
         charge.policyId,
         JSON.stringify(charge.limitations),
+        charge.measurementSource,
+        charge.cachedSavings,
         charge.idempotencyKey,
         charge.reservationId,
         charge.walletEntryId,

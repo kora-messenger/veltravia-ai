@@ -9,6 +9,7 @@ import type {
   AdapterContext,
   AdapterRequest,
   AdapterResult,
+  AdapterUsage,
   CredentialValidationResult,
   ProviderAdapter,
 } from './adapter.js';
@@ -54,6 +55,42 @@ function statusError(status: number, body?: unknown): GatewayError {
   return new GatewayError('GATEWAY_PROVIDER_ERROR', 'The provider rejected the request.', {
     details: { status },
   });
+}
+
+/**
+ * Anthropic reports the prompt in pieces: `input_tokens` excludes everything
+ * served from the prompt cache, `cache_read_input_tokens` is the cached part and
+ * `cache_creation_input_tokens` was written to the cache this call. The total
+ * prompt is their sum, and the cached subset is what the cache rate prices.
+ */
+function anthropicUsage(
+  usage:
+    | {
+        input_tokens?: unknown;
+        output_tokens?: unknown;
+        cache_read_input_tokens?: unknown;
+        cache_creation_input_tokens?: unknown;
+      }
+    | undefined,
+): AdapterUsage {
+  const fresh = typeof usage?.input_tokens === 'number' ? usage.input_tokens : null;
+  const read =
+    typeof usage?.cache_read_input_tokens === 'number' ? usage.cache_read_input_tokens : null;
+  const written =
+    typeof usage?.cache_creation_input_tokens === 'number'
+      ? usage.cache_creation_input_tokens
+      : null;
+  const inputTokens =
+    fresh === null && read === null && written === null
+      ? null
+      : (fresh ?? 0) + (read ?? 0) + (written ?? 0);
+  return {
+    inputTokens,
+    outputTokens: typeof usage?.output_tokens === 'number' ? usage.output_tokens : null,
+    // Only a cache READ is counted as cached; writing the cache is ordinary
+    // prompt processing and is priced as such.
+    ...(read === null ? {} : { cachedInputTokens: read }),
+  };
 }
 
 function finishReasonOf(raw: unknown): AIFinishReason {
@@ -179,7 +216,12 @@ export class AnthropicAdapter implements ProviderAdapter {
     const payload = response.body as
       | {
           content?: unknown;
-          usage?: { input_tokens?: unknown; output_tokens?: unknown };
+          usage?: {
+            input_tokens?: unknown;
+            output_tokens?: unknown;
+            cache_read_input_tokens?: unknown;
+            cache_creation_input_tokens?: unknown;
+          };
           stop_reason?: unknown;
         }
       | undefined;
@@ -201,12 +243,7 @@ export class AnthropicAdapter implements ProviderAdapter {
     return {
       content: text,
       finishReason: finishReasonOf(payload?.stop_reason),
-      usage: {
-        inputTokens:
-          typeof payload?.usage?.input_tokens === 'number' ? payload.usage.input_tokens : null,
-        outputTokens:
-          typeof payload?.usage?.output_tokens === 'number' ? payload.usage.output_tokens : null,
-      },
+      usage: anthropicUsage(payload?.usage),
     };
   }
 
@@ -242,8 +279,7 @@ export class AnthropicAdapter implements ProviderAdapter {
 
     const url = this.url(context, this.definition.generationPath);
     const headers = { ...this.headers(context), accept: 'text/event-stream' };
-    let inputTokens: number | null = null;
-    let outputTokens: number | null = null;
+    let usage: AdapterUsage = { inputTokens: null, outputTokens: null };
     let finish: AIFinishReason | undefined;
 
     if (context.transport.requestStream) {
@@ -263,24 +299,34 @@ export class AnthropicAdapter implements ProviderAdapter {
         const parsed = parseJsonFrame(frame.data) as
           | {
               type?: unknown;
-              message?: { usage?: { input_tokens?: unknown } };
+              message?: {
+                usage?: {
+                  input_tokens?: unknown;
+                  cache_read_input_tokens?: unknown;
+                  cache_creation_input_tokens?: unknown;
+                };
+              };
               delta?: { text?: unknown; stop_reason?: unknown };
               usage?: { output_tokens?: unknown };
             }
           | undefined;
         if (parsed === undefined) continue;
-        if (
-          parsed.type === 'message_start' &&
-          typeof parsed.message?.usage?.input_tokens === 'number'
-        ) {
-          inputTokens = parsed.message.usage.input_tokens;
+        if (parsed.type === 'message_start' && parsed.message?.usage !== undefined) {
+          const reported = anthropicUsage(parsed.message.usage);
+          usage = {
+            ...usage,
+            inputTokens: reported.inputTokens,
+            ...(reported.cachedInputTokens === undefined
+              ? {}
+              : { cachedInputTokens: reported.cachedInputTokens }),
+          };
         }
         if (parsed.type === 'content_block_delta' && typeof parsed.delta?.text === 'string') {
           if (parsed.delta.text.length > 0) yield { delta: parsed.delta.text, done: false };
         }
         if (parsed.type === 'message_delta') {
           if (typeof parsed.usage?.output_tokens === 'number')
-            outputTokens = parsed.usage.output_tokens;
+            usage = { ...usage, outputTokens: parsed.usage.output_tokens };
           if (parsed.delta?.stop_reason !== undefined && parsed.delta?.stop_reason !== null) {
             finish = finishReasonOf(parsed.delta.stop_reason);
           }
@@ -305,24 +351,34 @@ export class AnthropicAdapter implements ProviderAdapter {
         const parsed = parseJsonFrame(trimmed.slice(5).trim()) as
           | {
               type?: unknown;
-              message?: { usage?: { input_tokens?: unknown } };
+              message?: {
+                usage?: {
+                  input_tokens?: unknown;
+                  cache_read_input_tokens?: unknown;
+                  cache_creation_input_tokens?: unknown;
+                };
+              };
               delta?: { text?: unknown; stop_reason?: unknown };
               usage?: { output_tokens?: unknown };
             }
           | undefined;
         if (parsed === undefined) continue;
-        if (
-          parsed.type === 'message_start' &&
-          typeof parsed.message?.usage?.input_tokens === 'number'
-        ) {
-          inputTokens = parsed.message.usage.input_tokens;
+        if (parsed.type === 'message_start' && parsed.message?.usage !== undefined) {
+          const reported = anthropicUsage(parsed.message.usage);
+          usage = {
+            ...usage,
+            inputTokens: reported.inputTokens,
+            ...(reported.cachedInputTokens === undefined
+              ? {}
+              : { cachedInputTokens: reported.cachedInputTokens }),
+          };
         }
         if (parsed.type === 'content_block_delta' && typeof parsed.delta?.text === 'string') {
           if (parsed.delta.text.length > 0) yield { delta: parsed.delta.text, done: false };
         }
         if (parsed.type === 'message_delta') {
           if (typeof parsed.usage?.output_tokens === 'number')
-            outputTokens = parsed.usage.output_tokens;
+            usage = { ...usage, outputTokens: parsed.usage.output_tokens };
           if (parsed.delta?.stop_reason !== undefined && parsed.delta?.stop_reason !== null) {
             finish = finishReasonOf(parsed.delta.stop_reason);
           }
@@ -332,7 +388,7 @@ export class AnthropicAdapter implements ProviderAdapter {
     yield {
       delta: '',
       done: true,
-      usage: { inputTokens, outputTokens },
+      usage,
       ...(finish ? { finishReason: finish } : {}),
     };
   }

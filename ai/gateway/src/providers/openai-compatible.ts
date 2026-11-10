@@ -12,6 +12,7 @@ import type {
   AdapterResult,
   CredentialValidationResult,
   ProviderAdapter,
+  AdapterUsage,
 } from './adapter.js';
 import type { TransportResponse } from './transport.js';
 import { parseJsonFrame, readSseEvents } from './sse.js';
@@ -132,13 +133,21 @@ function finishReasonOf(raw: unknown): AIFinishReason {
   return 'unknown';
 }
 
-function usageOf(body: unknown): { inputTokens: number | null; outputTokens: number | null } {
+function usageOf(body: unknown): AdapterUsage {
   const usage = (body as { usage?: Record<string, unknown> } | undefined)?.usage;
   const prompt = usage?.prompt_tokens ?? usage?.input_tokens;
   const completion = usage?.completion_tokens ?? usage?.output_tokens;
+  // OpenAI-shaped providers report the cached part of the prompt under
+  // `prompt_tokens_details.cached_tokens`; some relays use a flat field. Both are
+  // a SUBSET of prompt tokens, so nothing is added here.
+  const details = usage?.prompt_tokens_details as { cached_tokens?: unknown } | undefined;
+  const cached = details?.cached_tokens ?? usage?.cached_tokens;
   return {
     inputTokens: typeof prompt === 'number' ? prompt : null,
     outputTokens: typeof completion === 'number' ? completion : null,
+    // Absent when the provider did not report it: a missing cached count is not
+    // a cached count of zero.
+    ...(typeof cached === 'number' ? { cachedInputTokens: cached } : {}),
   };
 }
 
@@ -344,7 +353,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
         ...(context.idleTimeoutMs !== undefined ? { idleTimeoutMs: context.idleTimeoutMs } : {}),
         ...(context.signal ? { signal: context.signal } : {}),
       });
-      let usage: { inputTokens: number | null; outputTokens: number | null } | undefined;
+      let usage: AdapterUsage | undefined;
       let finish: AIFinishReason | undefined;
       for await (const frame of readSseEvents(events, {
         errorForStatus: (status: number) => normalizedFor(status, ''),
@@ -382,7 +391,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
     if (response.status < 200 || response.status >= 300) {
       throw normalizedFor(response.status, providerMessage(response), response.body);
     }
-    let usage: { inputTokens: number | null; outputTokens: number | null } | undefined;
+    let usage: AdapterUsage | undefined;
     let finish: AIFinishReason | undefined;
     for (const line of response.text.split(/\r?\n/)) {
       const trimmed = line.trim();

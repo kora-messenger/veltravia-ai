@@ -26,6 +26,16 @@ export interface ChargeComputation {
   readonly limitations: readonly MeasurementLimitation[];
   /** True when the policy says nothing is charged on purpose. */
   readonly exempt: boolean;
+  /** Input tokens that were NOT served from cache, when input was reported. */
+  readonly nonCachedInputTokens: number | null;
+  /** input + output: the honest total of what the provider reported, else null. */
+  readonly measuredTokens: number | null;
+  /**
+   * Credits the cached part saved against charging it as ordinary input. Null
+   * when the policy has no separate cache rate, so "0" never implies a saving
+   * that was never configured.
+   */
+  readonly cachedSavings: number | null;
 }
 
 const isCount = (value: number | null | undefined): value is number =>
@@ -113,8 +123,26 @@ export function computeCharge(input: {
   readonly measurement: UsageMeasurement;
 }): ChargeComputation {
   const { policy, measurement } = input;
+  const reported = (): {
+    nonCachedInputTokens: number | null;
+    measuredTokens: number | null;
+    cachedSavings: number | null;
+  } => {
+    const inputTokens = isCount(measurement.inputTokens) ? measurement.inputTokens : null;
+    const outputTokens = isCount(measurement.outputTokens) ? measurement.outputTokens : null;
+    const cached = isCount(measurement.cachedTokens) ? measurement.cachedTokens : null;
+    return {
+      nonCachedInputTokens:
+        inputTokens === null ? null : Math.max(0, inputTokens - Math.min(cached ?? 0, inputTokens)),
+      measuredTokens:
+        inputTokens === null && outputTokens === null
+          ? null
+          : (inputTokens ?? 0) + (outputTokens ?? 0),
+      cachedSavings: null,
+    };
+  };
   if (!input.planBillable) {
-    return { credits: 0, basis: 'exempt', limitations: [], exempt: true };
+    return { credits: 0, basis: 'exempt', limitations: [], exempt: true, ...reported() };
   }
   if (policy === null) {
     return {
@@ -122,6 +150,7 @@ export function computeCharge(input: {
       basis: 'unmeasured',
       limitations: ['provider-not-reported'],
       exempt: false,
+      ...reported(),
     };
   }
   if (measurement.byok === true) {
@@ -134,6 +163,7 @@ export function computeCharge(input: {
       basis: flatOnly > 0 ? 'flat' : 'exempt',
       limitations: ['byok-tokens-excluded'],
       exempt: flatOnly === 0,
+      ...reported(),
     };
   }
 
@@ -147,6 +177,7 @@ export function computeCharge(input: {
       basis: flat > 0 ? 'flat' : 'unmeasured',
       limitations: flat > 0 ? [] : ['tokens-unavailable'],
       exempt: false,
+      ...reported(),
     };
   }
 
@@ -184,5 +215,25 @@ export function computeCharge(input: {
           ? 'usage'
           : 'flat';
 
-  return { credits, basis, limitations, exempt: false };
+  // A cache rate is only a saving when it is genuinely lower than the input
+  // rate; a deployment that prices cache reads higher has no saving to report.
+  const inputRate = tokens?.per1kInput ?? 0;
+  const cacheRate = tokens?.per1kCached ?? null;
+  const cachedSavings =
+    cacheRate === null || cached === 0
+      ? null
+      : creditRound(Math.max(0, ((cached / 1000) * (inputRate - cacheRate)) as number));
+  const nonCachedInputTokens = inputTokens === null ? null : Math.max(0, inputTokens - cached);
+  const measuredTokens =
+    inputTokens === null && outputTokens === null ? null : (inputTokens ?? 0) + (outputTokens ?? 0);
+
+  return {
+    credits,
+    basis,
+    limitations,
+    exempt: false,
+    nonCachedInputTokens,
+    measuredTokens,
+    cachedSavings,
+  };
 }

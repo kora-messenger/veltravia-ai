@@ -220,7 +220,11 @@ export interface GenerationOutcome {
   readonly modelId: string;
   readonly connectionId: string;
   readonly finishReason: AdapterResult['finishReason'];
-  readonly usage: { readonly inputTokens: number | null; readonly outputTokens: number | null };
+  readonly usage: {
+    readonly inputTokens: number | null;
+    readonly outputTokens: number | null;
+    readonly cachedInputTokens?: number | null;
+  };
   /** True only when a real provider answered over the network. */
   readonly live: boolean;
   readonly latencyMs: number;

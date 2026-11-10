@@ -69,6 +69,8 @@ export type ExecutionEvent =
       readonly modelId: string;
       readonly inputTokens: number | null;
       readonly outputTokens: number | null;
+      /** Subset of inputTokens a provider served from cache; omitted when unanswered. */
+      readonly cachedInputTokens?: number | null;
       readonly totalTokens: number | null;
       readonly usageSource: 'provider-confirmed' | 'unavailable';
       readonly estimatedCostUsd: number | null;
@@ -154,6 +156,7 @@ export interface AiExecutionServiceOptions {
         readonly modelId: string;
         readonly inputTokens: number | null;
         readonly outputTokens: number | null;
+        readonly cachedInputTokens: number | null;
       }) => void)
     | undefined;
 }
@@ -561,6 +564,7 @@ export class AiExecutionService {
         modelId: outcome.modelId,
         inputTokens: outcome.usage.inputTokens,
         outputTokens: outcome.usage.outputTokens,
+        cachedInputTokens: outcome.usage.cachedInputTokens ?? null,
         latencyMs: outcome.latencyMs,
         streamed: false,
       });
@@ -745,7 +749,13 @@ export class AiExecutionService {
     const ownerRef = state.run.ownerRef;
     const scope = { ownerRef, ...(state.run.projectId ? { projectId: state.run.projectId } : {}) };
     const startedAt = Date.now();
-    let usage: { inputTokens: number | null; outputTokens: number | null } | undefined;
+    let usage:
+      | {
+          inputTokens: number | null;
+          outputTokens: number | null;
+          cachedInputTokens?: number | null;
+        }
+      | undefined;
     let finishReason = 'unknown';
 
     const attempts: Parameters<AIProviderGateway['generate']>[1][] = [request];
@@ -818,6 +828,7 @@ export class AiExecutionService {
           modelId: outcome.modelId,
           inputTokens: outcome.usage.inputTokens,
           outputTokens: outcome.usage.outputTokens,
+          cachedInputTokens: outcome.usage.cachedInputTokens ?? null,
           latencyMs: outcome.latencyMs,
           streamed: false,
         });
@@ -849,6 +860,7 @@ export class AiExecutionService {
       modelId: state.run.modelId ?? 'unknown',
       inputTokens: usage?.inputTokens ?? null,
       outputTokens: usage?.outputTokens ?? null,
+      cachedInputTokens: usage?.cachedInputTokens ?? null,
       latencyMs,
       streamed: true,
     });
@@ -876,6 +888,7 @@ export class AiExecutionService {
       readonly modelId: string;
       readonly inputTokens: number | null;
       readonly outputTokens: number | null;
+      readonly cachedInputTokens?: number | null;
       readonly latencyMs: number;
       readonly streamed: boolean;
     },
@@ -888,6 +901,9 @@ export class AiExecutionService {
       modelId: input.modelId,
       inputTokens: input.inputTokens,
       outputTokens: input.outputTokens,
+      ...(input.cachedInputTokens === null || input.cachedInputTokens === undefined
+        ? {}
+        : { cachedInputTokens: input.cachedInputTokens }),
       totalTokens: confirmed
         ? (input.inputTokens as number) + (input.outputTokens as number)
         : null,
@@ -908,6 +924,7 @@ export class AiExecutionService {
       modelId: input.modelId,
       inputTokens: input.inputTokens,
       outputTokens: input.outputTokens,
+      cachedInputTokens: input.cachedInputTokens ?? null,
     });
   }
 }

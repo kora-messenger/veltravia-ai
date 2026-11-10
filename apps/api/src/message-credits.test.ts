@@ -531,4 +531,59 @@ describeDb('message credits on postgres', () => {
       await second.close();
     }
   });
+
+  it('charges the cached part of a prompt at the cache rate and records the saving', async () => {
+    const owner = 'cache-owner';
+    await paidOwner(owner, 50);
+
+    // A managed-key run: token rates apply, so the cache rate is exercised.
+    const hold = await reserve(owner, {
+      idempotencyKey: 'cache-owner-first',
+      kind: 'coding.run',
+      byok: false,
+    });
+    const settled = await commit(owner, hold.charge.id, {
+      inputTokens: 10_000,
+      cachedTokens: 6_000,
+      outputTokens: 1_000,
+      source: 'provider',
+    });
+
+    expect(settled.status).toBe(200);
+    const charge = settled.charge as ChargeView & {
+      cachedTokens: number | null;
+      cachedSavings: number | null;
+      measurementSource: string | null;
+    };
+    expect(Number(charge.cachedTokens)).toBe(6_000);
+    expect(charge.measurementSource).toBe('provider');
+    // 6k tokens moved from the input rate to the cheaper cache rate.
+    expect(Number(charge.cachedSavings)).toBeGreaterThan(0);
+
+    const read = await app.inject({
+      method: 'GET',
+      url: '/api/message-credits/charges?limit=5',
+      headers: as(owner),
+    });
+    const rows = (read.json() as { charges: (ChargeView & { cachedTokens: number | null })[] })
+      .charges;
+    expect(rows.find((row) => row.id === hold.charge.id)?.cachedTokens).toBe(6_000);
+  });
+
+  it('says a charge had no measurement rather than implying zero usage', async () => {
+    const owner = 'silent-owner';
+    await paidOwner(owner, 20);
+
+    const hold = await reserve(owner, {
+      idempotencyKey: 'silent-owner-first',
+      kind: 'agent.execution',
+    });
+    const settled = await commit(owner, hold.charge.id, {});
+    const charge = settled.charge as ChargeView & {
+      cachedSavings: number | null;
+      measurementSource: string | null;
+    };
+    expect(charge.measurementSource).toBe('unavailable');
+    expect(charge.cachedSavings).toBeNull();
+  });
 });

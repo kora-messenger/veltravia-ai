@@ -92,6 +92,8 @@ export interface UsageMeasurement {
   readonly cachedTokens?: number | null;
   readonly durationMs?: number | null;
   readonly toolCalls?: number | null;
+  /** Who reported the counts. Absent means the settlement decides from the data. */
+  readonly source?: MeasurementSource;
   readonly modelId?: string | null;
   readonly providerId?: string | null;
   /**
@@ -102,6 +104,12 @@ export interface UsageMeasurement {
   readonly byok?: boolean;
 }
 
+/**
+ * Where a charge's token counts came from. A provider number and a caller's own
+ * count are different claims, and neither is the same as "nobody said".
+ */
+export type MeasurementSource = 'provider' | 'caller' | 'unavailable';
+
 export interface MessageCharge {
   readonly id: string;
   readonly ownerRef: string;
@@ -109,6 +117,13 @@ export interface MessageCharge {
   readonly projectId: string | null;
   readonly conversationId: string | null;
   readonly runId: string | null;
+  /** The agent task this charge served, when it served one. */
+  readonly taskId: string | null;
+  /**
+   * The charge of the operation this one was delegated from. A sub-agent's work
+   * points at its parent so one interaction can be read as a whole.
+   */
+  readonly parentChargeId: string | null;
   /** The Step 52 usage event this charge belongs to, when there is one. */
   readonly usageOperationKey: string | null;
   readonly kind: InteractionKind;
@@ -125,6 +140,10 @@ export interface MessageCharge {
   readonly basis: ChargeBasis;
   readonly policyId: string;
   readonly limitations: readonly MeasurementLimitation[];
+  /** Where the token counts came from; null on rows written before Step 55. */
+  readonly measurementSource: MeasurementSource | null;
+  /** Credits the cached part saved under the policy in force at settlement. */
+  readonly cachedSavings: number | null;
   readonly byok: boolean;
   readonly idempotencyKey: string;
   readonly reservationId: string | null;
@@ -142,6 +161,8 @@ export interface MessageChargeDraft {
   readonly projectId?: string | null;
   readonly conversationId?: string | null;
   readonly runId?: string | null;
+  readonly taskId?: string | null;
+  readonly parentChargeId?: string | null;
   readonly usageOperationKey?: string | null;
   readonly kind: InteractionKind;
   readonly modelId?: string | null;

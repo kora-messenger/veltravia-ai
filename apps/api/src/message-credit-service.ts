@@ -55,6 +55,9 @@ export interface ChargeContext extends WalletRef {
   readonly projectId?: string | null;
   readonly conversationId?: string | null;
   readonly runId?: string | null;
+  readonly taskId?: string | null;
+  /** The charge this one was delegated from, when it was. */
+  readonly parentChargeId?: string | null;
   readonly usageOperationKey?: string | null;
   readonly kind: InteractionKind;
   readonly modelId?: string | null;
@@ -216,6 +219,8 @@ export function createMessageCreditService(
     projectId: input.projectId ?? null,
     conversationId: input.conversationId ?? null,
     runId: input.runId ?? null,
+    taskId: input.taskId ?? null,
+    parentChargeId: input.parentChargeId ?? null,
     usageOperationKey: input.usageOperationKey ?? null,
     kind: input.kind,
     modelId: input.modelId ?? null,
@@ -236,6 +241,8 @@ export function createMessageCreditService(
     projectId: draft.projectId ?? null,
     conversationId: draft.conversationId ?? null,
     runId: draft.runId ?? null,
+    taskId: draft.taskId ?? null,
+    parentChargeId: draft.parentChargeId ?? null,
     usageOperationKey: draft.usageOperationKey ?? null,
     kind: draft.kind,
     modelId: draft.modelId ?? null,
@@ -252,6 +259,8 @@ export function createMessageCreditService(
     basis: state === 'exempt' ? 'exempt' : 'flat',
     policyId: draft.policyId,
     limitations: [],
+    measurementSource: null,
+    cachedSavings: null,
     idempotencyKey: draft.idempotencyKey,
     reservationId: null,
     walletEntryId: null,
@@ -597,6 +606,12 @@ export function createMessageCreditService(
         modelId: input.measurement.modelId ?? charge.modelId,
         providerId: input.measurement.providerId ?? charge.providerId,
         limitations: computed.limitations,
+        measurementSource:
+          input.measurement.source ??
+          (input.measurement.inputTokens === undefined || input.measurement.inputTokens === null
+            ? 'unavailable'
+            : 'provider'),
+        cachedSavings: computed.cachedSavings,
         walletEntryId,
         failureReason: aboveHoldCovered ? null : 'measurement-above-hold-uncovered',
         settledAt: now().toISOString(),

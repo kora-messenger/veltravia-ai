@@ -226,6 +226,8 @@ export interface UsageRecord {
   readonly status: 'success' | 'failure' | 'cancelled';
   readonly inputTokens: number | null;
   readonly outputTokens: number | null;
+  /** Subset of inputTokens served from the provider's cache; null when unreported. */
+  readonly cachedInputTokens?: number | null;
   /** Present only when both token counts are provider-confirmed. */
   readonly totalTokens: number | null;
   readonly usageSource: UsageSource;
@@ -279,7 +281,11 @@ export interface GatewayStreamChunk {
   readonly delta: string;
   readonly done: boolean;
   /** Present on the terminal chunk only, and only when the provider reported it. */
-  readonly usage?: { readonly inputTokens: number | null; readonly outputTokens: number | null };
+  readonly usage?: {
+    readonly inputTokens: number | null;
+    readonly outputTokens: number | null;
+    readonly cachedInputTokens?: number | null;
+  };
   readonly finishReason?: string;
   readonly latencyMs?: number;
 }

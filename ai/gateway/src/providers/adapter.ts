@@ -43,6 +43,8 @@ export interface AdapterRequest {
 export interface AdapterUsage {
   readonly inputTokens: number | null;
   readonly outputTokens: number | null;
+  /** Subset of inputTokens served from the provider's cache; null when unreported. */
+  readonly cachedInputTokens?: number | null;
 }
 
 export interface AdapterResult {
