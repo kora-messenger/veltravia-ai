@@ -112,13 +112,18 @@ describe('keeping a conversation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
     await screen.findByText('The vault holds your keys.');
 
-    const saved = conversations.listConversations();
-    expect(saved).toHaveLength(1);
-    expect(saved[0]?.title).toBe('What is in the vault?');
-    expect(saved[0]?.turns.map((turn) => turn.text)).toEqual([
-      'What is in the vault?',
-      'The vault holds your keys.',
-    ]);
+    // The save runs in an effect, so on a loaded runner the answer can be on
+    // screen a tick before it reaches the store. Wait for the stored thread
+    // rather than reading the moment the text appears.
+    await vi.waitFor(() => {
+      const saved = conversations.listConversations();
+      expect(saved).toHaveLength(1);
+      expect(saved[0]?.title).toBe('What is in the vault?');
+      expect(saved[0]?.turns.map((turn) => turn.text)).toEqual([
+        'What is in the vault?',
+        'The vault holds your keys.',
+      ]);
+    });
   });
 
   it('puts a kept conversation back on screen when the drawer asks for it', async () => {
