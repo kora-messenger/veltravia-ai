@@ -700,6 +700,15 @@ use the same `ChatComposer`.
 **Website** (`v-chat--web`): the brand mark, a centred greeting, then one plain
 line per way in. The composer sits in a 720 px column.
 
+Brand files live in `public/brand/`, which the bundler copies as they are: it
+rewrites the paths written in `index.html` and never the ones written in code.
+So the mark's URL is resolved against `document.baseURI` at render time
+(`brandUrl` in `BrandMark.tsx`) rather than written as `/brand/...`. On GitHub
+Pages the site is served from `/veltravia-ai/`, and a root-absolute path asked
+the server root for the file, 404'd, and painted a broken image where the mark
+should be. A build variable would have the same effect but the frontend reads no
+environment at all, by rule (`security/workspace-boundary.test.ts`).
+
 **Packaged app** (`v-chat--app`): no hero mark and no greeting competing for the
 screen; the two ways in are the same plain lines, shortened (`Build something
 new`), above the type box, with the deliberate whitespace above them, and the
@@ -996,7 +1005,7 @@ conversation, rows, conversation list and workspace footer, and measuring the sa
 figures (head rule 53px down, rows 47px, 16px icons 22px in, labels 46px in, footer
 81px). Only the frame changes: no scrim, no close control, no hamburger, and the
 More card lands 11px from the panel's right edge where on a phone it lands 11px
-from the window's. Below 1024px the same panel slides over the page. Because it is
+from the window's. Below 901px the same panel slides over the page. Because it is
 the website's only navigation it carries every destination: Chat, Projects,
 Dashboard, App Builder, Superagent operations, Model routing and Settings as rows,
 the ten remaining AI-workspace pages behind a folding group (open whenever the

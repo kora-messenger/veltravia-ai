@@ -36,17 +36,51 @@ interface BrandSource {
   readonly srcSet: string;
 }
 
-const SOURCE: Record<BrandVariant, BrandSource> = {
-  logo: {
-    src: '/brand/veltravia-logo-192.png',
-    srcSet:
-      '/brand/veltravia-logo-96.png 1x, /brand/veltravia-logo-192.png 2x, /brand/veltravia-logo-512.png 3x',
-  },
-  notification: {
-    src: '/brand/veltravia-notification-96.png',
-    srcSet: '/brand/veltravia-notification-96.png 1x, /brand/veltravia-notification-256.png 2x',
-  },
-};
+/**
+ * Where a brand file lives, resolved against the page itself.
+ *
+ * The artwork sits in `public/`, which the bundler copies verbatim: it rewrites
+ * the paths written in `index.html`, never the ones written in code. A
+ * root-absolute `/brand/...` therefore asks the server root for the file, and
+ * this build is served from a sub-path (GitHub Pages: `/veltravia-ai/`), so the
+ * mark 404'd and rendered as a broken image on the live site.
+ *
+ * The base is the document's own URI rather than a build variable: the frontend
+ * reads no environment at all (workspace-boundary.test.ts enforces that, so no
+ * credential can reach the bundle), and the document already knows where it is
+ * served from. The folder it lives in is what the file is joined to, so a base
+ * that arrives without its trailing slash still points inside the same folder.
+ */
+export function brandUrl(file: string, base: string): string {
+  const folder = base.endsWith('/') ? base : `${base}/`;
+  return new URL(`brand/${file}`, folder).toString();
+}
+
+function pageBase(): string {
+  // Server-side rendering has no document; nothing is drawn there either, but a
+  // relative base keeps the call total.
+  return typeof document === 'undefined' ? '/' : document.baseURI;
+}
+
+function source(variant: BrandVariant): BrandSource {
+  const base = pageBase();
+  const files: ReadonlyArray<readonly [string, string]> =
+    variant === 'logo'
+      ? [
+          ['veltravia-logo-96.png', '1x'],
+          ['veltravia-logo-192.png', '2x'],
+          ['veltravia-logo-512.png', '3x'],
+        ]
+      : [
+          ['veltravia-notification-96.png', '1x'],
+          ['veltravia-notification-256.png', '2x'],
+        ];
+  const main = variant === 'logo' ? 'veltravia-logo-192.png' : 'veltravia-notification-96.png';
+  return {
+    src: brandUrl(main, base),
+    srcSet: files.map(([name, density]) => `${brandUrl(name, base)} ${density}`).join(', '),
+  };
+}
 
 const LABEL: Record<BrandVariant, string> = {
   logo: 'Veltravia AI',
@@ -68,8 +102,8 @@ export function BrandMark({
     >
       <img
         className="v-brand-mark__image"
-        src={SOURCE[variant].src}
-        srcSet={SOURCE[variant].srcSet}
+        src={source(variant).src}
+        srcSet={source(variant).srcSet}
         width={size}
         height={size}
         alt={decorative ? '' : LABEL[variant]}

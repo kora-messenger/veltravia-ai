@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
-import { BrandMark } from './BrandMark';
+import { BrandMark, brandUrl } from './BrandMark';
 
 /**
  * Branding cannot regress silently.
@@ -163,12 +163,15 @@ describe('BrandMark', () => {
   it('renders the full logo with a product label', () => {
     render(<BrandMark size={40} />);
     const image = screen.getByRole('img', { name: 'Veltravia AI' });
-    // The cropped 192px derivative, with densities so 3x screens get 512, not an upscale.
-    expect(image.getAttribute('src')).toBe('/brand/veltravia-logo-192.png');
+    // The cropped 192px derivative, with densities so 3x screens get 512, not an
+    // upscale. The path is resolved against the page, which is what the deployed
+    // site needed: a root-absolute one 404'd on Pages (BrandMark.test.tsx).
+    const page = document.baseURI;
+    expect(image.getAttribute('src')).toBe(brandUrl('veltravia-logo-192.png', page));
     const srcSet = image.getAttribute('srcSet') ?? '';
-    expect(srcSet).toContain('/brand/veltravia-logo-96.png 1x');
-    expect(srcSet).toContain('/brand/veltravia-logo-192.png 2x');
-    expect(srcSet).toContain('/brand/veltravia-logo-512.png 3x');
+    expect(srcSet).toContain(`${brandUrl('veltravia-logo-96.png', page)} 1x`);
+    expect(srcSet).toContain(`${brandUrl('veltravia-logo-192.png', page)} 2x`);
+    expect(srcSet).toContain(`${brandUrl('veltravia-logo-512.png', page)} 3x`);
     expect(image.getAttribute('width')).toBe('40');
     expect(image.getAttribute('height')).toBe('40');
   });
@@ -176,9 +179,11 @@ describe('BrandMark', () => {
   it('renders the notification mark', () => {
     render(<BrandMark variant="notification" size={24} />);
     const image = screen.getByRole('img', { name: 'Veltravia AI notifications' });
-    expect(image.getAttribute('src')).toBe('/brand/veltravia-notification-96.png');
+    expect(image.getAttribute('src')).toBe(
+      brandUrl('veltravia-notification-96.png', document.baseURI),
+    );
     expect(image.getAttribute('srcSet') ?? '').toContain(
-      '/brand/veltravia-notification-256.png 2x',
+      `${brandUrl('veltravia-notification-256.png', document.baseURI)} 2x`,
     );
   });
 
