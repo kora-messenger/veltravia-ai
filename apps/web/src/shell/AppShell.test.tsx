@@ -154,9 +154,7 @@ describe('AppShell', () => {
     // The phone's close control is not what a column offers; the column offers to
     // be put away, which is the same control wearing its own label.
     expect(screen.queryByRole('button', { name: 'Close navigation' })).toBeNull();
-    expect(
-      screen.getByRole('button', { name: 'Put the navigation column away' }),
-    ).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Put the navigation column away' })).toBeDefined();
     expect(screen.queryByRole('button', { name: 'Open navigation' })).toBeNull();
   });
 
