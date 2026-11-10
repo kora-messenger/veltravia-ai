@@ -54,13 +54,34 @@
     transition: transform 270ms cubic-bezier(0.18, 0.9, 0.3, 1.02);
   }
 
-  /* --- pinned head: mark, close ------------------------------------------- */
+  /* --- pinned head: brand lockup, close, hairline ------------------------- */
+  /* Measured off the reference head: the mark's ink starts 15dp below the
+     panel's top, the name sits 6dp to its right, and a hairline closes the
+     head 53dp down. The 32px box carries a 22dp mark, because the artwork
+     keeps about a third of its square empty, so 10dp of padding puts the ink
+     at 15dp. */
   .v-drawer__head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex: none;
-    padding: calc(var(--v-safe-top, 0px) + 8px) 10px 4px 18px;
+    /* 8 + the 40dp close control + 4 puts the rule 53dp down the panel, where
+       the reference draws it, and centres the mark's ink at 17dp. */
+    padding: calc(var(--v-safe-top, 0px) + 8px) 10px 4px 24px;
+    border-bottom: 1px solid var(--v-drawer-line);
+  }
+  .v-drawer__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .v-drawer__wordmark {
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 28px;
+    letter-spacing: -0.01em;
+    color: var(--v-text);
   }
   .v-drawer__close {
     display: inline-flex;
@@ -82,16 +103,21 @@
   /* --- pinned top: the agent, and a new conversation ---------------------- */
   .v-drawer__pinned {
     flex: none;
-    padding: 4px 12px 10px;
+    /* The card sits 13dp in from the panel's edge and 13dp below the head's
+       rule, both measured off the reference. */
+    padding: 13px 13px 10px;
   }
+  /* The agent card, as the reference draws it: 316 x 42dp with 6dp corners and
+     a hairline border on the panel's own colour, a 26dp round avatar 13dp in,
+     and the name 62dp in from the card's left edge. */
   .v-drawer__agent {
     display: flex;
     align-items: center;
-    gap: 12px;
-    height: 47px;
-    padding: 0 12px;
-    border: 1px solid var(--v-border, rgb(0 0 0 / 0.1));
-    border-radius: 12px;
+    gap: 22px;
+    height: 42px;
+    padding: 0 12px 0 13px;
+    border: 1px solid var(--v-drawer-edge);
+    border-radius: 6px;
     color: var(--v-text);
     text-decoration: none;
     -webkit-tap-highlight-color: transparent;
@@ -99,18 +125,23 @@
   .v-drawer__agent:active {
     background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
   }
-  .v-drawer__agent-icon {
+  .v-drawer__agent-avatar {
     display: inline-flex;
-    color: var(--v-primary);
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    /* The reference's avatar blue (#3950E5) is the app's own accent blue. */
+    background: #3b51e5;
+    color: #ffffff;
   }
-  .v-drawer__agent-icon .v-drawer__icon,
-  .v-drawer__agent-name {
-    width: 20px;
-    height: 20px;
+  .v-drawer__agent-avatar .v-drawer__icon {
+    width: 14px;
+    height: 14px;
   }
   .v-drawer__agent-name {
-    width: auto;
-    height: auto;
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
@@ -125,7 +156,7 @@
     gap: 12px;
     width: 100%;
     height: 47px;
-    margin-top: 6px;
+    margin-top: 15px;
     padding: 0 12px;
     border: 0;
     border-radius: 12px;

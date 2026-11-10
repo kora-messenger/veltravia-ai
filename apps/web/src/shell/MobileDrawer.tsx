@@ -470,7 +470,12 @@ export function MobileDrawer({
         inert={!open ? true : undefined}
       >
         <header className="v-drawer__head">
-          <BrandMark size={26} decorative />
+          {/* The reference head is a brand lockup, not a lone mark: the mark, a
+              6dp gap, then the product's name, with the close control opposite. */}
+          <span className="v-drawer__brand">
+            <BrandMark size={32} decorative />
+            <span className="v-drawer__wordmark">Veltravia</span>
+          </span>
           <button
             type="button"
             className="v-drawer__close"
@@ -491,7 +496,9 @@ export function MobileDrawer({
               if (settings !== null) go(settings);
             }}
           >
-            <span className="v-drawer__agent-icon">{GEAR_GLYPH}</span>
+            <span className="v-drawer__agent-avatar" aria-hidden="true">
+              {GEAR_GLYPH}
+            </span>
             <span className="v-drawer__agent-name">{profile.agentName}</span>
           </a>
           <button type="button" className="v-drawer__new" onClick={startConversation}>

@@ -989,14 +989,22 @@ The browser gets a drawer of its own (`shell/MobileDrawer.tsx`); the packaged
 app keeps the older menu (`shell/MobileMenu.tsx`), chosen by `isPackagedApp()`
 rather than by width, because the two are built differently.
 
-The drawer is three zones, not one scrolling column: a pinned head (mark and a
-close control — no back arrow), a pinned top (the agent row and "New
-conversation"), a scrolling middle (the destinations, then the conversation
-list), and a pinned footer (the workspace). That is what the reference capture
-does: the head and footer hold still while the middle scrolls under them.
+The drawer is three zones, not one scrolling column: a pinned head (the brand
+lockup — the mark, a 6dp gap, then the Veltravia name — with a close control and
+no back arrow), a pinned top (the agent card and "New conversation"), a
+scrolling middle (the destinations, then the conversation list), and a pinned
+footer (the workspace). That is what the reference capture does: the head and
+footer hold still while the middle scrolls under them.
+
+The head is closed by a hairline 53dp down the panel (`--v-drawer-line`), and
+the agent is a card rather than a bare row, the way the reference draws it:
+315 × 42dp with 6dp corners and a hairline border on the panel's own colour
+(`--v-drawer-edge`), a 26dp round avatar in the app's accent blue (#3B51E5, the
+reference's #3950E5) carrying a white gear, and the agent's name 62dp in from
+the card's left edge. "New conversation" follows 15dp below it.
 
 Sizes are measured from the captures rather than chosen: the panel is 83% of
-the viewport (343dp of 411dp), its surface is the reference's warm off-white
+the viewport (341dp of 411dp), its surface is the reference's warm off-white
 (`--v-drawer-surface`, `#F8F6F4`) so the white popups read as raised above it,
 rows are 47dp with 16dp icons 22dp in and labels 46dp in, and a row's own menu
 is a white card 203 × 120dp with 32dp rows and 8dp corners.

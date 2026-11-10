@@ -99,6 +99,10 @@
   /* The reference's selected row on that surface (#E9E6E0), warm rather than
      the cool neutral the rest of the app uses. */
   --v-drawer-muted: #e9e6e0;
+  /* Hairlines taken off the same reference: the rule that closes the drawer's
+     head (#D2CDC7 there) and the border around its agent card (#E0DDD7). */
+  --v-drawer-line: #d5d0c9;
+  --v-drawer-edge: #e2ded7;
   --v-surface-muted: var(--v-neutral-100);
   --v-surface-hover: var(--v-neutral-100);
 
@@ -146,6 +150,8 @@
   --v-surface-raised: #1b1928;
   --v-drawer-surface: #151420;
   --v-drawer-muted: #262334;
+  --v-drawer-line: rgb(255 255 255 / 0.12);
+  --v-drawer-edge: rgb(255 255 255 / 0.14);
   --v-surface-muted: #1e1c2b;
   --v-surface-hover: #262334;
 
