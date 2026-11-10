@@ -11,7 +11,7 @@ import {
   restoreConversation,
   type ConversationRecord,
 } from '../pages/chat/conversations';
-import { AI_WORKSPACE_IDS, AI_WORKSPACE_LABEL, ROUTES, type RouteDef } from './useHashRoute';
+import { ROUTES, type RouteDef } from './useHashRoute';
 import { WorkspaceSheet } from './WorkspaceSheet';
 import { workspaceInitials } from './workspace-initials';
 
@@ -230,15 +230,6 @@ const routeById = (id: string): RouteDef | null => ROUTES.find((route) => route.
 const primaryRoutes = PRIMARY_IDS.flatMap((id) => routeById(id) ?? []);
 
 /**
- * The AI workspace group, as the desktop rail used to show it. Files and the App
- * Builder are already rows of their own (and Files also sits behind More), so the
- * group carries the rest rather than listing one page three times.
- */
-const AI_ROWS = AI_WORKSPACE_IDS.filter(
-  (id) => !(PRIMARY_IDS as readonly string[]).includes(id) && id !== 'files',
-).flatMap((id) => routeById(id) ?? []);
-
-/**
  * What the reference keeps behind "More": Files, Memory and Data, in that order,
  * with 16dp icons and 16px labels. Files has a screen today; Memory and Data are
  * listed but marked, because Veltravia has nothing behind them yet.
@@ -271,7 +262,6 @@ export function MobileDrawer({
   const [showArchived, setShowArchived] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [chatsOpen, setChatsOpen] = useState(true);
-  const [aiOpen, setAiOpen] = useState(false);
   const [menu, setMenu] = useState<MenuState>({ kind: 'none' });
   const [moreOpen, setMoreOpen] = useState(false);
   /** The popup's anchor in viewport coordinates. The reference floats the card
@@ -300,7 +290,6 @@ export function MobileDrawer({
       setMoreOpen(false);
       setRenaming(null);
       setExpanded(false);
-      setAiOpen(false);
     }
   }, [open]);
 
@@ -523,10 +512,6 @@ export function MobileDrawer({
     );
   };
 
-  // A page inside the group keeps it open, so arriving on one never hides the row
-  // that is marked as current.
-  const aiExpanded = aiOpen || AI_ROWS.some((route) => route.id === activeRouteId);
-
   const ownerName = profile.ownerName;
   const workspaceName =
     ownerName === null || ownerName.trim() === ''
@@ -592,28 +577,6 @@ export function MobileDrawer({
 
         <div className="v-drawer__scroll">
           <ul className="v-drawer__list">{primaryRoutes.map(row)}</ul>
-
-          <section className="v-drawer__group" aria-label={AI_WORKSPACE_LABEL}>
-            <button
-              type="button"
-              className="v-drawer__group-toggle"
-              aria-expanded={aiExpanded}
-              aria-controls="v-drawer-ai"
-              onClick={() => setAiOpen((value) => !value)}
-            >
-              <span className="v-drawer__group-label">{AI_WORKSPACE_LABEL}</span>
-              <span
-                className={
-                  aiExpanded ? 'v-drawer__chevron' : 'v-drawer__chevron v-drawer__chevron--closed'
-                }
-              >
-                {CHEVRON_GLYPH}
-              </span>
-            </button>
-            <ul id="v-drawer-ai" className="v-drawer__list" hidden={!aiExpanded}>
-              {AI_ROWS.map(row)}
-            </ul>
-          </section>
 
           <div className="v-drawer__more-wrap" ref={moreWrap}>
             <button

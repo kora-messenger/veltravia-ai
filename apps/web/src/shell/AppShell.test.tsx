@@ -194,18 +194,20 @@ describe('AppShell', () => {
     fireEvent(window, new HashChangeEvent('hashchange'));
     // regression: the hash parser previously fell back to the dashboard here
     expect(screen.getByTestId('page-documents')).toBeDefined();
-    expect(
-      screen.getByRole('link', { name: /Document intelligence/ }).getAttribute('aria-current'),
-    ).toBe('page');
+    // The tool screens are not in the navigation, so nothing claims to be current.
+    expect(document.querySelector('[aria-current="page"]')).toBeNull();
   });
 
-  it('navigates to the documents page from the panel', () => {
+  it('keeps the AI tool screens out of the panel', () => {
     renderShell();
-    // The AI workspace group folds away; its rows appear once it is opened.
-    fireEvent.click(screen.getByRole('button', { name: /AI workspace/ }));
-    fireEvent.click(screen.getByRole('link', { name: /Document intelligence/ }));
-    expect(window.location.hash).toBe('#/documents');
-    expect(screen.getByTestId('page-documents')).toBeDefined();
+    expect(screen.queryByRole('link', { name: /Document intelligence/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    const card = screen.getByRole('menu', { name: 'More' });
+    expect(within(card).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Files',
+      'MemorySoon',
+      'DataSoon',
+    ]);
   });
 
   it('routes to the AI provider settings page', () => {
@@ -213,9 +215,6 @@ describe('AppShell', () => {
     window.location.hash = '#/settings/ai-providers';
     fireEvent(window, new HashChangeEvent('hashchange'));
     expect(screen.getByTestId('page-ai-providers')).toBeDefined();
-    expect(screen.getByRole('link', { name: /AI providers/ }).getAttribute('aria-current')).toBe(
-      'page',
-    );
   });
 
   it('keeps the plain settings page reachable', () => {

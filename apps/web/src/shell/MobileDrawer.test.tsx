@@ -111,6 +111,28 @@ describe('the website drawer', () => {
     expect(items.map((item) => item.textContent)).toEqual(['Files', 'MemorySoon', 'DataSoon']);
   });
 
+  it('lists no AI tools anywhere in the drawer', () => {
+    setup();
+    // The AI workspace group and the ten tool screens are not shipped, so the
+    // drawer carries none of them: what is on screen is what works.
+    for (const name of [
+      'Reasoning workspace',
+      'Model runs',
+      'Knowledge synthesis',
+      'Connected Apps',
+      'Document intelligence',
+      'Image intelligence',
+      'Video intelligence',
+      'Audio intelligence',
+      'Integrations',
+      'AI providers',
+    ]) {
+      expect(screen.queryByRole('link', { name: new RegExp(name) })).toBeNull();
+      expect(screen.queryByRole('menuitem', { name: new RegExp(name) })).toBeNull();
+    }
+    expect(screen.queryByRole('button', { name: /AI workspace/ })).toBeNull();
+  });
+
   it('floats the card at the reference corner: flush with the row, against the screen edge', () => {
     setup();
     document.querySelector('.v-drawer__scroll')?.scrollTo?.(0, 0);
