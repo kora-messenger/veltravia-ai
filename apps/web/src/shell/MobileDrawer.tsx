@@ -332,12 +332,17 @@ export function MobileDrawer({
       if (row === undefined) return;
       setMoreAnchor({
         top: Math.round(row.top),
-        // Over the page the card flies out past the panel's edge, as the
-        // reference does. Docked, the panel is a column of the page, so the card
-        // sits under its row instead of escaping to the window's edge.
-        left: docked
-          ? Math.round(row.left + 12)
-          : Math.round(window.innerWidth - MORE_CARD_INSET - MORE_CARD_WIDTH),
+        // The card flies out past the panel's edge, as the reference does. Over
+        // the page that edge is the window's; docked, the panel is the page's own
+        // column, so its right edge plays the same part and the card lands where
+        // the same menu puts it on a phone.
+        left: Math.round(
+          (docked
+            ? (panel.current?.getBoundingClientRect().right ?? window.innerWidth)
+            : window.innerWidth) -
+            MORE_CARD_INSET -
+            MORE_CARD_WIDTH,
+        ),
       });
     };
     // Scrolling the list would leave the card behind its row, so scrolling puts

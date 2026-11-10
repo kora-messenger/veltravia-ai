@@ -1049,8 +1049,9 @@
 
 /* ------------------- Docked: the same panel on a wide screen ------------------ */
 /* The website's desktop navigation is this panel standing open as a column, not a
-   second design: the reference's desktop has the same rows, the same conversations
-   and the same workspace footer as its phone drawer. Only the frame changes. */
+   second design: the same head, agent card, rows, conversations and workspace
+   footer as the phone's menu, at the same width it reaches on a large phone
+   (83%, up to 380px). Only the frame changes: no scrim, nothing to close. */
 @media (min-width: 1024px) {
   .v-drawer--docked {
     position: sticky;
@@ -1059,7 +1060,10 @@
     z-index: 1;
     display: block;
     flex: none;
-    inline-size: 280px;
+    /* The phone menu's own width, so the desktop column is that menu and not a
+       narrower cousin of it. */
+    inline-size: 83%;
+    max-inline-size: 380px;
     block-size: 100dvh;
     pointer-events: auto;
   }
@@ -1080,10 +1084,12 @@
   .v-drawer--docked .v-drawer__close {
     display: none;
   }
-  /* The head keeps its rule, and without the close control the brand sits on the
-     same line by padding rather than by a taller neighbour. */
+  /* The head keeps its rule 53dp down the panel, the height the close control
+     gives it on a phone, so the same menu measures the same either way. */
   .v-drawer--docked .v-drawer__head {
-    padding: calc(var(--v-safe-top, 0px) + 15px) 24px 9px;
+    /* 8 + 40 + 4 + the rule: the height the 40dp close control gives it on a
+       phone, so the same menu measures the same either way. */
+    min-block-size: 53px;
   }
 }
 
