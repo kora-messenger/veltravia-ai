@@ -12,7 +12,7 @@ function stubWidth(wide: boolean) {
   vi.stubGlobal(
     'matchMedia',
     vi.fn().mockImplementation((query: string) => ({
-      matches: wide && query.includes('min-width: 1024px'),
+      matches: wide && query.includes('min-width: 901px'),
       media: query,
       onchange: null,
       addEventListener: () => {},

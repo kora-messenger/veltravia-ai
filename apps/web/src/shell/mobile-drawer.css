@@ -1052,7 +1052,7 @@
    second design: the same head, agent card, rows, conversations and workspace
    footer as the phone's menu, at the same width it reaches on a large phone
    (83%, up to 380px). Only the frame changes: no scrim, nothing to close. */
-@media (min-width: 1024px) {
+@media (min-width: 901px) {
   .v-drawer--docked {
     position: sticky;
     top: 0;
