@@ -147,12 +147,42 @@ describe('AppShell', () => {
   it('stands the navigation open on a wide screen, with no hamburger asked for', () => {
     renderShell();
     const drawer = screen.getByTestId('mobile-drawer');
-    // One panel, two frames: wide, it is the page's column and cannot be closed.
+    // One panel, two frames: wide, it is the page's own column.
     expect(drawer.classList.contains('v-drawer--docked')).toBe(true);
     expect(drawer.classList.contains('v-drawer--open')).toBe(true);
     expect(drawer.querySelector('.v-drawer__scrim')).toBeNull();
+    // The phone's close control is not what a column offers; the column offers to
+    // be put away, which is the same control wearing its own label.
     expect(screen.queryByRole('button', { name: 'Close navigation' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Put the navigation column away' }),
+    ).toBeDefined();
     expect(screen.queryByRole('button', { name: 'Open navigation' })).toBeNull();
+  });
+
+  it('puts the column away from its own control and brings the hamburger back', () => {
+    renderShell();
+    const drawer = screen.getByTestId('mobile-drawer');
+    fireEvent.click(screen.getByRole('button', { name: 'Put the navigation column away' }));
+    // Not closed as a drawer is closed: the column is gone and the page has the
+    // whole width, so the page's own control reappears to fetch it back.
+    expect(drawer.classList.contains('v-drawer--open')).toBe(false);
+    expect(drawer.classList.contains('v-drawer--docked')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Open navigation' })).toBeDefined();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+    expect(drawer.classList.contains('v-drawer--open')).toBe(true);
+  });
+
+  it('keeps the column standing when a row navigates', () => {
+    renderShell();
+    const drawer = screen.getByTestId('mobile-drawer');
+    fireEvent.click(within(drawer).getByRole('link', { name: /Settings/ }));
+    expect(screen.getByTestId('page-settings')).toBeDefined();
+    // A row tap closes the drawer so the page is visible; on a wide screen there
+    // is no drawer to close and the column stays where it is.
+    expect(drawer.classList.contains('v-drawer--open')).toBe(true);
+    expect(drawer.classList.contains('v-drawer--docked')).toBe(true);
   });
 
   it('keeps the old rail out of the website build', () => {

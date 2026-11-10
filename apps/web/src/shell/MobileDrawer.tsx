@@ -222,6 +222,12 @@ export interface MobileDrawerProps {
   readonly onNewChat: () => void;
   readonly onOpenConversation: (id: string) => void;
   readonly onClose: () => void;
+  /**
+   * Putting the docked column away, which is a different act from closing the
+   * drawer: a row tap closes the drawer so the page is visible, and must leave
+   * the column standing on a wide screen.
+   */
+  readonly onCollapse?: () => void;
 }
 
 const routeById = (id: string): RouteDef | null => ROUTES.find((route) => route.id === id) ?? null;
@@ -262,6 +268,7 @@ export function MobileDrawer({
   onNewChat,
   onOpenConversation,
   onClose,
+  onCollapse,
 }: MobileDrawerProps) {
   const profile = useAgentProfile();
   const panel = useRef<HTMLElement>(null);
@@ -557,16 +564,14 @@ export function MobileDrawer({
             <BrandMark size={32} decorative />
             <span className="v-drawer__wordmark">Veltravia</span>
           </span>
-          {docked ? null : (
-            <button
-              type="button"
-              className="v-drawer__close"
-              aria-label="Close navigation"
-              onClick={onClose}
-            >
-              {CLOSE_GLYPH}
-            </button>
-          )}
+          <button
+            type="button"
+            className="v-drawer__close"
+            aria-label={docked ? 'Put the navigation column away' : 'Close navigation'}
+            onClick={docked && onCollapse !== undefined ? onCollapse : onClose}
+          >
+            {CLOSE_GLYPH}
+          </button>
         </header>
 
         <div className="v-drawer__pinned">

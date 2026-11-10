@@ -23,12 +23,21 @@ export interface AppShellProps {
 export function AppShell({ renderPage }: AppShellProps) {
   const { route, navigate } = useHashRoute();
   const [collapsed, setCollapsed] = useState(false);
+  // The website's column, put away by its own control. Kept apart from the
+  // packaged app's collapsed rail so one cannot change the other.
+  const [columnClosed, setColumnClosed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   // The website's navigation is one panel in two frames: a drawer over the page on
   // a phone, the page's own column on a wide screen.
   const wide = useWideLayout();
   const packaged = isPackagedApp();
-  const docked = wide && !packaged;
+  const docked = wide && !packaged && !columnClosed;
+
+  // A window that grows past the breakpoint gets its column back: putting the
+  // column away is a wide-screen action, not a preference that outlives it.
+  useEffect(() => {
+    if (!wide) setColumnClosed(false);
+  }, [wide]);
 
   // Close the drawer on Escape.
   useEffect(() => {
@@ -96,6 +105,7 @@ export function AppShell({ renderPage }: AppShellProps) {
             window.setTimeout(() => requestOpenConversation(id), 0);
           }}
           onClose={() => setMobileOpen(false)}
+          onCollapse={() => setColumnClosed(true)}
         />
       )}
       <div className="v-shell__main">
