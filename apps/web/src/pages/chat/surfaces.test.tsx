@@ -77,29 +77,45 @@ afterEach(() => {
 });
 
 describe('the website layout', () => {
-  it('centres a greeting behind the mark, with the ways in against the type box', () => {
+  it('centres a greeting behind the mark, with the ways in stacked above the type box', () => {
     renderPage();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Hey there');
-    // The ways in are chips in the composer's row now, not sentences in the hero.
-    const prompts = document.querySelector('.v-chat__prompts');
-    expect(prompts).not.toBeNull();
-    expect(prompts?.querySelectorAll('.v-chat__prompt')).toHaveLength(2);
-    // They sit above the type box, in the same footer.
+    // The ways in are two stacked lines in the footer, not chips and not hero text.
+    const tips = document.querySelector('.v-chat__tips');
+    expect(tips).not.toBeNull();
+    expect(tips?.querySelectorAll('.v-chat__suggestion')).toHaveLength(2);
+    expect(document.querySelector('.v-chat__prompts')).toBeNull();
+    // They share the composer's footer, so the keyboard carries them with the box.
     const footer = document.querySelector('.v-chat__footer');
-    expect(footer?.contains(prompts as Node)).toBe(true);
+    expect(footer?.contains(tips as Node)).toBe(true);
     const composer = document.querySelector('.v-chat-composer');
     expect(
-      (prompts as Element).compareDocumentPosition(composer as Node) &
+      (tips as Element).compareDocumentPosition(composer as Node) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    // Nothing is left of the old rows under the greeting.
-    expect(screen.queryByText('Let your agent send and manage emails on your behalf')).toBeNull();
-    expect(screen.queryAllByRole('button', { name: /^Dismiss suggestion/ })).toHaveLength(0);
+    // The hero itself carries only the mark and the greeting.
+    expect(
+      document.querySelector('.v-chat__hero')?.querySelector('.v-chat__suggestion'),
+    ).toBeNull();
+    expect(screen.getAllByRole('button', { name: /^Dismiss suggestion/ })).toHaveLength(2);
   });
 
-  it('keeps each chip a real destination', () => {
+  it('lets a tip be dismissed, and keeps the other', () => {
     renderPage();
-    fireEvent.click(screen.getByRole('button', { name: /Ask questions about your own documents/ }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /Dismiss suggestion: Ask questions about your own/ }),
+    );
+    expect(document.querySelectorAll('.v-chat__tips .v-chat__suggestion')).toHaveLength(1);
+    fireEvent.click(
+      screen.getByRole('button', { name: /Dismiss suggestion: Let your agent send and manage/ }),
+    );
+    // Nothing left means no empty block holding space above the box.
+    expect(document.querySelector('.v-chat__tips')).toBeNull();
+  });
+
+  it('keeps each tip a real destination', () => {
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Open document intelligence' }));
     expect(window.location.hash).toBe('#/documents');
   });
 
@@ -148,8 +164,8 @@ describe('the packaged app layout', () => {
     expect(document.querySelectorAll('.v-chat__suggestion-icon')).toHaveLength(2);
     expect(screen.getByRole('button', { name: 'Connect email address' })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Open document intelligence' })).toBeDefined();
-    // The chips live in the website's composer row; the app keeps its lines.
-    expect(document.querySelector('.v-chat__prompts')).toBeNull();
+    // The website's tips block is not drawn twice; the app keeps its own lines.
+    expect(document.querySelector('.v-chat__tips')).toBeNull();
   });
 
   it('fills the type box from a prompt row without sending it', () => {

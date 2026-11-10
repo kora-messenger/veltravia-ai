@@ -5,7 +5,7 @@ import { ChatComposer } from './ChatComposer';
 import { ChatThread } from './ChatThread';
 import { LiveEdgeButton } from './LiveEdgeButton';
 import { MobileLanding } from './MobileLanding';
-import { QuickPrompts } from './QuickPrompts';
+import { SuggestionList } from './SuggestionList';
 import { WebLanding } from './WebLanding';
 import { SUGGESTIONS } from './suggestions';
 import { useChatSession } from './useChatSession';
@@ -134,10 +134,16 @@ export function ChatPage() {
           onReturn={returnToLive}
         />
         {/* The website keeps its two ways in against the type box, as the
-            reference does: one small chip each, in a single row, above the
-            composer and below an answer alike. The packaged app draws them in
-            its own landing (MobileLanding), so they are not repeated there. */}
-        {app ? null : <QuickPrompts suggestions={SUGGESTIONS} onPrompt={fillPrompt} />}
+            reference does: two stacked lines (icon, sentence, coloured action,
+            close) directly above the box. They belong to the footer, so when the
+            keyboard resizes the page they travel up with the box instead of
+            being covered. The packaged app draws them in its own landing
+            (MobileLanding), so they are not repeated there. */}
+        {app || visible.length === 0 ? null : (
+          <div className="v-chat__tips">
+            <SuggestionList suggestions={visible} onDismiss={dismiss} onPrompt={fillPrompt} />
+          </div>
+        )}
         <ChatComposer
           value={session.draft}
           onChange={session.setDraft}

@@ -1,7 +1,17 @@
 import { useToast } from '../../components/ui';
 import { setChatModel, type AvailableModel, type ChatModelChoice } from '../../api/reasoning';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useChat } from './useChat';
+import { useChat, type ChatMessage } from './useChat';
+import {
+  CONVERSATIONS_CHANGED_EVENT,
+  OPEN_CONVERSATION_EVENT,
+  createConversation,
+  readConversation,
+  readConversations,
+  saveTurns,
+  type ConversationRecord,
+  type StoredTurn,
+} from './conversations';
 
 /** Fired by the app surface's new-conversation control, which lives in chrome. */
 export const NEW_CHAT_EVENT = 'veltravia:new-chat';
@@ -24,6 +34,41 @@ export interface ChatSession {
   /** A conversation with no turns asks an open question; a thread asks for a message. */
   readonly placeholder: string;
   readonly started: boolean;
+  /** The conversations this browser has kept, newest first. */
+  readonly conversations: readonly ConversationRecord[];
+  /** The stored conversation on screen, or null for a thread not saved yet. */
+  readonly activeConversationId: string | null;
+}
+
+/**
+ * The turns worth keeping: finished ones, in order. A turn still in flight or
+ * one that failed is not part of what a person can reopen.
+ */
+function finishedTurns(messages: readonly ChatMessage[]): readonly StoredTurn[] {
+  return messages
+    .filter((message) => message.state === 'done' && message.text.trim() !== '')
+    .map((message) => ({ id: message.id, role: message.role, text: message.text }));
+}
+
+/** A stored turn, as the thread shows it: nothing running, nothing to follow. */
+function asMessages(turns: readonly StoredTurn[]): readonly ChatMessage[] {
+  return turns.map((turn) => ({
+    id: turn.id,
+    role: turn.role,
+    text: turn.text,
+    state: 'done',
+    phase: 'finished',
+    runId: null,
+    activities: [],
+    report: null,
+    runStatus: null,
+    connection: null,
+  }));
+}
+
+/** What a saved thread looks like, so identical work is not written twice. */
+function signatureOf(turns: readonly StoredTurn[]): string {
+  return turns.map((turn) => `${turn.id}:${turn.text.length}`).join('|');
 }
 
 /**
@@ -35,6 +80,57 @@ export function useChatSession(): ChatSession {
   const chat = useChat();
   const [draft, setDraft] = useState('');
   const appliedRestore = useRef<number | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<readonly ConversationRecord[]>(() =>
+    readConversations(),
+  );
+  const lastSaved = useRef<string>('');
+
+  // The list itself lives in storage; this keeps the open screen in step with it
+  // after a rename, an archive or a delete from the drawer.
+  useEffect(() => {
+    const refresh = () => setConversations(readConversations());
+    refresh();
+    window.addEventListener(CONVERSATIONS_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(CONVERSATIONS_CHANGED_EVENT, refresh);
+  }, []);
+
+  // Keep the thread on screen saved as it goes: the first question names the
+  // conversation, every later finished turn is appended to the same one.
+  useEffect(() => {
+    const turns = finishedTurns(chat.messages);
+    if (turns.length === 0) return;
+    const first = turns[0];
+    if (first === undefined) return;
+    const signature = signatureOf(turns);
+    if (signature === lastSaved.current) return;
+    lastSaved.current = signature;
+    if (activeId === null || readConversation(activeId) === null) {
+      // Either nothing was saved yet, or the thread on screen was deleted from
+      // the drawer while it was open. Either way it becomes its own conversation
+      // again rather than writing into a record that is gone.
+      setActiveId(createConversation({ title: first.text, turns }).id);
+      return;
+    }
+    saveTurns(activeId, turns);
+  }, [chat.messages, activeId]);
+
+  // A conversation chosen in the drawer is handed to this surface, which is the
+  // only place that knows how to show it.
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      const id = (event as CustomEvent<{ id?: unknown }>).detail?.id;
+      if (typeof id !== 'string') return;
+      const record = readConversation(id);
+      if (record === null) return;
+      lastSaved.current = signatureOf(record.turns);
+      setActiveId(record.id);
+      setDraft('');
+      chat.hydrate(asMessages(record.turns));
+    };
+    window.addEventListener(OPEN_CONVERSATION_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_CONVERSATION_EVENT, onOpen);
+  }, [chat.hydrate]);
 
   // A send that never reached the server hands its words back here, verbatim and
   // untouched: the person keeps exactly what they typed, ready to edit or send
@@ -50,6 +146,8 @@ export function useChatSession(): ChatSession {
   const newChat = useCallback(() => {
     chat.reset();
     setDraft('');
+    lastSaved.current = '';
+    setActiveId(null);
   }, [chat]);
 
   // The packaged app's new-conversation control sits in its own header row,
@@ -129,5 +227,7 @@ export function useChatSession(): ChatSession {
     providerDetail,
     placeholder: started ? 'Type a message…' : "What's on your mind",
     started,
+    conversations,
+    activeConversationId: activeId,
   };
 }

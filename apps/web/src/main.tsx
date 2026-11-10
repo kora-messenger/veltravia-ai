@@ -7,6 +7,7 @@ import './design/global.css';
 import './components/ui/ui.css';
 import './components/brand/brand.css';
 import './shell/shell.css';
+import './shell/mobile-drawer.css';
 import './pages/pages.css';
 import './pages/chat/chat.css';
 import './pages/workspace/workspace.css';

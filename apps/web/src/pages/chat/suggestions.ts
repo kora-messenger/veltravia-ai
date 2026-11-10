@@ -12,12 +12,10 @@ export type SuggestionIcon = 'pencil' | 'document' | 'mail';
 export type Suggestion = {
   readonly id: string;
   readonly icon: SuggestionIcon;
-  /** The plain sentence, in the muted colour. Also the chip's accessible name. */
+  /** The plain sentence, in the muted colour. */
   readonly title: string;
   /** The coloured words that name what pressing it does. */
   readonly actionLabel: string;
-  /** The chip's own words against the type box: two or three, not a sentence. */
-  readonly shortLabel: string;
 } & (
   | { readonly kind: 'link'; readonly hash: string }
   | { readonly kind: 'prompt'; readonly prompt: string }
@@ -29,7 +27,6 @@ export const SUGGESTIONS: readonly Suggestion[] = [
     icon: 'mail',
     title: 'Let your agent send and manage emails on your behalf',
     actionLabel: 'Connect email address',
-    shortLabel: 'Connect email address',
     kind: 'prompt',
     // Filled into the composer, never sent on its own. The wording is the
     // owner's own request, kept character for character.
@@ -40,7 +37,6 @@ export const SUGGESTIONS: readonly Suggestion[] = [
     icon: 'document',
     title: 'Ask questions about your own documents',
     actionLabel: 'Open document intelligence',
-    shortLabel: 'Ask your documents',
     kind: 'link',
     hash: '#/documents',
   },

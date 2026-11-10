@@ -199,6 +199,8 @@ export interface UseChatResult {
   /** Carries a run that stopped at its budget on with a fresh one. */
   readonly continueAnswer: () => void;
   readonly reset: () => void;
+  /** Shows a stored conversation's finished turns, replacing what is on screen. */
+  readonly hydrate: (messages: readonly ChatMessage[]) => void;
   readonly canRetry: boolean;
   readonly canContinue: boolean;
   /** Set when a send did not reach the server: the words to hand back. */
@@ -611,6 +613,19 @@ export function useChat(): UseChatResult {
     setBusy(false);
   }, []);
 
+  // Reopening a stored conversation: the same clean slate as a new chat, with
+  // the saved turns already in it and nothing running.
+  const hydrate = useCallback((next: readonly ChatMessage[]) => {
+    follower.current?.stop();
+    follower.current = null;
+    cancelQuietly(activeRun.current);
+    activeRun.current = null;
+    lastQuestion.current = null;
+    setMessages(next);
+    setRestore(null);
+    setBusy(false);
+  }, []);
+
   const canContinueRun =
     !busy &&
     messages.some(
@@ -635,6 +650,7 @@ export function useChat(): UseChatResult {
     continueAnswer,
     canContinue: canContinueRun,
     reset,
+    hydrate,
     canRetry,
     restore,
     clearRestore,

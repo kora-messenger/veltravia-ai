@@ -115,17 +115,14 @@ describe('the chat landing page', () => {
   it('greets without inventing a name and offers real destinations', async () => {
     renderPage();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Hey there');
-    // The ways in are chips beside the type box, each naming where it goes.
-    // Each chip carries the full sentence as its accessible name, so the short
-    // label costs nothing to a screen reader.
+    // The ways in are two lines against the type box: the sentence, then the
+    // coloured action that does it.
     expect(
-      await screen.findByRole('button', { name: /Let your agent send and manage emails/ }),
+      await screen.findByText(/Let your agent send and manage emails on your behalf/),
     ).toBeDefined();
-    expect(
-      screen.getByRole('button', { name: /Ask questions about your own documents/ }),
-    ).toBeDefined();
-    expect(screen.getByText('Connect email address')).toBeDefined();
-    expect(screen.getByText('Ask your documents')).toBeDefined();
+    expect(screen.getByText(/Ask questions about your own documents/)).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Connect email address' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Open document intelligence' })).toBeDefined();
   });
 
   it('uses the name the owner gave, and no name when they gave none', async () => {
@@ -159,9 +156,7 @@ describe('the chat landing page', () => {
 
   it('writes the email prompt into the type box and sends nothing', async () => {
     renderPage();
-    const chip = await screen.findByRole('button', {
-      name: /Let your agent send and manage emails on your behalf/,
-    });
+    const chip = await screen.findByRole('button', { name: 'Connect email address' });
     fireEvent.click(chip);
     const box = screen.getByLabelText('Message') as HTMLTextAreaElement;
     expect(box.value).toBe(
@@ -172,14 +167,14 @@ describe('the chat landing page', () => {
     expect(document.activeElement).toBe(box);
   });
 
-  it('keeps the chips while the conversation runs, as the reference does', async () => {
+  it('keeps the tips while the conversation runs, as the reference does', async () => {
     startRun.mockResolvedValue(run());
     renderPage();
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Hello' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
     await screen.findByText('Here is what I found.');
     // A chat in progress still shows them above the type box.
-    expect(screen.getByRole('button', { name: /Connect email address/ })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Connect email address' })).toBeDefined();
   });
 
   it('says answers are simulated when no provider is connected', async () => {

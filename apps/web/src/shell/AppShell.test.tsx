@@ -132,27 +132,28 @@ describe('AppShell', () => {
 
   it('opens the phone drawer, navigates from it, and closes via the scrim and Escape', () => {
     renderShell();
-    const drawer = screen.getByTestId('mobile-menu');
-    expect(drawer.classList.contains('v-mmenu--open')).toBe(false);
+    // The browser gets the website drawer; the packaged app keeps its own menu.
+    const drawer = screen.getByTestId('mobile-drawer');
+    expect(drawer.classList.contains('v-drawer--open')).toBe(false);
 
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
-    expect(drawer.classList.contains('v-mmenu--open')).toBe(true);
+    expect(drawer.classList.contains('v-drawer--open')).toBe(true);
 
     // Navigating from the drawer lands on the page and closes the drawer.
-    fireEvent.click(within(drawer).getByRole('link', { name: 'Settings' }));
-    expect(screen.getByTestId('page-settings')).toBeDefined();
-    expect(drawer.classList.contains('v-mmenu--open')).toBe(false);
+    fireEvent.click(within(drawer).getByRole('link', { name: 'Projects' }));
+    expect(screen.getByTestId('page-projects')).toBeDefined();
+    expect(drawer.classList.contains('v-drawer--open')).toBe(false);
 
     // Tapping the dimmed area closes it without navigating anywhere.
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
-    fireEvent.click(drawer.querySelector('.v-mmenu__scrim') as Element);
-    expect(drawer.classList.contains('v-mmenu--open')).toBe(false);
+    fireEvent.click(drawer.querySelector('.v-drawer__scrim') as Element);
+    expect(drawer.classList.contains('v-drawer--open')).toBe(false);
 
     // And so does Escape.
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
-    expect(drawer.classList.contains('v-mmenu--open')).toBe(true);
+    expect(drawer.classList.contains('v-drawer--open')).toBe(true);
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(drawer.classList.contains('v-mmenu--open')).toBe(false);
+    expect(drawer.classList.contains('v-drawer--open')).toBe(false);
   });
 
   it('routes to the documents page and marks it active', () => {

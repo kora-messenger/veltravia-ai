@@ -1,6 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { MobileMenu } from './MobileMenu';
+import { MobileDrawer } from './MobileDrawer';
+import { isPackagedApp } from '../config/runtime-config';
+import { requestOpenConversation } from '../pages/chat/conversations';
 import { NEW_CHAT_EVENT } from '../pages/chat/useChatSession';
 import { TopBar } from './TopBar';
 import { BackendNotice } from '../components/BackendNotice';
@@ -31,6 +34,12 @@ export function AppShell({ renderPage }: AppShellProps) {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [mobileOpen]);
 
+  // Starting a chat from anywhere lands on the chat first, then clears it.
+  const startNewChat = () => {
+    navigate({ id: 'chat', hash: '#/chat', title: 'Chat' });
+    window.setTimeout(() => window.dispatchEvent(new Event(NEW_CHAT_EVENT)), 0);
+  };
+
   // The project routes highlight the Projects navigation item.
   const activeNavId =
     route.id === 'project-detail' || route.id === 'project-workspace' ? 'projects' : route.id;
@@ -52,19 +61,34 @@ export function AppShell({ renderPage }: AppShellProps) {
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
       />
-      <MobileMenu
-        open={mobileOpen}
-        activeRouteId={activeNavId}
-        onNavigate={(next) => {
-          navigate(next);
-        }}
-        onNewChat={() => {
-          // Starting a chat from anywhere lands on the chat first, then clears it.
-          navigate({ id: 'chat', hash: '#/chat', title: 'Chat' });
-          window.setTimeout(() => window.dispatchEvent(new Event(NEW_CHAT_EVENT)), 0);
-        }}
-        onClose={() => setMobileOpen(false)}
-      />
+      {isPackagedApp() ? (
+        <MobileMenu
+          open={mobileOpen}
+          activeRouteId={activeNavId}
+          onNavigate={(next) => {
+            navigate(next);
+          }}
+          onNewChat={startNewChat}
+          onClose={() => setMobileOpen(false)}
+        />
+      ) : (
+        /* The website's drawer: the app keeps its own menu above. */
+        <MobileDrawer
+          open={mobileOpen}
+          activeRouteId={activeNavId}
+          onNavigate={(next) => {
+            navigate(next);
+          }}
+          onNewChat={startNewChat}
+          onOpenConversation={(id) => {
+            // Land on the chat first, then hand it the thread: the page that
+            // shows a conversation only exists once the route has changed.
+            navigate({ id: 'chat', hash: '#/chat', title: 'Chat' });
+            window.setTimeout(() => requestOpenConversation(id), 0);
+          }}
+          onClose={() => setMobileOpen(false)}
+        />
+      )}
       <div className="v-shell__main">
         <BackendNotice />
         <OfflineBanner />
