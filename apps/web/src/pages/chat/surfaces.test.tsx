@@ -77,14 +77,30 @@ afterEach(() => {
 });
 
 describe('the website layout', () => {
-  it('centres a greeting behind the mark and lists each way in on one line', () => {
+  it('centres a greeting behind the mark, with the ways in against the type box', () => {
     renderPage();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Hey there');
-    expect(screen.getByText('Start something new from an empty project')).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Open the app builder' })).toBeDefined();
-    // The reference's row: an icon, the sentence, the destination, a close control.
-    expect(document.querySelectorAll('.v-chat__suggestion-icon')).toHaveLength(2);
-    expect(screen.getAllByRole('button', { name: /^Dismiss suggestion/ })).toHaveLength(2);
+    // The ways in are chips in the composer's row now, not sentences in the hero.
+    const prompts = document.querySelector('.v-chat__prompts');
+    expect(prompts).not.toBeNull();
+    expect(prompts?.querySelectorAll('.v-chat__prompt')).toHaveLength(2);
+    // They sit above the type box, in the same footer.
+    const footer = document.querySelector('.v-chat__footer');
+    expect(footer?.contains(prompts as Node)).toBe(true);
+    const composer = document.querySelector('.v-chat-composer');
+    expect(
+      (prompts as Element).compareDocumentPosition(composer as Node) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // Nothing is left of the old rows under the greeting.
+    expect(screen.queryByText('Let your agent send and manage emails on your behalf')).toBeNull();
+    expect(screen.queryAllByRole('button', { name: /^Dismiss suggestion/ })).toHaveLength(0);
+  });
+
+  it('keeps each chip a real destination', () => {
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Ask questions about your own documents/ }));
+    expect(window.location.hash).toBe('#/documents');
   });
 
   it('does not render the app-only new-conversation circle', () => {
@@ -99,7 +115,7 @@ describe('the packaged app layout', () => {
     renderPage();
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
     expect(screen.queryByText(/Hey there/)).toBeNull();
-    expect(screen.getByText(/Start something new from an empty project/)).toBeDefined();
+    expect(screen.getByText(/Let your agent send and manage emails/)).toBeDefined();
     expect(screen.getByText(/Ask questions about your own documents/)).toBeDefined();
   });
 
@@ -121,15 +137,42 @@ describe('the packaged app layout', () => {
   it('lets a suggestion start a real navigation on the shared engine', () => {
     runAsPackagedApp();
     renderPage();
-    fireEvent.click(screen.getByRole('button', { name: 'Open the app builder' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open document intelligence' }));
     // Navigation is the whole action: the hash carries the destination.
-    expect(window.location.hash).toBe('#/builder');
+    expect(window.location.hash).toBe('#/documents');
   });
 
-  it('draws the same rows the website uses', () => {
+  it('draws its own rows, and no website chips', () => {
     runAsPackagedApp();
     renderPage();
     expect(document.querySelectorAll('.v-chat__suggestion-icon')).toHaveLength(2);
-    expect(screen.getByRole('button', { name: 'Open the app builder' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Connect email address' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Open document intelligence' })).toBeDefined();
+    // The chips live in the website's composer row; the app keeps its lines.
+    expect(document.querySelector('.v-chat__prompts')).toBeNull();
+  });
+
+  it('fills the type box from a prompt row without sending it', () => {
+    runAsPackagedApp();
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Connect email address' }));
+    expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe(
+      'Connect a Email address for me so you can send and manage email on my behalf',
+    );
+    expect(startRun).not.toHaveBeenCalled();
+  });
+
+  it('still dismisses a row and keeps it dismissed', () => {
+    runAsPackagedApp();
+    renderPage();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Dismiss suggestion: Let your agent send and manage emails on your behalf',
+      }),
+    );
+    expect(screen.queryByText(/Let your agent send and manage emails/)).toBeNull();
+    expect(
+      JSON.parse(window.sessionStorage.getItem('veltravia.chat.dismissed-suggestions') ?? '[]'),
+    ).toEqual(['email']);
   });
 });

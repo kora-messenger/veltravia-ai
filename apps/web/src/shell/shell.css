@@ -262,6 +262,13 @@
 }
 
 @media (max-width: 900px) {
+  /* The phone's header title is the size the reference uses (its agent name
+     measures 14px against the 18px this title carried). The desktop header keeps
+     its own scale. */
+  .v-topbar__title {
+    font-size: 0.875rem;
+  }
+
   .v-sidebar {
     position: fixed;
     inset: 0 auto 0 0;

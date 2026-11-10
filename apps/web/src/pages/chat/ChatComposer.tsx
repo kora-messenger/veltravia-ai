@@ -63,6 +63,12 @@ export interface ChatComposerProps {
   readonly models: readonly AvailableModel[];
   readonly chooseModel: (choice: null | AvailableModel) => void;
   readonly providerDetail: string;
+  /**
+   * Bumped when something outside the box has written into it (a quick prompt,
+   * say). The box takes focus, with the caret at the end, so the words are
+   * waiting to be read and sent rather than hidden under a dead cursor.
+   */
+  readonly focusToken?: number;
 }
 
 /**
@@ -127,6 +133,7 @@ export function ChatComposer({
   models,
   chooseModel,
   providerDetail,
+  focusToken,
 }: ChatComposerProps) {
   const field = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
@@ -140,6 +147,19 @@ export function ChatComposer({
   // send. They live in this browser; nothing is uploaded.
   const [notes, setNotes] = useState<readonly { id: string; text: string }[]>(readNotes);
   const [noteOpen, setNoteOpen] = useState(false);
+
+  /**
+   * A quick prompt has just written into the box. Focusing it with the caret at
+   * the end turns a filled field into something the person can read and send,
+   * instead of words they have to hunt for.
+   */
+  useEffect(() => {
+    if (focusToken === undefined || focusToken === 0) return;
+    const node = field.current;
+    if (node === null) return;
+    node.focus();
+    node.setSelectionRange(node.value.length, node.value.length);
+  }, [focusToken]);
   const [noteDraft, setNoteDraft] = useState('');
   const { toast } = useToast();
 

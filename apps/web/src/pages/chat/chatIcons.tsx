@@ -114,6 +114,19 @@ export function DocumentIcon({ size = 16 }: IconProps) {
   );
 }
 
+/**
+ * The mail mark, for the way in that writes the email-connection request into
+ * the type box. Drawn in the same single stroke as the rest.
+ */
+export function MailIcon({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3.5 7 8.5 6 8.5-6" />
+    </svg>
+  );
+}
+
 export function PhoneIcon({ size = 18 }: IconProps) {
   return (
     <svg {...base(size)}>

@@ -5,6 +5,7 @@ import type { Suggestion } from './suggestions';
 export interface MobileLandingProps {
   readonly suggestions: readonly Suggestion[];
   readonly onDismiss: (id: string) => void;
+  readonly onPrompt: (prompt: string) => void;
   readonly onNewChat: () => void;
 }
 
@@ -16,7 +17,7 @@ export interface MobileLandingProps {
  * The menu control is the shell's (top-left); this row supplies the other
  * circle the reference has, which starts a fresh conversation.
  */
-export function MobileLanding({ suggestions, onDismiss, onNewChat }: MobileLandingProps) {
+export function MobileLanding({ suggestions, onDismiss, onPrompt, onNewChat }: MobileLandingProps) {
   return (
     <div className="v-chat__app">
       <div className="v-chat__appbar">
@@ -32,7 +33,9 @@ export function MobileLanding({ suggestions, onDismiss, onNewChat }: MobileLandi
 
       <div className="v-chat__app-spacer" />
 
-      {suggestions.length > 0 && <SuggestionList suggestions={suggestions} onDismiss={onDismiss} />}
+      {suggestions.length > 0 && (
+        <SuggestionList suggestions={suggestions} onDismiss={onDismiss} onPrompt={onPrompt} />
+      )}
     </div>
   );
 }

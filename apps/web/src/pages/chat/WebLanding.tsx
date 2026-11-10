@@ -1,19 +1,17 @@
 import { BrandMark } from '../../components/brand/BrandMark';
-import { SuggestionList } from './SuggestionList';
-import type { Suggestion } from './suggestions';
 
 export interface WebLandingProps {
   readonly name: string | null;
-  readonly suggestions: readonly Suggestion[];
-  readonly onDismiss: (id: string) => void;
 }
 
 /**
- * The website's empty state: the mark, a greeting, then the ways in. The lines
- * sit in the composer's column so the eye runs straight down from the greeting
- * to the sentence you could type.
+ * The website's empty state: the mark and a greeting, and nothing else.
+ *
+ * The two ways in used to sit here, under the greeting. They live against the
+ * type box now (see QuickPrompts), which is where the reference keeps them, so
+ * this screen is only ever the welcome: mark, greeting, then the box.
  */
-export function WebLanding({ name, suggestions, onDismiss }: WebLandingProps) {
+export function WebLanding({ name }: WebLandingProps) {
   return (
     <div className="v-chat__hero">
       <BrandMark size={56} decorative />
@@ -21,7 +19,6 @@ export function WebLanding({ name, suggestions, onDismiss }: WebLandingProps) {
         {name === null ? 'Hey there,' : `Hey ${name},`}
         <span className="v-chat__greeting-line">what should we build?</span>
       </h1>
-      {suggestions.length > 0 && <SuggestionList suggestions={suggestions} onDismiss={onDismiss} />}
     </div>
   );
 }

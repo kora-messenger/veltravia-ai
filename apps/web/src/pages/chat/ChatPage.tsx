@@ -5,6 +5,7 @@ import { ChatComposer } from './ChatComposer';
 import { ChatThread } from './ChatThread';
 import { LiveEdgeButton } from './LiveEdgeButton';
 import { MobileLanding } from './MobileLanding';
+import { QuickPrompts } from './QuickPrompts';
 import { WebLanding } from './WebLanding';
 import { SUGGESTIONS } from './suggestions';
 import { useChatSession } from './useChatSession';
@@ -75,12 +76,21 @@ export function ChatPage() {
   };
   const profile = useAgentProfile();
   const [dismissed, setDismissed] = useState<readonly string[]>(readDismissed);
+  // Bumped whenever a quick prompt is written into the box, so the box can take
+  // focus without the page reaching into the composer's DOM.
+  const [promptToken, setPromptToken] = useState(0);
   const app = isPackagedApp();
 
   // The name comes from the profile the owner set, not a storage key nothing
   // ever wrote. Null means they have not told us a name, so no name is invented.
   const name = profile.ownerName;
   const visible = SUGGESTIONS.filter((suggestion) => !dismissed.includes(suggestion.id));
+
+  /** Writes a suggestion's words into the type box. Nothing is sent. */
+  const fillPrompt = (prompt: string) => {
+    session.setDraft(prompt);
+    setPromptToken((current) => current + 1);
+  };
 
   const dismiss = (id: string) => {
     setDismissed((current) => {
@@ -106,9 +116,14 @@ export function ChatPage() {
             onContinue={session.chat.continueAnswer}
           />
         ) : app ? (
-          <MobileLanding suggestions={visible} onDismiss={dismiss} onNewChat={session.newChat} />
+          <MobileLanding
+            suggestions={visible}
+            onDismiss={dismiss}
+            onPrompt={fillPrompt}
+            onNewChat={session.newChat}
+          />
         ) : (
-          <WebLanding name={name} suggestions={visible} onDismiss={dismiss} />
+          <WebLanding name={name} />
         )}
       </div>
 
@@ -118,6 +133,11 @@ export function ChatPage() {
           awayFromBottom={awayFromBottom}
           onReturn={returnToLive}
         />
+        {/* The website keeps its two ways in against the type box, as the
+            reference does: one small chip each, in a single row, above the
+            composer and below an answer alike. The packaged app draws them in
+            its own landing (MobileLanding), so they are not repeated there. */}
+        {app ? null : <QuickPrompts suggestions={SUGGESTIONS} onPrompt={fillPrompt} />}
         <ChatComposer
           value={session.draft}
           onChange={session.setDraft}
@@ -130,6 +150,7 @@ export function ChatPage() {
           model={session.model}
           models={session.models}
           chooseModel={session.chooseModel}
+          focusToken={promptToken}
         />
       </div>
     </div>

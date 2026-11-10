@@ -51,7 +51,7 @@
 }
 
 .v-chat__greeting {
-  margin: var(--v-space-4) 0 var(--v-space-5);
+  margin: var(--v-space-4) 0 0;
   /* Measured against the reference, where the greeting's type is about 1.75x the
      suggestion rows, not the 2.3x a 30px bold h1 gave us. 22px over the 13px rows
      is 1.69, the closest whole pixel; the scale tokens either side (20px = 1.54,
@@ -307,12 +307,73 @@
   background: linear-gradient(to top, var(--v-bg) 72%, transparent);
 }
 
+/* ---------- The ways in, against the type box ---------- */
+
+/* Measured from the reference capture (461px wide, 0.89px per dp): chips 34dp
+   tall, 12dp corners, 9dp apart, 15dp of side padding, the row 6dp off the box,
+   and its own 13px type. They sit in the composer's column so the row starts and
+   ends on the box's own edges. */
+.v-chat__prompts {
+  display: flex;
+  gap: var(--v-space-2);
+  max-width: 720px;
+  /* 6px to the box's edge, which is the reference's own gap. */
+  margin: 0 auto 6px;
+  padding: 0;
+  overflow-x: auto;
+  /* One row, as the reference has it. A phone that cannot fit both scrolls them
+     rather than hiding one. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.v-chat__prompts::-webkit-scrollbar {
+  display: none;
+}
+
+.v-chat__prompt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--v-neutral-200);
+  color: var(--v-text);
+  font: inherit;
+  font-size: var(--v-text-sm);
+  font-weight: var(--v-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.v-chat__prompt:hover {
+  background: var(--v-neutral-300);
+}
+
+.v-chat__prompt:focus-visible {
+  outline: 2px solid var(--v-brand-400);
+  outline-offset: 2px;
+}
+
+.v-chat__prompt-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  /* 5.9:1 against the chip fill; an icon carries meaning here, so it is not the
+     faintest tone. */
+  color: var(--v-text-muted);
+}
+
+/* The reference's box is a little taller than a field plus a control row: its
+   bottom padding is 26px against this page's 20. */
 /* The reference's box: a light grey fill inside a thin grey border, one field
    over a control row, and no drop shadow. Radius stays the measured 16px. */
 .v-chat-composer {
   max-width: 720px;
   margin: 0 auto;
-  padding: var(--v-space-2) var(--v-space-2) var(--v-space-2) var(--v-space-3);
+  padding: var(--v-space-2) var(--v-space-2) var(--v-space-3) var(--v-space-3);
   border: 1px solid var(--v-border-strong);
   border-radius: 16px;
   background: var(--v-surface-muted);
@@ -610,6 +671,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .v-chat-composer,
+  .v-chat__prompt,
   .v-chat__suggestion {
     transition: none;
   }

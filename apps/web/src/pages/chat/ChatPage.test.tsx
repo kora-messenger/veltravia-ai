@@ -115,11 +115,17 @@ describe('the chat landing page', () => {
   it('greets without inventing a name and offers real destinations', async () => {
     renderPage();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Hey there');
-    expect(await screen.findByText('Start something new from an empty project')).toBeDefined();
-    expect(screen.getByText('Ask questions about your own documents')).toBeDefined();
-    // Each line names its destination in the brand colour, as the reference does.
-    expect(screen.getByRole('button', { name: 'Open the app builder' })).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Open document intelligence' })).toBeDefined();
+    // The ways in are chips beside the type box, each naming where it goes.
+    // Each chip carries the full sentence as its accessible name, so the short
+    // label costs nothing to a screen reader.
+    expect(
+      await screen.findByRole('button', { name: /Let your agent send and manage emails/ }),
+    ).toBeDefined();
+    expect(
+      screen.getByRole('button', { name: /Ask questions about your own documents/ }),
+    ).toBeDefined();
+    expect(screen.getByText('Connect email address')).toBeDefined();
+    expect(screen.getByText('Ask your documents')).toBeDefined();
   });
 
   it('uses the name the owner gave, and no name when they gave none', async () => {
@@ -151,17 +157,29 @@ describe('the chat landing page', () => {
     expect(await screen.findByText(/Hey Ijezie/)).toBeDefined();
   });
 
-  it('dismisses a suggestion and keeps it dismissed', async () => {
+  it('writes the email prompt into the type box and sends nothing', async () => {
     renderPage();
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: 'Dismiss suggestion: Start something new from an empty project',
-      }),
+    const chip = await screen.findByRole('button', {
+      name: /Let your agent send and manage emails on your behalf/,
+    });
+    fireEvent.click(chip);
+    const box = screen.getByLabelText('Message') as HTMLTextAreaElement;
+    expect(box.value).toBe(
+      'Connect a Email address for me so you can send and manage email on my behalf',
     );
-    expect(screen.queryByText('Start something new from an empty project')).toBeNull();
-    expect(
-      JSON.parse(window.sessionStorage.getItem('veltravia.chat.dismissed-suggestions') ?? '[]'),
-    ).toEqual(['builder']);
+    // Filled, not sent: asking for a mailbox is the person's decision to make.
+    expect(startRun).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(box);
+  });
+
+  it('keeps the chips while the conversation runs, as the reference does', async () => {
+    startRun.mockResolvedValue(run());
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Hello' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    await screen.findByText('Here is what I found.');
+    // A chat in progress still shows them above the type box.
+    expect(screen.getByRole('button', { name: /Connect email address/ })).toBeDefined();
   });
 
   it('says answers are simulated when no provider is connected', async () => {

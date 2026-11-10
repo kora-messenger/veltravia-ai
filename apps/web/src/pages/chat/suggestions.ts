@@ -1,30 +1,47 @@
 /**
- * The two ways in from an empty conversation. Both are real destinations, so
- * neither is an illustration: each goes where it says it goes.
+ * The ways in from an empty conversation. Each is one of two real things, never
+ * an illustration;
+ *
+ * - `link` goes where it says it goes (a route of this app), and
+ * - `prompt` writes the first message for you, so a person who does not know how
+ *   to ask for something can still ask for it. The words land in the type box,
+ *   unsent: what is sent stays the person's own decision.
  */
-export interface Suggestion {
+export type SuggestionIcon = 'pencil' | 'document' | 'mail';
+
+export type Suggestion = {
   readonly id: string;
-  readonly icon: 'pencil' | 'document';
-  /** The plain sentence, in the muted colour. */
+  readonly icon: SuggestionIcon;
+  /** The plain sentence, in the muted colour. Also the chip's accessible name. */
   readonly title: string;
-  /** The coloured words that name the destination. */
+  /** The coloured words that name what pressing it does. */
   readonly actionLabel: string;
-  readonly hash: string;
-}
+  /** The chip's own words against the type box: two or three, not a sentence. */
+  readonly shortLabel: string;
+} & (
+  | { readonly kind: 'link'; readonly hash: string }
+  | { readonly kind: 'prompt'; readonly prompt: string }
+);
 
 export const SUGGESTIONS: readonly Suggestion[] = [
   {
-    id: 'builder',
-    icon: 'pencil',
-    title: 'Start something new from an empty project',
-    actionLabel: 'Open the app builder',
-    hash: '#/builder',
+    id: 'email',
+    icon: 'mail',
+    title: 'Let your agent send and manage emails on your behalf',
+    actionLabel: 'Connect email address',
+    shortLabel: 'Connect email address',
+    kind: 'prompt',
+    // Filled into the composer, never sent on its own. The wording is the
+    // owner's own request, kept character for character.
+    prompt: 'Connect a Email address for me so you can send and manage email on my behalf',
   },
   {
     id: 'documents',
     icon: 'document',
     title: 'Ask questions about your own documents',
     actionLabel: 'Open document intelligence',
+    shortLabel: 'Ask your documents',
+    kind: 'link',
     hash: '#/documents',
   },
 ];
