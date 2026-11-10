@@ -5,7 +5,10 @@
  * place; three would not fit an avatar this size.
  */
 export function workspaceInitials(name: string): string {
-  const words = name.trim().split(/\s+/).filter((word) => word !== '');
+  const words = name
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word !== '');
   const letters = words.slice(0, 2).map((word) => [...word][0] ?? '');
   return letters.join('').toUpperCase();
 }

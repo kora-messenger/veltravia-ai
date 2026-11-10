@@ -68,7 +68,11 @@ export function ProfileDialog({ open, onClose }: ProfileDialogProps) {
           <Button variant="ghost" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={submit} loading={saving} disabled={yourName === '' || assistantName === ''}>
+          <Button
+            onClick={submit}
+            loading={saving}
+            disabled={yourName === '' || assistantName === ''}
+          >
             Save
           </Button>
         </>

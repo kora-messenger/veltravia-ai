@@ -3,20 +3,17 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MessageCreditSummary } from '../api/message-credits';
 import { ThemeProvider } from '../theme/ThemeProvider';
-import {
-  WorkspaceSheet,
-  creditMeters,
-  formatCredits,
-  renewalLabel,
-} from './WorkspaceSheet';
+import { WorkspaceSheet, creditMeters, formatCredits, renewalLabel } from './WorkspaceSheet';
 
 afterEach(cleanup);
 
-function summary(over: {
-  spent?: number;
-  limit?: number | null;
-  reserved?: number;
-} = {}): MessageCreditSummary {
+function summary(
+  over: {
+    spent?: number;
+    limit?: number | null;
+    reserved?: number;
+  } = {},
+): MessageCreditSummary {
   const spent = over.spent ?? 87.33;
   return {
     wallet: { available: 100, reserved: over.reserved ?? 0, spent, spendable: 100 },
@@ -115,7 +112,6 @@ describe('the workspace sheet', () => {
     expect(alert.textContent).toContain('could not be loaded');
     expect(document.querySelector('.v-sheet__skeleton')).toBeNull();
   });
-
 
   it('closes, then opens settings, from the Settings row', async () => {
     const props = setup(() => Promise.resolve(summary()));
@@ -229,4 +225,5 @@ describe('the rows after Settings', () => {
       'Help & support',
       'Log out',
     ]);
-  });});
+  });
+});

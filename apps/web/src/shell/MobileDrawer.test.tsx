@@ -282,7 +282,7 @@ describe('the website drawer', () => {
     expect(sheet.classList.contains('v-sheet--open')).toBe(false);
   });
 
-  it('dresses the footer tile in the workspace\'s own two letters', () => {
+  it("dresses the footer tile in the workspace's own two letters", () => {
     // The reference footer carries a tile with the workspace initials, not the
     // signed-in person's single letter, and "IW" is what it shows for
     // "Ijezie's Workspace".
@@ -292,7 +292,7 @@ describe('the website drawer', () => {
 
     // Two letters at most, first letter of each of the first two words, and a
     // word that starts a sentence still reads in capitals.
-    expect(workspaceInitials('Ijezie\'s Workspace')).toBe('IW');
+    expect(workspaceInitials("Ijezie's Workspace")).toBe('IW');
     expect(workspaceInitials('  personal   workspace  ')).toBe('PW');
     expect(workspaceInitials('Veltravia')).toBe('V');
   });
