@@ -1069,12 +1069,35 @@ knows, from `/api/message-credits`:
   spent and draws no bar, rather than inventing a denominator,
 - a held-credits row only while credits are actually reserved.
 
-The reference also shows a daily limit, an integration-credit meter, an
-"Upgrade your plan" button, "Earn free credits", "Add members", a profile row and
-an affiliate row. Veltravia has no daily limit, no integration credits, no paid
-plan, no referral programme, no teams and no accounts, so none of those are
-drawn. The existing rule about the upgrade card still applies. Only Settings is
-there, because it is the only one with somewhere to go.
+### The rows under the card
+
+Measured from the same reference: sections divided by a `#E7E4E0` hairline, rows
+52dp tall, each icon 16dp at 20dp in, its label at 48dp, and a chevron 20dp from
+the right edge.
+
+Workspace holds Settings. Under the divider comes the reference's identity line
+and its account rows:
+
+- **View profile** opens a dialog with your name and your assistant's name. Both
+  are real profile fields, saved through the same API the rename dialog uses, so
+  the row writes what it shows and the workspace stops reading "Not signed in".
+- **Account preferences** opens Settings, the only preferences surface the app has.
+- **Appearance** is a real three-way preference (Light, Dark, System) wired to the
+  theme provider, which writes `data-theme` on the root and follows the OS when
+  set to System. All sheet colours are tokens, so both themes clear 4.5:1
+  contrast (17.5 and 6.7 in light, 14.5 and 6.9 in dark).
+- **Language** is a plain row reading English. The app ships one language, so it
+  is stated rather than offered as a picker with nothing in it.
+- **Help & support** opens a short dialog whose four answers come from behaviour
+  that is in the build: monthly reset on the 1st, how Automatic picks a model,
+  what happens to a failed message, and where chats and files live.
+
+Left undrawn, because each needs a feature Veltravia does not have: "Earn free
+credits" (no referral programme), "Add members" (no teams or multi-user
+workspaces), "Become an affiliate" (no programme), "Log out" (no accounts or
+session), the daily-limit and integration-credit meters (neither is tracked), and
+"Upgrade your plan" (still no paid plan). They are absent rather than disabled:
+a row that opens nothing is worse than a row that was never there.
 
 While credits load, the card shows the reference's skeleton: four grey blocks
 (103x21, then 351 wide at 17, 9 and 30dp tall) that share one animation. The

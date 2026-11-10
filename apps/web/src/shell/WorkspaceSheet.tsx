@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { getMessageCreditSummary, type MessageCreditSummary } from '../api/message-credits';
+import { useAgentProfile } from '../agent/AgentProfileProvider';
+import { useTheme, type ThemePreference } from '../theme/ThemeProvider';
+import { HelpDialog } from './HelpDialog';
+import { ProfileDialog } from './ProfileDialog';
 import { workspaceInitials } from './workspace-initials';
 
 /**
@@ -105,12 +109,63 @@ const CHEVRONS = (
   </svg>
 );
 
+const CHEVRON_RIGHT = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <path d="m9 6 6 6-6 6" />
+  </svg>
+);
+
+const PERSON = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <circle cx="12" cy="8" r="3.5" />
+    <path d="M5 20c0-3.3 3.1-6 7-6s7 2.7 7 6" />
+  </svg>
+);
+
+const SLIDERS = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+    <circle cx="16" cy="7" r="2" />
+    <circle cx="10" cy="17" r="2" />
+  </svg>
+);
+
+const LANGUAGE = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18" />
+  </svg>
+);
+
+const QUESTION = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9.6 9.2a2.5 2.5 0 1 1 3.4 2.4c-.7.3-1 .9-1 1.6v.3" />
+    <path d="M12 17h.01" />
+  </svg>
+);
+
+const PALETTE = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.9 0-.5-.2-.9-.5-1.3-.3-.3-.4-.7-.4-1.1 0-1 .8-1.7 1.8-1.7H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8Z" />
+    <circle cx="8" cy="10" r="1" />
+    <circle cx="12" cy="7.5" r="1" />
+    <circle cx="15.8" cy="10" r="1" />
+  </svg>
+);
+
 const GEAR = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
     <circle cx="12" cy="12" r="3" />
     <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
   </svg>
 );
+
+const APPEARANCES: readonly { value: ThemePreference; label: string }[] = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: 'System' },
+];
 
 export function WorkspaceSheet({
   open,
@@ -120,6 +175,11 @@ export function WorkspaceSheet({
   loadCredits = getMessageCreditSummary,
 }: WorkspaceSheetProps) {
   const [credits, setCredits] = useState<CreditState>({ kind: 'loading' });
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const { preference, setPreference } = useTheme();
+  const { ownerName } = useAgentProfile();
+  const who = ownerName?.trim() ? ownerName.trim() : 'Add your name';
   const sheet = useRef<HTMLDivElement | null>(null);
 
   // Read the credits each time the sheet opens, so the card never shows a figure
@@ -249,10 +309,75 @@ export function WorkspaceSheet({
             }}
           >
             <span className="v-sheet__item-icon">{GEAR}</span>
-            <span>Settings</span>
+            <span className="v-sheet__item-label">Settings</span>
+          </button>
+
+          <div className="v-sheet__rule" />
+
+          {/* The reference puts the signed-in email here. Veltravia has no
+              accounts yet, so this is the name its workspace is built on. */}
+          <p className="v-sheet__identity">{who}</p>
+
+          <button type="button" className="v-sheet__item" onClick={() => setProfileOpen(true)}>
+            <span className="v-sheet__item-icon">{PERSON}</span>
+            <span className="v-sheet__item-label">View profile</span>
+            <span className="v-sheet__chevron">{CHEVRON_RIGHT}</span>
+          </button>
+
+          <button
+            type="button"
+            className="v-sheet__item"
+            onClick={() => {
+              onClose();
+              onOpenSettings();
+            }}
+          >
+            <span className="v-sheet__item-icon">{SLIDERS}</span>
+            <span className="v-sheet__item-label">Account preferences</span>
+            <span className="v-sheet__chevron">{CHEVRON_RIGHT}</span>
+          </button>
+
+          {/* Appearance is a real preference: the provider writes data-theme on
+              the root and follows the system when asked. */}
+          <div className="v-sheet__item v-sheet__item--static">
+            <span className="v-sheet__item-icon">{PALETTE}</span>
+            <span className="v-sheet__item-label">Appearance</span>
+            <span className="v-sheet__segmented" role="group" aria-label="Appearance">
+              {APPEARANCES.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={
+                    preference === option.value
+                      ? 'v-sheet__segment v-sheet__segment--on'
+                      : 'v-sheet__segment'
+                  }
+                  aria-pressed={preference === option.value}
+                  onClick={() => setPreference(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </span>
+          </div>
+
+          {/* English only: the app ships one language, so this is a fact, not a
+              control that would open an empty picker. */}
+          <div className="v-sheet__item v-sheet__item--static">
+            <span className="v-sheet__item-icon">{LANGUAGE}</span>
+            <span className="v-sheet__item-label">Language</span>
+            <span className="v-sheet__value">English</span>
+          </div>
+
+          <button type="button" className="v-sheet__item" onClick={() => setHelpOpen(true)}>
+            <span className="v-sheet__item-icon">{QUESTION}</span>
+            <span className="v-sheet__item-label">Help &amp; support</span>
+            <span className="v-sheet__chevron">{CHEVRON_RIGHT}</span>
           </button>
         </div>
       </div>
+      <ProfileDialog open={open && profileOpen} onClose={() => setProfileOpen(false)} />
+      <HelpDialog open={open && helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }

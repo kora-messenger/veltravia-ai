@@ -140,6 +140,23 @@
 
   --v-focus-ring: 0 0 0 2px var(--v-bg), 0 0 0 4px var(--v-brand-400);
 
+  /* The workspace sheet: the reference's white panel, its warm card, and the
+     warm hairlines inside it. Named so the dark theme can answer each one. */
+  --v-sheet-bg: #ffffff;
+  --v-sheet-card: #f7f5f3;
+  --v-sheet-rule: #e7e4e0;
+  --v-sheet-inner-rule: #ddd8d3;
+  --v-sheet-icon: #1a1826;
+  --v-sheet-muted: #5e5c5a;
+  --v-sheet-faint: #6b6967;
+  --v-sheet-handle: #d9d6d2;
+  --v-sheet-active: #f7f5f3;
+  --v-sheet-seg-bg: #f0ede9;
+  --v-sheet-seg-on: #ffffff;
+  --v-sheet-bone-a: #f3f1ef;
+  --v-sheet-bone-b: #e9e5df;
+  --v-sheet-track: #e9e5df;
+
   --v-overlay: rgb(26 24 38 / 0.4);
 }
 
@@ -191,6 +208,21 @@
   --v-shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
   --v-shadow-2: 0 4px 10px rgb(0 0 0 / 0.45);
   --v-shadow-3: 0 12px 32px rgb(0 0 0 / 0.55);
+
+  --v-sheet-bg: #1b1928;
+  --v-sheet-card: #1e1c2b;
+  --v-sheet-rule: rgb(255 255 255 / 0.1);
+  --v-sheet-inner-rule: rgb(255 255 255 / 0.08);
+  --v-sheet-icon: #eceaf4;
+  --v-sheet-muted: #a5a1b8;
+  --v-sheet-faint: #a5a1b8;
+  --v-sheet-handle: #3b3750;
+  --v-sheet-active: #262334;
+  --v-sheet-seg-bg: #262334;
+  --v-sheet-seg-on: #3b3750;
+  --v-sheet-bone-a: #363248;
+  --v-sheet-bone-b: #262334;
+  --v-sheet-track: #2a2739;
 
   --v-overlay: rgb(4 3 10 / 0.6);
 }

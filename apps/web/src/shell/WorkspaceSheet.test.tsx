@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MessageCreditSummary } from '../api/message-credits';
+import { ThemeProvider } from '../theme/ThemeProvider';
 import {
   WorkspaceSheet,
   creditMeters,
@@ -41,7 +42,11 @@ function setup(load: () => Promise<MessageCreditSummary>, over: { open?: boolean
     onOpenSettings: vi.fn(),
     loadCredits: load,
   };
-  render(<WorkspaceSheet {...props} />);
+  render(
+    <ThemeProvider>
+      <WorkspaceSheet {...props} />
+    </ThemeProvider>,
+  );
   return props;
 }
 
@@ -111,7 +116,7 @@ describe('the workspace sheet', () => {
     expect(document.querySelector('.v-sheet__skeleton')).toBeNull();
   });
 
-  it('does not offer rows that lead nowhere: only Settings is drawn', async () => {
+  it('draws only rows with somewhere to go', async () => {
     setup(() => Promise.resolve(summary()));
     const text = document.querySelector('.v-sheet')?.textContent ?? '';
     for (const dead of ['Earn free credits', 'Add members', 'affiliate', 'Upgrade']) {
@@ -142,5 +147,49 @@ describe('the workspace sheet', () => {
     expect(panel.getAttribute('aria-hidden')).toBe('true');
     expect(panel.hasAttribute('inert')).toBe(true);
     expect(load).not.toHaveBeenCalled();
+  });
+});
+
+describe('the rows after Settings', () => {
+  it('opens the real profile dialog, which writes both names', async () => {
+    setup(() => Promise.resolve(summary()));
+    fireEvent.click(screen.getByRole('button', { name: /View profile/ }));
+    const dialog = await screen.findByRole('dialog', { name: /Your profile/i });
+    expect(within(dialog).getByLabelText('Your name')).toBeDefined();
+    expect(within(dialog).getByLabelText("Your assistant's name")).toBeDefined();
+  });
+
+  it('changes the real theme from the Appearance segments', () => {
+    setup(() => Promise.resolve(summary()));
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    fireEvent.click(screen.getByRole('button', { name: 'Dark' }));
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(screen.getByRole('button', { name: 'Dark' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'System' }));
+    expect(document.documentElement.getAttribute('data-theme')).not.toBe('dark');
+  });
+
+  it('shows Language as the fact it is, not a control that opens nothing', () => {
+    setup(() => Promise.resolve(summary()));
+    const row = screen.getByText('Language').closest('.v-sheet__item') as HTMLElement;
+    expect(row.querySelector('.v-sheet__value')?.textContent).toBe('English');
+    expect(row.tagName).toBe('DIV');
+    expect(row.querySelector('button')).toBeNull();
+  });
+
+  it('opens help with answers the app can stand behind', async () => {
+    setup(() => Promise.resolve(summary()));
+    fireEvent.click(screen.getByRole('button', { name: /Help & support/ }));
+    const dialog = await screen.findByRole('dialog', { name: /Help & support/i });
+    expect(dialog.textContent).toContain('Credits');
+    expect(dialog.textContent).toContain('resets on the 1st');
+  });
+
+  it('draws no row that needs an account, a team, or a referral programme', () => {
+    setup(() => Promise.resolve(summary()));
+    const text = (document.querySelector('.v-sheet')?.textContent ?? '').toLowerCase();
+    for (const dead of ['log out', 'earn free credits', 'add members', 'affiliate']) {
+      expect(text).not.toContain(dead);
+    }
   });
 });

@@ -614,3 +614,8 @@ body {
     }
   }
 }
+
+/* Help & support, opened from the workspace sheet. */
+.v-help { margin: 0; display: flex; flex-direction: column; gap: 14px; }
+.v-help__topic dt { font-size: 15px; font-weight: 600; margin-block-end: 2px; }
+.v-help__topic dd { margin: 0; font-size: 14px; line-height: 20px; color: var(--v-text-muted); }

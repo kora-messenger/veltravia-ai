@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ThemeProvider } from '../theme/ThemeProvider';
 import { MobileDrawer } from './MobileDrawer';
 import { workspaceInitials } from './workspace-initials';
 import { RECENT_LIMIT, createConversation, listConversations } from '../pages/chat/conversations';
@@ -28,7 +29,11 @@ function setup(over: Partial<Parameters<typeof MobileDrawer>[0]> = {}) {
     onClose: vi.fn(),
     ...over,
   };
-  const view = render(<MobileDrawer {...props} />);
+  const view = render(
+    <ThemeProvider>
+      <MobileDrawer {...props} />
+    </ThemeProvider>,
+  );
   return { props, view };
 }
 
