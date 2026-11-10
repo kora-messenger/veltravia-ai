@@ -1092,12 +1092,26 @@ and its account rows:
   that is in the build: monthly reset on the 1st, how Automatic picks a model,
   what happens to a failed message, and where chats and files live.
 
-Left undrawn, because each needs a feature Veltravia does not have: "Earn free
-credits" (no referral programme), "Add members" (no teams or multi-user
-workspaces), "Become an affiliate" (no programme), "Log out" (no accounts or
-session), the daily-limit and integration-credit meters (neither is tracked), and
-"Upgrade your plan" (still no paid plan). They are absent rather than disabled:
-a row that opens nothing is worse than a row that was never there.
+### The four rows Veltravia cannot honour yet
+
+"Earn free credits" and "Add members" sit above Settings in the workspace
+section; "Become an affiliate" and "Log out" sit in the account section, in the
+reference's order. None of the four has anything behind it, so each carries a
+"Soon" chip and an accessible name of "<label>, not available yet", and tapping
+one opens a sentence saying exactly what is missing:
+
+- Earn free credits: no rewards or referral programme.
+- Add members: a workspace belongs to one person; teams need shared projects,
+  permissions and billing.
+- Become an affiliate: no affiliate programme.
+- Log out: no accounts or sessions, so there is nothing to sign out of.
+
+That dialog is a real modal, so while it is open the sheet drops `aria-modal` and
+becomes `aria-hidden`: a screen reader is never offered two modals. Tapping a
+placeholder navigates nowhere and signs nothing out.
+
+Still not drawn, because neither is measured: the daily-limit and
+integration-credit meters, and "Upgrade your plan" while there is no paid plan.
 
 While credits load, the card shows the reference's skeleton: four grey blocks
 (103x21, then 351 wide at 17, 9 and 30dp tall) that share one animation. The

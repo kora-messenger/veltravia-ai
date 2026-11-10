@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { getMessageCreditSummary, type MessageCreditSummary } from '../api/message-credits';
+import { Button, Dialog } from '../components/ui';
 import { useAgentProfile } from '../agent/AgentProfileProvider';
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider';
 import { HelpDialog } from './HelpDialog';
@@ -145,6 +146,36 @@ const QUESTION = (
   </svg>
 );
 
+const GIFT = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <path d="M4 11h16v9H4z" />
+    <path d="M2.5 7.5h19V11h-19zM12 7.5V20" />
+    <path d="M12 7.5S10.8 3.5 8.5 3.5a2 2 0 0 0 0 4M12 7.5s1.2-4 3.5-4a2 2 0 0 1 0 4" />
+  </svg>
+);
+
+const PEOPLE = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <circle cx="9.5" cy="8.5" r="3" />
+    <path d="M3.5 19c0-2.8 2.7-5 6-5s6 2.2 6 5" />
+    <path d="M16 6.2a3 3 0 0 1 0 5.6M17.5 14.4c2 .7 3.5 2.4 3.5 4.6" />
+  </svg>
+);
+
+const MEGAPHONE = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <path d="M4 10v4a1 1 0 0 0 1 1h3l9 4V5L8 9H5a1 1 0 0 0-1 1Z" />
+    <path d="M7 15v4a1 1 0 0 0 2 0v-3" />
+  </svg>
+);
+
+const EXIT = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <path d="M14 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4" />
+    <path d="M10 8 6 12l4 4M6 12h9" />
+  </svg>
+);
+
 const PALETTE = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
     <path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.9 0-.5-.2-.9-.5-1.3-.3-.3-.4-.7-.4-1.1 0-1 .8-1.7 1.8-1.7H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8Z" />
@@ -160,6 +191,43 @@ const GEAR = (
     <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
   </svg>
 );
+
+/**
+ * Rows the reference has and Veltravia does not yet.
+ *
+ * He asked for them drawn anyway, so they are drawn the reference's way and
+ * labelled "Soon", and tapping one says in one sentence what is missing. The row
+ * never pretends to have done something: there is no fake sign-out, no invented
+ * referral link, and no team invitation posted anywhere.
+ */
+export interface SoonRow {
+  readonly id: 'earn' | 'members' | 'affiliate' | 'logout';
+  readonly label: string;
+  readonly body: string;
+}
+
+export const SOON_ROWS: readonly SoonRow[] = [
+  {
+    id: 'earn',
+    label: 'Earn free credits',
+    body: 'There is no rewards or referral programme yet, so there is nothing to earn. Your monthly credits reset on the 1st.',
+  },
+  {
+    id: 'members',
+    label: 'Add members',
+    body: 'A workspace belongs to one person for now. Inviting other people needs shared projects, permissions and billing, and none of that is built.',
+  },
+  {
+    id: 'affiliate',
+    label: 'Become an affiliate',
+    body: 'There is no affiliate programme yet. When there is one, this row will lead to it.',
+  },
+  {
+    id: 'logout',
+    label: 'Log out',
+    body: 'Veltravia has no accounts or sessions yet, so there is nothing to sign out of. Your work stays with this browser until sign-in exists.',
+  },
+];
 
 const APPEARANCES: readonly { value: ThemePreference; label: string }[] = [
   { value: 'light', label: 'Light' },
@@ -177,9 +245,30 @@ export function WorkspaceSheet({
   const [credits, setCredits] = useState<CreditState>({ kind: 'loading' });
   const [profileOpen, setProfileOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [soon, setSoon] = useState<SoonRow | null>(null);
+  // A child dialog is its own modal. While one is open the sheet stops being one,
+  // so a screen reader is never offered two modals at once.
+  const childOpen = profileOpen || helpOpen || soon !== null;
   const { preference, setPreference } = useTheme();
   const { ownerName } = useAgentProfile();
   const who = ownerName?.trim() ? ownerName.trim() : 'Add your name';
+
+  const soonRow = (id: SoonRow['id'], icon: ReactNode) => {
+    const row = SOON_ROWS.find((candidate) => candidate.id === id);
+    if (row === undefined) return null;
+    return (
+      <button
+        type="button"
+        className="v-sheet__item v-sheet__item--soon"
+        onClick={() => setSoon(row)}
+        aria-label={`${row.label}, not available yet`}
+      >
+        <span className="v-sheet__item-icon">{icon}</span>
+        <span className="v-sheet__item-label">{row.label}</span>
+        <span className="v-sheet__soon">Soon</span>
+      </button>
+    );
+  };
   const sheet = useRef<HTMLDivElement | null>(null);
 
   // Read the credits each time the sheet opens, so the card never shows a figure
@@ -221,11 +310,11 @@ export function WorkspaceSheet({
         ref={sheet}
         className="v-sheet__panel"
         role="dialog"
-        aria-modal="true"
+        aria-modal={childOpen ? undefined : 'true'}
         aria-label={`${workspaceName}`}
-        aria-hidden={!open}
+        aria-hidden={!open || childOpen}
         tabIndex={-1}
-        inert={!open ? true : undefined}
+        inert={!open || childOpen ? true : undefined}
       >
         <div className="v-sheet__handle" aria-hidden="true" />
 
@@ -300,6 +389,8 @@ export function WorkspaceSheet({
           </div>
 
           <div className="v-sheet__section">Workspace</div>
+          {soonRow('earn', GIFT)}
+          {soonRow('members', PEOPLE)}
           <button
             type="button"
             className="v-sheet__item"
@@ -337,6 +428,16 @@ export function WorkspaceSheet({
             <span className="v-sheet__chevron">{CHEVRON_RIGHT}</span>
           </button>
 
+          {soonRow('affiliate', MEGAPHONE)}
+
+          {/* English only: the app ships one language, so this is a fact, not a
+              control that would open an empty picker. */}
+          <div className="v-sheet__item v-sheet__item--static">
+            <span className="v-sheet__item-icon">{LANGUAGE}</span>
+            <span className="v-sheet__item-label">Language</span>
+            <span className="v-sheet__value">English</span>
+          </div>
+
           {/* Appearance is a real preference: the provider writes data-theme on
               the root and follows the system when asked. */}
           <div className="v-sheet__item v-sheet__item--static">
@@ -361,23 +462,25 @@ export function WorkspaceSheet({
             </span>
           </div>
 
-          {/* English only: the app ships one language, so this is a fact, not a
-              control that would open an empty picker. */}
-          <div className="v-sheet__item v-sheet__item--static">
-            <span className="v-sheet__item-icon">{LANGUAGE}</span>
-            <span className="v-sheet__item-label">Language</span>
-            <span className="v-sheet__value">English</span>
-          </div>
-
           <button type="button" className="v-sheet__item" onClick={() => setHelpOpen(true)}>
             <span className="v-sheet__item-icon">{QUESTION}</span>
             <span className="v-sheet__item-label">Help &amp; support</span>
             <span className="v-sheet__chevron">{CHEVRON_RIGHT}</span>
           </button>
+
+          {soonRow('logout', EXIT)}
         </div>
       </div>
       <ProfileDialog open={open && profileOpen} onClose={() => setProfileOpen(false)} />
       <HelpDialog open={open && helpOpen} onClose={() => setHelpOpen(false)} />
+      <Dialog
+        open={soon !== null}
+        onClose={() => setSoon(null)}
+        title={soon?.label ?? ''}
+        footer={<Button onClick={() => setSoon(null)}>Close</Button>}
+      >
+        <p className="v-sheet__soon-body">{soon?.body}</p>
+      </Dialog>
     </div>
   );
 }

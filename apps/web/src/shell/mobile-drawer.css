@@ -832,6 +832,19 @@
   .v-sheet__item-label { flex: 1; min-inline-size: 0; }
   .v-sheet__chevron { flex: none; display: inline-flex; color: var(--v-sheet-muted); }
   .v-sheet__value { flex: none; font-size: 15px; color: var(--v-sheet-muted); }
+  /* A row the reference has and this build does not: labelled, never silent, and
+     never pretending a tap changed anything. */
+  .v-sheet__item--soon .v-sheet__item-label { color: var(--v-sheet-muted); }
+  .v-sheet__soon {
+    flex: none;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--v-sheet-rule);
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--v-sheet-muted);
+  }
+  .v-sheet__soon-body { margin: 0; font-size: 14px; line-height: 21px; color: var(--v-text-muted); }
   .v-sheet__rule { block-size: 1px; background: var(--v-sheet-rule); margin: 6px 0 0; }
   .v-sheet__identity {
     margin: 0;

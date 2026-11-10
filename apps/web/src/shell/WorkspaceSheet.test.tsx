@@ -116,14 +116,6 @@ describe('the workspace sheet', () => {
     expect(document.querySelector('.v-sheet__skeleton')).toBeNull();
   });
 
-  it('draws only rows with somewhere to go', async () => {
-    setup(() => Promise.resolve(summary()));
-    const text = document.querySelector('.v-sheet')?.textContent ?? '';
-    for (const dead of ['Earn free credits', 'Add members', 'affiliate', 'Upgrade']) {
-      expect(text.toLowerCase()).not.toContain(dead.toLowerCase());
-    }
-    expect(screen.getByRole('button', { name: 'Settings' })).toBeDefined();
-  });
 
   it('closes, then opens settings, from the Settings row', async () => {
     const props = setup(() => Promise.resolve(summary()));
@@ -185,11 +177,56 @@ describe('the rows after Settings', () => {
     expect(dialog.textContent).toContain('resets on the 1st');
   });
 
-  it('draws no row that needs an account, a team, or a referral programme', () => {
+  it('draws the reference rows it cannot honour, each labelled and explained', async () => {
     setup(() => Promise.resolve(summary()));
-    const text = (document.querySelector('.v-sheet')?.textContent ?? '').toLowerCase();
-    for (const dead of ['log out', 'earn free credits', 'add members', 'affiliate']) {
-      expect(text).not.toContain(dead);
+    for (const [label, fact] of [
+      ['Earn free credits', 'no rewards or referral programme'],
+      ['Add members', 'belongs to one person'],
+      ['Become an affiliate', 'no affiliate programme'],
+      ['Log out', 'no accounts or sessions'],
+    ] as const) {
+      const row = screen.getByRole('button', { name: `${label}, not available yet` });
+      expect(row.textContent).toContain('Soon');
+      fireEvent.click(row);
+      const dialog = await screen.findByRole('dialog', { name: label });
+      expect(dialog.textContent).toContain(fact);
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: label })).toBeNull());
     }
   });
-});
+
+  it('does not act when a placeholder is tapped: nothing navigates, nothing is signed out', async () => {
+    const props = setup(() => Promise.resolve(summary()));
+    fireEvent.click(screen.getByRole('button', { name: 'Log out, not available yet' }));
+    await screen.findByRole('dialog', { name: 'Log out' });
+    expect(props.onOpenSettings).not.toHaveBeenCalled();
+    expect(props.onClose).not.toHaveBeenCalled();
+  });
+
+  it('offers one modal at a time: the sheet steps aside for its own dialog', async () => {
+    setup(() => Promise.resolve(summary()));
+    expect(document.querySelectorAll('[aria-modal="true"]')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Add members, not available yet' }));
+    await screen.findByRole('dialog', { name: 'Add members' });
+    const modals = document.querySelectorAll('[aria-modal="true"]');
+    expect(modals).toHaveLength(1);
+    expect(modals[0]?.textContent).toContain('Add members');
+    expect(document.querySelector('.v-sheet__panel')?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('keeps the reference order: earn, members, settings, then the account rows', () => {
+    setup(() => Promise.resolve(summary()));
+    const labels = [...document.querySelectorAll('.v-sheet__item-label')].map((e) => e.textContent);
+    expect(labels).toEqual([
+      'Earn free credits',
+      'Add members',
+      'Settings',
+      'View profile',
+      'Account preferences',
+      'Become an affiliate',
+      'Language',
+      'Appearance',
+      'Help & support',
+      'Log out',
+    ]);
+  });});
