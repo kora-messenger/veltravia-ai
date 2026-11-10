@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MobileDrawer } from './MobileDrawer';
+import { MobileDrawer, workspaceInitials } from './MobileDrawer';
 import { RECENT_LIMIT, createConversation, listConversations } from '../pages/chat/conversations';
 
 /**
@@ -251,6 +251,21 @@ describe('the website drawer', () => {
     expect(footer.textContent).toContain('Personal workspace');
     fireEvent.click(within(footer).getByRole('link'));
     expect(props.onNavigate).toHaveBeenCalledWith(expect.objectContaining({ id: 'settings' }));
+  });
+
+  it('dresses the footer tile in the workspace\'s own two letters', () => {
+    // The reference footer carries a tile with the workspace initials, not the
+    // signed-in person's single letter, and "IW" is what it shows for
+    // "Ijezie's Workspace".
+    setup();
+    const footer = document.querySelector('.v-drawer__foot') as HTMLElement;
+    expect(footer.querySelector('.v-drawer__workspace-avatar')?.textContent).toBe('PW');
+
+    // Two letters at most, first letter of each of the first two words, and a
+    // word that starts a sentence still reads in capitals.
+    expect(workspaceInitials('Ijezie\'s Workspace')).toBe('IW');
+    expect(workspaceInitials('  personal   workspace  ')).toBe('PW');
+    expect(workspaceInitials('Veltravia')).toBe('V');
   });
 
   it('is hidden from keyboards and screen readers while closed', () => {

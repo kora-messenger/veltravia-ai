@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BrandMark } from '../components/brand/BrandMark';
-import { UserAvatar } from '../pages/chat/UserAvatar';
 import { useAgentProfile } from '../agent/AgentProfileProvider';
 import {
   CONVERSATIONS_CHANGED_EVENT,
@@ -201,6 +200,18 @@ export interface MobileDrawerProps {
 }
 
 const routeById = (id: string): RouteDef | null => ROUTES.find((route) => route.id === id) ?? null;
+
+/**
+ * The two letters a workspace wears, the way the reference derives them: the
+ * first letter of its first two words, so "Ijezie's Workspace" reads IW and
+ * "Personal workspace" reads PW. One letter would look like a person, not a
+ * place; three would not fit an avatar this size.
+ */
+export function workspaceInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter((word) => word !== '');
+  const letters = words.slice(0, 2).map((word) => [...word][0] ?? '');
+  return letters.join('').toUpperCase();
+}
 
 /** The destinations a person reaches for daily, resolved from the one route list. */
 const primaryRoutes = PRIMARY_IDS.flatMap((id) => routeById(id) ?? []);
@@ -633,6 +644,9 @@ export function MobileDrawer({
         </div>
 
         <footer className="v-drawer__foot">
+          {/* The reference's footer is the workspace, not just a name: a 43dp
+              rounded square carrying the workspace's two letters, the workspace
+              name, and who is signed in under it. */}
           <a
             className="v-drawer__workspace"
             href="#/settings"
@@ -643,7 +657,9 @@ export function MobileDrawer({
               if (settings !== null) go(settings);
             }}
           >
-            <UserAvatar name={ownerName} size={34} />
+            <span className="v-drawer__workspace-avatar" aria-hidden="true">
+              {workspaceInitials(workspaceName)}
+            </span>
             <span className="v-drawer__workspace-text">
               <span className="v-drawer__workspace-name">{workspaceName}</span>
               <span className="v-drawer__workspace-owner">{ownerName ?? 'Not signed in'}</span>

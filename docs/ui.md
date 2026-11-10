@@ -1017,6 +1017,16 @@ panel edge, three 32dp rows (Files, Memory, Data) with 16dp icons 20dp in and
 "Soon" tag because nothing is behind them yet, and a tag is honest where a row
 that silently does nothing is not.
 
+The footer is the workspace, measured off the same reference: a hairline closes
+the scrolling middle, then 80dp holding a 43dp tile 13dp in with 5dp corners and
+the workspace's own two letters in 13px near-black on the pale green it uses
+(`#D9ECDD`), the workspace name at 17px/600 and who is signed in at 15px under
+it. It sits on the panel's milk rather than on a white bar. The reference also
+puts a workspace-switcher chevron and a bell to the right of it; neither is drawn
+here, because Veltravia has one workspace and no notifications, and a control
+that opens nothing is worse than a missing one. The app made the same call in the
+top bar, where the crown slot stays empty until a subscription exists.
+
 The conversation list collapses: the "Conversations" heading is the toggle, with
 the arrow the reference puts right after the word — pointing down while the list
 is open and turning to point right once every row is put away. There is no

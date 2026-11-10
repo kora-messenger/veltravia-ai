@@ -576,41 +576,68 @@
   }
 
   /* --- pinned footer ----------------------------------------------------- */
+  /* Measured off the reference footer: a hairline closes the scrolling middle,
+     then 80dp of footer holding a 43dp rounded square 13dp in, with the
+     workspace name and who is signed in stacked beside it. The footer sits on
+     the panel's own milk, not on a white bar, and its rule is the warm hairline
+     rather than the app's cool border. */
   .v-drawer__foot {
     flex: none;
-    padding: 8px 12px calc(var(--v-safe-bottom, 0px) + 10px);
-    border-top: 1px solid var(--v-border, rgb(0 0 0 / 0.08));
-    background: var(--v-surface);
+    padding: 18px 13px calc(var(--v-safe-bottom, 0px) + 18px);
+    border-top: 1px solid var(--v-drawer-edge);
+    background: transparent;
   }
   .v-drawer__workspace {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 6px;
-    border-radius: 12px;
+    /* Avatar 12.8dp in, the name's first glyph 65.6dp in: 43dp tile, 8dp gap
+       and the glyph's own bearing make up the difference. */
+    gap: 8px;
+    padding: 0;
+    border-radius: 10px;
     color: var(--v-text);
     text-decoration: none;
     -webkit-tap-highlight-color: transparent;
   }
   .v-drawer__workspace:active {
-    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+    opacity: 0.72;
+  }
+  /* The reference's workspace tile: 43dp square, barely rounded (5dp), the
+     pale green it derives for this workspace, with the two letters in near
+     black at 13px. */
+  .v-drawer__workspace-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 43px;
+    height: 43px;
+    border-radius: 5px;
+    background: #d9ecdd;
+    color: #0f0e0e;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.01em;
   }
   .v-drawer__workspace-text {
     display: flex;
     flex-direction: column;
     min-width: 0;
   }
+  /* Baselines 22dp apart in the reference (24px line + 20px line here),
+     caps 12.4dp and 10.8dp tall. */
   .v-drawer__workspace-name {
-    font-size: 14px;
+    font-size: 17px;
     font-weight: 600;
-    line-height: 18px;
+    line-height: 24px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .v-drawer__workspace-owner {
-    font-size: 12px;
-    line-height: 16px;
+    font-size: 15px;
+    line-height: 20px;
     color: var(--v-text-muted);
     white-space: nowrap;
     overflow: hidden;
