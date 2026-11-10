@@ -1051,3 +1051,33 @@ in the middle of the screen, the welcome is a headline again (its widest line
 `interactive-widget=resizes-content` so the keyboard shrinks the layout instead
 of covering it: the tips and the box rise together and the welcome scrolls out
 behind them.
+
+## The workspace sheet
+
+Tapping the drawer's profile line opens a bottom sheet, measured from a screen
+recording of the reference (1080 x 2400, 2.628 px per dp). The sheet rises in
+about 180ms; a 4dp handle sits 6dp from its top, the workspace line starts 40dp
+down, a hairline closes it at 114dp and the credit card begins at 116dp.
+
+The credit card is the part to read carefully. It shows only what the server
+knows, from `/api/message-credits`:
+
+- a title and the real renewal date (the month rolls over on the 1st, UTC, which
+  is how charges are bucketed),
+- the month's credits against the monthly limit, with the reference's 6dp bar
+  (orange, red once the limit is reached). With no limit set it prints what was
+  spent and draws no bar, rather than inventing a denominator,
+- a held-credits row only while credits are actually reserved.
+
+The reference also shows a daily limit, an integration-credit meter, an
+"Upgrade your plan" button, "Earn free credits", "Add members", a profile row and
+an affiliate row. Veltravia has no daily limit, no integration credits, no paid
+plan, no referral programme, no teams and no accounts, so none of those are
+drawn. The existing rule about the upgrade card still applies. Only Settings is
+there, because it is the only one with somewhere to go.
+
+While credits load, the card shows the reference's skeleton: four grey blocks
+(103x21, then 351 wide at 17, 9 and 30dp tall) that share one animation. The
+recording shows no travelling highlight; every block breathes together between
+`#F3F1EF` and `#E9E5DF` on a 2s cycle with a held top, so that is what is built.
+Reduced-motion users get a still block.

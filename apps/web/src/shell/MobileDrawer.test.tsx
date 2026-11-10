@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MobileDrawer, workspaceInitials } from './MobileDrawer';
+import { MobileDrawer } from './MobileDrawer';
+import { workspaceInitials } from './workspace-initials';
 import { RECENT_LIMIT, createConversation, listConversations } from '../pages/chat/conversations';
 
 /**
@@ -249,8 +250,13 @@ describe('the website drawer', () => {
     const { props } = setup();
     const footer = document.querySelector('.v-drawer__foot') as HTMLElement;
     expect(footer.textContent).toContain('Personal workspace');
-    fireEvent.click(within(footer).getByRole('link'));
+    // The profile line opens the workspace sheet; settings is one tap further.
+    fireEvent.click(within(footer).getByRole('button'));
+    const sheet = document.querySelector('.v-sheet') as HTMLElement;
+    expect(sheet.classList.contains('v-sheet--open')).toBe(true);
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Settings' }));
     expect(props.onNavigate).toHaveBeenCalledWith(expect.objectContaining({ id: 'settings' }));
+    expect(sheet.classList.contains('v-sheet--open')).toBe(false);
   });
 
   it('dresses the footer tile in the workspace\'s own two letters', () => {

@@ -12,6 +12,8 @@ import {
   type ConversationRecord,
 } from '../pages/chat/conversations';
 import { ROUTES, type RouteDef } from './useHashRoute';
+import { WorkspaceSheet } from './WorkspaceSheet';
+import { workspaceInitials } from './workspace-initials';
 
 /**
  * The website's navigation drawer.
@@ -201,18 +203,6 @@ export interface MobileDrawerProps {
 
 const routeById = (id: string): RouteDef | null => ROUTES.find((route) => route.id === id) ?? null;
 
-/**
- * The two letters a workspace wears, the way the reference derives them: the
- * first letter of its first two words, so "Ijezie's Workspace" reads IW and
- * "Personal workspace" reads PW. One letter would look like a person, not a
- * place; three would not fit an avatar this size.
- */
-export function workspaceInitials(name: string): string {
-  const words = name.trim().split(/\s+/).filter((word) => word !== '');
-  const letters = words.slice(0, 2).map((word) => [...word][0] ?? '');
-  return letters.join('').toUpperCase();
-}
-
 /** The destinations a person reaches for daily, resolved from the one route list. */
 const primaryRoutes = PRIMARY_IDS.flatMap((id) => routeById(id) ?? []);
 
@@ -250,6 +240,7 @@ export function MobileDrawer({
   const [chatsOpen, setChatsOpen] = useState(true);
   const [menu, setMenu] = useState<MenuState>({ kind: 'none' });
   const [moreOpen, setMoreOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const moreWrap = useRef<HTMLDivElement>(null);
   const moreButton = useRef<HTMLButtonElement>(null);
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
@@ -647,15 +638,13 @@ export function MobileDrawer({
           {/* The reference's footer is the workspace, not just a name: a 43dp
               rounded square carrying the workspace's two letters, the workspace
               name, and who is signed in under it. */}
-          <a
+          <button
+            type="button"
             className="v-drawer__workspace"
-            href="#/settings"
-            aria-label={`Settings for ${workspaceName}`}
-            onClick={(event) => {
-              event.preventDefault();
-              const settings = routeById('settings');
-              if (settings !== null) go(settings);
-            }}
+            aria-haspopup="dialog"
+            aria-expanded={sheetOpen}
+            aria-label={`${workspaceName}, workspace and credits`}
+            onClick={() => setSheetOpen(true)}
           >
             <span className="v-drawer__workspace-avatar" aria-hidden="true">
               {workspaceInitials(workspaceName)}
@@ -664,9 +653,18 @@ export function MobileDrawer({
               <span className="v-drawer__workspace-name">{workspaceName}</span>
               <span className="v-drawer__workspace-owner">{ownerName ?? 'Not signed in'}</span>
             </span>
-          </a>
+          </button>
         </footer>
       </nav>
+      <WorkspaceSheet
+        open={open && sheetOpen}
+        workspaceName={workspaceName}
+        onClose={() => setSheetOpen(false)}
+        onOpenSettings={() => {
+          const settings = routeById('settings');
+          if (settings !== null) go(settings);
+        }}
+      />
     </div>
   );
 }

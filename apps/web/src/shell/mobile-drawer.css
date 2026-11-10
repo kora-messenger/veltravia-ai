@@ -653,3 +653,189 @@
     }
   }
 }
+
+/* ---------------------------------------------------------------------------
+   The workspace sheet the footer opens. Numbers are from the recording of the
+   reference (1080 x 2400, 2.628 px per dp). The credit card's loading state is
+   two tones breathing together: no travelling highlight, because the recording
+   shows none. Period about 2s with a held top, as measured at 30fps.
+   --------------------------------------------------------------------------- */
+.v-sheet { display: none; }
+
+@media (max-width: 900px) {
+  .v-drawer__workspace {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .v-sheet {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    pointer-events: none;
+  }
+  .v-sheet--open { pointer-events: auto; }
+
+  .v-sheet__scrim {
+    position: absolute;
+    inset: 0;
+    background: rgb(0 0 0 / 0.32);
+    opacity: 0;
+    transition: opacity 180ms ease-out;
+  }
+  .v-sheet--open .v-sheet__scrim { opacity: 1; }
+
+  .v-sheet__panel {
+    position: absolute;
+    inset: auto 0 0 0;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100% - 232px);
+    background: #fff;
+    color: var(--v-text);
+    border-radius: 20px 20px 0 0;
+    outline: none;
+    transform: translateY(100%);
+    transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+    padding-bottom: var(--v-safe-bottom, 0px);
+  }
+  .v-sheet--open .v-sheet__panel { transform: translateY(0); }
+
+  .v-sheet__handle {
+    flex: none;
+    inline-size: 40px;
+    block-size: 4px;
+    margin: 6px auto 0;
+    border-radius: 2px;
+    background: #d9d6d2;
+  }
+
+  /* Workspace line: tile 28dp in from the edge, name 17px/600, plan 15px under it. */
+  .v-sheet__workspace {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 30px 20px 23px 20px;
+    border-bottom: 1px solid #ebe8e4;
+  }
+  .v-sheet__tile {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 48px;
+    block-size: 48px;
+    border-radius: 5px;
+    background: #d9ecdd;
+    color: #0f0e0e;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .v-sheet__who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+  .v-sheet__name {
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 26px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .v-sheet__plan { font-size: 16px; line-height: 24px; color: var(--v-text-muted); }
+  .v-sheet__switch { flex: none; color: #1a1826; display: inline-flex; }
+
+  .v-sheet__body { overflow-y: auto; padding: 0; }
+
+  /* Credit card: #F7F5F3, inset 18dp, 16dp padding, 8dp corners. */
+  .v-sheet__credits {
+    margin: 2px 18px 11px;
+    padding: 22px 16px 14px;
+    border-radius: 8px;
+    background: #f7f5f3;
+    min-block-size: 120px;
+  }
+  .v-sheet__credits-head { display: flex; flex-direction: column; margin-block-end: 6px; }
+  .v-sheet__credits-title { font-size: 17px; line-height: 24px; color: #5e5c5a; }
+  .v-sheet__credits-renew { margin-block-start: 6px; font-size: 14px; line-height: 20px; color: #6b6967; }
+  .v-sheet__meters { margin: 0; padding: 0; list-style: none; }
+  .v-sheet__meter { padding: 14px 0 8px; border-block-start: 1px solid #ddd8d3; }
+  .v-sheet__meter:first-child { border-block-start: 0; }
+  .v-sheet__meter-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .v-sheet__meter-row--bar { margin-block-start: 6px; }
+  .v-sheet__meter-label { font-size: 16px; line-height: 22px; color: #1a1826; }
+  .v-sheet__figure { flex: none; font-size: 15px; line-height: 20px; color: #5e5c5a; font-variant-numeric: tabular-nums; }
+  .v-sheet__track {
+    flex: 1;
+    display: block;
+    block-size: 6px;
+    border-radius: 3px;
+    background: #e9e5df;
+    overflow: hidden;
+  }
+  .v-sheet__fill { display: block; block-size: 100%; border-radius: 3px; background: #ff6a00; }
+  .v-sheet__fill--full { background: #bf2124; }
+  .v-sheet__credits-error { margin: 0; font-size: 15px; line-height: 20px; color: #5e5c5a; }
+
+  /* Loading: four blocks measured at 2.628px/dp: 103x21 title, full-width line,
+     a thin rule, then a 30dp block. They share one animation so they breathe
+     together. */
+  /* Reference blocks run 12dp in from the card edge (x 30.1 to 381), wider than
+     the loaded content's 16dp padding, and the first starts 13dp below the card
+     top. Negative margins undo the card padding for this state only. */
+  .v-sheet__skeleton {
+    display: flex;
+    flex-direction: column;
+    margin: -9px -4px -2px;
+  }
+  .v-sheet__bone {
+    display: block;
+    border-radius: 6px;
+    background: #e9e5df;
+    animation: v-sheet-breathe 2s ease-in-out infinite;
+  }
+  .v-sheet__bone--title { inline-size: 103px; block-size: 21px; }
+  .v-sheet__bone--line { block-size: 17px; margin-block-start: 13px; }
+  .v-sheet__bone--thin { block-size: 9px; border-radius: 3px; margin-block-start: 7px; }
+  .v-sheet__bone--block { block-size: 30px; margin-block-start: 13px; }
+
+  .v-sheet__section {
+    padding: 10px 20px 12px;
+    font-size: 16px;
+    line-height: 22px;
+    color: var(--v-text-muted);
+    border-block-start: 1px solid #ebe8e4;
+  }
+  .v-sheet__item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    inline-size: 100%;
+    padding: 0 20px;
+    block-size: 52px;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 16px;
+    color: #1a1826;
+    text-align: start;
+    cursor: pointer;
+  }
+  .v-sheet__item:active { background: #f7f5f3; }
+  .v-sheet__item-icon { display: inline-flex; flex: none; }
+}
+
+@keyframes v-sheet-breathe {
+  0%, 20% { background-color: #f3f1ef; }
+  60%, 80% { background-color: #e9e5df; }
+  100% { background-color: #f3f1ef; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v-sheet__bone { animation: none; background-color: #efece8; }
+  .v-sheet__panel, .v-sheet__scrim { transition: none; }
+}
