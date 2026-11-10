@@ -7,8 +7,6 @@ import type { RouteState } from './useHashRoute';
 
 export interface TopBarProps {
   route: RouteState;
-  /** Hidden when the navigation already stands open as the page's column. */
-  showMenuButton?: boolean;
   onOpenMobileNav(): void;
 }
 
@@ -45,7 +43,7 @@ const COMPUTER_GLYPH = (
   </MenuIcon>
 );
 
-export function TopBar({ route, showMenuButton = true, onOpenMobileNav }: TopBarProps) {
+export function TopBar({ route, onOpenMobileNav }: TopBarProps) {
   const profile = useAgentProfile();
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
 
@@ -83,23 +81,21 @@ export function TopBar({ route, showMenuButton = true, onOpenMobileNav }: TopBar
 
   return (
     <header className="v-topbar" data-testid="topbar">
-      {showMenuButton ? (
-        <button
-          type="button"
-          className="v-topbar__menu-button"
-          aria-label="Open navigation"
-          onClick={onOpenMobileNav}
-        >
-          <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
-            <path
-              d="M2 4h12M2 8h12M2 12h12"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
-      ) : null}
+      <button
+        type="button"
+        className="v-topbar__menu-button"
+        aria-label="Open navigation"
+        onClick={onOpenMobileNav}
+      >
+        <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
+          <path
+            d="M2 4h12M2 8h12M2 12h12"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
       <span className="v-topbar__brand">
         <BrandMark size={22} decorative />
       </span>

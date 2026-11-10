@@ -1047,46 +1047,6 @@
   }
 }
 
-/* ------------------- Docked: the same panel on a wide screen ------------------ */
-/* The website's desktop navigation is this panel standing open as a column, not a
-   second design: the reference's desktop has the same rows, the same conversations
-   and the same workspace footer as its phone drawer. Only the frame changes. */
-@media (min-width: 1024px) {
-  .v-drawer--docked {
-    position: sticky;
-    top: 0;
-    inset: auto;
-    z-index: 1;
-    display: block;
-    flex: none;
-    inline-size: 280px;
-    block-size: 100dvh;
-    pointer-events: auto;
-  }
-  .v-drawer--docked .v-drawer__scrim {
-    display: none;
-  }
-  .v-drawer--docked .v-drawer__panel {
-    position: static;
-    inline-size: 100%;
-    max-inline-size: none;
-    block-size: 100%;
-    box-shadow: none;
-    border-inline-end: 1px solid var(--v-border);
-    transform: none;
-    transition: none;
-  }
-  /* Nothing to close: the column is part of the page, not over it. */
-  .v-drawer--docked .v-drawer__close {
-    display: none;
-  }
-  /* The head keeps its rule, and without the close control the brand sits on the
-     same line by padding rather than by a taller neighbour. */
-  .v-drawer--docked .v-drawer__head {
-    padding: calc(var(--v-safe-top, 0px) + 15px) 24px 9px;
-  }
-}
-
 /* --- AI workspace: a labelled group of rows that folds away ------------- */
 .v-drawer__group {
   margin-block-start: 4px;
