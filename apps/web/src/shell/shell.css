@@ -194,42 +194,20 @@
   align-items: center;
   min-width: 0;
 }
-/* The navigation trigger: the agent's own mark, one letter in a filled circle,
-   the same 36dp the control it replaces occupied. The reference draws a round
-   agent mark in this corner, not a hamburger; the shell decides when the control
-   exists at all (it is absent beside the desktop column), so it needs no
-   breakpoint of its own. */
-.v-topbar__avatar {
-  display: inline-flex;
+.v-topbar__menu-button {
+  display: none;
   align-items: center;
   justify-content: center;
-  flex: none;
   width: 2.25rem;
   height: 2.25rem;
-  padding: 0;
   border: none;
-  border-radius: 50%;
-  background: var(--v-primary);
-  color: var(--v-primary-fg);
+  border-radius: var(--v-radius-sm);
+  background: transparent;
+  color: var(--v-text);
   cursor: pointer;
 }
-.v-topbar__avatar:hover {
-  background: var(--v-primary-hover);
-}
-.v-topbar__avatar:active {
-  background: var(--v-primary-active);
-}
-.v-topbar__avatar:focus-visible {
-  outline: 2px solid var(--v-primary);
-  outline-offset: 2px;
-}
-.v-topbar__avatar-initial {
-  display: block;
-  font-size: 0.9375rem;
-  font-weight: var(--v-weight-semibold);
-  line-height: 1;
-  /* Optical centring: a capital's ink sits above the line box's middle. */
-  transform: translateY(-0.5px);
+.v-topbar__menu-button:hover {
+  background: var(--v-surface-hover);
 }
 /* The reference sets the product title at 18px medium, tighter than a page
  * heading: it is a bar label, not the top of a document outline. */
@@ -311,6 +289,9 @@
   .v-shell__backdrop {
     display: none;
   }
+  .v-topbar__menu-button {
+    display: inline-flex;
+  }
   .v-shell__content {
     padding: var(--v-space-4);
   }
@@ -335,17 +316,6 @@
   display: flex;
   align-items: center;
   gap: 1.125rem;
-}
-
-/* The phone bar is the agent and the page: the product mark moves out of the way
-   (the chat landing already carries it large) and the right-hand group, whose two
-   rows are placeholders, is not worth a control on a screen this narrow. Stated
-   after the desktop rule so the order of the file cannot undo it. */
-@media (max-width: 900px) {
-  .v-topbar__brand,
-  .v-topbar__actions {
-    display: none;
-  }
 }
 
 /* Width of the reference's crown, kept clear so the account control does not

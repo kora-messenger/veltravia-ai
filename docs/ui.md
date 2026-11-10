@@ -999,22 +999,13 @@ app keeps the older menu (`shell/MobileMenu.tsx`), chosen by `isPackagedApp()`
 rather than by width, because the two are built differently.
 
 **One menu, two frames.** The desktop navigation is this same menu, not a second
-design. At or above 901px the panel stands open as the page's column at a fixed
-300px, carrying the same head, agent card, New conversation, rows, conversation
-list and workspace footer, and measuring the same figures (head rule 53px down,
-rows 47px, 16px icons 22px in, labels 46px in, footer 81px). Only the frame
-changes: no scrim, no hamburger while it stands, and the More card lands 11px from
-the panel's right edge where on a phone it lands 11px from the window's. Below
-901px the same panel slides over the page, at 83% of the window up to 380px.
-
-The column is 300px and fixed, not a percentage: at the 380px it started with it
-took 39% of a 960px window and would have taken 40% of a phone showing the
-desktop site, which reads as a menu with a page beside it rather than a page with
-a menu. It keeps the head's control, labelled "Put the navigation column away":
-the column goes and the top bar's hamburger comes back, so the page can have the
-whole width without the window being resized. A row tap never puts the column
-away, only the control does, and a window that narrows below the breakpoint gets
-the column back when it widens again. Because it is
+design. At or above 1024px the panel stands open as the page's column at the width
+it reaches on a phone (83%, up to 380px), carrying the same head, agent card, New
+conversation, rows, conversation list and workspace footer, and measuring the same
+figures (head rule 53px down, rows 47px, 16px icons 22px in, labels 46px in, footer
+81px). Only the frame changes: no scrim, no close control, no hamburger, and the
+More card lands 11px from the panel's right edge where on a phone it lands 11px
+from the window's. Below 901px the same panel slides over the page. Because it is
 the website's only navigation it carries every destination: Chat, Projects,
 Dashboard, App Builder, Superagent operations, Model routing and Settings as rows,
 the ten remaining AI-workspace pages behind a folding group (open whenever the

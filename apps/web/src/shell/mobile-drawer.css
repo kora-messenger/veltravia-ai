@@ -93,12 +93,6 @@
   color: var(--v-text);
   cursor: pointer;
 }
-.v-drawer__close .v-drawer__icon {
-  /* 18px in a 40px target: the reference's close reads at the weight of the
-     other head marks, not as a 16px speck in the corner. */
-  width: 18px;
-  height: 18px;
-}
 .v-drawer__close:active {
   background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
 }
@@ -1066,13 +1060,10 @@
     z-index: 1;
     display: block;
     flex: none;
-    /* The same menu as the phone's, in a column that leaves the page the room it
-       needs: 300px is the desktop column, not the phone's 83%. At the old 380px
-       the column took 39% of a 960px window and half of a 901px one, and a
-       phone viewing the desktop site saw nothing but menu. Fixed, not a
-       percentage, so the column never grows with the window. */
-    inline-size: 300px;
-    max-inline-size: 300px;
+    /* The phone menu's own width, so the desktop column is that menu and not a
+       narrower cousin of it. */
+    inline-size: 83%;
+    max-inline-size: 380px;
     block-size: 100dvh;
     pointer-events: auto;
   }
@@ -1088,6 +1079,10 @@
     border-inline-end: 1px solid var(--v-border);
     transform: none;
     transition: none;
+  }
+  /* Nothing to close: the column is part of the page, not over it. */
+  .v-drawer--docked .v-drawer__close {
+    display: none;
   }
   /* The head keeps its rule 53dp down the panel, the height the close control
      gives it on a phone, so the same menu measures the same either way. */
