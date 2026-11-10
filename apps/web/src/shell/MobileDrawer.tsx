@@ -148,19 +148,11 @@ const ICONS: Record<string, ReactNode> = {
 
 const CLOSE_GLYPH = glyph(<path d="m6 6 12 12M18 6 6 18" />);
 const PLUS_GLYPH = glyph(<path d="M12 5.5v13M5.5 12h13" />);
-const CHEVRON_GLYPH = glyph(<path d="m8 10 4 4 4-4" />);
 const GEAR_GLYPH = glyph(
   <>
     <circle cx="12" cy="12" r="3" />
     <path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.5 1.5M16.5 16.5 18 18M18 6l-1.5 1.5M7.5 16.5 6 18" />
   </>,
-);
-const MORE_GLYPH = (
-  <svg viewBox="0 0 24 24" className="v-drawer__icon" aria-hidden="true" fill="currentColor">
-    <circle cx="6" cy="12" r="1.7" />
-    <circle cx="12" cy="12" r="1.7" />
-    <circle cx="18" cy="12" r="1.7" />
-  </svg>
 );
 const FILTER_GLYPH = glyph(<path d="M4 6.5h16M7 12h10M10 17.5h4" />);
 const DOTS_GLYPH = (
@@ -185,12 +177,8 @@ const routeById = (id: string): RouteDef | null => ROUTES.find((route) => route.
 /** The destinations a person reaches for daily, resolved from the one route list. */
 const primaryRoutes = PRIMARY_IDS.flatMap((id) => routeById(id) ?? []);
 
-/** Everything else lives in "More": secondary, but all of it real. */
-const moreRoutes = ROUTES.filter((route) => !(PRIMARY_IDS as readonly string[]).includes(route.id));
-
 type MenuState =
   | { readonly kind: 'none' }
-  | { readonly kind: 'more' }
   | { readonly kind: 'chat'; readonly id: string }
   | { readonly kind: 'delete'; readonly id: string };
 
@@ -448,38 +436,6 @@ export function MobileDrawer({
 
         <div className="v-drawer__scroll">
           <ul className="v-drawer__list">{primaryRoutes.map(row)}</ul>
-
-          <button
-            type="button"
-            className="v-drawer__row v-drawer__more"
-            aria-expanded={menu.kind === 'more'}
-            aria-haspopup="menu"
-            onClick={() => setMenu(menu.kind === 'more' ? { kind: 'none' } : { kind: 'more' })}
-          >
-            {MORE_GLYPH}
-            <span className="v-drawer__label">More</span>
-            <span className="v-drawer__chevron">{CHEVRON_GLYPH}</span>
-          </button>
-
-          {menu.kind === 'more' ? (
-            <div className="v-drawer__card v-drawer__card--more" role="menu">
-              {moreRoutes.map((route) => (
-                <a
-                  key={route.id}
-                  role="menuitem"
-                  className="v-drawer__card-item"
-                  href={route.hash}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    setMenu({ kind: 'none' });
-                    go(route);
-                  }}
-                >
-                  {route.title}
-                </a>
-              ))}
-            </div>
-          ) : null}
 
           <section className="v-drawer__chats" aria-label="Conversations">
             <div className="v-drawer__chats-head">

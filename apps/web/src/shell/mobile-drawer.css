@@ -203,16 +203,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .v-drawer__chevron {
-    display: inline-flex;
-    color: var(--v-text-muted);
-  }
-  .v-drawer__chevron .v-drawer__icon {
-    width: 18px;
-    height: 18px;
-  }
-
-  /* --- a small card: "More", and a chat's own actions -------------------- */
+  /* --- a small card: a chat's own actions -------------------- */
   .v-drawer__card {
     margin: 2px 12px 8px;
     padding: 4px;
@@ -220,11 +211,6 @@
     border-radius: 8px;
     background: var(--v-surface);
     box-shadow: 0 10px 26px rgb(0 0 0 / 0.16);
-  }
-  .v-drawer__card--more {
-    max-height: 264px;
-    overflow-y: auto;
-    overscroll-behavior: contain;
   }
   .v-drawer__card--chat {
     position: absolute;

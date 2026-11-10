@@ -3,7 +3,6 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MobileDrawer } from './MobileDrawer';
 import { RECENT_LIMIT, createConversation, listConversations } from '../pages/chat/conversations';
-import { ROUTES } from './useHashRoute';
 
 /**
  * The website's drawer is measured from a reference capture, so these pin the
@@ -62,37 +61,16 @@ describe('the website drawer', () => {
     const labels = Array.from(document.querySelectorAll('.v-drawer__label')).map(
       (node) => node.textContent,
     );
-    expect(labels).toEqual([
-      'Chat',
-      'Projects',
-      'App Builder',
-      'Files & artifacts',
-      'Dashboard',
-      'More',
-    ]);
+    expect(labels).toEqual(['Chat', 'Projects', 'App Builder', 'Files & artifacts', 'Dashboard']);
   });
 
-  it('keeps the secondary destinations behind More, and invents none', () => {
+  it('has no More row yet: the secondary destinations are not listed', () => {
     setup();
+    expect(screen.queryByRole('button', { name: 'More' })).toBeNull();
+    expect(screen.queryByRole('menu')).toBeNull();
     const nav = screen.getByRole('navigation', { name: 'Primary' });
-    expect(within(nav).queryByRole('link', { name: 'Settings' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'More' }));
-    const card = screen.getByRole('menu');
-    const links = within(card).getAllByRole('menuitem');
-    const titles = links.map((link) => link.textContent);
-    // Every route is reachable, once: the primary five on the list, the rest here.
-    expect(links).toHaveLength(ROUTES.length - 5);
-    expect(titles).toContain('Settings');
-    expect(titles).toContain('Model routing');
-    expect(titles).not.toContain('Dashboard');
-  });
-
-  it('opens a destination from More and closes itself', () => {
-    const { props } = setup();
-    fireEvent.click(screen.getByRole('button', { name: 'More' }));
-    fireEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Settings' }));
-    expect(props.onNavigate).toHaveBeenCalledWith(expect.objectContaining({ id: 'settings' }));
-    expect(props.onClose).toHaveBeenCalledTimes(1);
+    expect(within(nav).queryByRole('link', { name: 'Model routing' })).toBeNull();
+    expect(within(nav).queryByRole('link', { name: 'Knowledge synthesis' })).toBeNull();
   });
 
   it('reaches settings from the agent row, the way the reference does', () => {
