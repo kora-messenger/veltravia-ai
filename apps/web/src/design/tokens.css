@@ -93,6 +93,12 @@
   --v-bg: var(--v-neutral-50);
   --v-surface: var(--v-neutral-0);
   --v-surface-raised: #ffffff;
+  /* The navigation drawer's own surface: the warm off-white ("milk") the
+     reference uses, so the white popup cards read as raised above it. */
+  --v-drawer-surface: #f8f6f4;
+  /* The reference's selected row on that surface (#E9E6E0), warm rather than
+     the cool neutral the rest of the app uses. */
+  --v-drawer-muted: #e9e6e0;
   --v-surface-muted: var(--v-neutral-100);
   --v-surface-hover: var(--v-neutral-100);
 
@@ -138,6 +144,8 @@
   --v-bg: var(--v-neutral-950);
   --v-surface: #151420;
   --v-surface-raised: #1b1928;
+  --v-drawer-surface: #151420;
+  --v-drawer-muted: #262334;
   --v-surface-muted: #1e1c2b;
   --v-surface-hover: #262334;
 

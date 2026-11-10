@@ -34,7 +34,7 @@ import { ROUTES, type RouteDef } from './useHashRoute';
  */
 
 /** The everyday destinations, in the order the desktop sidebar lists them. */
-const PRIMARY_IDS = ['chat', 'projects', 'builder', 'files', 'dashboard'] as const;
+const PRIMARY_IDS = ['projects', 'builder', 'files', 'dashboard'] as const;
 
 const glyph = (children: ReactNode) => (
   <svg viewBox="0 0 24 24" className="v-drawer__icon" aria-hidden="true">
@@ -154,7 +154,35 @@ const GEAR_GLYPH = glyph(
     <path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.5 1.5M16.5 16.5 18 18M18 6l-1.5 1.5M7.5 16.5 6 18" />
   </>,
 );
+const CHEVRON_GLYPH = glyph(<path d="m8 10 4 4 4-4" />);
 const FILTER_GLYPH = glyph(<path d="M4 6.5h16M7 12h10M10 17.5h4" />);
+const MORE_GLYPH = (
+  <svg viewBox="0 0 24 24" className="v-drawer__icon" aria-hidden="true" fill="currentColor">
+    <circle cx="6" cy="12" r="1.7" />
+    <circle cx="12" cy="12" r="1.7" />
+    <circle cx="18" cy="12" r="1.7" />
+  </svg>
+);
+/** The three things the reference keeps behind "More", drawn in the same line style. */
+const FILES_GLYPH = glyph(
+  <>
+    <path d="M4.5 6A2.5 2.5 0 0 1 7 3.5h11.5V18H7A2.5 2.5 0 0 0 4.5 20.5V6Z" />
+    <path d="M4.5 18A2.5 2.5 0 0 1 7 15.5h11.5" />
+  </>,
+);
+const MEMORY_GLYPH = glyph(
+  <>
+    <path d="M12 5v14" />
+    <path d="M12 8.2A2.6 2.6 0 0 0 9.4 5.6a2.6 2.6 0 0 0-2.3 3.9A2.8 2.8 0 0 0 5.5 12a2.6 2.6 0 0 0 1.6 4.4A2.7 2.7 0 0 0 9.6 19H12" />
+    <path d="M12 8.2a2.6 2.6 0 0 1 2.6-2.6 2.6 2.6 0 0 1 2.3 3.9A2.8 2.8 0 0 1 18.5 12a2.6 2.6 0 0 1-1.6 4.4A2.7 2.7 0 0 1 14.4 19H12" />
+  </>,
+);
+const DATA_GLYPH = glyph(
+  <>
+    <rect x="3.5" y="5" width="17" height="14" rx="2" />
+    <path d="M3.5 10h17M9.5 10v9" />
+  </>,
+);
 const DOTS_GLYPH = (
   <svg viewBox="0 0 24 24" className="v-drawer__icon" aria-hidden="true" fill="currentColor">
     <circle cx="12" cy="5.5" r="1.6" />
@@ -177,6 +205,17 @@ const routeById = (id: string): RouteDef | null => ROUTES.find((route) => route.
 /** The destinations a person reaches for daily, resolved from the one route list. */
 const primaryRoutes = PRIMARY_IDS.flatMap((id) => routeById(id) ?? []);
 
+/**
+ * What the reference keeps behind "More": Files, Memory and Data, in that order,
+ * with 16dp icons and 16px labels. Files has a screen today; Memory and Data are
+ * listed but marked, because Veltravia has nothing behind them yet.
+ */
+const MORE_ITEMS = [
+  { label: 'Files', glyph: FILES_GLYPH, routeId: 'files' },
+  { label: 'Memory', glyph: MEMORY_GLYPH, routeId: null },
+  { label: 'Data', glyph: DATA_GLYPH, routeId: null },
+] as const;
+
 type MenuState =
   | { readonly kind: 'none' }
   | { readonly kind: 'chat'; readonly id: string }
@@ -197,7 +236,11 @@ export function MobileDrawer({
   );
   const [showArchived, setShowArchived] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [chatsOpen, setChatsOpen] = useState(true);
   const [menu, setMenu] = useState<MenuState>({ kind: 'none' });
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreWrap = useRef<HTMLDivElement>(null);
+  const moreButton = useRef<HTMLButtonElement>(null);
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
 
   // Opening hands focus to the panel so a keyboard or screen reader lands inside
@@ -210,6 +253,7 @@ export function MobileDrawer({
   useEffect(() => {
     if (!open) {
       setMenu({ kind: 'none' });
+      setMoreOpen(false);
       setRenaming(null);
       setExpanded(false);
     }
@@ -223,6 +267,28 @@ export function MobileDrawer({
     window.addEventListener(CONVERSATIONS_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(CONVERSATIONS_CHANGED_EVENT, refresh);
   }, []);
+
+  // The popup is a small card, not a mode: any press outside it, or Escape,
+  // puts it away and leaves the drawer exactly as it was.
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (moreWrap.current !== null && !moreWrap.current.contains(event.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setMoreOpen(false);
+      moreButton.current?.focus();
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [moreOpen]);
 
   const visible = conversations.filter((record) => showArchived || !record.archived);
   const shown = expanded ? visible : visible.slice(0, RECENT_LIMIT);
@@ -437,9 +503,79 @@ export function MobileDrawer({
         <div className="v-drawer__scroll">
           <ul className="v-drawer__list">{primaryRoutes.map(row)}</ul>
 
+          <div className="v-drawer__more-wrap" ref={moreWrap}>
+            <button
+              ref={moreButton}
+              type="button"
+              className={moreOpen ? 'v-drawer__row v-drawer__row--active' : 'v-drawer__row'}
+              aria-expanded={moreOpen}
+              aria-haspopup="menu"
+              onClick={() => setMoreOpen((value) => !value)}
+            >
+              {MORE_GLYPH}
+              <span className="v-drawer__label">More</span>
+              <span className="v-drawer__chevron">{CHEVRON_GLYPH}</span>
+            </button>
+
+            {moreOpen ? (
+              <div className="v-drawer__card v-drawer__card--more" role="menu" aria-label="More">
+                {MORE_ITEMS.map((item) =>
+                  item.routeId === null ? (
+                    <button
+                      key={item.label}
+                      type="button"
+                      role="menuitem"
+                      aria-disabled="true"
+                      className="v-drawer__more-item v-drawer__more-item--soon"
+                    >
+                      <span className="v-drawer__more-icon">{item.glyph}</span>
+                      <span className="v-drawer__more-label">{item.label}</span>
+                      <span className="v-drawer__more-soon">Soon</span>
+                    </button>
+                  ) : (
+                    <a
+                      key={item.label}
+                      role="menuitem"
+                      className="v-drawer__more-item"
+                      href={`#/${item.routeId}`}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        const target = routeById(item.routeId);
+                        setMoreOpen(false);
+                        if (target !== null) go(target);
+                      }}
+                    >
+                      <span className="v-drawer__more-icon">{item.glyph}</span>
+                      <span className="v-drawer__more-label">{item.label}</span>
+                    </a>
+                  ),
+                )}
+              </div>
+            ) : null}
+          </div>
+
           <section className="v-drawer__chats" aria-label="Conversations">
             <div className="v-drawer__chats-head">
-              <h2 className="v-drawer__chats-title">Conversations</h2>
+              <h2 className="v-drawer__chats-heading">
+                <button
+                  type="button"
+                  className="v-drawer__chats-title"
+                  aria-expanded={chatsOpen}
+                  aria-controls="v-drawer-chats"
+                  onClick={() => setChatsOpen((value) => !value)}
+                >
+                  Conversations
+                  <span
+                    className={
+                      chatsOpen
+                        ? 'v-drawer__chats-chevron'
+                        : 'v-drawer__chats-chevron v-drawer__chats-chevron--closed'
+                    }
+                  >
+                    {CHEVRON_GLYPH}
+                  </span>
+                </button>
+              </h2>
               <button
                 type="button"
                 className="v-drawer__chats-action"
@@ -461,26 +597,30 @@ export function MobileDrawer({
               </button>
             </div>
 
-            {shown.length === 0 ? (
-              <p className="v-drawer__chats-empty">
-                {showArchived
-                  ? 'Nothing archived yet.'
-                  : 'No conversations yet. What you ask here is kept on this device.'}
-              </p>
-            ) : (
-              <ul className="v-drawer__chat-list">
-                {shown.map((record) => conversationRow(record))}
-              </ul>
-            )}
+            {chatsOpen ? (
+              <div id="v-drawer-chats">
+                {shown.length === 0 ? (
+                  <p className="v-drawer__chats-empty">
+                    {showArchived
+                      ? 'Nothing archived yet.'
+                      : 'No conversations yet. What you ask here is kept on this device.'}
+                  </p>
+                ) : (
+                  <ul className="v-drawer__chat-list">
+                    {shown.map((record) => conversationRow(record))}
+                  </ul>
+                )}
 
-            {more ? (
-              <button
-                type="button"
-                className="v-drawer__see-all"
-                onClick={() => setExpanded((value) => !value)}
-              >
-                {expanded ? 'Show less' : 'See all…'}
-              </button>
+                {more ? (
+                  <button
+                    type="button"
+                    className="v-drawer__see-all"
+                    onClick={() => setExpanded((value) => !value)}
+                  >
+                    {expanded ? 'Show less' : 'See all…'}
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </section>
         </div>

@@ -996,11 +996,23 @@ list), and a pinned footer (the workspace). That is what the reference capture
 does: the head and footer hold still while the middle scrolls under them.
 
 Sizes are measured from the captures rather than chosen: the panel is 83% of
-the viewport (343dp of 411dp), rows are 47dp with labels 47dp in from the
-panel's left edge, and a row's own menu is a white card 203 × 120dp with 32dp
-rows and 8dp corners. The five everyday destinations stay on the list; the rest
-live behind **More**, which opens a separate small card rather than expanding
-inline. There is no upgrade card while the product is free.
+the viewport (343dp of 411dp), its surface is the reference's warm off-white
+(`--v-drawer-surface`, `#F8F6F4`) so the white popups read as raised above it,
+rows are 47dp with 16dp icons 22dp in and labels 46dp in, and a row's own menu
+is a white card 203 × 120dp with 32dp rows and 8dp corners.
+
+There is no **Chat** row: the app already opens on the conversation, so listing
+it repeated the screen you were on. The rest live behind **More**, which opens a
+separate small card rather than expanding inline — 193 × 116dp, 6dp in from the
+panel edge, three 32dp rows (Files, Memory, Data) with 16dp icons 20dp in and
+16px labels 45dp in. Files has a screen; Memory and Data are listed with a
+"Soon" tag because nothing is behind them yet, and a tag is honest where a row
+that silently does nothing is not.
+
+The conversation list collapses: the "Conversations" heading is the toggle, with
+the arrow the reference puts right after the word — pointing down while the list
+is open and turning to point right once every row is put away. There is no
+upgrade card while the product is free.
 
 ## Saved conversations (browser only)
 

@@ -42,7 +42,7 @@
     flex-direction: column;
     width: 83%;
     max-width: 380px;
-    background: var(--v-surface);
+    background: var(--v-drawer-surface, var(--v-surface));
     color: var(--v-text);
     outline: none;
     box-shadow: 0 12px 40px rgb(0 0 0 / 0.18);
@@ -76,7 +76,7 @@
     cursor: pointer;
   }
   .v-drawer__close:active {
-    background: var(--v-surface-muted, rgb(0 0 0 / 0.06));
+    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
   }
 
   /* --- pinned top: the agent, and a new conversation ---------------------- */
@@ -97,7 +97,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   .v-drawer__agent:active {
-    background: var(--v-surface-muted, rgb(0 0 0 / 0.05));
+    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
   }
   .v-drawer__agent-icon {
     display: inline-flex;
@@ -139,15 +139,15 @@
     -webkit-tap-highlight-color: transparent;
   }
   .v-drawer__new:active {
-    background: var(--v-surface-muted, rgb(0 0 0 / 0.05));
+    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
   }
   .v-drawer__new-icon {
     display: inline-flex;
-    color: var(--v-text-muted);
+    color: var(--v-text);
   }
   .v-drawer__new-icon .v-drawer__icon {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
   }
 
   /* --- the scrolling middle ---------------------------------------------- */
@@ -169,10 +169,11 @@
   .v-drawer__row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    /* Reference row: icon 22dp in and 16dp wide, label box 46dp in. */
+    gap: 8px;
     width: 100%;
     min-height: 47px;
-    padding: 0 12px 0 18px;
+    padding: 0 12px 0 22px;
     border: 0;
     background: transparent;
     color: var(--v-text);
@@ -186,15 +187,15 @@
   }
   .v-drawer__row:active,
   .v-drawer__row--active {
-    background: var(--v-surface-muted, rgb(0 0 0 / 0.05));
+    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
   }
   .v-drawer__row--active {
     font-weight: 600;
   }
   .v-drawer__icon {
     flex: none;
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
   }
   .v-drawer__label {
     flex: 1;
@@ -203,6 +204,82 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* --- "More": a popup card flying out under the row -------------------- */
+  /* Measured off the reference capture (411dp wide): the card is 193dp across
+     and 6dp in from the panel's right edge, its three rows are 32dp tall on a
+     32dp pitch, the icons sit 20dp in and are 16dp wide, and the labels start
+     45dp in at 16px. Corners 8dp, white surface, soft shadow. */
+  .v-drawer__more-wrap {
+    position: relative;
+  }
+  .v-drawer__chevron {
+    display: inline-flex;
+    flex: none;
+    color: var(--v-text);
+  }
+  .v-drawer__chevron .v-drawer__icon {
+    width: 18px;
+    height: 18px;
+  }
+  .v-drawer__more-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    height: 32px;
+    padding: 0 12px 0 20px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--v-text);
+    font: inherit;
+    font-size: 16px;
+    line-height: 32px;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .v-drawer__more-item:active,
+  .v-drawer__more-item:hover {
+    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+  }
+  .v-drawer__more-item--soon {
+    cursor: default;
+  }
+  .v-drawer__more-item--soon:active,
+  .v-drawer__more-item--soon:hover {
+    background: transparent;
+  }
+  .v-drawer__more-icon {
+    display: inline-flex;
+    flex: none;
+    width: 16px;
+    height: 16px;
+    color: var(--v-text);
+  }
+  .v-drawer__more-icon .v-drawer__icon {
+    width: 16px;
+    height: 16px;
+  }
+  .v-drawer__more-label {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .v-drawer__more-soon {
+    flex: none;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+    color: var(--v-text-muted);
+    font-size: 11px;
+    line-height: 18px;
+    letter-spacing: 0.01em;
+  }
+
   /* --- a small card: a chat's own actions -------------------- */
   .v-drawer__card {
     margin: 2px 12px 8px;
@@ -219,6 +296,24 @@
     z-index: 2;
     width: 203px;
     margin: 0;
+  }
+  .v-drawer__card--more {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 6px;
+    z-index: 3;
+    box-sizing: border-box;
+    width: 193px;
+    margin: 0;
+    /* 3 x 32dp rows plus 9dp either side and a hairline border = 116dp, the
+       card height measured off the reference capture. */
+    padding: 9px 0;
+    border: 1px solid var(--v-border);
+    border-radius: 8px;
+    background: var(--v-surface-raised);
+    box-shadow:
+      0 12px 30px rgb(0 0 0 / 0.18),
+      0 2px 6px rgb(0 0 0 / 0.08);
   }
   .v-drawer__card-item {
     display: flex;
@@ -241,7 +336,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   .v-drawer__card-item:active {
-    background: var(--v-surface-muted, rgb(0 0 0 / 0.06));
+    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
   }
   .v-drawer__card-item--danger {
     color: var(--v-danger, #b3261e);
@@ -263,13 +358,44 @@
     gap: 2px;
     padding: 0 8px 0 18px;
   }
-  .v-drawer__chats-title {
+  .v-drawer__chats-heading {
     flex: 1;
+    min-width: 0;
     margin: 0;
+  }
+  /* The heading is the toggle, the way the reference does it: the chevron sits
+     right after the word, points down while the list is open and turns to the
+     right once it is put away. */
+  .v-drawer__chats-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--v-text);
+    font: inherit;
     font-size: 13px;
     line-height: 18px;
     font-weight: 600;
-    color: var(--v-text-muted);
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .v-drawer__chats-chevron {
+    display: inline-flex;
+    flex: none;
+    color: var(--v-text);
+    transition: transform var(--v-dur-fast, 120ms) var(--v-ease-out, ease-out);
+  }
+  .v-drawer__chats-chevron--closed {
+    transform: rotate(-90deg);
+  }
+  .v-drawer__chats-chevron .v-drawer__icon {
+    width: 14px;
+    height: 14px;
   }
   .v-drawer__chats-action {
     display: inline-flex;
@@ -281,12 +407,12 @@
     border: 0;
     border-radius: 8px;
     background: transparent;
-    color: var(--v-text-muted);
+    color: var(--v-text);
     cursor: pointer;
   }
   .v-drawer__chats-action:active,
   .v-drawer__chats-action[aria-pressed='true'] {
-    background: var(--v-surface-muted, rgb(0 0 0 / 0.06));
+    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
     color: var(--v-text);
   }
   .v-drawer__chats-action .v-drawer__icon {
@@ -329,7 +455,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   .v-drawer__chat-open:active {
-    background: var(--v-surface-muted, rgb(0 0 0 / 0.05));
+    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
   }
   .v-drawer__chat-dot {
     flex: none;
@@ -348,7 +474,7 @@
     flex: none;
     padding: 1px 6px;
     border-radius: 6px;
-    background: var(--v-surface-muted, rgb(0 0 0 / 0.06));
+    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
     font-size: 11px;
     color: var(--v-text-muted);
   }
@@ -368,7 +494,7 @@
     cursor: pointer;
   }
   .v-drawer__chat-menu:active {
-    background: var(--v-surface-muted, rgb(0 0 0 / 0.06));
+    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
   }
 
   .v-drawer__rename {
@@ -436,7 +562,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   .v-drawer__workspace:active {
-    background: var(--v-surface-muted, rgb(0 0 0 / 0.05));
+    background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
   }
   .v-drawer__workspace-text {
     display: flex;

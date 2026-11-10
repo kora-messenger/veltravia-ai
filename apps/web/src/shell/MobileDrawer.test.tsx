@@ -61,16 +61,76 @@ describe('the website drawer', () => {
     const labels = Array.from(document.querySelectorAll('.v-drawer__label')).map(
       (node) => node.textContent,
     );
-    expect(labels).toEqual(['Chat', 'Projects', 'App Builder', 'Files & artifacts', 'Dashboard']);
+    // No Chat row: the app already opens on the conversation.
+    expect(labels).toEqual(['Projects', 'App Builder', 'Files & artifacts', 'Dashboard', 'More']);
   });
 
-  it('has no More row yet: the secondary destinations are not listed', () => {
+  it('puts the conversations away when the heading is tapped, and turns the chevron', () => {
+    seed(2);
     setup();
-    expect(screen.queryByRole('button', { name: 'More' })).toBeNull();
+    const toggle = screen.getByRole('button', { name: /Conversations/ });
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText('Conversation 1')).toBeDefined();
+    expect(toggle.querySelector('.v-drawer__chats-chevron--closed')).toBeNull();
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByText('Conversation 1')).toBeNull();
+    expect(screen.queryByText('Conversation 2')).toBeNull();
+    // The chevron turns to point at the way back in.
+    expect(toggle.querySelector('.v-drawer__chats-chevron--closed')).not.toBeNull();
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText('Conversation 1')).toBeDefined();
+  });
+
+  it('opens More into the reference card: Files, Memory, Data, in that order', () => {
+    setup();
     expect(screen.queryByRole('menu')).toBeNull();
-    const nav = screen.getByRole('navigation', { name: 'Primary' });
-    expect(within(nav).queryByRole('link', { name: 'Model routing' })).toBeNull();
-    expect(within(nav).queryByRole('link', { name: 'Knowledge synthesis' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    const card = screen.getByRole('menu', { name: 'More' });
+    const items = within(card).getAllByRole('menuitem');
+    expect(items.map((item) => item.textContent)).toEqual(['Files', 'MemorySoon', 'DataSoon']);
+  });
+
+  it('sends Files to the files screen and closes the drawer', () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    fireEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Files' }));
+    expect(props.onNavigate).toHaveBeenCalledWith(expect.objectContaining({ id: 'files' }));
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps Memory and Data honest: marked, and going nowhere', () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    const card = screen.getByRole('menu');
+    for (const name of ['Memory', 'Data']) {
+      const item = within(card).getByRole('menuitem', { name: new RegExp(`^${name}`) });
+      expect(item.getAttribute('aria-disabled')).toBe('true');
+      fireEvent.click(item);
+      expect(props.onNavigate).not.toHaveBeenCalled();
+    }
+    // Nothing behind them yet, so they are not links to a screen that would 404.
+    expect(within(card).queryAllByRole('link')).toHaveLength(0);
+  });
+
+  it('puts the card away on Escape or a press outside it, without closing the drawer', () => {
+    const { props } = setup();
+    const more = screen.getByRole('button', { name: 'More' });
+    fireEvent.click(more);
+    expect(screen.queryByRole('menu')).not.toBeNull();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(props.onClose).not.toHaveBeenCalled();
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(more);
+    expect(screen.queryByRole('menu')).not.toBeNull();
+    fireEvent.pointerDown(screen.getByText('Conversations'));
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(props.onClose).not.toHaveBeenCalled();
   });
 
   it('reaches settings from the agent row, the way the reference does', () => {
