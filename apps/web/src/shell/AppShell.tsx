@@ -9,6 +9,7 @@ import { TopBar } from './TopBar';
 import { BackendNotice } from '../components/BackendNotice';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { useHashRoute, type RouteState } from './useHashRoute';
+import { useWideLayout } from './use-wide-layout';
 
 export interface AppShellProps {
   /** Route content. Receives the full route state, including parameters. */
@@ -23,6 +24,11 @@ export function AppShell({ renderPage }: AppShellProps) {
   const { route, navigate } = useHashRoute();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  // The website's navigation is one panel in two frames: a drawer over the page on
+  // a phone, the page's own column on a wide screen.
+  const wide = useWideLayout();
+  const packaged = isPackagedApp();
+  const docked = wide && !packaged;
 
   // Close the drawer on Escape.
   useEffect(() => {
@@ -53,15 +59,17 @@ export function AppShell({ renderPage }: AppShellProps) {
 
   return (
     <div className="v-shell">
-      <Sidebar
-        activeRouteId={activeNavId}
-        onNavigate={navigate}
-        collapsed={collapsed}
-        onToggleCollapse={() => setCollapsed((value) => !value)}
-        mobileOpen={mobileOpen}
-        onMobileClose={() => setMobileOpen(false)}
-      />
-      {isPackagedApp() ? (
+      {packaged ? (
+        <Sidebar
+          activeRouteId={activeNavId}
+          onNavigate={navigate}
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed((value) => !value)}
+          mobileOpen={mobileOpen}
+          onMobileClose={() => setMobileOpen(false)}
+        />
+      ) : null}
+      {packaged ? (
         <MobileMenu
           open={mobileOpen}
           activeRouteId={activeNavId}
@@ -74,7 +82,8 @@ export function AppShell({ renderPage }: AppShellProps) {
       ) : (
         /* The website's drawer: the app keeps its own menu above. */
         <MobileDrawer
-          open={mobileOpen}
+          open={docked || mobileOpen}
+          docked={docked}
           activeRouteId={activeNavId}
           onNavigate={(next) => {
             navigate(next);
@@ -92,7 +101,11 @@ export function AppShell({ renderPage }: AppShellProps) {
       <div className="v-shell__main">
         <BackendNotice />
         <OfflineBanner />
-        <TopBar route={route} onOpenMobileNav={() => setMobileOpen(true)} />
+        <TopBar
+          route={route}
+          showMenuButton={!docked}
+          onOpenMobileNav={() => setMobileOpen(true)}
+        />
         <main className={contentClassName} id="main-content">
           {renderPage(route)}
         </main>

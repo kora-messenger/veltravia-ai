@@ -989,17 +989,22 @@ The browser gets a drawer of its own (`shell/MobileDrawer.tsx`); the packaged
 app keeps the older menu (`shell/MobileMenu.tsx`), chosen by `isPackagedApp()`
 rather than by width, because the two are built differently.
 
-**The desktop keeps its own rail.** The browser's wide layout is still the
-`shell/Sidebar.tsx` column with its rows, its collapse control and the
-"Platform preview" caption; the drawer is the phone's navigation and slides over
-the page below 900px. A short attempt at replacing both with one docked panel was
-rolled back, because the desktop that people were used to is the rail: the two
-frames stay separate designs on purpose, and `Sidebar.tsx` is what the packaged
-app draws too. The drawer's rows therefore carry the destinations the phone needs
-(Chat, Projects, Dashboard, App Builder, Superagent operations, Model routing and
-Settings as rows, the ten remaining AI-workspace pages behind a folding group that
-opens whenever the current page lives inside it, and Files, Memory and Data behind
-More), and the hamburger in the top bar stays hidden at or above 901px.
+**One panel, two frames.** Asking the browser for the desktop site used to show a
+second navigation (the 240px rail in `shell/Sidebar.tsx`) with its own rows, its
+own collapse control and a "Platform preview" caption, so the same person saw two
+different apps depending on the toggle. The website now has one navigation
+surface: below 1024px it is a drawer over the page, at or above 1024px the same
+`MobileDrawer` stands docked as the page's 280px column (`--docked`, driven by
+`shell/use-wide-layout.ts`). Docked it loses the scrim, the close control and the
+hamburger, because there is nothing to close; the head keeps its rule, the rows
+stay 47dp, and the footer keeps the workspace. The More card is placed from its
+row rather than the window edge, and the workspace sheet keeps the 351dp width it
+was measured at instead of stretching across the window. Because the panel is now
+the only navigation, it carries every destination: Chat, Projects, Dashboard, App
+Builder, Superagent operations, Model routing and Settings as rows, the ten
+remaining AI-workspace pages behind a folding group (open whenever the current
+page lives inside it), and Files, Memory and Data behind More. `Sidebar.tsx` is
+still what the packaged app draws.
 
 The drawer is three zones, not one scrolling column: a pinned head (the brand
 lockup — the mark, a 6dp gap, then the Veltravia name — with a close control and

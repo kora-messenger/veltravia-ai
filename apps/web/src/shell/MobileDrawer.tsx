@@ -211,6 +211,12 @@ const DOTS_GLYPH = (
 
 export interface MobileDrawerProps {
   readonly open: boolean;
+  /**
+   * Stands open as the page's own column instead of sliding over it. The website
+   * uses one panel for both: on a wide screen the same rows, conversations and
+   * workspace footer are the desktop navigation, so the two can never drift.
+   */
+  readonly docked?: boolean;
   readonly activeRouteId: string;
   readonly onNavigate: (route: RouteDef) => void;
   readonly onNewChat: () => void;
@@ -250,6 +256,7 @@ type MenuState =
 
 export function MobileDrawer({
   open,
+  docked = false,
   activeRouteId,
   onNavigate,
   onNewChat,
@@ -276,11 +283,15 @@ export function MobileDrawer({
   const moreButton = useRef<HTMLButtonElement>(null);
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
 
+  // Docked, the panel is simply part of the page: it is never closed and never
+  // takes focus on its own.
+  const isOpen = docked || open;
+
   // Opening hands focus to the panel so a keyboard or screen reader lands inside
   // it; closing is left to Escape or the scrim, as the shell already does.
   useEffect(() => {
-    if (open) panel.current?.focus();
-  }, [open]);
+    if (open && !docked) panel.current?.focus();
+  }, [open, docked]);
 
   // A closed drawer starts clean: nothing half-open waits for the next visit.
   useEffect(() => {
@@ -321,8 +332,12 @@ export function MobileDrawer({
       if (row === undefined) return;
       setMoreAnchor({
         top: Math.round(row.top),
-        // The card flies out past the panel's edge, as the reference does.
-        left: Math.round(window.innerWidth - MORE_CARD_INSET - MORE_CARD_WIDTH),
+        // Over the page the card flies out past the panel's edge, as the
+        // reference does. Docked, the panel is a column of the page, so the card
+        // sits under its row instead of escaping to the window's edge.
+        left: docked
+          ? Math.round(row.left + 12)
+          : Math.round(window.innerWidth - MORE_CARD_INSET - MORE_CARD_WIDTH),
       });
     };
     // Scrolling the list would leave the card behind its row, so scrolling puts
@@ -340,7 +355,7 @@ export function MobileDrawer({
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [moreOpen]);
+  }, [moreOpen, docked]);
 
   const visible = conversations.filter((record) => showArchived || !record.archived);
   const shown = expanded ? visible : visible.slice(0, RECENT_LIMIT);
@@ -515,18 +530,20 @@ export function MobileDrawer({
 
   return (
     <div
-      className={['v-drawer', open ? 'v-drawer--open' : ''].filter(Boolean).join(' ')}
+      className={['v-drawer', isOpen ? 'v-drawer--open' : '', docked ? 'v-drawer--docked' : '']
+        .filter(Boolean)
+        .join(' ')}
       data-testid="mobile-drawer"
     >
-      <div className="v-drawer__scrim" onClick={onClose} aria-hidden="true" />
+      {docked ? null : <div className="v-drawer__scrim" onClick={onClose} aria-hidden="true" />}
       <nav
         ref={panel}
         className="v-drawer__panel"
         aria-label="Primary"
-        aria-hidden={!open}
+        aria-hidden={!isOpen}
         tabIndex={-1}
         // A closed drawer must not be reachable by Tab or a screen reader.
-        inert={!open ? true : undefined}
+        inert={!isOpen ? true : undefined}
       >
         <header className="v-drawer__head">
           {/* The reference head is a brand lockup, not a lone mark: the mark, a
@@ -535,14 +552,16 @@ export function MobileDrawer({
             <BrandMark size={32} decorative />
             <span className="v-drawer__wordmark">Veltravia</span>
           </span>
-          <button
-            type="button"
-            className="v-drawer__close"
-            aria-label="Close navigation"
-            onClick={onClose}
-          >
-            {CLOSE_GLYPH}
-          </button>
+          {docked ? null : (
+            <button
+              type="button"
+              className="v-drawer__close"
+              aria-label="Close navigation"
+              onClick={onClose}
+            >
+              {CLOSE_GLYPH}
+            </button>
+          )}
         </header>
 
         <div className="v-drawer__pinned">
@@ -745,7 +764,7 @@ export function MobileDrawer({
         </footer>
       </nav>
       <WorkspaceSheet
-        open={open && sheetOpen}
+        open={isOpen && sheetOpen}
         workspaceName={workspaceName}
         onClose={() => setSheetOpen(false)}
         onOpenSettings={() => {
