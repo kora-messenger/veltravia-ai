@@ -45,7 +45,6 @@ const MORE_CARD_INSET = 11;
  * so it is the old sidebar's everyday set plus the ones the drawer had.
  */
 const PRIMARY_IDS = [
-  'chat',
   'projects',
   'dashboard',
   'builder',
@@ -69,9 +68,6 @@ const glyph = (children: ReactNode) => (
 );
 
 const ICONS: Record<string, ReactNode> = {
-  chat: glyph(
-    <path d="M4 11.2C4 7.8 7.1 5 11 5h2c3.9 0 7 2.8 7 6.2s-3.1 6.2-7 6.2h-1.6L7 20v-3.6C5.2 15.3 4 13.4 4 11.2Z" />,
-  ),
   projects: glyph(
     <path d="M3.5 7.5A2 2 0 0 1 5.5 5.5h4l2 2.2h7a2 2 0 0 1 2 2V17.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z" />,
   ),
@@ -166,12 +162,6 @@ const ICONS: Record<string, ReactNode> = {
 
 const CLOSE_GLYPH = glyph(<path d="m6 6 12 12M18 6 6 18" />);
 const PLUS_GLYPH = glyph(<path d="M12 5.5v13M5.5 12h13" />);
-const GEAR_GLYPH = glyph(
-  <>
-    <circle cx="12" cy="12" r="3" />
-    <path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.5 1.5M16.5 16.5 18 18M18 6l-1.5 1.5M7.5 16.5 6 18" />
-  </>,
-);
 const CHEVRON_GLYPH = glyph(<path d="m8 10 4 4 4-4" />);
 const FILTER_GLYPH = glyph(<path d="M4 6.5h16M7 12h10M10 17.5h4" />);
 const MORE_GLYPH = (
@@ -564,19 +554,20 @@ export function MobileDrawer({
               if (settings !== null) go(settings);
             }}
           >
-            <span className="v-drawer__agent-avatar" aria-hidden="true">
-              {GEAR_GLYPH}
-            </span>
             <span className="v-drawer__agent-name">{profile.agentName}</span>
           </a>
-          <button type="button" className="v-drawer__new" onClick={startConversation}>
-            <span className="v-drawer__new-icon">{PLUS_GLYPH}</span>
-            <span>New conversation</span>
-          </button>
         </div>
 
         <div className="v-drawer__scroll">
-          <ul className="v-drawer__list">{primaryRoutes.map(row)}</ul>
+          <ul className="v-drawer__list">
+            <li>
+              <button type="button" className="v-drawer__row" onClick={startConversation}>
+                {PLUS_GLYPH}
+                <span className="v-drawer__label">New conversation</span>
+              </button>
+            </li>
+            {primaryRoutes.map(row)}
+          </ul>
 
           <div className="v-drawer__more-wrap" ref={moreWrap}>
             <button

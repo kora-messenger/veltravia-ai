@@ -60,17 +60,21 @@ describe('the website drawer', () => {
     expect(screen.queryByText(/upgrade/i)).toBeNull();
   });
 
-  it('pins the agent and a new conversation, and lists the everyday places', () => {
+  it('names the agent without an avatar and runs the destinations in one flat list', () => {
     setup();
-    expect(screen.getByText('My Engineer')).toBeDefined();
-    expect(screen.getByRole('button', { name: 'New conversation' })).toBeDefined();
+    const agentLine = screen.getByText('My Engineer').closest('.v-drawer__agent');
+    expect(agentLine).not.toBeNull();
+    // Only the name: the reference's avatar square and its glyph are gone.
+    expect(agentLine?.querySelector('.v-drawer__agent-avatar')).toBeNull();
+    expect(agentLine?.querySelector('svg')).toBeNull();
+
+    // "New conversation" is a row of the same list, in the same column as every
+    // destination, rather than its own block above them.
     const labels = Array.from(
       document.querySelectorAll('.v-drawer__list:not([hidden]) .v-drawer__row .v-drawer__label'),
     ).map((node) => node.textContent);
-    // This list is the whole navigation, because the desktop shows this same
-    // panel: every page the app has is reachable from it.
     expect(labels).toEqual([
-      'Chat',
+      'New conversation',
       'Projects',
       'Dashboard',
       'App Builder',
@@ -78,6 +82,11 @@ describe('the website drawer', () => {
       'Model routing',
       'Settings',
     ]);
+    expect(screen.getByRole('button', { name: 'New conversation' })).toBeDefined();
+
+    // Chat is not a destination of its own any more; the rows above it lead in.
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    expect(within(nav).queryByRole('link', { name: 'Chat' })).toBeNull();
     // "More" is a row of its own, outside the list, opening a card.
     expect(screen.getByRole('button', { name: /More/ })).toBeDefined();
   });

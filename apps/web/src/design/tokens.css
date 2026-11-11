@@ -103,6 +103,10 @@
      head (#D2CDC7 there) and the border around its agent card (#E0DDD7). */
   --v-drawer-line: #d5d0c9;
   --v-drawer-edge: #e2ded7;
+  /* The drawer's ink: its row labels and their glyphs are black, not the app's
+     softer neutral text, because on the warm milk surface a 15px label with a
+     1.7px glyph read washed out. */
+  --v-drawer-ink: #000000;
   --v-surface-muted: var(--v-neutral-100);
   --v-surface-hover: var(--v-neutral-100);
 
@@ -169,6 +173,8 @@
   --v-drawer-muted: #262334;
   --v-drawer-line: rgb(255 255 255 / 0.12);
   --v-drawer-edge: rgb(255 255 255 / 0.14);
+  /* Black would vanish on the dark panel, so the ink turns over with the theme. */
+  --v-drawer-ink: #f7f5f3;
   --v-surface-muted: #1e1c2b;
   --v-surface-hover: #262334;
 

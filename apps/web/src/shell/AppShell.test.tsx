@@ -61,10 +61,13 @@ describe('AppShell', () => {
 
   it('marks the active navigation item with aria-current', () => {
     renderShell();
-    const active = screen.getByRole('link', { name: /^Chat/ });
-    expect(active.getAttribute('aria-current')).toBe('page');
-    const inactive = screen.getByRole('link', { name: /Projects/ });
-    expect(inactive.getAttribute('aria-current')).toBeNull();
+    // Chat has no row of its own any more, so the route it lands on marks nothing.
+    expect(document.querySelector('.v-drawer__row--active')).toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: /Projects/ }));
+    expect(screen.getByRole('link', { name: /Projects/ }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+    expect(screen.getByRole('link', { name: /Dashboard/ }).getAttribute('aria-current')).toBeNull();
   });
 
   it('keeps the dashboard reachable as its own route', () => {

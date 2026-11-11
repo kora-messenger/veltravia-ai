@@ -104,15 +104,15 @@
      rule, both measured off the reference. */
   padding: 13px 13px 10px;
 }
-/* The agent card, as the reference draws it: 316 x 42dp with 6dp corners and
-   a hairline border on the panel's own colour, a 26dp round avatar 13dp in,
-   and the name 62dp in from the card's left edge. */
+/* The agent line is the name and nothing else: the reference's avatar square
+   and its glyph are gone, so the name is the only thing in the card. It is
+   inset to the column the row labels start on (46dp), which puts it in the same
+   straight line as the list underneath. */
 .v-drawer__agent {
   display: flex;
   align-items: center;
-  gap: 22px;
   height: 42px;
-  padding: 0 12px 0 13px;
+  padding: 0 12px 0 32px;
   border: 1px solid var(--v-drawer-edge);
   border-radius: 6px;
   color: var(--v-text);
@@ -122,60 +122,14 @@
 .v-drawer__agent:active {
   background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
 }
-.v-drawer__agent-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  /* The reference's avatar blue (#3950E5) is the app's own accent blue. */
-  background: #3b51e5;
-  color: #ffffff;
-}
-.v-drawer__agent-avatar .v-drawer__icon {
-  width: 14px;
-  height: 14px;
-}
 .v-drawer__agent-name {
+  color: var(--v-drawer-ink);
   font-size: 15px;
   font-weight: 600;
   line-height: 20px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.v-drawer__new {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  height: 47px;
-  margin-top: 15px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: var(--v-text);
-  font: inherit;
-  font-size: 15px;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.v-drawer__new:active {
-  background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
-}
-.v-drawer__new-icon {
-  display: inline-flex;
-  color: var(--v-text);
-}
-.v-drawer__new-icon .v-drawer__icon {
-  width: 16px;
-  height: 16px;
 }
 
 /* --- the scrolling middle ---------------------------------------------- */
@@ -204,7 +158,7 @@
   padding: 0 12px 0 22px;
   border: 0;
   background: transparent;
-  color: var(--v-text);
+  color: var(--v-drawer-ink);
   font: inherit;
   font-size: 15px;
   line-height: 20px;
@@ -243,7 +197,7 @@
 .v-drawer__chevron {
   display: inline-flex;
   flex: none;
-  color: var(--v-text);
+  color: var(--v-drawer-ink);
 }
 .v-drawer__chevron .v-drawer__icon {
   width: 18px;
@@ -261,7 +215,7 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--v-text);
+  color: var(--v-drawer-ink);
   font: inherit;
   font-size: 15px;
   line-height: 32px;
@@ -286,7 +240,7 @@
   flex: none;
   width: 14px;
   height: 14px;
-  color: var(--v-text);
+  color: var(--v-drawer-ink);
 }
 .v-drawer__more-icon .v-drawer__icon {
   width: 14px;
@@ -479,7 +433,7 @@
   padding: 0 4px 0 18px;
   border: 0;
   background: transparent;
-  color: var(--v-text);
+  color: var(--v-drawer-ink);
   font: inherit;
   font-size: 15px;
   line-height: 20px;
@@ -597,7 +551,7 @@
   gap: 8px;
   padding: 0;
   border-radius: 10px;
-  color: var(--v-text);
+  color: var(--v-drawer-ink);
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
