@@ -106,7 +106,12 @@ describe('a refusal before any work happens', () => {
     const before = await wallet.overview({ ownerRef: 'broke-owner' });
 
     const error = await billing
-      .open({ ownerRef: 'broke-owner', kind: 'reasoning.run', operationId: 'run-1', operation: 'reasoning' })
+      .open({
+        ownerRef: 'broke-owner',
+        kind: 'reasoning.run',
+        operationId: 'run-1',
+        operation: 'reasoning',
+      })
       .then(
         () => null,
         (refusal: unknown) => refusal,

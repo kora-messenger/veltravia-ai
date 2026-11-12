@@ -494,7 +494,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
    */
   let unifiedBilling: ReturnType<typeof createUnifiedBilling> | null = null;
   let billedRuns: ReturnType<typeof createBilledRunTracker> | null = null;
-  let infrastructureMetering: ReturnType<typeof createInfrastructureMetering> | null = null;
 
   // Agent execution endpoints: bounded runs, confirmation flow, cancellation.
   // Responses carry safe normalized state only - never chain-of-thought.
@@ -674,7 +673,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     integrationCredits: integrationCreditService,
   });
   unifiedBilling = unifiedBillingService;
-  const billedRunsTracker = createBilledRunTracker(unifiedBillingService);
+  const billedRunsTracker = createBilledRunTracker();
   billedRuns = billedRunsTracker;
 
   /*
@@ -687,7 +686,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     usage: usageService,
     log: (line) => console.warn(line),
   });
-  infrastructureMetering = metering;
 
   /*
    * A bandwidth sample is one record per owner per minute, flushed by a timer:

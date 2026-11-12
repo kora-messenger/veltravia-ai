@@ -106,7 +106,10 @@ export function createInfrastructureMetering(
   const log = options.log ?? (() => undefined);
 
   const buckets = new Map<string, BandwidthBucket>();
-  const streams = new Map<string, { ownerRef: string; openedAt: number; events: number; closed: boolean }>();
+  const streams = new Map<
+    string,
+    { ownerRef: string; openedAt: number; events: number; closed: boolean }
+  >();
   let seq = 0;
   let flushedBytes = 0;
 

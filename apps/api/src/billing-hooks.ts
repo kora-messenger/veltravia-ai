@@ -13,7 +13,7 @@
  * that was never measured.
  */
 
-import type { BillingHandle, UnifiedBilling } from './unified-billing.js';
+import type { BillingHandle } from './unified-billing.js';
 
 export interface RunBillingOutcome {
   /** The engine's terminal status, used only to decide settle vs release. */
@@ -44,7 +44,7 @@ export interface BilledRunTracker {
 
 const TERMINAL_RELEASE = new Set(['cancelled', 'failed', 'timed_out', 'expired', 'refused']);
 
-export function createBilledRunTracker(billing: UnifiedBilling): BilledRunTracker {
+export function createBilledRunTracker(): BilledRunTracker {
   const holds = new Map<string, BillingHandle>();
   const closed = new Set<string>();
 

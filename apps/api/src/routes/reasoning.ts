@@ -312,7 +312,9 @@ export function registerReasoningRoutes(
       return reply.status(202).send({ run: toRunView(run) });
     } catch (error) {
       if (handle !== null) {
-        await handle.release('The reasoning run was refused before it started.').catch(() => undefined);
+        await handle
+          .release('The reasoning run was refused before it started.')
+          .catch(() => undefined);
       }
       const mapped = toError(error);
       return reply.status(mapped.status).send(mapped.body);

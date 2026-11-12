@@ -148,9 +148,7 @@ export interface ReasoningServiceOptions {
    * reported, and releases it for a cancelled or failed run. Wrapped so a billing
    * failure can never turn a finished run into an error.
    */
-  readonly onRunFinished?:
-    | ((run: ReasoningRun) => Promise<void> | void)
-    | undefined;
+  readonly onRunFinished?: ((run: ReasoningRun) => Promise<void> | void) | undefined;
   /** Ceiling on buffered stream events per run. */
   readonly maxBufferedEvents?: number;
 }
