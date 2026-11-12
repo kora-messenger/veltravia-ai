@@ -8,7 +8,11 @@ import {
   type ReasoningProfileId,
 } from '@veltravia/reasoning-core';
 import { isGatewayError } from '@veltravia/ai-gateway';
+import { randomUUID } from 'node:crypto';
+
 import type { ReasoningService } from '../reasoning-service.js';
+import type { BilledRunTracker } from '../billing-hooks.js';
+import { billingErrorBody, type UnifiedBilling } from '../unified-billing.js';
 
 /**
  * Reasoning routes (Step 27).
@@ -146,7 +150,17 @@ const RUN_BODY = {
   },
 } as const;
 
-export function registerReasoningRoutes(app: FastifyInstance, service: ReasoningService): void {
+export interface ReasoningRouteOptions {
+  /** Step 57: the one billing gate. Omitted in tests that do not bill. */
+  readonly billing?: UnifiedBilling | undefined;
+  readonly tracker?: BilledRunTracker | undefined;
+}
+
+export function registerReasoningRoutes(
+  app: FastifyInstance,
+  service: ReasoningService,
+  options: ReasoningRouteOptions = {},
+): void {
   /** Capabilities: profiles, limits, provider state and the tools on offer. */
   app.get('/api/reasoning', async (request) => {
     const ownerRef = ownerOf(request);
@@ -255,6 +269,29 @@ export function registerReasoningRoutes(app: FastifyInstance, service: Reasoning
       });
     }
 
+    /*
+     * Step 57: reasoning runs make paid model calls, so they pass the same gate as
+     * chat. The hold is taken under the run's own operation id and closed by the
+     * service's completion hook, which fires whether the run finished, failed or
+     * was cancelled.
+     */
+    let handle: Awaited<ReturnType<UnifiedBilling['open']>> | null = null;
+    const operationId = body.idempotencyKey ?? randomUUID();
+    if (options.billing !== undefined) {
+      try {
+        handle = await options.billing.open({
+          ownerRef,
+          kind: 'reasoning.run',
+          operation: 'reasoning',
+          operationId,
+          ...(body.projectId === undefined ? {} : { projectId: body.projectId }),
+        });
+      } catch (error) {
+        const mapped = billingErrorBody(error);
+        return reply.status(mapped.status).send(mapped.body);
+      }
+    }
+
     try {
       const run = await service.start({
         ownerRef,
@@ -269,8 +306,14 @@ export function registerReasoningRoutes(app: FastifyInstance, service: Reasoning
         ...(body.context !== undefined ? { context: body.context } : {}),
         ...(body.limits !== undefined ? { limits: body.limits } : {}),
       } as Parameters<ReasoningService['start']>[0]);
+      if (handle !== null && options.tracker !== undefined) {
+        options.tracker.track(run.id, handle);
+      }
       return reply.status(202).send({ run: toRunView(run) });
     } catch (error) {
+      if (handle !== null) {
+        await handle.release('The reasoning run was refused before it started.').catch(() => undefined);
+      }
       const mapped = toError(error);
       return reply.status(mapped.status).send(mapped.body);
     }

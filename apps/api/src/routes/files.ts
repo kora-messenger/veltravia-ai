@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { InfrastructureMetering } from '../infrastructure-metering.js';
 import { readEnv } from '@veltravia/config';
 import {
   asArtifactId,
@@ -64,6 +65,18 @@ function scopeFrom(body: Record<string, unknown>, request: FastifyRequest) {
     workspaceId: typeof body.workspaceId === 'string' ? body.workspaceId : null,
   };
 }
+/**
+ * The size the file manager actually recorded. `byteLength` does not exist on a
+ * FileAsset - the number lives at `metadata.byteSize` - and reading the wrong
+ * field silently measured every upload as zero bytes, which is why the meter has
+ * to be told a real number or none at all.
+ */
+function storedBytes(asset: unknown): number {
+  const metadata = (asset as { metadata?: { byteSize?: unknown } } | null)?.metadata;
+  const bytes = metadata?.byteSize;
+  return typeof bytes === 'number' && Number.isFinite(bytes) && bytes > 0 ? bytes : 0;
+}
+
 function fileView(f: FileAsset) {
   return {
     id: f.id,
@@ -136,7 +149,11 @@ const uploadJsonSchema = {
     expiresAt: { type: ['string', 'null'] },
   },
 };
-export function registerFileRoutes(app: FastifyInstance, manager: FileIntelligenceManager): void {
+export function registerFileRoutes(
+  app: FastifyInstance,
+  manager: FileIntelligenceManager,
+  options: { readonly metering?: InfrastructureMetering | undefined } = {},
+): void {
   app.post(
     '/api/files',
     { bodyLimit: 36 * 1024 * 1024, schema: { body: uploadJsonSchema } },
@@ -172,6 +189,27 @@ export function registerFileRoutes(app: FastifyInstance, manager: FileIntelligen
           scope: scopeFrom(b, request),
           expiresAt: typeof b.expiresAt === 'string' ? b.expiresAt : null,
         });
+        /*
+         * Step 57: the bytes that were just accepted are the storage measurement.
+         * They are recorded after the file exists, and only when the asset
+         * reports a size - an unknown size is not guessed into the meter.
+         */
+        if (options.metering !== undefined) {
+          const principalOwner = principal(request).ownerRef;
+          const byteLength = storedBytes(file);
+          if (byteLength > 0) {
+            await options.metering
+              .recordStorage({
+                ownerRef: principalOwner,
+                projectId: typeof b.projectId === 'string' ? b.projectId : null,
+                fileId: String((file as { id?: unknown }).id ?? b.filename),
+                bytes: byteLength,
+                direction: 'added',
+                reason: 'upload',
+              })
+              .catch(() => null);
+          }
+        }
         return reply.code(201).send(fileView(file));
       } catch (e) {
         const x = err(e);
@@ -251,7 +289,32 @@ export function registerFileRoutes(app: FastifyInstance, manager: FileIntelligen
   app.delete('/api/files/:fileId', async (request, reply) => {
     try {
       const { fileId } = request.params as { fileId: string };
+      /*
+       * The size is read BEFORE the delete: after it, the asset is gone and the
+       * released bytes would have to be guessed. A file whose size was never
+       * known releases nothing rather than a fabricated number.
+       */
+      let released = 0;
+      if (options.metering !== undefined) {
+        try {
+          const asset = await manager.getFile(asFileAssetId(fileId), principal(request));
+          released = storedBytes(asset);
+        } catch {
+          released = 0;
+        }
+      }
       await manager.deleteFile(asFileAssetId(fileId), principal(request));
+      if (options.metering !== undefined && released > 0) {
+        await options.metering
+          .recordStorage({
+            ownerRef: principal(request).ownerRef,
+            fileId,
+            bytes: released,
+            direction: 'removed',
+            reason: 'delete',
+          })
+          .catch(() => null);
+      }
       return reply.code(204).send();
     } catch (e) {
       const x = err(e);

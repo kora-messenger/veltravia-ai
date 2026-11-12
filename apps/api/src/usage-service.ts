@@ -231,6 +231,32 @@ export interface UsageService {
     ownerRef: string;
     projectId?: string | null;
   }): Promise<UsageRecord | null>;
+  /**
+   * Records one measured infrastructure event (Step 57).
+   *
+   * The narrow `record*` helpers above stay, because each one knows something
+   * specific about its category. This is the generic seam a meter calls when the
+   * number was observed by the process itself - an uploaded file, a counted byte,
+   * a closed stream - so a new reliable source does not need a new service method.
+   *
+   * It refuses numbers it cannot stand behind: a negative, non-finite or absurd
+   * quantity, an empty operation key, or a category that is not in the published
+   * vocabulary. A refused record throws `UsageProblem`; nothing is written.
+   */
+  recordUsage(input: {
+    ownerRef: string;
+    projectId?: string | null;
+    category: UsageCategory;
+    operation: string;
+    resource?: string;
+    quantity: number;
+    operationKey: string;
+    source?: UsageRecord['source'];
+    detail?: UsageRecord['detail'];
+    executionId?: string | null;
+    taskId?: string | null;
+    workerId?: string | null;
+  }): Promise<UsageRecord | null>;
   adjust(input: {
     ownerRef: string;
     category: UsageCategory;
@@ -253,6 +279,12 @@ export interface UsageServiceOptions {
   /** Bytes currently stored for an owner (all projects, or one). */
   readonly measureFileBytes?:
     ((ownerRef: string, projectId?: string | null) => Promise<number | null>) | undefined;
+  /**
+   * Step 57: categories this deployment observes through its own meter rather
+   * than through a probe callback. Absent or false means "not observed here", so
+   * the capability is published as unavailable instead of claiming a measurement.
+   */
+  readonly observedCategories?: readonly UsageCategory[] | undefined;
   /** Bytes stored in the database for an owner, when a probe exists. */
   readonly measureDatabaseBytes?:
     ((ownerRef: string, projectId?: string | null) => Promise<number | null>) | undefined;
@@ -268,6 +300,12 @@ export interface UsageServiceOptions {
    */
   readonly onRecorded?: ((record: UsageRecord) => Promise<void> | void) | undefined;
 }
+
+/**
+ * Categories whose number comes from a running meter, not from a probe. Kept in
+ * one place so the capability table cannot drift from the wiring.
+ */
+const OBSERVED_EXTERNALLY = new Set<UsageCategory>(['bandwidth', 'realtime']);
 
 const CATEGORIES: readonly UsageCategory[] = [
   'database_storage',
@@ -525,12 +563,14 @@ export function createUsageService(options: UsageServiceOptions = {}): UsageServ
     ownerRef: string,
     projectId: string | null,
   ): Promise<readonly UsageRecord[]> =>
-    storeFor(ownerRef).listRecords({
-      projectId,
-      from: window().from,
-      to: window().to,
-      limit: 5000,
-    });
+    (
+      await storeFor(ownerRef).listRecords({
+        projectId,
+        from: window().from,
+        to: window().to,
+        limit: 5000,
+      })
+    ).filter((record) => record.ownerRef === ownerRef);
 
   const monthAdjustments = async (ownerRef: string, projectId: string | null) =>
     storeFor(ownerRef).listAdjustments({
@@ -858,6 +898,9 @@ export function createUsageService(options: UsageServiceOptions = {}): UsageServ
     await ledger.release(input.operationKey, 'cancelled before it counted');
   };
 
+  const observedHere = new Set<UsageCategory>(options.observedCategories ?? []);
+  const isObserved = (category: UsageCategory): boolean => observedHere.has(category);
+
   const service: UsageService = {
     durable,
     developmentMode,
@@ -871,8 +914,11 @@ export function createUsageService(options: UsageServiceOptions = {}): UsageServ
         const probed =
           base.status !== 'unavailable' &&
           (category !== 'database_storage' || options.measureDatabaseBytes !== undefined) &&
-          category !== 'bandwidth' &&
-          category !== 'realtime';
+          // Step 57: bandwidth and realtime are observed only when the deployment
+          // actually wired the meter that observes them. The flag comes from the
+          // caller instead of a hardcoded "not yet", so a category cannot claim to
+          // be measured because the code was updated and the wiring was not.
+          (!OBSERVED_EXTERNALLY.has(category) || isObserved(category));
         return {
           ...base,
           ...(probed
@@ -964,13 +1010,19 @@ export function createUsageService(options: UsageServiceOptions = {}): UsageServ
         records: records.length,
       };
     },
-    records: (ownerRef, recordOptions = {}) =>
-      storeFor(ownerRef).listRecords({
-        projectId: recordOptions.projectId ?? null,
-        from: window().from,
-        to: window().to,
-        limit: Math.min(500, recordOptions.limit ?? 100),
-      }),
+    records: async (ownerRef, recordOptions = {}) =>
+      // Step 57: the store is owner-bound on Postgres, but the in-memory driver
+      // keeps one list for everyone, so the same read has to filter for itself.
+      // Without this an in-process deployment answers one person's request with
+      // somebody else's bandwidth rows.
+      (
+        await storeFor(ownerRef).listRecords({
+          projectId: recordOptions.projectId ?? null,
+          from: window().from,
+          to: window().to,
+          limit: Math.min(500, recordOptions.limit ?? 100),
+        })
+      ).filter((record) => record.ownerRef === ownerRef),
     adjustments: (ownerRef, adjustmentOptions = {}) =>
       storeFor(ownerRef).listAdjustments({
         projectId: adjustmentOptions.projectId ?? null,
@@ -1101,6 +1153,54 @@ export function createUsageService(options: UsageServiceOptions = {}): UsageServ
         detail: { gauge: true },
       });
       return record;
+    },
+    async recordUsage(input) {
+      const category = input.category;
+      if (!CATEGORIES.includes(category)) {
+        throw new UsageProblem('USAGE_INVALID', `"${category}" is not a metered category.`);
+      }
+      const operation = input.operation.trim();
+      if (operation === '' || operation.length > 80) {
+        throw new UsageProblem(
+          'USAGE_INVALID',
+          'A usage record needs an operation name of at most 80 characters.',
+        );
+      }
+      const operationKey = input.operationKey.trim();
+      if (operationKey === '' || operationKey.length > 200) {
+        throw new UsageProblem(
+          'USAGE_INVALID',
+          'A usage record needs an operation key of at most 200 characters.',
+        );
+      }
+      if (input.ownerRef.trim() === '') {
+        throw new UsageProblem('USAGE_INVALID', 'A usage record needs an owner.');
+      }
+      // The ledger re-checks finiteness and sign; this refuses the one number
+      // that would silently poison a month's total.
+      const quantity = input.quantity;
+      if (!Number.isFinite(quantity) || quantity < 0 || quantity > 1_000_000_000_000) {
+        throw new UsageProblem(
+          'USAGE_INVALID',
+          'A usage quantity must be a measured, finite, non-negative number.',
+        );
+      }
+      return recordWithBilling(input.ownerRef, {
+        ownerRef: input.ownerRef,
+        ...(input.projectId === undefined || input.projectId === null
+          ? {}
+          : { projectId: input.projectId }),
+        category,
+        operation,
+        ...(input.resource === undefined ? {} : { resource: input.resource }),
+        quantity,
+        operationKey,
+        ...(input.source === undefined ? {} : { source: input.source }),
+        ...(input.detail === undefined ? {} : { detail: input.detail }),
+        ...(input.executionId === undefined ? {} : { executionId: input.executionId }),
+        ...(input.taskId === undefined ? {} : { taskId: input.taskId }),
+        ...(input.workerId === undefined ? {} : { workerId: input.workerId }),
+      });
     },
     async adjust(input) {
       const { adjustment } = await ledgerFor(input.ownerRef).adjust({

@@ -19,6 +19,8 @@ export const INTERACTION_KINDS = [
   'chat.assistant',
   'coding.run',
   'agent.execution',
+  'agent.run',
+  'reasoning.run',
   'tool.call',
   'background.task',
 ] as const;

@@ -142,6 +142,15 @@ export interface ReasoningServiceOptions {
   /** App Builder and the project engine it reads, for the read-only builder tools. */
   readonly appBuilder?: { readonly manager: AppBuilderManager; readonly projects: ProjectEngine };
   readonly simulatedFactory?: () => ReasoningProvider;
+  /**
+   * Step 57: called once when a run reaches a terminal state, with the finished
+   * run. The billing coordinator settles the run's hold from the usage the engine
+   * reported, and releases it for a cancelled or failed run. Wrapped so a billing
+   * failure can never turn a finished run into an error.
+   */
+  readonly onRunFinished?:
+    | ((run: ReasoningRun) => Promise<void> | void)
+    | undefined;
   /** Ceiling on buffered stream events per run. */
   readonly maxBufferedEvents?: number;
 }
@@ -526,7 +535,7 @@ export class ReasoningService {
       const index = early.indexOf(event) + 1;
       this.publish(runId, { id: index, runId, event });
     }
-    void started.completion.then((run) => {
+    void started.completion.then(async (run) => {
       void this.usage.record(reasoningUsageRecord(run));
       counter += 1;
       this.publish(started.run.id, {
@@ -539,6 +548,14 @@ export class ReasoningService {
         },
       });
       this.finished.set(run.id, run);
+      // Step 57: the run is over, so its charge is closed here rather than by a
+      // caller who may never poll again.
+      try {
+        await this.options.onRunFinished?.(run);
+      } catch {
+        // Billing is downstream of the run: a refusal there is reported by the
+        // charge row, never by failing work that already happened.
+      }
     });
     return started.run;
   }

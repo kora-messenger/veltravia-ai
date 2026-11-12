@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { FastifyInstance } from 'fastify';
 import { isAgentError, type AgentManager } from '@veltravia/agent-core';
 import { isProjectError, type ProjectEngine } from '@veltravia/project-core';
@@ -5,6 +7,8 @@ import { buildMemoryContext, type MemoryManager } from '@veltravia/memory-core';
 import { resolveAgentProjectContext } from '../agent-context.js';
 import { isGatewayError, type AIProviderGateway } from '@veltravia/ai-gateway';
 import { createGatewayAgentManager } from '../agents.js';
+import type { BilledRunTracker } from '../billing-hooks.js';
+import { billingErrorBody, type UnifiedBilling } from '../unified-billing.js';
 
 /** Maps normalized agent error codes to HTTP status codes. */
 const AGENT_ERROR_STATUS: Record<string, number> = {
@@ -103,6 +107,9 @@ export interface AgentRouteDeps {
     readonly gateway: AIProviderGateway | null;
     readonly blockedReason: string | null;
   };
+  /** Step 57: the one billing gate, and the tracker that closes its holds. */
+  readonly billing?: UnifiedBilling | undefined;
+  readonly tracker?: BilledRunTracker | undefined;
 }
 
 export function registerAgentRoutes(
@@ -122,6 +129,11 @@ export function registerAgentRoutes(
   }));
 
   app.post('/api/agents/run', { schema: { body: runBodySchema } }, async (request, reply) => {
+    /*
+     * Declared outside the try so a failure after the hold still returns the
+     * credit: a refused run must never leave a reservation behind.
+     */
+    let handle: Awaited<ReturnType<UnifiedBilling['open']>> | null = null;
     try {
       const body = request.body as {
         agentId: string;
@@ -205,6 +217,34 @@ export function registerAgentRoutes(
         });
         agentId = 'agent.model';
       }
+      /*
+       * Step 57: an agent run is model work, so it is billed like one. The hold
+       * is taken before the loop starts and closed from the status the loop
+       * returned: a completed run settles from its own usage, a cancelled or
+       * failed one gives the credit back.
+       */
+      const billingOwner =
+        (request.headers['x-veltravia-owner-ref'] as string | undefined) ??
+        (request.headers['x-veltravia-owner'] as string | undefined) ??
+        body.ownerRef ??
+        body.userId ??
+        'veltravia-dev-user';
+      if (deps.billing !== undefined) {
+        try {
+          handle = await deps.billing.open({
+            ownerRef: billingOwner,
+            kind: 'agent.run',
+            operation: 'agent-run',
+            operationId: randomUUID(),
+            ...(body.projectId === undefined ? {} : { projectId: body.projectId }),
+            ...(body.workspaceId === undefined ? {} : { workspaceId: body.workspaceId }),
+          });
+        } catch (error) {
+          const mapped = billingErrorBody(error);
+          return reply.code(mapped.status).send(mapped.body);
+        }
+      }
+
       const response = await effectiveManager.createRun(agentId, {
         task: body.task,
         ...(body.sessionId !== undefined ? { sessionId: body.sessionId } : {}),
@@ -223,8 +263,21 @@ export function registerAgentRoutes(
           ? { limits: body.limits as { [K in keyof typeof body.limits]: number } }
           : {}),
       });
+      if (handle !== null && deps.tracker !== undefined) {
+        deps.tracker.track(response.runId, handle);
+        await deps.tracker.settle(response.runId, {
+          status: String(response.status),
+          usage: {
+            toolCalls: response.toolCallCount,
+            ...(body.modelId === undefined ? {} : { modelId: body.modelId }),
+          },
+        });
+      }
       return reply.send(response);
     } catch (error) {
+      if (handle !== null) {
+        await handle.release('The agent run was refused before it started.').catch(() => undefined);
+      }
       if (isGatewayError(error)) {
         return reply.code(gatewayStatus(error.code)).send({
           error: { code: error.code, message: error.message },

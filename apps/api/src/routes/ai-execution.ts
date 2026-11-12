@@ -6,6 +6,7 @@ import { GatewayError, isGatewayError } from '@veltravia/ai-gateway';
 import { isTaskCategory } from '@veltravia/ai-router';
 import type { AiExecutionService, ExecutionEvent } from '../ai-execution-service.js';
 import type { MessageCreditService } from '../message-credit-service.js';
+import type { InfrastructureMetering } from '../infrastructure-metering.js';
 import { messageCreditErrorBody } from './message-credits.js';
 /** Local env read: this route does not reach into another route module. */
 function readEnv(name: string): string | undefined {
@@ -34,6 +35,8 @@ export interface AiExecutionDeps {
    * deployment charges nothing for messages, which is the development default.
    */
   readonly messageCredits?: MessageCreditService | undefined;
+  /** Step 57: realtime connection metering for a streaming chat answer. */
+  readonly metering?: InfrastructureMetering | undefined;
 }
 
 function ownerOf(request: FastifyRequest): string {
@@ -301,6 +304,12 @@ export function registerAiExecutionRoutes(app: FastifyInstance, deps: AiExecutio
     reply.raw.write('retry: 2000\n\n');
 
     const runId = started.run.id;
+    /*
+     * Step 57: a stream this process holds open IS a realtime connection, so it is
+     * counted while it lives (the published limit reads this) and recorded when it
+     * closes with its duration and how many events it carried.
+     */
+    const stream = deps.metering?.openStream({ ownerRef: owner, kind: 'chat.stream' }) ?? null;
     let closed = false;
     const close = (): void => {
       if (closed) return;
@@ -335,6 +344,7 @@ export function registerAiExecutionRoutes(app: FastifyInstance, deps: AiExecutio
       for await (const event of started.events) {
         if (closed) break;
         reply.raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+        stream?.event();
       }
       // A stream that ends without a completed run holds nobody's credit: the
       // usage hook only settles a run that reported tokens.
@@ -361,6 +371,7 @@ export function registerAiExecutionRoutes(app: FastifyInstance, deps: AiExecutio
     } finally {
       clearInterval(heartbeat);
       close();
+      await stream?.close('stream-ended');
     }
     return reply;
   });

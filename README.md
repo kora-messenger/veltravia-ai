@@ -590,3 +590,52 @@ Not delivered: no payment processing or real-money purchase of integration credi
 per-integration funding flow, no separate admin console for refunds. Charges file under the
 owner that owns the connector connections, which is the deployment's owner; a real auth layer
 would pass the caller through the same seam.
+
+## Step 57 - unified automatic deduction and infrastructure usage billing
+
+Steps 52 to 56 each built a correct answer to one question, and three things were still
+true: a reasoning run and an agent run made real provider calls and were priced by
+nobody, nothing asked whether an account could afford an operation before starting it,
+and the three infrastructure categories Step 52 published as unmeasured stayed that way.
+This step is the coordinator over those engines - no second wallet, no second price
+table, no second ledger.
+
+`GET /api/billing` publishes what each operation is: **charged** (chat, coding, worker,
+agent run, reasoning run, connector), **metered** (background job intake, which makes no
+paid call of its own) or **BYOK exempt with a reason** (document jobs, intelligence
+synthesis). A charged operation holds credit through the Step 53 wallet before it starts
+and settles through the Step 55 operation charge, so one operation is one charge however
+many model calls it makes.
+
+A refusal is `402 BILLING_INSUFFICIENT_CREDITS`, and it says which operation was blocked,
+what it cost, what the wallet has, the shortfall, and the four things the person keeps:
+projects, files, settings and conversation history. Nothing runs, so nothing is spent. A
+refused worker keeps its task and checkpoints rather than being thrown away, and no route
+quietly substitutes a free unauthorised path for the work that was blocked.
+
+Storage, bandwidth and realtime are now measured, and the capability table asks the
+server whether it observes them instead of hardcoding a status, so a category cannot
+claim to be measured because the code changed while the wiring did not. Sizes come from
+the file manager's own record, bandwidth is one record per owner per minute instead of
+one per request, and a realtime stream is counted when it closes with its duration and
+events. `recordUsage()` refuses a negative, non-finite or unkeyed measurement rather than
+writing a row, and an unknown size is measured as nothing rather than zero.
+
+Two silent bugs this work surfaced are worth naming, because both looked healthy: the
+stored-bytes gauge read a field that does not exist on a file asset (`byteLength` instead
+of `metadata.byteSize`) and had been a permanent zero, and `usage.records(ownerRef)`
+filtered by nothing on the in-memory store, answering one account with another's rows. A
+fourth Step 54 constraint also had to be widened by migration 016, which is why an agent
+run answered 500 "schema constraints" until the new charge kinds were allowed.
+
+`GET /api/billing/reconcile` compares the lanes for one account and reports the wallet's
+ledger sums, any committed charge whose wallet entry is missing, and the open holds, and
+`GET /api/billing/usage` is the fleet view with the live meter. Reconciliation reports and
+never moves money. Idempotency is the operation id, so a retried request or a restarted
+worker finds its charge instead of paying twice, and the scheduled hold sweep from Step 56
+still releases anything that outlives its operation. See `docs/unified-billing.md`.
+
+Not delivered: no payment processing, so credits arrive through the operator route; no
+Veltravia price for document jobs or intelligence synthesis, which stay exempt with an
+`open()` extension point; and storage and bandwidth remain floors, since bytes written by
+another process or served by a CDN never pass through this API.

@@ -126,17 +126,17 @@ export const MEASUREMENT_CAPABILITIES: readonly MeasurementCapability[] = [
   },
   {
     category: 'bandwidth',
-    status: 'estimated',
+    status: 'measured',
     unit: 'bytes',
-    source: 'estimated',
-    note: 'Request and response bytes observed by this API process. Static assets served by a CDN, provider egress and traffic that never reaches this process are not counted.',
+    source: 'measured',
+    note: 'Request and response bytes counted as they pass through this API, accumulated per owner per minute. Static assets served by a CDN, provider egress and traffic that never reaches this process are not counted, so the total is a floor for the account and the quota stays best-effort.',
   },
   {
     category: 'realtime',
-    status: 'unavailable',
+    status: 'measured',
     unit: 'connections',
-    source: null,
-    note: 'Stream connections are not instrumented yet, so no realtime usage is recorded and the limit is published as unenforced.',
+    source: 'measured',
+    note: 'Streams this API opens and closes itself: the connection, how long it stayed open and how many events it emitted are counted on close. A connection held by a future hosted runtime would not be visible here.',
   },
   {
     category: 'hosting',

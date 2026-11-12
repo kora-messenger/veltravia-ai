@@ -139,6 +139,10 @@ import { registerProjectRoutes } from './routes/projects.js';
 import { createProjectAccess, registerProjectAccessGuard } from './project-access.js';
 import { RunOwnership } from './run-ownership.js';
 import { registerIntegrationRoutes } from './routes/integrations.js';
+import { registerBillingRoutes } from './routes/billing.js';
+import { createBilledRunTracker } from './billing-hooks.js';
+import { createInfrastructureMetering } from './infrastructure-metering.js';
+import { createUnifiedBilling } from './unified-billing.js';
 import { createIntegrationSystem, type ApiIntegrationSystem } from './integrations.js';
 import { isSubscriptionPlanId } from '@veltravia/integration-credits-core';
 import {
@@ -482,6 +486,16 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     });
   registerIntegrationRoutes(app, integrations);
 
+  /*
+   * Step 57: the billing coordinator is assembled further down, once the wallet,
+   * the charging policy and the integration lane all exist. The routes registered
+   * in between resolve it when a request arrives, never at boot, so the ordering
+   * of construction cannot decide whether something is billed.
+   */
+  let unifiedBilling: ReturnType<typeof createUnifiedBilling> | null = null;
+  let billedRuns: ReturnType<typeof createBilledRunTracker> | null = null;
+  let infrastructureMetering: ReturnType<typeof createInfrastructureMetering> | null = null;
+
   // Agent execution endpoints: bounded runs, confirmation flow, cancellation.
   // Responses carry safe normalized state only - never chain-of-thought.
   // The integration tools (mock storage/database) ride the same pipeline,
@@ -507,7 +521,16 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     durableState === null ? agents : withRunRecording(agents, 'agent', durableState),
     projectEngine,
     memory,
-    { gateway: aiGateway },
+    {
+      gateway: aiGateway,
+      // Step 57: an agent run holds credit before its first model call.
+      get billing() {
+        return unifiedBilling ?? undefined;
+      },
+      get tracker() {
+        return billedRuns ?? undefined;
+      },
+    },
   );
   if (durableState !== null) registerRunRecordRoutes(app, { durable: durableState });
 
@@ -561,6 +584,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const usageService = createUsageService({
     env,
     store: persistence?.stores?.usage,
+    /*
+     * Step 57: the two categories this process measures with a live meter rather
+     * than a probe. Declaring them here is what lets the capability table say
+     * "measured" without the code claiming it on its own.
+     */
+    observedCategories: ['bandwidth', 'realtime'],
     onRecorded: async (record) => {
       await walletService.billUsage({ ownerRef: record.ownerRef, record });
     },
@@ -571,7 +600,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       );
       let bytes = 0;
       for (const asset of assets) {
-        const size = (asset as { byteLength?: unknown }).byteLength;
+        // The size lives on `metadata.byteSize`; `byteLength` does not exist on a
+        // FileAsset, so reading it made this gauge a permanent zero while still
+        // looking measured.
+        const size = (asset as { metadata?: { byteSize?: unknown } }).metadata?.byteSize;
         // An asset whose size is unknown contributes nothing rather than a guess;
         // the gauge is then a lower bound, which the capability matrix says.
         if (typeof size === 'number' && Number.isFinite(size) && size > 0) bytes += size;
@@ -628,6 +660,73 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     ...(paidPlanId === undefined ? {} : { paidPlanId }),
   });
   integrationBillingRef.gate = integrationCreditService;
+
+  /*
+   * Step 57: one coordinator over those four lanes. It owns no ledger and no
+   * price: it decides whether an operation may start, refuses it with a reason
+   * when the balance cannot cover it, and reconciles the lanes against each other.
+   * Operations registered here that are not credit-billed say why in the registry.
+   */
+  const unifiedBillingService = createUnifiedBilling({
+    messageCredits: messageCreditService,
+    operationBilling,
+    wallet: walletService,
+    integrationCredits: integrationCreditService,
+  });
+  unifiedBilling = unifiedBillingService;
+  const billedRunsTracker = createBilledRunTracker(unifiedBillingService);
+  billedRuns = billedRunsTracker;
+
+  /*
+   * Step 57: the infrastructure sources Step 52 could not measure. Each number is
+   * one this process observed itself - an accepted upload, a counted byte, a
+   * stream it opened - and each is written through the same usage meter, so it is
+   * billed once and appears in the same history.
+   */
+  const metering = createInfrastructureMetering({
+    usage: usageService,
+    log: (line) => console.warn(line),
+  });
+  infrastructureMetering = metering;
+
+  /*
+   * A bandwidth sample is one record per owner per minute, flushed by a timer:
+   * writing a record per request would drown the ledger in noise. `0` disables it,
+   * which is the right default for a test harness.
+   */
+  const bandwidthFlush = metering.start(Number(env.VELTRAVIA_BANDWIDTH_SAMPLE_SECONDS ?? 60) || 0);
+  app.addHook('onClose', async () => {
+    bandwidthFlush.stop();
+    await metering.flushBandwidth().catch(() => undefined);
+  });
+
+  /*
+   * Bytes on the way through. `content-length` is the only size this process can
+   * see without buffering a body, so a streamed or chunked response contributes
+   * nothing - which is why the published bandwidth capability calls the number a
+   * floor and keeps the quota best-effort.
+   */
+  app.addHook('onResponse', async (request, reply) => {
+    const ownerHeader =
+      (request.headers['x-veltravia-owner-ref'] as string | undefined) ??
+      (request.headers['x-veltravia-owner'] as string | undefined);
+    const ownerRef = ownerHeader ?? env.VELTRAVIA_DEFAULT_OWNER_REF ?? 'veltravia-dev-user';
+    const requestBytes = Number(request.headers['content-length'] ?? 0);
+    const headerBytes = reply.getHeader('content-length');
+    const responseBytes = Number(Array.isArray(headerBytes) ? headerBytes[0] : (headerBytes ?? 0));
+    metering.observeTransfer({
+      ownerRef,
+      requestBytes: Number.isFinite(requestBytes) ? requestBytes : 0,
+      responseBytes: Number.isFinite(responseBytes) ? responseBytes : 0,
+    });
+  });
+
+  // The fleet view and the cross-lane reconciliation, for a person or an operator.
+  registerBillingRoutes(app, {
+    billing: unifiedBillingService,
+    metering,
+    usage: usageService,
+  });
 
   /*
    * Step 56: the hold sweep runs on a timer, not on somebody remembering.
@@ -912,7 +1011,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   // Step 19: upload, bounded extraction/preview, provenance-linked artifacts,
   // controlled short-lived downloads. Raw storage references never cross API.
-  registerFileRoutes(app, fileManager);
+  // Step 57: uploaded and released bytes are the file-storage measurement.
+  registerFileRoutes(app, fileManager, { metering });
 
   // Step 20: first-class audio understanding over Step 19 files. Transcripts
   // are untrusted data, reasoning output is ai_generated, and spoken content
@@ -989,6 +1089,31 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const reasoning =
     options.reasoning ??
     new ReasoningService({
+      /*
+       * Step 57: a reasoning run holds credit before the engine starts. The hold
+       * is closed here, from the finished run, whether it completed, failed or was
+       * cancelled - a caller that stopped watching cannot leave it open.
+       */
+      onRunFinished: async (run) => {
+        const provider = (
+          run as { provider?: { providerId?: string | null; modelId?: string | null } }
+        ).provider;
+        await billedRunsTracker.settle(run.id, {
+          status: String(run.status),
+          usage: {
+            inputTokens: run.usage.inputTokens,
+            outputTokens: run.usage.outputTokens,
+            toolCalls: run.usage.toolCalls,
+            durationMs: run.usage.latencyMs,
+            ...(provider?.modelId === undefined || provider.modelId === null
+              ? {}
+              : { modelId: provider.modelId }),
+            ...(provider?.providerId === undefined || provider.providerId === null
+              ? {}
+              : { providerId: provider.providerId }),
+          },
+        });
+      },
       gateway: aiGateway.gateway ?? null,
       ...(aiGateway.gateway
         ? {}
@@ -1049,7 +1174,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         };
       },
     });
-  registerReasoningRoutes(app, reasoning);
+  registerReasoningRoutes(app, reasoning, {
+    billing: unifiedBillingService,
+    tracker: billedRunsTracker,
+  });
 
   // Agent identity: each owner names their own assistant. Display-only, and
   // the name is never part of a run's context or an authorisation decision.
@@ -1289,6 +1417,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   registerAiExecutionRoutes(app, {
     service: aiExecution,
     messageCredits: messageCreditService,
+    metering,
   });
 
   return app;
