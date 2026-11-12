@@ -112,18 +112,23 @@ describeDb('integration credit store (PostgreSQL)', () => {
       requests: 1,
       settledAt: '2026-11-11T10:00:05.000Z',
     });
+    /*
+     * Which of the two arrives first is up to the database, so the test must not
+     * assume a winner: it asserts that exactly one settle is accepted and that the
+     * stored row is the accepted one. (Asserting 0.48 specifically made this test
+     * fail whenever the other statement won the race, which is legal.)
+     */
+    const contenders = [settled, { ...settled, credits: 9 }];
     const outcomes = await runWithOwner(OWNER, () =>
-      Promise.all([
-        stores.integrationCredits.saveCharge(settled, 'reserved'),
-        stores.integrationCredits.saveCharge({ ...settled, credits: 9 }, 'reserved'),
-      ]),
+      Promise.all(contenders.map((row) => stores.integrationCredits.saveCharge(row, 'reserved'))),
     );
     expect(outcomes.filter(Boolean)).toHaveLength(1);
+    const winner = contenders[outcomes.findIndex((won) => won)];
     const stored = await runWithOwner(OWNER, () =>
       stores.integrationCredits.findById(OWNER, first.charge.id),
     );
     expect(stored?.state).toBe('committed');
-    expect(stored?.credits).toBe(0.48);
+    expect(stored?.credits).toBe(winner?.credits);
   });
 
   it('keeps every identifier the charge was taken with', async () => {
@@ -251,5 +256,36 @@ describeDb('integration credit store (PostgreSQL)', () => {
     expect(open.every((row) => row.state === 'reserved')).toBe(true);
     const stamps = open.map((row) => row.createdAt);
     expect([...stamps].sort()).toEqual(stamps);
+  });
+
+  it('names every account holding credit, and no account that holds none', async () => {
+    const holding = `${OTHER}-holding`;
+    const settled = `${OTHER}-settled`;
+    // A row is written under the scope it runs in, so each account inserts its own.
+    await runWithOwner(holding, () =>
+      stores.integrationCredits.insertCharge(
+        charge({
+          id: `ich_holding_${RUN}`,
+          ownerRef: holding,
+          idempotencyKey: `holding-${RUN}`,
+          createdAt: '2026-11-11T09:30:00.000Z',
+        }),
+      ),
+    );
+    await runWithOwner(settled, () =>
+      stores.integrationCredits.insertCharge(
+        charge({
+          id: `ich_settled_${RUN}`,
+          ownerRef: settled,
+          idempotencyKey: `settled-${RUN}`,
+          state: 'committed',
+        }),
+      ),
+    );
+    const owners = await runWithOwner(OWNER, () => stores.integrationCredits.listOpenOwners(100));
+    expect(owners).toContain(OWNER);
+    expect(owners).toContain(holding);
+    // A settled charge leaves nobody holding anything, so that account is absent.
+    expect(owners).not.toContain(settled);
   });
 });

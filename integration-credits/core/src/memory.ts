@@ -138,4 +138,17 @@ export class InMemoryIntegrationCreditStore implements IntegrationCreditStore {
       .slice(0, limit)
       .map((row) => ({ ...row }));
   }
+
+  async listOpenOwners(limit: number): Promise<readonly string[]> {
+    const owners: string[] = [];
+    const open = this.charges
+      .filter((row) => row.state === 'reserved')
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    for (const row of open) {
+      if (owners.includes(row.ownerRef)) continue;
+      owners.push(row.ownerRef);
+      if (owners.length >= limit) break;
+    }
+    return owners;
+  }
 }

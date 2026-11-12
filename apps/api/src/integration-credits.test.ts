@@ -389,6 +389,74 @@ describeDb('integration credits on postgres', () => {
     expect(await balance('refund-owner')).toBe(10);
   });
 
+  it('refunds the caller own charge when no owner is named', async () => {
+    // The dashboard knows a charge id and nothing else about ownership: the server
+    // resolves the account from the call, so the client never invents an owner.
+    await paidOwner('refund-default-owner', 10);
+    const reserved = await reserve('refund-default-owner', {
+      integrationId: 'github',
+      idempotencyKey: 'refund-default-owner-op-1',
+    });
+    const settled = await commit('refund-default-owner', reserved.charge.id, { requests: 1 });
+    const refunded = await app.inject({
+      method: 'POST',
+      url: `/api/integration-credits/charges/${settled.charge.id}/refund`,
+      headers: { ...creditOperator, ...as('refund-default-owner') },
+      payload: {},
+    });
+    expect(refunded.statusCode).toBe(200);
+    expect((refunded.json() as ChargeView).state).toBe('refunded');
+    expect(await balance('refund-default-owner')).toBe(10);
+  });
+
+  it('refuses a refund that names another account', async () => {
+    await paidOwner('refund-mismatch-owner', 10);
+    const reserved = await reserve('refund-mismatch-owner', {
+      integrationId: 'github',
+      idempotencyKey: 'refund-mismatch-owner-op-1',
+    });
+    const settled = await commit('refund-mismatch-owner', reserved.charge.id, { requests: 1 });
+    const mismatch = await app.inject({
+      method: 'POST',
+      url: `/api/integration-credits/charges/${settled.charge.id}/refund`,
+      headers: { ...creditOperator, ...as('refund-mismatch-owner') },
+      payload: { ownerRef: 'somebody-else' },
+    });
+    expect(mismatch.statusCode).toBe(400);
+    expect((mismatch.json() as { error: { code: string } }).error.code).toBe('OWNER_MISMATCH');
+  });
+
+  it('says whether a refund is possible before the dashboard offers one', async () => {
+    const open = await app.inject({
+      method: 'GET',
+      url: '/api/integration-credits',
+      headers: as('refund-capability-owner'),
+    });
+    expect((open.json() as { refunds: { enabled: boolean } }).refunds).toEqual({ enabled: true });
+
+    const integration = process.env['VELTRAVIA_INTEGRATION_CREDIT_ADMIN_TOKEN'];
+    const wallet = process.env['VELTRAVIA_WALLET_ADMIN_TOKEN'];
+    delete process.env['VELTRAVIA_INTEGRATION_CREDIT_ADMIN_TOKEN'];
+    delete process.env['VELTRAVIA_WALLET_ADMIN_TOKEN'];
+    try {
+      const closed = await app.inject({
+        method: 'GET',
+        url: '/api/integration-credits',
+        headers: as('refund-capability-owner'),
+      });
+      // No operator token on this deployment means no refund button, rather than
+      // a button that fails when pressed.
+      expect((closed.json() as { refunds: { enabled: boolean } }).refunds).toEqual({
+        enabled: false,
+      });
+    } finally {
+      if (integration !== undefined) {
+        process.env['VELTRAVIA_INTEGRATION_CREDIT_ADMIN_TOKEN'] = integration;
+      }
+      if (wallet !== undefined) process.env['VELTRAVIA_WALLET_ADMIN_TOKEN'] = wallet;
+    }
+  });
+
   it('releases an abandoned hold when the sweep runs', async () => {
     await paidOwner('sweep-owner', 10);
     await reserve('sweep-owner', {

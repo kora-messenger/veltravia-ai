@@ -543,3 +543,93 @@ describe('purse resolution', () => {
     expect(theirs.total).toBe(0);
   });
 });
+
+describe('the system-wide sweep', () => {
+  // A clock we move by hand: the hold window is one second, and sleeping for it
+  // in a unit test would only make the suite slower without proving more.
+  async function clockHarness() {
+    let current = new Date('2026-11-12T00:00:00.000Z');
+    const clock = () => current;
+    const wallet = createWalletService({ env: {} as NodeJS.ProcessEnv, now: clock });
+    const credits = createIntegrationCreditService({
+      wallet,
+      planOf: paidPlan,
+      env: { VELTRAVIA_INTEGRATION_HOLD_TTL_SECONDS: '1' } as NodeJS.ProcessEnv,
+      now: clock,
+    });
+    const fund = async (ownerRef: string, amount: number) => {
+      await wallet.credit({
+        ownerRef,
+        amount,
+        kind: 'grant',
+        source: 'plan',
+        actor: 'test',
+        reason: 'test funding',
+        idempotencyKey: `fund-${ownerRef}-${amount}`,
+      });
+    };
+    const available = async (ownerRef: string) =>
+      (await wallet.overview({ ownerRef })).wallet.available;
+    return {
+      credits,
+      fund,
+      available,
+      advance(milliseconds: number) {
+        current = new Date(current.getTime() + milliseconds);
+      },
+    };
+  }
+
+  it('gives back an expired hold in every account that has one, and only those', async () => {
+    const { credits, fund, available, advance } = await clockHarness();
+    await fund('owner-a', 20);
+    await fund('owner-b', 20);
+    await credits.reserve({
+      ownerRef: 'owner-a',
+      kind: 'integration.operation',
+      integrationId: 'github',
+      operationId: 'contents.get',
+      idempotencyKey: 'a-1',
+    });
+    const settled = await credits.reserve({
+      ownerRef: 'owner-b',
+      kind: 'integration.operation',
+      integrationId: 'github',
+      operationId: 'contents.get',
+      idempotencyKey: 'b-1',
+    });
+    await credits.commit({
+      ownerRef: 'owner-b',
+      chargeId: settled.charge.id,
+      measurement: { requests: 1, source: 'connector' },
+    });
+
+    advance(2_000);
+    const swept = await credits.sweepAll();
+    // owner-b settled, so it is not holding anything and is not swept at all.
+    expect(swept.owners).toEqual(['owner-a']);
+    expect(swept.released).toHaveLength(1);
+    expect(swept.released[0]?.ownerRef).toBe('owner-a');
+    expect(await available('owner-a')).toBeCloseTo(20, 4);
+
+    // Nothing is open any more, so a second sweep finds no accounts at all.
+    const again = await credits.sweepAll();
+    expect(again.owners).toEqual([]);
+    expect(again.released).toEqual([]);
+  });
+
+  it('leaves a hold alone until its window has passed', async () => {
+    const { credits, fund, available } = await clockHarness();
+    await fund('owner-a', 20);
+    await credits.reserve({
+      ownerRef: 'owner-a',
+      kind: 'integration.operation',
+      integrationId: 'github',
+      operationId: 'contents.get',
+      idempotencyKey: 'a-1',
+    });
+    const swept = await credits.sweepAll();
+    expect(swept.released).toEqual([]);
+    expect(await available('owner-a')).toBeLessThan(20);
+  });
+});

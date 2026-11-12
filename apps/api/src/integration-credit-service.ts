@@ -53,9 +53,20 @@ import {
 
 import { InMemoryIntegrationCreditStore } from '@veltravia/integration-credits-core';
 
+import { runWithOwner } from '@veltravia/storage-postgres';
+
 import type { WalletService } from './wallet-service.js';
 
 const DEFAULT_HOLD_TTL_SECONDS = 900;
+
+/**
+ * The scope the scheduled sweep reads under before it knows any owner.
+ *
+ * Storage refuses an unscoped read on purpose. A system timer is a real caller,
+ * so it gets a scope of its own rather than a hole in that rule; nothing is
+ * written under it.
+ */
+const SYSTEM_SCOPE_OWNER = 'system:integration-sweep';
 
 export interface WalletRef {
   readonly ownerRef: string;
@@ -182,6 +193,18 @@ export interface IntegrationCreditService extends IntegrationBillingGate {
     },
   ): Promise<IntegrationCharge>;
   sweep(input: WalletRef): Promise<readonly IntegrationCharge[]>;
+  /**
+   * Sweeps every account that still holds credit, without a request owner.
+   *
+   * The scheduled sweep needs this: a timer is nobody's request, so it asks which
+   * accounts have expired holds and then releases each one inside that account's
+   * own scope. `owners` is reported so a caller can say how much was looked at,
+   * not only what was released.
+   */
+  sweepAll(): Promise<{
+    readonly released: readonly IntegrationCharge[];
+    readonly owners: readonly string[];
+  }>;
   summary(input: WalletRef): Promise<unknown>;
   charges(
     input: WalletRef,
@@ -917,6 +940,22 @@ export function createIntegrationCreditService(
         );
       }
       return released;
+    },
+
+    async sweepAll() {
+      /*
+       * Which accounts need sweeping is a system question; the answers are owner
+       * keys only. Reading open charges across owners is deliberately not offered
+       * by the store - the sweep reads each account's rows after switching into
+       * that account, so the ownership rule is never bent to run a timer.
+       */
+      const owners = await runWithOwner(SYSTEM_SCOPE_OWNER, () => store.listOpenOwners(200));
+      const released: IntegrationCharge[] = [];
+      for (const ownerRef of owners) {
+        const rows = await runWithOwner(ownerRef, () => service.sweep({ ownerRef }));
+        released.push(...rows);
+      }
+      return { released, owners };
     },
 
     async summary(ref) {

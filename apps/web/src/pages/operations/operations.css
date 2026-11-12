@@ -1538,6 +1538,64 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Step 56: the refund control. It only appears when the server says a refund is
+   open on this deployment, and it asks for the operator token at the moment of
+   use instead of keeping one. */
+.v-intcredit__notice {
+  border-left: 3px solid #0f6b3a;
+  background: #f2fbf5;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin: 0;
+}
+
+.v-intcredit__refund-open {
+  border: 1px solid var(--v-border, #e4e4ef);
+  background: #fff;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.v-intcredit__refund-open:hover {
+  border-color: #3b51e5;
+  color: #3b51e5;
+}
+
+.v-intcredit__refund {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+}
+
+.v-intcredit__refund label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--v-muted, #6b6a7d);
+}
+
+.v-intcredit__refund input {
+  border: 1px solid var(--v-border, #e4e4ef);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.v-intcredit__refund p {
+  margin: 0;
+  font-size: 12px;
+}
+
+.v-intcredit__refund-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* Step 56: the hold list and the class legend sit beside the balance. */
 .v-intcredit__holds {
   list-style: none;

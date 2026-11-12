@@ -8,6 +8,7 @@ import {
   getIntegrationCreditSummary,
   getIntegrationUsage,
   listIntegrationCharges,
+  refundIntegrationCharge,
   updateIntegrationCreditSettings,
   type IntegrationChargeView,
   type IntegrationCreditIntegrity,
@@ -109,6 +110,12 @@ export function IntegrationCreditsPanel() {
   const [savingLimits, setSavingLimits] = useState(false);
   const [limitNotice, setLimitNotice] = useState<string | null>(null);
   const [limitError, setLimitError] = useState<string | null>(null);
+  const [refundFor, setRefundFor] = useState<string | null>(null);
+  const [refundToken, setRefundToken] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [refunding, setRefunding] = useState(false);
+  const [refundNotice, setRefundNotice] = useState<string | null>(null);
+  const [refundError, setRefundError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -187,6 +194,65 @@ export function IntegrationCreditsPanel() {
     }
   }, [monthlyLimit, perOperationLimit, load]);
 
+  /*
+   * A refund puts credit back into the wallet it was taken from, and the server
+   * only accepts one from an operator. The token is therefore asked for here, at
+   * the moment of the refund, kept in component state only and cleared as soon as
+   * the request finishes: this screen must never be a place a credential lives.
+   */
+  const openRefund = useCallback((chargeId: string) => {
+    setRefundFor(chargeId);
+    setRefundToken('');
+    setRefundReason('');
+    setRefundError(null);
+    setRefundNotice(null);
+  }, []);
+
+  const closeRefund = useCallback(() => {
+    setRefundFor(null);
+    setRefundToken('');
+    setRefundReason('');
+    setRefundError(null);
+  }, []);
+
+  const submitRefund = useCallback(
+    async (charge: IntegrationChargeView) => {
+      const token = refundToken.trim();
+      if (token === '') {
+        setRefundError('Enter the operator token to refund this charge.');
+        return;
+      }
+      setRefunding(true);
+      setRefundError(null);
+      setRefundNotice(null);
+      try {
+        const refunded = await refundIntegrationCharge(charge.id, {
+          token,
+          reason: refundReason,
+        });
+        setRefundNotice(
+          `Refunded ${credits(refunded.credits)} to the wallet. The charge is now marked refunded.`,
+        );
+        setRefundFor(null);
+        setRefundToken('');
+        setRefundReason('');
+        await load();
+      } catch (caught) {
+        // The token is cleared on failure: a rejected token should not sit in the
+        // field inviting a second attempt with the same wrong value.
+        setRefundToken('');
+        setRefundError(
+          caught instanceof ApiError
+            ? caught.message
+            : 'The refund did not go through. Nothing was changed.',
+        );
+      } finally {
+        setRefunding(false);
+      }
+    },
+    [refundToken, refundReason, load],
+  );
+
   if (loading && summary === null) {
     return (
       <section className="v-intcredit" aria-busy="true">
@@ -216,6 +282,7 @@ export function IntegrationCreditsPanel() {
 
   const wallet = summary?.wallet;
   const month = summary?.month;
+  const refundsOn = summary?.refunds.enabled === true;
   const paidPolicies = policy?.plans.find((plan) => plan.billable)?.policies ?? [];
 
   return (
@@ -459,6 +526,11 @@ export function IntegrationCreditsPanel() {
 
       <div className="v-intcredit__charges">
         <h3>Charges and holds</h3>
+        {refundNotice === null ? null : (
+          <p className="v-intcredit__notice" role="status">
+            {refundNotice}
+          </p>
+        )}
         <div className="v-intcredit__tabs" role="group" aria-label="Filter charges by state">
           {['', 'reserved', 'committed', 'released', 'refunded', 'exempt'].map((value) => (
             <button
@@ -483,6 +555,7 @@ export function IntegrationCreditsPanel() {
                 <th scope="col">Credits</th>
                 <th scope="col">Measured</th>
                 <th scope="col">Notes</th>
+                {refundsOn ? <th scope="col">Refund</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -522,6 +595,58 @@ export function IntegrationCreditsPanel() {
                       <div className="v-ops__muted">{charge.failureReason}</div>
                     )}
                   </td>
+                  {refundsOn ? (
+                    <td>
+                      {charge.state !== 'committed' || charge.credits <= 0 ? (
+                        <span className="v-ops__muted">
+                          {charge.state === 'refunded' ? 'refunded' : 'n/a'}
+                        </span>
+                      ) : refundFor === charge.id ? (
+                        <div className="v-intcredit__refund">
+                          <label htmlFor={`refund-token-${charge.id}`}>Operator token</label>
+                          <input
+                            id={`refund-token-${charge.id}`}
+                            type="password"
+                            autoComplete="off"
+                            value={refundToken}
+                            onChange={(event) => setRefundToken(event.target.value)}
+                          />
+                          <label htmlFor={`refund-reason-${charge.id}`}>Reason (optional)</label>
+                          <input
+                            id={`refund-reason-${charge.id}`}
+                            type="text"
+                            value={refundReason}
+                            onChange={(event) => setRefundReason(event.target.value)}
+                          />
+                          <p className="v-ops__muted">
+                            Used for this refund only and never stored. Refunding returns{' '}
+                            {credits(charge.credits)} to the wallet; it does not reverse a payment.
+                          </p>
+                          {refundError === null ? null : (
+                            <p className="v-ops__error" role="alert">
+                              {refundError}
+                            </p>
+                          )}
+                          <div className="v-intcredit__refund-actions">
+                            <Button onClick={() => void submitRefund(charge)} disabled={refunding}>
+                              {refunding ? 'Refunding…' : 'Refund credits'}
+                            </Button>
+                            <Button onClick={closeRefund} disabled={refunding}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="v-intcredit__refund-open"
+                          onClick={() => openRefund(charge.id)}
+                        >
+                          Refund
+                        </button>
+                      )}
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>

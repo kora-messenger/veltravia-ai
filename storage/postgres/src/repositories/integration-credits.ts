@@ -378,4 +378,26 @@ export class PostgresIntegrationCreditStore implements IntegrationCreditStore {
     );
     return rows.rows.map(toCharge);
   }
+
+  /**
+   * The accounts holding credit, oldest hold first, for the scheduled sweep.
+   *
+   * Only owner keys cross the owner boundary here; the charges themselves are
+   * still read inside each account's own scope. An unscoped query would be a
+   * way around the ownership rule, so this runs under a caller-provided scope
+   * like every other read.
+   */
+  async listOpenOwners(limit: number): Promise<readonly string[]> {
+    requireOwner();
+    const rows = await this.query.query<{ owner_ref: string }>(
+      `select owner_ref, min(created_at) as first_at
+         from integration_charges
+        where state = 'reserved'
+        group by owner_ref
+        order by first_at asc
+        limit $1`,
+      [limit],
+    );
+    return rows.rows.map((row) => row.owner_ref);
+  }
 }

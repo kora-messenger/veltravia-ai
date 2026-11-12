@@ -509,4 +509,36 @@ describe('in-memory store', () => {
     const open = await store.listOpen('owner-a', 10);
     expect(open.map((row) => row.id)).toEqual(['ich_one']);
   });
+
+  it('lists each account that still holds credit once, oldest hold first', async () => {
+    const store = new InMemoryIntegrationCreditStore();
+    await store.insertCharge(
+      chargeRow({ id: 'ich_b1', ownerRef: 'owner-b', idempotencyKey: 'b-1' }),
+    );
+    await store.insertCharge(
+      chargeRow({ ownerRef: 'owner-a', createdAt: '2026-11-11T09:00:00.000Z' }),
+    );
+    await store.insertCharge(
+      chargeRow({
+        id: 'ich_b2',
+        ownerRef: 'owner-b',
+        idempotencyKey: 'b-2',
+        createdAt: '2026-11-11T11:00:00.000Z',
+      }),
+    );
+    await store.insertCharge(
+      chargeRow({ id: 'ich_c', ownerRef: 'owner-c', idempotencyKey: 'c-1', state: 'committed' }),
+    );
+    // owner-a held first, so it is swept first; owner-c has nothing open and is absent.
+    expect(await store.listOpenOwners(10)).toEqual(['owner-a', 'owner-b']);
+  });
+
+  it('stops listing owners at the limit it was given', async () => {
+    const store = new InMemoryIntegrationCreditStore();
+    await store.insertCharge(chargeRow());
+    await store.insertCharge(
+      chargeRow({ id: 'ich_b', ownerRef: 'owner-b', idempotencyKey: 'b-1' }),
+    );
+    expect(await store.listOpenOwners(1)).toHaveLength(1);
+  });
 });

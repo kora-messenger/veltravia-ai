@@ -91,6 +91,12 @@ export interface IntegrationCreditSummary {
     readonly perOperationLimit: number | null;
     readonly updatedAt: string | null;
   };
+  /**
+   * Whether this deployment can refund at all. It says a refund route is open,
+   * not that the caller may use it: the operator token is still required, and the
+   * screen asks for it at the moment of the refund rather than storing it.
+   */
+  readonly refunds: { readonly enabled: boolean };
 }
 
 export interface IntegrationCreditPolicyView {
@@ -208,4 +214,21 @@ export const updateIntegrationCreditSettings = (body: {
   apiRequest<IntegrationCreditSummary['settings']>(`${base}/settings`, {
     method: 'PUT',
     body,
+  });
+
+/**
+ * Refunds one settled charge back into the wallet it was taken from.
+ *
+ * Refunds move money, so the server only accepts them from an operator. The token
+ * is passed straight through from the form: the client never keeps it, and the
+ * owner is the caller (the server refuses a body naming another account).
+ */
+export const refundIntegrationCharge = (
+  chargeId: string,
+  input: { readonly token: string; readonly reason?: string },
+) =>
+  apiRequest<IntegrationChargeView>(`${base}/charges/${encodeURIComponent(chargeId)}/refund`, {
+    method: 'POST',
+    body: input.reason === undefined || input.reason.trim() === '' ? {} : { reason: input.reason },
+    headers: { 'x-veltravia-admin': input.token },
   });

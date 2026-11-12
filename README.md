@@ -569,8 +569,16 @@ ledger with its limitations. See `docs/integration-credits.md`.
 BYOK stays excluded: a call made with the owner's own provider key is exempt and says so, so
 provider spending is never converted into platform credits.
 
+Two things that were gaps were then closed. A settled charge can be **refunded**: an operator
+enters the token at the moment of the refund, it is never stored, `ownerRef` defaults to the
+caller, and the dashboard only shows the control when the deployment reports that refunds are
+open. And the hold sweep now runs **on a schedule** (default every 5 minutes, `0` disables)
+instead of waiting for somebody to remember: it releases expired holds for every account that
+still holds credit, never settles or charges, never stacks ticks on a slow sweep, survives a
+failed tick, and stops with the app. Neither touches money: a refund returns credits, and a
+real subscription refund belongs to the store that took the payment.
+
 Not delivered: no payment processing or real-money purchase of integration credits, no
-per-integration funding flow, no operator UI for refunds (the guarded route exists), and the
-hold sweep still runs on demand rather than on a schedule. Charges file under the owner that
-owns the connector connections, which is the deployment's owner; a real auth layer would pass
-the caller through the same seam.
+per-integration funding flow, no separate admin console for refunds. Charges file under the
+owner that owns the connector connections, which is the deployment's owner; a real auth layer
+would pass the caller through the same seam.

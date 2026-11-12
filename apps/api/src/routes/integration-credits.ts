@@ -36,15 +36,20 @@ export interface IntegrationCreditRouteDeps {
  * a deployment with no token configured closes the route rather than trusting
  * the caller.
  */
+function operatorTokenOf(env: NodeJS.ProcessEnv): string {
+  return (
+    env.VELTRAVIA_INTEGRATION_CREDIT_ADMIN_TOKEN?.trim() ??
+    env.VELTRAVIA_WALLET_ADMIN_TOKEN?.trim() ??
+    ''
+  );
+}
+
 function requireOperator(
   request: FastifyRequest,
   reply: FastifyReply,
   env: NodeJS.ProcessEnv,
 ): boolean {
-  const expected =
-    env.VELTRAVIA_INTEGRATION_CREDIT_ADMIN_TOKEN?.trim() ??
-    env.VELTRAVIA_WALLET_ADMIN_TOKEN?.trim() ??
-    '';
+  const expected = operatorTokenOf(env);
   if (expected === '') {
     reply.status(503).send({
       error: {
@@ -248,12 +253,20 @@ export function registerIntegrationCreditRoutes(
   app.get('/api/integration-credits', async (request, reply) => {
     try {
       const workspaceId = workspaceOf(request);
-      return reply.send(
-        await integrationCredits.summary({
-          ownerRef: owner(request),
-          ...(workspaceId === null ? {} : { workspaceId }),
-        }),
-      );
+      const summary = (await integrationCredits.summary({
+        ownerRef: owner(request),
+        ...(workspaceId === null ? {} : { workspaceId }),
+      })) as Record<string, unknown>;
+      /*
+       * The dashboard needs to know whether a refund is even possible here before
+       * it offers one. It says whether a refund is *available*, never the token
+       * and never that the caller may use it: the token is still required on the
+       * refund itself.
+       */
+      return reply.send({
+        ...summary,
+        refunds: { enabled: operatorTokenOf(env) !== '' },
+      });
     } catch (error) {
       return fail(reply, error);
     }
@@ -511,8 +524,12 @@ export function registerIntegrationCreditRoutes(
         body: {
           type: 'object',
           additionalProperties: false,
-          required: ['ownerRef'],
           properties: {
+            /**
+             * Optional: omitted means "the charge of the account I am calling as".
+             * Naming somebody else is refused, so this cannot become a way to
+             * refund another account's credit.
+             */
             ownerRef: { type: 'string', minLength: 1, maxLength: 200 },
             reason: { type: 'string', maxLength: 500 },
           },
@@ -522,15 +539,17 @@ export function registerIntegrationCreditRoutes(
     async (request, reply) => {
       if (!requireOperator(request, reply, env)) return reply;
       const { chargeId } = request.params as { chargeId: string };
-      const body = request.body as { ownerRef: string; reason?: string };
-      // An operator refund acts on a named owner, and the wallet store writes
-      // under the bound owner. A body naming somebody else is refused rather
-      // than filed against the operator's own account.
-      if (owner(request) !== body.ownerRef) {
+      const body = request.body as { ownerRef?: string; reason?: string };
+      const caller = owner(request);
+      // The wallet writes under the bound owner, so a body naming somebody else
+      // is refused rather than filed against the operator's own account. Omitting
+      // it means the caller's own account, which is what the dashboard sends.
+      const target = body.ownerRef ?? caller;
+      if (caller !== target) {
         return reply.status(400).send({
           error: {
             code: 'OWNER_MISMATCH',
-            message: `ownerRef ${body.ownerRef} does not match the caller owner ${owner(request)}.`,
+            message: `ownerRef ${target} does not match the caller owner ${caller}.`,
           },
         });
       }
@@ -540,7 +559,7 @@ export function registerIntegrationCreditRoutes(
       try {
         return reply.send(
           await integrationCredits.refund({
-            ownerRef: body.ownerRef,
+            ownerRef: target,
             chargeId,
             reason: body.reason ?? 'Refunded by an operator.',
             actor,

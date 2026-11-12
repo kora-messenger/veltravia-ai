@@ -93,16 +93,55 @@ settlement on the same purse that took it.
 | POST    | `/api/integration-credits/charges/:id/commit`  | Settle against a measurement                             |
 | POST    | `/api/integration-credits/charges/:id/release` | Return the hold                                          |
 | POST    | `/api/integration-credits/charges/:id/refund`  | Operator-only refund                                     |
-| POST    | `/api/integration-credits/sweep`               | Release holds past their window                          |
+| POST    | `/api/integration-credits/sweep`               | Release holds past their window, for the caller          |
 
-Refunds and sweeps across owners need `VELTRAVIA_INTEGRATION_CREDIT_ADMIN_TOKEN`.
+The summary also carries `refunds: { enabled }`, which says whether this deployment has an
+operator token at all. It is a capability flag, never a permission: the token is still
+required on the refund itself.
+
+## Refunds
+
+A refund returns the credits of a settled charge to the wallet it was taken from. It is an
+operator action, because it moves a balance:
+
+- the route needs the operator token (`x-veltravia-admin` or `Authorization: Bearer`);
+- `ownerRef` is optional and defaults to the caller, so the dashboard sends only a charge id;
+  naming another account answers `400 OWNER_MISMATCH` rather than refunding it;
+- the dashboard shows the Refund control only when the deployment reports `refunds.enabled`,
+  asks for the token at the moment of use, keeps it in component state only, and clears it
+  as soon as the request finishes. A refused token is cleared too, so a wrong value cannot be
+  pressed twice;
+- a refund reverses credits, not money. There is still no payment processing here, so a real
+  subscription refund is the store's job (Google Play, Stripe), not this route's.
+
+## The scheduled sweep
+
+A hold nobody settles is credit the account cannot spend. The routes sweep on demand, but the
+person who abandoned the request is the least likely to come back for it, so the API also runs
+the sweep on a timer: `VELTRAVIA_INTEGRATION_SWEEP_INTERVAL_SECONDS`, default 300, `0` disables.
+
+It is built to be harmless in the background:
+
+- it only **releases**; it never settles, charges or refunds, so a tick cannot cost anyone;
+- ticks do not stack - a slow sweep keeps the next one from starting, so a full table cannot
+  become overlapping sweeps on the same rows;
+- a failed tick is logged and the timer stays armed, so one database hiccup does not silently
+  end hold expiry for the life of the process;
+- the handle is unref'd (a tick never keeps the process alive) and the timer is cleared when
+  the app closes.
+
+The timer is nobody's request, so it cannot ask "my open charges". Storage refuses an
+unscoped read on purpose, and that rule is not bent for a timer: the store answers _which
+accounts still hold credit_ (`listOpenOwners`, owner keys only), and each account's holds are
+then released inside that account's own scope.
 
 ## Configuration
 
-| Variable                                   | Purpose                                          |
-| ------------------------------------------ | ------------------------------------------------ |
-| `VELTRAVIA_INTEGRATION_HOLD_TTL_SECONDS`   | How long a hold survives unsettled (default 900) |
-| `VELTRAVIA_INTEGRATION_CREDIT_ADMIN_TOKEN` | Operator token for refunds                       |
+| Variable                                       | Purpose                                            |
+| ---------------------------------------------- | -------------------------------------------------- |
+| `VELTRAVIA_INTEGRATION_HOLD_TTL_SECONDS`       | How long a hold survives unsettled (default 900)   |
+| `VELTRAVIA_INTEGRATION_CREDIT_ADMIN_TOKEN`     | Operator token for refunds                         |
+| `VELTRAVIA_INTEGRATION_SWEEP_INTERVAL_SECONDS` | Scheduled hold sweep interval (default 300, 0 off) |
 
 The policy table (`integration-rates.v1`) is shipped as **configurable defaults**. Every
 figure in it is an internal credit rate, not a price in money, and the API says so on the
@@ -125,14 +164,19 @@ duplicated. Idempotency is a unique key per owner.
 - `apps/api/src/integration-billing-seam.test.ts` - one gate call per executed connector
   operation, and a refusal that stops the operation (4 tests).
 - `storage/postgres/src/integration-credit-store.test.ts` - the Postgres store.
+- `apps/api/src/integration-credit-sweep.test.ts` - interval parsing, the disabled case, a
+  tick that does not stack on a slow one, a failed tick that stays armed, stop, on-demand run.
 - `apps/web/src/pages/operations/IntegrationCreditsPanel.test.tsx` - the dashboard keeps the
-  three classes apart and never shows an invented measurement (8 tests).
+  three classes apart, never shows an invented measurement, and only offers a refund where
+  the server says one is possible (12 tests).
 
 ## What this does not do
 
 - **No payment processing and no real-money purchase of integration credits.** A `purchase`
   entry kind exists in the wallet; there is no checkout.
 - **No per-integration funding flow** for somebody else's workspace.
+- **No operator UI for refunds.** The refund control sits in the user's own dashboard and
+  takes the operator token there; there is no separate admin console.
 - **The sweep is on demand**, not scheduled.
 - **No operator UI** for refunds; the guarded route exists and is tested.
 - Charges file under the owner that owns the connector connections (the deployment's owner

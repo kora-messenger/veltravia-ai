@@ -66,6 +66,15 @@ export interface IntegrationCreditStore {
   saveSettings(settings: IntegrationSpendingSettings): Promise<IntegrationSpendingSettings>;
   /** Charges still holding credit, for the sweep and the dashboard. */
   listOpen(ownerRef: string, limit: number): Promise<readonly IntegrationCharge[]>;
+  /**
+   * The accounts that still hold credit, oldest hold first.
+   *
+   * A scheduled sweep has no request owner, so it cannot ask "my open charges"
+   * the way a route does. It asks this instead, then releases each account's
+   * expired holds inside that account's own scope. Only the keys are returned:
+   * the sweep never reads another owner's charge rows across owners.
+   */
+  listOpenOwners(limit: number): Promise<readonly string[]>;
 }
 
 /** The id is derived once by the caller; this keeps drafts impossible to mistake. */

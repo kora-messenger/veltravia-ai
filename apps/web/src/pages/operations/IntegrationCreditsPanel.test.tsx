@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { IntegrationCreditsPanel } from './IntegrationCreditsPanel';
+import { ApiError } from '../../api/client';
 import type {
   IntegrationChargeView,
   IntegrationCreditPolicyView,
@@ -26,6 +27,7 @@ const api = vi.hoisted(() => ({
   getIntegrationCreditIntegrity: vi.fn(),
   updateIntegrationCreditSettings: vi.fn(),
   classifyIntegrationOperation: vi.fn(),
+  refundIntegrationCharge: vi.fn(),
 }));
 
 vi.mock('../../api/integration-credits', () => api);
@@ -66,6 +68,7 @@ function summary(over: Partial<IntegrationCreditSummary> = {}): IntegrationCredi
       },
     ],
     settings: { monthlyLimit: 50, perOperationLimit: null, updatedAt: null },
+    refunds: { enabled: true },
     ...over,
   };
 }
@@ -256,6 +259,63 @@ describe('IntegrationCreditsPanel', () => {
       perOperationLimit: null,
     });
     expect(await screen.findByText(/Monthly limit: none/)).toBeTruthy();
+  });
+
+  it('hides the refund control when this deployment cannot refund at all', async () => {
+    mockAll();
+    api.getIntegrationCreditSummary.mockResolvedValue(summary({ refunds: { enabled: false } }));
+    render(<IntegrationCreditsPanel />);
+    await screen.findByText('Charges and holds');
+    expect(screen.queryByRole('button', { name: 'Refund' })).toBeNull();
+  });
+
+  it('asks for the operator token at the moment of the refund and sends it once', async () => {
+    mockAll();
+    api.refundIntegrationCharge.mockResolvedValue(
+      charge({ state: 'refunded', refundedAt: '2026-11-12T06:00:00.000Z' }),
+    );
+    render(<IntegrationCreditsPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Refund' }));
+
+    fireEvent.change(screen.getByLabelText('Operator token'), {
+      target: { value: '  integration-admin-test  ' },
+    });
+    fireEvent.change(screen.getByLabelText('Reason (optional)'), {
+      target: { value: 'the provider returned a bad answer' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Refund credits' }));
+
+    await waitFor(() => expect(api.refundIntegrationCharge).toHaveBeenCalledTimes(1));
+    expect(api.refundIntegrationCharge).toHaveBeenCalledWith('ich_one', {
+      token: 'integration-admin-test',
+      reason: 'the provider returned a bad answer',
+    });
+    const notice = await screen.findByRole('status');
+    expect(notice.textContent).toContain('Refunded');
+  });
+
+  it('clears the token and says nothing changed when the refund is refused', async () => {
+    mockAll();
+    api.refundIntegrationCharge.mockRejectedValue(
+      new ApiError(403, 'INTEGRATION_CREDIT_ADMIN_DENIED', 'That operator token is not valid.'),
+    );
+    render(<IntegrationCreditsPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Refund' }));
+    const token = screen.getByLabelText('Operator token');
+    fireEvent.change(token, { target: { value: 'wrong-token' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Refund credits' }));
+
+    const error = await screen.findByRole('alert');
+    expect(error.textContent).toContain('That operator token is not valid.');
+    // A rejected token does not stay in the field inviting the same attempt again.
+    expect((screen.getByLabelText('Operator token') as HTMLInputElement).value).toBe('');
+  });
+
+  it('offers no refund on a charge that never settled', async () => {
+    mockAll([charge({ state: 'reserved', credits: 0 })]);
+    render(<IntegrationCreditsPanel />);
+    await screen.findByText('Charges and holds');
+    expect(screen.queryByRole('button', { name: 'Refund' })).toBeNull();
   });
 
   it('shows an honest error when the dashboard cannot load', async () => {

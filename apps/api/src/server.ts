@@ -144,6 +144,7 @@ import {
   createIntegrationCreditService,
   type IntegrationBillingGate,
 } from './integration-credit-service.js';
+import { describeSweep, startIntegrationCreditSweep } from './integration-credit-sweep.js';
 import { createGitHubApiConnector } from './github.js';
 
 /** A positive integer from the environment, or 0 when unset or nonsense. */
@@ -611,6 +612,35 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     planOf: async (ownerRef) => (await usageService.entitlement(ownerRef)).planId,
   });
   integrationBillingRef.gate = integrationCreditService;
+
+  /*
+   * Step 56: the hold sweep runs on a timer, not on somebody remembering.
+   *
+   * It only releases expired holds, so it cannot charge anyone. A deployment that
+   * sets the interval to 0 gets no timer at all, which is the honest default for a
+   * test harness. Stopping the app stops the timer.
+   */
+  const integrationSweep = startIntegrationCreditSweep({
+    integrationCredits: integrationCreditService,
+    env,
+    onRun: (result) => {
+      if (result.released > 0) console.info(`[veltravia-api] ${describeSweep(result)}`);
+    },
+    onError: (error) => {
+      console.error(
+        `[veltravia-api] integration hold sweep failed: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
+    },
+  });
+  if (integrationSweep === null) {
+    console.info('[veltravia-api] integration hold sweep is disabled (interval 0).');
+  } else {
+    app.addHook('onClose', async () => {
+      integrationSweep.stop();
+    });
+  }
 
   registerUsageRoutes(app, { usage: usageService }, env);
   registerWalletRoutes(app, { wallet: walletService }, env);
