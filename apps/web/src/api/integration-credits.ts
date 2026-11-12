@@ -59,7 +59,17 @@ export interface IntegrationUsageGroupView {
   readonly units: number;
 }
 
+export interface IntegrationPlanView {
+  readonly id: string;
+  readonly label: string;
+  readonly monthlyIntegrationCredits: number;
+  readonly monthlyMessageCredits: number;
+  readonly note: string;
+}
+
 export interface IntegrationCreditSummary {
+  /** What this account's plan bundles. A monthly ceiling, not a balance. */
+  readonly plan: IntegrationPlanView;
   readonly wallet: {
     readonly available: number;
     readonly reserved: number;
@@ -88,6 +98,8 @@ export interface IntegrationCreditSummary {
   }[];
   readonly settings: {
     readonly monthlyLimit: number | null;
+    /** 'plan' when the ceiling is the plan's bundle, 'owner' when it was set here. */
+    readonly monthlyLimitSource?: 'owner' | 'plan';
     readonly perOperationLimit: number | null;
     readonly updatedAt: string | null;
   };
@@ -99,12 +111,20 @@ export interface IntegrationCreditSummary {
   readonly refunds: { readonly enabled: boolean };
 }
 
+export interface IntegrationPlanCatalogView {
+  readonly note: string;
+  readonly defaultPaidPlan: string;
+  readonly plans: readonly IntegrationPlanView[];
+}
+
 export interface IntegrationCreditPolicyView {
   readonly version: string;
   readonly defaultsOnly: boolean;
   readonly note: string;
   readonly currency: string;
   readonly holdTtlSeconds: number;
+  /** The four paid tiers and the development allowance, marked as defaults. */
+  readonly subscriptionPlans: IntegrationPlanCatalogView;
   readonly classes: readonly {
     readonly billingClass: IntegrationBillingClass;
     readonly label: string;

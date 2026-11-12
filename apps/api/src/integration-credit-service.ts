@@ -51,7 +51,14 @@ import {
   resolveIntegrationPolicy,
 } from '@veltravia/integration-credits-core';
 
-import { InMemoryIntegrationCreditStore } from '@veltravia/integration-credits-core';
+import {
+  DEFAULT_PAID_PLAN,
+  InMemoryIntegrationCreditStore,
+  planForEntitlement,
+  publishablePlans,
+  type IntegrationPlanDefinition,
+  type SubscriptionPlanId,
+} from '@veltravia/integration-credits-core';
 
 import { runWithOwner } from '@veltravia/storage-postgres';
 
@@ -230,6 +237,13 @@ export interface IntegrationCreditServiceOptions {
   readonly wallet: WalletService;
   /** The owner's plan, resolved the same way Step 52 resolves allowances. */
   readonly planOf: (ownerRef: string) => Promise<string>;
+  /**
+   * Which tier a subscribed account is on. Four paid tiers exist, and the
+   * entitlement only records `paid`, so the deployment names its default.
+   */
+  readonly paidPlanId?: SubscriptionPlanId;
+  /** Injected by tests that need a plan with a small allowance. */
+  readonly planFor?: (planId: string) => IntegrationPlanDefinition;
   readonly env?: NodeJS.ProcessEnv | undefined;
   readonly now?: (() => Date) | undefined;
 }
@@ -417,14 +431,34 @@ export function createIntegrationCreditService(
     return charge;
   };
 
-  const settingsOf = async (ref: WalletRef): Promise<IntegrationSpendingSettings> =>
-    (await store.readSettings(ref.ownerRef, ref.workspaceId ?? null)) ?? {
+  /**
+   * The spending settings in force, and where the monthly ceiling came from.
+   *
+   * A plan bundles a monthly integration allowance, so an account that has set no
+   * limit of its own is bounded by its plan rather than by nothing. An explicit
+   * limit always wins, in both directions: a plan is a default, not a floor.
+   */
+  const paidPlanId: SubscriptionPlanId = options.paidPlanId ?? DEFAULT_PAID_PLAN;
+
+  const resolvePlan =
+    options.planFor ?? ((planId: string) => planForEntitlement(planId, paidPlanId));
+
+  const planOfOwner = async (ownerRef: string): Promise<IntegrationPlanDefinition> =>
+    resolvePlan(await options.planOf(ownerRef));
+
+  const settingsOf = async (ref: WalletRef): Promise<IntegrationSpendingSettings> => {
+    const stored = await store.readSettings(ref.ownerRef, ref.workspaceId ?? null);
+    if (stored !== null) return { ...stored, monthlyLimitSource: 'owner' };
+    const plan = await planOfOwner(ref.ownerRef);
+    return {
       ownerRef: ref.ownerRef,
       workspaceId: ref.workspaceId ?? null,
-      monthlyLimit: null,
+      monthlyLimit: plan.monthlyIntegrationCredits,
+      monthlyLimitSource: 'plan',
       perOperationLimit: null,
       updatedAt: now().toISOString(),
     };
+  };
 
   const monthTotals = async (ref: WalletRef): Promise<IntegrationMonthUsage> => {
     const since = monthStart(now());
@@ -482,6 +516,12 @@ export function createIntegrationCreditService(
           : 'Rates configured by this deployment.',
         currency: catalog.currency,
         holdTtlSeconds,
+        /**
+         * The four paid tiers and the development allowance, with what each one
+         * bundles. Published together with the defaults note so a screen can show
+         * the tiers without presenting them as an offer.
+         */
+        subscriptionPlans: publishablePlans(paidPlanId),
         classes: [
           {
             billingClass: 'free',
@@ -963,8 +1003,12 @@ export function createIntegrationCreditService(
       const settings = await settingsOf(ref);
       const month = await monthTotals(ref);
       const open = await store.listOpen(ref.ownerRef, 20);
+      // What this account's plan bundles, so a balance is read in context: the
+      // allowance is a monthly ceiling, and credits in the wallet are separate.
+      const plan = await planOfOwner(ref.ownerRef);
       return {
         wallet: balances.wallet,
+        plan,
         month,
         openHolds: open
           .filter((charge) => ref.workspaceId == null || charge.workspaceId === ref.workspaceId)

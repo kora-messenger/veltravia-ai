@@ -140,6 +140,7 @@ import { createProjectAccess, registerProjectAccessGuard } from './project-acces
 import { RunOwnership } from './run-ownership.js';
 import { registerIntegrationRoutes } from './routes/integrations.js';
 import { createIntegrationSystem, type ApiIntegrationSystem } from './integrations.js';
+import { isSubscriptionPlanId } from '@veltravia/integration-credits-core';
 import {
   createIntegrationCreditService,
   type IntegrationBillingGate,
@@ -605,11 +606,26 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
    * message credits, and price external work rather than model work. Every
    * connector operation through the integration runtime passes the gate.
    */
+  /*
+   * Four paid tiers exist, and the entitlement records only `development` or
+   * `paid`, so the deployment names which tier its subscribed accounts are on.
+   * An unknown value is ignored rather than accepted: a typo must not silently
+   * decide somebody's allowance.
+   */
+  const configuredPaidPlan = env.VELTRAVIA_PAID_PLAN?.trim() ?? '';
+  const paidPlanId = isSubscriptionPlanId(configuredPaidPlan) ? configuredPaidPlan : undefined;
+  if (configuredPaidPlan !== '' && paidPlanId === undefined) {
+    console.warn(
+      `[veltravia-api] VELTRAVIA_PAID_PLAN="${configuredPaidPlan}" is not a known plan; using the default tier.`,
+    );
+  }
+
   const integrationCreditService = createIntegrationCreditService({
     env,
     store: persistence?.stores?.integrationCredits,
     wallet: walletService,
     planOf: async (ownerRef) => (await usageService.entitlement(ownerRef)).planId,
+    ...(paidPlanId === undefined ? {} : { paidPlanId }),
   });
   integrationBillingRef.gate = integrationCreditService;
 

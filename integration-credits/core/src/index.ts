@@ -13,6 +13,7 @@
 
 export * from './types.js';
 export * from './policies.js';
+export * from './plans.js';
 export * from './charge.js';
 export * from './lifecycle.js';
 export * from './store.js';

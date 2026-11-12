@@ -67,7 +67,19 @@ function summary(over: Partial<IntegrationCreditSummary> = {}): IntegrationCredi
         createdAt: '2026-11-12T05:00:00.000Z',
       },
     ],
-    settings: { monthlyLimit: 50, perOperationLimit: null, updatedAt: null },
+    plan: {
+      id: 'builder',
+      label: 'Builder',
+      monthlyIntegrationCredits: 10_000,
+      monthlyMessageCredits: 250,
+      note: 'Middle tier bundle. Configurable default.',
+    },
+    settings: {
+      monthlyLimit: 50,
+      monthlyLimitSource: 'owner',
+      perOperationLimit: null,
+      updatedAt: null,
+    },
     refunds: { enabled: true },
     ...over,
   };
@@ -79,6 +91,47 @@ const policy: IntegrationCreditPolicyView = {
   note: 'Configurable defaults shipped with Veltravia, not market prices.',
   currency: 'credits',
   holdTtlSeconds: 900,
+  subscriptionPlans: {
+    note: 'Configurable defaults shipped with Veltravia. Not prices, and not an offer.',
+    defaultPaidPlan: 'builder',
+    plans: [
+      {
+        id: 'development',
+        label: 'Development allowance',
+        monthlyIntegrationCredits: 500,
+        monthlyMessageCredits: 25,
+        note: 'Included while there is no subscription.',
+      },
+      {
+        id: 'starter',
+        label: 'Starter',
+        monthlyIntegrationCredits: 2_000,
+        monthlyMessageCredits: 100,
+        note: 'Entry tier bundle. Configurable default.',
+      },
+      {
+        id: 'builder',
+        label: 'Builder',
+        monthlyIntegrationCredits: 10_000,
+        monthlyMessageCredits: 250,
+        note: 'Middle tier bundle. Configurable default.',
+      },
+      {
+        id: 'pro',
+        label: 'Pro',
+        monthlyIntegrationCredits: 20_000,
+        monthlyMessageCredits: 500,
+        note: 'Upper tier bundle. Configurable default.',
+      },
+      {
+        id: 'elite',
+        label: 'Elite',
+        monthlyIntegrationCredits: 50_000,
+        monthlyMessageCredits: 1_200,
+        note: 'Top tier bundle. Configurable default.',
+      },
+    ],
+  },
   classes: [
     { billingClass: 'free', label: 'Free', meaning: 'Costs nothing to run.' },
     {
@@ -330,5 +383,45 @@ describe('IntegrationCreditsPanel', () => {
         'Integration credits could not be loaded. Nothing has been charged by this screen.',
       ),
     ).toBeTruthy();
+  });
+
+  it('names the plan, its allowance and where the ceiling came from', async () => {
+    mockAll();
+    render(<IntegrationCreditsPanel />);
+    // The plan appears in the tile and again in the tier table, so scope the read
+    // to the balance the person actually reads the allowance from.
+    await waitFor(() =>
+      expect(screen.getByText('10,000 integration credits a month')).toBeTruthy(),
+    );
+    expect(screen.getAllByText('Builder').length).toBeGreaterThan(0);
+    // An owner-set ceiling says so; a plan-set one says the plan supplied it.
+    expect(screen.getByText('Your own ceiling applies')).toBeTruthy();
+  });
+
+  it('shows the plan supplied the ceiling when no limit was set', async () => {
+    mockAll();
+    api.getIntegrationCreditSummary.mockResolvedValue(
+      summary({
+        settings: {
+          monthlyLimit: 10_000,
+          monthlyLimitSource: 'plan',
+          perOperationLimit: null,
+          updatedAt: null,
+        },
+      }),
+    );
+    render(<IntegrationCreditsPanel />);
+    await waitFor(() => expect(screen.getByText('Your ceiling comes from the plan')).toBeTruthy());
+  });
+
+  it('publishes the tiers as defaults, with the current plan marked', async () => {
+    mockAll();
+    render(<IntegrationCreditsPanel />);
+    await waitFor(() => expect(screen.getByText('What each plan bundles')).toBeTruthy());
+    expect(screen.getByText(/Not prices, and not an offer/)).toBeTruthy();
+    // Every tier is listed, and only the account's own plan is marked current.
+    expect(screen.getByText('Elite')).toBeTruthy();
+    expect(screen.getAllByText(/current/)).toHaveLength(1);
+    expect(screen.getByText(/An allowance is a monthly ceiling, not a deposit/)).toBeTruthy();
   });
 });

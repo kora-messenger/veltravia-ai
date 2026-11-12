@@ -135,6 +135,29 @@ unscoped read on purpose, and that rule is not bent for a timer: the store answe
 accounts still hold credit_ (`listOpenOwners`, owner keys only), and each account's holds are
 then released inside that account's own scope.
 
+## Plans
+
+Four paid tiers exist above the development allowance, and each bundles a monthly
+allowance of message credits and integration credits. The table lives in
+`integration-credits/core/src/plans.ts` and `GET /api/integration-credits/policy`
+publishes it as `subscriptionPlans`, with a note in the same payload saying the numbers
+are **configurable defaults, not prices, and not an offer**.
+
+An allowance is a **monthly ceiling, not a deposit**. Credits still arrive through the wallet
+(Step 53), so a balance is always something that was actually put there; nothing here can be
+bought, because there is no checkout.
+
+When an account has set no monthly limit of its own, its plan's integration allowance becomes
+the ceiling, and the summary reports `settings.monthlyLimitSource: 'plan'` so the dashboard can
+say where the number came from. An explicit limit always wins, in both directions: a plan is a
+default, not a floor.
+
+The entitlement this platform already records is `development` or `paid`, so the deployment
+names which of the four tiers its subscribed accounts are on with `VELTRAVIA_PAID_PLAN`
+(default `builder`, the middle tier). An unrecognised value is ignored and logged rather than
+accepted: a typo must not silently decide somebody's allowance. An account whose plan cannot
+be resolved gets the development allowance, never the most generous tier.
+
 ## Configuration
 
 | Variable                                       | Purpose                                            |
@@ -142,6 +165,7 @@ then released inside that account's own scope.
 | `VELTRAVIA_INTEGRATION_HOLD_TTL_SECONDS`       | How long a hold survives unsettled (default 900)   |
 | `VELTRAVIA_INTEGRATION_CREDIT_ADMIN_TOKEN`     | Operator token for refunds                         |
 | `VELTRAVIA_INTEGRATION_SWEEP_INTERVAL_SECONDS` | Scheduled hold sweep interval (default 300, 0 off) |
+| `VELTRAVIA_PAID_PLAN`                          | Which paid tier `paid` maps to (default `builder`) |
 
 The policy table (`integration-rates.v1`) is shipped as **configurable defaults**. Every
 figure in it is an internal credit rate, not a price in money, and the API says so on the
@@ -164,6 +188,8 @@ duplicated. Idempotency is a unique key per owner.
 - `apps/api/src/integration-billing-seam.test.ts` - one gate call per executed connector
   operation, and a refusal that stops the operation (4 tests).
 - `storage/postgres/src/integration-credit-store.test.ts` - the Postgres store.
+- `integration-credits/core/src/plans.test.ts` - the tier table, the entitlement mapping and
+  the "unknown never means generous" rule (5 tests).
 - `apps/api/src/integration-credit-sweep.test.ts` - interval parsing, the disabled case, a
   tick that does not stack on a slow one, a failed tick that stays armed, stop, on-demand run.
 - `apps/web/src/pages/operations/IntegrationCreditsPanel.test.tsx` - the dashboard keeps the

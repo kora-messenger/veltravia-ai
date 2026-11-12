@@ -28,6 +28,11 @@ export interface IntegrationSpendingSettings {
   readonly workspaceId: string | null;
   /** Credits allowed per calendar month across integration charges. Null = no limit. */
   readonly monthlyLimit: number | null;
+  /**
+   * Where that ceiling came from: set by the account itself, or taken from the
+   * plan it is on. Absent on a stored row, which is always the account's own.
+   */
+  readonly monthlyLimitSource?: 'owner' | 'plan';
   /** Credits allowed for one operation. Null = no limit. */
   readonly perOperationLimit: number | null;
   readonly updatedAt: string;

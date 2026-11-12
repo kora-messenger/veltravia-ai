@@ -310,6 +310,20 @@ export function IntegrationCreditsPanel() {
             <strong>{credits(wallet.spent)}</strong>
           </div>
           <div className="v-intcredit__balance">
+            <span className="v-intcredit__label">Plan</span>
+            <strong>{summary?.plan.label ?? 'unknown'}</strong>
+            <span className="v-ops__muted">
+              {summary == null
+                ? ''
+                : `${count(summary.plan.monthlyIntegrationCredits)} integration credits a month`}
+            </span>
+            <span className="v-ops__muted">
+              {summary?.settings.monthlyLimitSource === 'plan'
+                ? 'Your ceiling comes from the plan'
+                : 'Your own ceiling applies'}
+            </span>
+          </div>
+          <div className="v-intcredit__balance">
             <span className="v-intcredit__label">This month</span>
             <strong>{credits(month?.credits)}</strong>
             <span className="v-ops__muted">
@@ -477,6 +491,37 @@ export function IntegrationCreditsPanel() {
               ))}
             </tbody>
           </table>
+          <h3>What each plan bundles</h3>
+          <p className="v-ops__muted">{policy.subscriptionPlans.note}</p>
+          <table className="v-ops__table">
+            <thead>
+              <tr>
+                <th scope="col">Plan</th>
+                <th scope="col">Integration credits a month</th>
+                <th scope="col">Message credits a month</th>
+                <th scope="col">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {policy.subscriptionPlans.plans.map((entry) => (
+                <tr key={entry.id}>
+                  <td>
+                    {entry.label}
+                    {entry.id === summary?.plan.id ? (
+                      <span className="v-ops__muted"> (current)</span>
+                    ) : null}
+                  </td>
+                  <td>{count(entry.monthlyIntegrationCredits)}</td>
+                  <td>{count(entry.monthlyMessageCredits)}</td>
+                  <td>{entry.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="v-ops__muted">
+            An allowance is a monthly ceiling, not a deposit: credits still arrive in the wallet,
+            and nothing here can be bought while Veltravia has no checkout.
+          </p>
           <p className="v-ops__muted">
             A free integration and a service that bills your own account are never charged here, and
             a call made with your own provider key is exempt.

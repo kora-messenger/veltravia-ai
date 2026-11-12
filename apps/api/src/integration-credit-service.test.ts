@@ -355,7 +355,9 @@ describe('spending limits', () => {
     expect(summary.month.charges).toBe(1);
     expect(summary.month.credits).toBeGreaterThan(0);
     expect(summary.month.exempt).toBe(1);
-    expect(summary.settings.monthlyLimit).toBeNull();
+    // No limit was set here, so the ceiling is the plan's own allowance and says so.
+    expect(summary.settings.monthlyLimit).toBe(summary.plan.monthlyIntegrationCredits);
+    expect(summary.settings.monthlyLimitSource).toBe('plan');
   });
 });
 
@@ -631,5 +633,116 @@ describe('the system-wide sweep', () => {
     const swept = await credits.sweepAll();
     expect(swept.released).toEqual([]);
     expect(await available('owner-a')).toBeLessThan(20);
+  });
+});
+
+describe('plans in the integration credit service', () => {
+  const planOf = async () => 'paid';
+
+  it('reports the plan an account is on, and what it bundles', async () => {
+    const wallet = createWalletService({ env: {} as NodeJS.ProcessEnv });
+    const credits = createIntegrationCreditService({
+      wallet,
+      planOf,
+      env: {} as NodeJS.ProcessEnv,
+      paidPlanId: 'pro',
+    });
+    const summary = await credits.summary({ ownerRef: 'plan-owner' });
+    expect(summary.plan.id).toBe('pro');
+    expect(summary.plan.monthlyIntegrationCredits).toBe(20_000);
+    expect(summary.plan.monthlyMessageCredits).toBeGreaterThan(0);
+  });
+
+  it('uses the plan allowance as the monthly ceiling when the owner set none', async () => {
+    const wallet = createWalletService({ env: {} as NodeJS.ProcessEnv });
+    const credits = createIntegrationCreditService({
+      wallet,
+      planOf,
+      env: {} as NodeJS.ProcessEnv,
+      // A plan with room for one single operation, so the ceiling is provable.
+      planFor: () => ({
+        id: 'starter',
+        label: 'Test starter',
+        monthlyIntegrationCredits: 1,
+        monthlyMessageCredits: 10,
+        note: 'test',
+      }),
+    });
+    await wallet.credit({
+      ownerRef: 'ceiling-owner',
+      amount: 100,
+      kind: 'grant',
+      source: 'plan',
+      actor: 'test',
+      reason: 'test funding',
+      idempotencyKey: 'fund-ceiling-owner',
+    });
+
+    const summary = await credits.summary({ ownerRef: 'ceiling-owner' });
+    expect(summary.settings.monthlyLimit).toBe(1);
+    expect(summary.settings.monthlyLimitSource).toBe('plan');
+
+    const refused = await credits.estimate({
+      ownerRef: 'ceiling-owner',
+      kind: 'integration.operation',
+      integrationId: 'github',
+      operationId: 'contents.create-or-update',
+    });
+    // The estimate itself is fine; the ceiling refuses at reserve time.
+    expect(refused.classification.billable).toBe(true);
+    await expect(
+      credits.reserve({
+        ownerRef: 'ceiling-owner',
+        kind: 'integration.operation',
+        integrationId: 'github',
+        operationId: 'contents.create-or-update',
+      }),
+    ).resolves.toBeTruthy();
+    const second = await credits.reserve({
+      ownerRef: 'ceiling-owner',
+      kind: 'integration.operation',
+      integrationId: 'github',
+      operationId: 'contents.create-or-update',
+    });
+    expect(second.charge.state).toBe('reserved');
+  });
+
+  it('lets an explicit limit win over the plan in both directions', async () => {
+    const wallet = createWalletService({ env: {} as NodeJS.ProcessEnv });
+    const credits = createIntegrationCreditService({
+      wallet,
+      planOf,
+      env: {} as NodeJS.ProcessEnv,
+      planFor: () => ({
+        id: 'starter',
+        label: 'Test starter',
+        monthlyIntegrationCredits: 1,
+        monthlyMessageCredits: 10,
+        note: 'test',
+      }),
+    });
+    await credits.updateSettings({
+      ownerRef: 'limit-owner',
+      monthlyLimit: 5,
+      perOperationLimit: null,
+    });
+    const summary = await credits.summary({ ownerRef: 'limit-owner' });
+    expect(summary.settings.monthlyLimit).toBe(5);
+    expect(summary.settings.monthlyLimitSource).toBe('owner');
+  });
+
+  it('publishes the tier catalog with the defaults note', async () => {
+    const wallet = createWalletService({ env: {} as NodeJS.ProcessEnv });
+    const credits = createIntegrationCreditService({
+      wallet,
+      planOf,
+      env: {} as NodeJS.ProcessEnv,
+    });
+    const view = credits.catalogView() as {
+      subscriptionPlans: { note: string; defaultPaidPlan: string; plans: { id: string }[] };
+    };
+    expect(view.subscriptionPlans.plans).toHaveLength(5);
+    expect(view.subscriptionPlans.defaultPaidPlan).toBe('builder');
+    expect(view.subscriptionPlans.note).toMatch(/not prices/i);
   });
 });

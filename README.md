@@ -578,6 +578,14 @@ still holds credit, never settles or charges, never stacks ticks on a slow sweep
 failed tick, and stops with the app. Neither touches money: a refund returns credits, and a
 real subscription refund belongs to the store that took the payment.
 
+Plans bundle credits, not just limits: four paid tiers sit above the development allowance and
+each one carries a monthly integration allowance and a monthly message allowance, published by
+the policy route as configurable defaults with a note saying they are neither prices nor an
+offer. An allowance is a ceiling, not a deposit - credits still arrive in the wallet - and when
+an account sets no limit of its own, its plan's allowance becomes the ceiling and the summary
+says the plan supplied it. `VELTRAVIA_PAID_PLAN` names which tier `paid` maps to, defaulting to
+the middle one; an unrecognised value is logged and ignored.
+
 Not delivered: no payment processing or real-money purchase of integration credits, no
 per-integration funding flow, no separate admin console for refunds. Charges file under the
 owner that owns the connector connections, which is the deployment's owner; a real auth layer

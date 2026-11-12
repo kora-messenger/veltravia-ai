@@ -164,6 +164,48 @@ describeDb('integration credits on postgres', () => {
     expect(body.plans.find((plan) => plan.planId === 'development')?.billable).toBe(false);
   });
 
+  it('publishes the four paid tiers and the development allowance as defaults', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/integration-credits/policy',
+      headers: as('policy-owner'),
+    });
+    const body = response.json() as {
+      subscriptionPlans: {
+        note: string;
+        defaultPaidPlan: string;
+        plans: Array<{ id: string; monthlyIntegrationCredits: number }>;
+      };
+    };
+    expect(body.subscriptionPlans.plans.map((plan) => plan.id)).toEqual([
+      'development',
+      'starter',
+      'builder',
+      'pro',
+      'elite',
+    ]);
+    expect(body.subscriptionPlans.defaultPaidPlan).toBe('builder');
+    // The note travels with the numbers so no screen can call them prices.
+    expect(body.subscriptionPlans.note).toMatch(/not prices/i);
+  });
+
+  it('reports the plan and the ceiling it supplies in the summary', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/integration-credits',
+      headers: as('plan-owner'),
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as {
+      plan: { id: string; monthlyIntegrationCredits: number };
+      settings: { monthlyLimit: number | null; monthlyLimitSource?: string };
+    };
+    expect(body.plan.monthlyIntegrationCredits).toBeGreaterThan(0);
+    // No limit was set for this account, so the plan's allowance is the ceiling.
+    expect(body.settings.monthlyLimitSource).toBe('plan');
+    expect(body.settings.monthlyLimit).toBe(body.plan.monthlyIntegrationCredits);
+  });
+
   it('classifies an operation before anything runs, without charging', async () => {
     await paidOwner('classify-owner', 5);
     const free = await app.inject({
