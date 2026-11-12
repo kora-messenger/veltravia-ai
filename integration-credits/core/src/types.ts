@@ -242,6 +242,18 @@ export interface ChargeFilter {
   readonly kind?: IntegrationOperationKind;
   readonly state?: ChargeState;
   readonly billingClass?: BillingClass;
+  /**
+   * Step 58: inclusive instant bounds on `createdAt`, plus the free-text search
+   * the usage history offers. Implemented by the store so paging stays correct:
+   * filtering after a limited read would hide rows rather than find them.
+   */
+  readonly since?: string;
+  readonly until?: string;
+  /** Keyset cursor: rows strictly older than this (createdAt, id) pair. */
+  readonly beforeAt?: string;
+  readonly beforeId?: string;
+  /** Case-insensitive match on the charge id, operation, connector or project. */
+  readonly query?: string;
   readonly limit: number;
   readonly offset?: number;
 }

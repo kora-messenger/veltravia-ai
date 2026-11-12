@@ -182,6 +182,28 @@ export interface ChargeFilter {
   readonly runId?: string | null;
   readonly kind?: InteractionKind;
   readonly state?: ChargeState;
+  /**
+   * Step 58: the bounds a usage history asks for. `since` and `until` are
+   * inclusive ISO instants compared against `createdAt`, so a date range is
+   * answered by the store rather than by reading the table into memory.
+   * `modelId`, `providerId` and `query` exist for the same reason: a filter that
+   * only works on the page already fetched is a filter that lies about the rest.
+   */
+  readonly since?: string;
+  readonly until?: string;
+  /**
+   * Keyset cursor: only rows strictly older than this (createdAt, id) pair.
+   *
+   * A timestamp alone is not a page boundary - two charges written in the same
+   * millisecond would straddle it - so the pair is compared the way the store
+   * orders its rows, and a page neither repeats nor skips a sibling.
+   */
+  readonly beforeAt?: string;
+  readonly beforeId?: string;
+  readonly modelId?: string;
+  readonly providerId?: string;
+  /** Case-insensitive match on the charge id, model, provider or project. */
+  readonly query?: string;
   readonly limit: number;
   readonly offset?: number;
 }

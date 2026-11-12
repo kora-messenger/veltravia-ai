@@ -8,6 +8,18 @@
 import type { ChargePage, MessageCreditStore, SpendingSettings, UsageDimension } from './store.js';
 import type { ChargeFilter, MessageCharge, UsageGroup } from './types.js';
 
+/**
+ * The free-text half of a charge filter (Step 58). Matched here the same way the
+ * Postgres store matches it, so a search returns the same rows on either store.
+ */
+function matchesQuery(charge: MessageCharge, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (needle === '') return true;
+  return [charge.id, charge.modelId, charge.providerId, charge.projectId, charge.kind].some(
+    (field) => typeof field === 'string' && field.toLowerCase().includes(needle),
+  );
+}
+
 export class InMemoryMessageCreditStore implements MessageCreditStore {
   readonly kind = 'memory' as const;
   private readonly charges: MessageCharge[] = [];
@@ -59,7 +71,23 @@ export class InMemoryMessageCreditStore implements MessageCreditStore {
       .filter((row) => (filter.runId == null ? true : row.runId === filter.runId))
       .filter((row) => (filter.kind === undefined ? true : row.kind === filter.kind))
       .filter((row) => (filter.state === undefined ? true : row.state === filter.state))
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      .filter((row) => (filter.since === undefined ? true : row.createdAt >= filter.since))
+      .filter((row) => (filter.until === undefined ? true : row.createdAt <= filter.until))
+      .filter(
+        (row) =>
+          filter.beforeAt === undefined ||
+          row.createdAt < filter.beforeAt ||
+          (row.createdAt === filter.beforeAt &&
+            (filter.beforeId === undefined || row.id < filter.beforeId)),
+      )
+      .filter((row) => (filter.modelId === undefined ? true : row.modelId === filter.modelId))
+      .filter((row) =>
+        filter.providerId === undefined ? true : row.providerId === filter.providerId,
+      )
+      .filter((row) => (filter.query === undefined ? true : matchesQuery(row, filter.query)))
+      // Ties broken by id so a page boundary is stable: a cursor that
+      // names one row must not be overtaken by an equally-timed sibling.
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
     const offset = filter.offset ?? 0;
     return {
       charges: matches.slice(offset, offset + filter.limit).map((row) => ({ ...row })),

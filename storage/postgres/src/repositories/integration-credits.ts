@@ -241,6 +241,8 @@ export class PostgresIntegrationCreditStore implements IntegrationCreditStore {
 
   async listCharges(ownerRef: string, filter: ChargeFilter): Promise<ChargePage> {
     requireOwner();
+    // Step 58: date bounds and free text belong in the query, not in a caller's
+    // memory, so a filtered page and its total describe the same rows.
     const where = `owner_ref = $1
       and ($2::text is null or workspace_id = $2)
       and ($3::text is null or project_id = $3)
@@ -250,7 +252,23 @@ export class PostgresIntegrationCreditStore implements IntegrationCreditStore {
       and ($7::text is null or execution_id = $7)
       and ($8::text is null or kind = $8)
       and ($9::text is null or state = $9)
-      and ($10::text is null or billing_class = $10)`;
+      and ($10::text is null or billing_class = $10)
+      and ($13::timestamptz is null or created_at >= $13::timestamptz)
+      and ($14::timestamptz is null or created_at <= $14::timestamptz)
+      and (
+        $11::timestamptz is null
+        or created_at < $11::timestamptz
+        or (created_at = $11::timestamptz and id < $12::text)
+      )
+      and (
+        $15::text is null
+        or id ilike $15
+        or coalesce(operation_id, '') ilike $15
+        or coalesce(integration_id, '') ilike $15
+        or coalesce(connector_id, '') ilike $15
+        or coalesce(project_id, '') ilike $15
+        or coalesce(kind, '') ilike $15
+      )`;
     const params = [
       ownerRef,
       filter.workspaceId ?? null,
@@ -262,12 +280,17 @@ export class PostgresIntegrationCreditStore implements IntegrationCreditStore {
       filter.kind ?? null,
       filter.state ?? null,
       filter.billingClass ?? null,
+      filter.beforeAt ?? null,
+      filter.beforeId ?? null,
+      filter.since ?? null,
+      filter.until ?? null,
+      filter.query === undefined || filter.query.trim() === '' ? null : `%${filter.query.trim()}%`,
     ];
     const rows = await this.query.query<ChargeRow>(
       `select ${COLUMNS} from integration_charges
         where ${where}
         order by created_at desc, id desc
-        limit $11 offset $12`,
+        limit $16 offset $17`,
       [...params, filter.limit, filter.offset ?? 0],
     );
     const total = await this.query.query<{ total: string }>(

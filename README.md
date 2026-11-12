@@ -639,3 +639,50 @@ Not delivered: no payment processing, so credits arrive through the operator rou
 Veltravia price for document jobs or intelligence synthesis, which stay exempt with an
 `open()` extension point; and storage and bandwidth remain floors, since bytes written by
 another process or served by a CDN never pass through this API.
+
+## Step 58 - usage history and cost dashboard
+
+Steps 52 to 57 each wrote down what something cost. Four panels on the operations page
+could answer four questions, and nothing could answer the fifth: what have I used in
+total, and where did it go? This step is one read-only layer over the records that already
+exist. No second ledger, no second price table, no new charge.
+
+`GET /api/usage-history` returns one merged feed across message charges, integration
+charges and infrastructure measurements, filtered in the database by date range, category,
+status, project, model, provider and text. `GET /api/usage-history/overview` carries the
+wallet's own balance, this billing period, the selected range, recent events, the
+infrastructure strip and the wallet's ledger summary. `GET /api/usage-history/breakdown`
+groups by category, project, model, provider, day, month or activity, and
+`GET /api/usage-history/export.csv` is the same filtered rows as a download.
+
+Three rules make the numbers trustworthy. **The balance is the wallet's**: available, held
+and spent are copied from the ledger, never recomputed, because a second way of computing a
+balance is a second balance. **A hold is not a charge**: every event carries a movement -
+held, charged, released, refunded, not charged, measured - and only a deduction moves
+credits, so a running reservation cannot look like spending. **A partial sum says so**:
+each aggregation reads up to a configurable cap and reports `complete: false` with the
+number of rows read when it stops early, instead of presenting a total that looks whole.
+
+Getting the paging right took three attempts and is worth naming. The first cursor carried
+a prefixed id (`charge:…`) into a comparison against raw ids, so page two silently came
+back empty; the second used a timestamp alone, which drops every charge written in the
+same millisecond as the boundary - common whenever a run settles several at once. The feed
+now carries a per-lane keyset boundary (the last row shown in each lane), the in-memory
+stores break ties by id so they order rows the way the SQL does, and `total` is counted
+without the boundary so it does not shrink page by page.
+
+The page is `#/usage`, "Usage & cost", in the existing navigation and design system: four
+summary cards, the filters, usage by category as bars, daily credits as a compact chart,
+the history table with real loading, empty, error and partial states, the largest charges,
+the measured infrastructure strip and this period's figures. Below 900px the grid stacks
+and below 640px the table becomes labelled blocks, so a phone reads one record at a time.
+
+Credits are not money and nothing here pretends otherwise: no currency conversion, no cash
+figure, and the pricing note names the catalog version and whether the policy is
+defaults-only. See `docs/usage-history.md`.
+
+Not delivered: no payment processing or invoices; no workspace credit allocation, so
+`workspaceId` narrows reads without funding anything; storage and bandwidth stay floors,
+since bytes written elsewhere or served by a CDN never pass through this API; token counts
+appear only when the provider reported them, and the row says what was not measured rather
+than estimating it.

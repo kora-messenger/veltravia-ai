@@ -47,6 +47,7 @@ const MORE_CARD_INSET = 11;
 const PRIMARY_IDS = [
   'projects',
   'dashboard',
+  'usage',
   'builder',
   'operations',
   'model-routing',
@@ -136,6 +137,13 @@ const ICONS: Record<string, ReactNode> = {
   operations: glyph(
     <>
       <path d="M4 18V9M9.5 18V5M15 18v-6M20.5 18v-9" />
+    </>,
+  ),
+  // A ledger with a line through it: usage is a record of what was spent.
+  usage: glyph(
+    <>
+      <rect x="4.5" y="4" width="15" height="16" rx="2.2" />
+      <path d="M8 9h8M8 12.5h8M8 16h4.5" />
     </>,
   ),
   'ai-providers': glyph(

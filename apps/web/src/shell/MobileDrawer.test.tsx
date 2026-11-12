@@ -77,6 +77,7 @@ describe('the website drawer', () => {
       'New conversation',
       'Projects',
       'Dashboard',
+      'Usage & cost',
       'App Builder',
       'Superagent operations',
       'Model routing',

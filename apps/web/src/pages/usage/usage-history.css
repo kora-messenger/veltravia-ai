@@ -1,0 +1,472 @@
+/*
+ * Usage and cost (Step 58).
+ *
+ * Desktop is a two-column reading order: the summary cards across the top, then
+ * category and trend side by side, then the history table. Below 900px everything
+ * stacks and the table becomes labelled cards, so a phone reads one record per
+ * block instead of scrolling sideways through six columns.
+ *
+ * Numbers are tabular everywhere, because a column of credits that shifts by a
+ * pixel per digit is a column nobody can compare.
+ */
+
+.v-usage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-5);
+  padding-bottom: var(--v-space-6);
+  min-width: 0;
+}
+
+.v-usage__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-4);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.v-usage__title {
+  margin: 0 0 var(--v-space-1);
+  font-size: var(--v-text-2xl);
+  color: var(--v-neutral-900);
+}
+
+.v-usage__lede {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--v-text-sm);
+  line-height: 1.55;
+  color: var(--v-neutral-600);
+}
+
+.v-usage__export {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  min-height: 40px;
+  padding: 0 var(--v-space-4);
+  border: 1px solid var(--v-neutral-300);
+  border-radius: var(--v-radius-md);
+  background: var(--v-neutral-0);
+  color: var(--v-neutral-800);
+  font-size: var(--v-text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.v-usage__export:hover {
+  border-color: var(--v-accent-500, #3b51e5);
+  color: var(--v-accent-600, #2f42c4);
+}
+
+.v-usage__export:focus-visible {
+  outline: 2px solid var(--v-accent-500, #3b51e5);
+  outline-offset: 2px;
+}
+
+.v-usage__loading {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  margin: 0;
+  padding: var(--v-space-6);
+  border: 1px solid var(--v-neutral-200);
+  border-radius: var(--v-radius-lg);
+  background: var(--v-neutral-0);
+  color: var(--v-neutral-600);
+  font-size: var(--v-text-sm);
+}
+
+.v-usage__cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--v-space-3);
+}
+
+.v-usage__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-1);
+  padding: var(--v-space-4);
+  border: 1px solid var(--v-neutral-200);
+  border-radius: var(--v-radius-lg);
+  background: var(--v-neutral-0);
+  min-width: 0;
+}
+
+.v-usage__card > h3 {
+  margin: 0;
+  font-size: var(--v-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--v-neutral-500);
+}
+
+.v-usage__figure {
+  margin: 0;
+  font-size: var(--v-text-2xl);
+  font-weight: 650;
+  color: var(--v-neutral-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.v-usage__card-note {
+  margin: 0;
+  font-size: var(--v-text-xs);
+  line-height: 1.45;
+  color: var(--v-neutral-500);
+}
+
+.v-usage__caption {
+  margin: 0;
+  font-size: var(--v-text-xs);
+  line-height: 1.5;
+  color: var(--v-neutral-500);
+}
+
+.v-usage__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  padding: var(--v-space-4);
+  border: 1px solid var(--v-neutral-200);
+  border-radius: var(--v-radius-lg);
+  background: var(--v-neutral-0);
+  min-width: 0;
+}
+
+.v-usage__panel > h3 {
+  margin: 0;
+  font-size: var(--v-text-lg);
+  color: var(--v-neutral-900);
+}
+
+.v-usage__panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.v-usage__count {
+  font-size: var(--v-text-xs);
+  color: var(--v-neutral-500);
+  font-variant-numeric: tabular-nums;
+}
+
+.v-usage__filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--v-space-3);
+  align-items: end;
+}
+
+.v-usage__actions {
+  display: flex;
+  gap: var(--v-space-2);
+  align-items: center;
+}
+
+.v-usage__partial {
+  margin: 0;
+  padding: var(--v-space-3);
+  border: 1px solid var(--v-warning-200, #f3d9a4);
+  border-radius: var(--v-radius-md);
+  background: var(--v-warning-50, #fdf6e6);
+  color: var(--v-warning-800, #6b4a10);
+  font-size: var(--v-text-xs);
+  line-height: 1.5;
+}
+
+.v-usage__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--v-space-4);
+}
+
+.v-usage__empty {
+  margin: 0;
+  font-size: var(--v-text-sm);
+  color: var(--v-neutral-500);
+}
+
+/* ---- category bars ---- */
+
+.v-usage__bars,
+.v-usage__largest,
+.v-usage__infra {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+}
+
+.v-usage__bar-row {
+  display: grid;
+  grid-template-columns: minmax(96px, 140px) minmax(0, 1fr) auto;
+  gap: var(--v-space-3);
+  align-items: center;
+  min-width: 0;
+}
+
+.v-usage__bar-label {
+  font-size: var(--v-text-sm);
+  color: var(--v-neutral-800);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v-usage__bar-track {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--v-neutral-100);
+  overflow: hidden;
+}
+
+.v-usage__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--v-accent-500, #3b51e5), var(--v-accent-300, #8f9bf5));
+}
+
+.v-usage__bar-value {
+  font-size: var(--v-text-xs);
+  color: var(--v-neutral-700);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.v-usage__bar-count {
+  color: var(--v-neutral-500);
+}
+
+/* ---- daily trend ---- */
+
+.v-usage__trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 132px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.v-usage__trend-day {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.v-usage__trend-bar {
+  display: block;
+  width: 100%;
+  max-width: 18px;
+  border-radius: 4px 4px 0 0;
+  background: var(--v-accent-400, #7581ee);
+}
+
+.v-usage__trend-label {
+  font-size: 9px;
+  color: var(--v-neutral-400);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- history table ---- */
+
+.v-usage__table-wrap {
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.v-usage__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--v-text-sm);
+}
+
+.v-usage__table th,
+.v-usage__table td {
+  padding: var(--v-space-2) var(--v-space-3);
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--v-neutral-100);
+}
+
+.v-usage__table th {
+  font-size: var(--v-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--v-neutral-500);
+  white-space: nowrap;
+}
+
+.v-usage__activity {
+  display: block;
+  color: var(--v-neutral-900);
+}
+
+.v-usage__category {
+  display: block;
+  font-size: var(--v-text-xs);
+  color: var(--v-neutral-500);
+}
+
+.v-usage__detail {
+  color: var(--v-neutral-600);
+  max-width: 38ch;
+}
+
+.v-usage__limitation {
+  color: var(--v-warning-800, #6b4a10);
+}
+
+.v-usage__credits {
+  font-variant-numeric: tabular-nums;
+  color: var(--v-neutral-900);
+  white-space: nowrap;
+}
+
+.v-usage__more {
+  display: flex;
+  justify-content: center;
+}
+
+.v-usage__largest > li,
+.v-usage__infra > li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: var(--v-space-2);
+  border-bottom: 1px solid var(--v-neutral-100);
+}
+
+.v-usage__largest > li:last-child,
+.v-usage__infra > li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* ---- period figures ---- */
+
+.v-usage__figures {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--v-space-3);
+  margin: 0;
+}
+
+.v-usage__figures > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.v-usage__figures dt {
+  font-size: var(--v-text-xs);
+  color: var(--v-neutral-500);
+}
+
+.v-usage__figures dd {
+  margin: 0;
+  font-size: var(--v-text-lg);
+  font-weight: 600;
+  color: var(--v-neutral-900);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- narrower screens ---- */
+
+@media (max-width: 1100px) {
+  .v-usage__figures {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .v-usage__cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .v-usage__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .v-usage__cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .v-usage__figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* One record per block: a six-column table on a phone is a sideways scroll. */
+  .v-usage__table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .v-usage__table,
+  .v-usage__table tbody,
+  .v-usage__table tr,
+  .v-usage__table td {
+    display: block;
+    width: 100%;
+  }
+
+  .v-usage__table tr {
+    padding: var(--v-space-3) 0;
+    border-bottom: 1px solid var(--v-neutral-200);
+  }
+
+  .v-usage__table td {
+    display: flex;
+    gap: var(--v-space-3);
+    justify-content: space-between;
+    padding: 2px 0;
+    border-bottom: none;
+  }
+
+  .v-usage__table td::before {
+    content: attr(data-label);
+    flex: 0 0 88px;
+    font-size: var(--v-text-xs);
+    color: var(--v-neutral-500);
+  }
+
+  .v-usage__detail {
+    max-width: none;
+  }
+
+  .v-usage__bar-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .v-usage__bar-track {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+}

@@ -16,6 +16,20 @@ import type { ChargeFilter, IntegrationCharge, MeasurementUnit, UsageGroup } fro
 const totalUnits = (units: Readonly<Partial<Record<MeasurementUnit, number>>>): number =>
   Object.values(units).reduce((sum, value) => sum + (typeof value === 'number' ? value : 0), 0);
 
+/** The free-text half of a charge filter (Step 58); mirrors the Postgres store. */
+function matchesQuery(charge: IntegrationCharge, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (needle === '') return true;
+  return [
+    charge.id,
+    charge.operationId,
+    charge.integrationId,
+    charge.connectorId,
+    charge.projectId,
+    charge.kind,
+  ].some((field) => typeof field === 'string' && field.toLowerCase().includes(needle));
+}
+
 export class InMemoryIntegrationCreditStore implements IntegrationCreditStore {
   readonly kind = 'memory' as const;
   private readonly charges: IntegrationCharge[] = [];
@@ -77,7 +91,19 @@ export class InMemoryIntegrationCreditStore implements IntegrationCreditStore {
       .filter((row) =>
         filter.billingClass === undefined ? true : row.billingClass === filter.billingClass,
       )
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      .filter((row) => (filter.since === undefined ? true : row.createdAt >= filter.since))
+      .filter((row) => (filter.until === undefined ? true : row.createdAt <= filter.until))
+      .filter(
+        (row) =>
+          filter.beforeAt === undefined ||
+          row.createdAt < filter.beforeAt ||
+          (row.createdAt === filter.beforeAt &&
+            (filter.beforeId === undefined || row.id < filter.beforeId)),
+      )
+      .filter((row) => (filter.query === undefined ? true : matchesQuery(row, filter.query)))
+      // Ties broken by id so a page boundary is stable: a cursor that
+      // names one row must not be overtaken by an equally-timed sibling.
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
     const offset = filter.offset ?? 0;
     return {
       charges: matches.slice(offset, offset + filter.limit).map((row) => ({ ...row })),

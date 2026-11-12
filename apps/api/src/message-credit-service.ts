@@ -805,6 +805,16 @@ export function createMessageCreditService(
         ...(filter.runId === undefined ? {} : { runId: filter.runId }),
         ...(filter.kind === undefined ? {} : { kind: filter.kind }),
         ...(filter.state === undefined ? {} : { state: filter.state }),
+        // Step 58: a usage history filters a date range, a model, a provider and a
+        // search term. All four go to the store, so a filtered page and its total
+        // agree instead of the page being filtered after the fact.
+        ...(filter.since === undefined ? {} : { since: filter.since }),
+        ...(filter.until === undefined ? {} : { until: filter.until }),
+        ...(filter.beforeAt === undefined ? {} : { beforeAt: filter.beforeAt }),
+        ...(filter.beforeId === undefined ? {} : { beforeId: filter.beforeId }),
+        ...(filter.modelId === undefined ? {} : { modelId: filter.modelId }),
+        ...(filter.providerId === undefined ? {} : { providerId: filter.providerId }),
+        ...(filter.query === undefined ? {} : { query: filter.query }),
       });
       return page;
     },

@@ -1037,6 +1037,12 @@ export function createIntegrationCreditService(
         ...(filter.kind === undefined ? {} : { kind: filter.kind }),
         ...(filter.state === undefined ? {} : { state: filter.state }),
         ...(filter.billingClass === undefined ? {} : { billingClass: filter.billingClass }),
+        // Step 58: date bounds and search belong to the store (see ChargeFilter).
+        ...(filter.since === undefined ? {} : { since: filter.since }),
+        ...(filter.until === undefined ? {} : { until: filter.until }),
+        ...(filter.beforeAt === undefined ? {} : { beforeAt: filter.beforeAt }),
+        ...(filter.beforeId === undefined ? {} : { beforeId: filter.beforeId }),
+        ...(filter.query === undefined ? {} : { query: filter.query }),
       });
     },
 

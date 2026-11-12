@@ -148,6 +148,28 @@ const ICONS: Record<string, ReactNode> = {
       <circle cx="6" cy="6" r="0.9" fill="currentColor" />
     </svg>
   ),
+  // A ledger sheet: usage is a record of what was spent, not a gauge.
+  usage: (
+    <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
+      <rect
+        x="3"
+        y="2.5"
+        width="10"
+        height="11"
+        rx="1.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+      <path
+        d="M5.6 6h4.8M5.6 8.5h4.8M5.6 11h2.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  ),
   operations: (
     <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
       <rect

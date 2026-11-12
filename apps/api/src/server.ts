@@ -140,6 +140,8 @@ import { createProjectAccess, registerProjectAccessGuard } from './project-acces
 import { RunOwnership } from './run-ownership.js';
 import { registerIntegrationRoutes } from './routes/integrations.js';
 import { registerBillingRoutes } from './routes/billing.js';
+import { registerUsageHistoryRoutes } from './routes/usage-history.js';
+import { createUsageHistoryService } from './usage-history.js';
 import { createBilledRunTracker } from './billing-hooks.js';
 import { createInfrastructureMetering } from './infrastructure-metering.js';
 import { createUnifiedBilling } from './unified-billing.js';
@@ -688,6 +690,24 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   });
 
   /*
+   * Step 58: one read layer over the four billing lanes.
+   *
+   * It is built here, after the wallet, the two charge lanes and the meter exist,
+   * because it reads all four and writes none of them. No new table, no second
+   * balance: the dashboard's numbers are the ledger's numbers plus the charges
+   * that explain them.
+   */
+  const usageHistory = createUsageHistoryService({
+    wallet: walletService,
+    messageCredits: messageCreditService,
+    integrationCredits: integrationCreditService,
+    usage: usageService,
+    ...(Number(env.VELTRAVIA_USAGE_HISTORY_SCAN_CAP ?? 0) > 0
+      ? { scanCap: Number(env.VELTRAVIA_USAGE_HISTORY_SCAN_CAP) }
+      : {}),
+  });
+
+  /*
    * A bandwidth sample is one record per owner per minute, flushed by a timer:
    * writing a record per request would drown the ledger in noise. `0` disables it,
    * which is the right default for a test harness.
@@ -725,6 +745,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     metering,
     usage: usageService,
   });
+  registerUsageHistoryRoutes(app, { history: usageHistory });
 
   /*
    * Step 56: the hold sweep runs on a timer, not on somebody remembering.

@@ -237,13 +237,33 @@ export class PostgresMessageCreditStore implements MessageCreditStore {
 
   async listCharges(ownerRef: string, filter: ChargeFilter): Promise<ChargePage> {
     requireOwner();
+    // Step 58 added the bounds and the search: a usage history filters a date
+    // range, a model and a provider in the database, because filtering a page
+    // after reading it would hide matches rather than find them.
     const where = `owner_ref = $1
       and ($2::text is null or workspace_id = $2)
       and ($3::text is null or conversation_id = $3)
       and ($4::text is null or project_id = $4)
       and ($5::text is null or run_id = $5)
       and ($6::text is null or kind = $6)
-      and ($7::text is null or state = $7)`;
+      and ($7::text is null or state = $7)
+      and ($8::timestamptz is null or created_at >= $8::timestamptz)
+      and ($9::timestamptz is null or created_at <= $9::timestamptz)
+      and ($12::text is null or model_id = $12)
+      and ($13::text is null or provider_id = $13)
+      and (
+        $10::timestamptz is null
+        or created_at < $10::timestamptz
+        or (created_at = $10::timestamptz and id < $11::text)
+      )
+      and (
+        $14::text is null
+        or id ilike $14
+        or coalesce(model_id, '') ilike $14
+        or coalesce(provider_id, '') ilike $14
+        or coalesce(project_id, '') ilike $14
+        or coalesce(kind, '') ilike $14
+      )`;
     const params = [
       ownerRef,
       filter.workspaceId ?? null,
@@ -252,12 +272,19 @@ export class PostgresMessageCreditStore implements MessageCreditStore {
       filter.runId ?? null,
       filter.kind ?? null,
       filter.state ?? null,
+      filter.since ?? null,
+      filter.until ?? null,
+      filter.beforeAt ?? null,
+      filter.beforeId ?? null,
+      filter.modelId ?? null,
+      filter.providerId ?? null,
+      filter.query === undefined || filter.query.trim() === '' ? null : `%${filter.query.trim()}%`,
     ];
     const rows = await this.query.query<ChargeRow>(
       `select ${COLUMNS} from message_charges
         where ${where}
         order by created_at desc, id desc
-        limit $8 offset $9`,
+        limit $15 offset $16`,
       [...params, filter.limit, filter.offset ?? 0],
     );
     const total = await this.query.query<{ total: string }>(

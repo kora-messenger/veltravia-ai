@@ -28,6 +28,7 @@ import {
   UnifiedAppPage,
   ExecutePage,
   OperationsPage,
+  UsageHistoryPage,
   SettingsPage,
 } from './pages';
 
@@ -89,6 +90,8 @@ export function App() {
                   return <ExecutePage />;
                 case 'operations':
                   return <OperationsPage />;
+                case 'usage':
+                  return <UsageHistoryPage />;
                 case 'settings':
                   return <SettingsPage />;
                 default:
