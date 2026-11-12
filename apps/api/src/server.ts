@@ -88,6 +88,7 @@ import { randomUUID } from 'node:crypto';
 import { registerUsageRoutes } from './routes/usage.js';
 import { registerWalletRoutes } from './routes/wallet.js';
 import { registerMessageCreditRoutes } from './routes/message-credits.js';
+import { registerIntegrationCreditRoutes } from './routes/integration-credits.js';
 import { createUsageService } from './usage-service.js';
 import { createWalletService } from './wallet-service.js';
 import { createMessageCreditService } from './message-credit-service.js';
@@ -139,6 +140,10 @@ import { createProjectAccess, registerProjectAccessGuard } from './project-acces
 import { RunOwnership } from './run-ownership.js';
 import { registerIntegrationRoutes } from './routes/integrations.js';
 import { createIntegrationSystem, type ApiIntegrationSystem } from './integrations.js';
+import {
+  createIntegrationCreditService,
+  type IntegrationBillingGate,
+} from './integration-credit-service.js';
 import { createGitHubApiConnector } from './github.js';
 
 /** A positive integer from the environment, or 0 when unset or nonsense. */
@@ -461,7 +466,18 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Step 40 synchroniser share it, so there is one token, one repository scope
   // and one set of operations. Never a second GitHub integration.
   const githubConnector = options.githubConnector ?? createGitHubApiConnector({});
-  const integrations = options.integrations ?? createIntegrationSystem({ github: githubConnector });
+  /*
+   * Step 56: the credit gate is resolved per call, because the wallet that pays
+   * for integration work is assembled further down. Declaring the holder here
+   * keeps creation order intact and means one billing decision, not two.
+   */
+  const integrationBillingRef: { gate: IntegrationBillingGate | null } = { gate: null };
+  const integrations =
+    options.integrations ??
+    createIntegrationSystem({
+      github: githubConnector,
+      billing: () => integrationBillingRef.gate,
+    });
   registerIntegrationRoutes(app, integrations);
 
   // Agent execution endpoints: bounded runs, confirmation flow, cancellation.
@@ -583,9 +599,23 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
    */
   const operationBilling = createOperationBilling({ messageCredits: messageCreditService });
 
+  /*
+   * Step 56: integration credits sit on the same wallet and the same plan as
+   * message credits, and price external work rather than model work. Every
+   * connector operation through the integration runtime passes the gate.
+   */
+  const integrationCreditService = createIntegrationCreditService({
+    env,
+    store: persistence?.stores?.integrationCredits,
+    wallet: walletService,
+    planOf: async (ownerRef) => (await usageService.entitlement(ownerRef)).planId,
+  });
+  integrationBillingRef.gate = integrationCreditService;
+
   registerUsageRoutes(app, { usage: usageService }, env);
   registerWalletRoutes(app, { wallet: walletService }, env);
   registerMessageCreditRoutes(app, { messageCredits: messageCreditService }, env);
+  registerIntegrationCreditRoutes(app, { integrationCredits: integrationCreditService }, env);
   registerWorkerRoutes(app, {
     workers: workerService,
     verification: verificationService,

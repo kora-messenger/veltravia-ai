@@ -1441,3 +1441,163 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+.v-intcredit {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.v-intcredit__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.v-intcredit__balances {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.v-intcredit__balance {
+  border: 1px solid var(--v-border, #e4e4ef);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.v-intcredit__label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--v-muted, #6b6a7d);
+}
+
+.v-intcredit__warning {
+  border-left: 3px solid #b42318;
+  background: #fdf2f2;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.v-intcredit__holds,
+.v-intcredit__charges,
+.v-intcredit__usage,
+.v-intcredit__policy,
+.v-intcredit__limits,
+.v-intcredit__rates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.v-intcredit__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.v-intcredit__tabs button[aria-pressed='true'] {
+  background: #3b51e5;
+  color: #fff;
+  border-color: #3b51e5;
+}
+
+.v-intcredit__usage table,
+.v-intcredit__rates table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.v-intcredit__usage th,
+.v-intcredit__rates th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--v-muted, #6b6a7d);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--v-border, #e4e4ef);
+}
+
+.v-intcredit__usage td,
+.v-intcredit__rates td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--v-border, #f1f1f6);
+}
+
+.v-intcredit__usage td:not(:first-child),
+.v-intcredit__rates td:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Step 56: the hold list and the class legend sit beside the balance. */
+.v-intcredit__holds {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.v-intcredit__holds li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--v-border, #f1f1f6);
+  padding-bottom: 4px;
+}
+
+.v-intcredit__measured,
+.v-intcredit__classes,
+.v-intcredit__tabs,
+.v-intcredit__charges {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.v-intcredit__classes ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.v-intcredit__classes li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.v-intcredit__limits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.v-intcredit__limits h3 {
+  flex-basis: 100%;
+}
+
+.v-intcredit__limits label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--v-muted, #6b6a7d);
+}

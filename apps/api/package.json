@@ -31,12 +31,14 @@
     "@veltravia/generation-core": "*",
     "@veltravia/generation-mock": "*",
     "@veltravia/integration-core": "*",
+    "@veltravia/integration-credits-core": "*",
     "@veltravia/integration-mocks": "*",
     "@veltravia/memory-core": "0.1.0",
     "@veltravia/memory-mock": "0.1.0",
     "@veltravia/project-core": "*",
     "@veltravia/project-mock": "*",
     "@veltravia/sandbox-core": "*",
+    "@veltravia/sandbox-local": "*",
     "@veltravia/sandbox-mock": "*",
     "@veltravia/shared": "*",
     "@veltravia/storage-postgres": "*",
@@ -47,12 +49,11 @@
     "@veltravia/tool-core": "*",
     "@veltravia/tool-mock": "*",
     "@veltravia/types": "*",
+    "@veltravia/verification-core": "*",
     "@veltravia/video-intelligence-core": "0.1.0",
     "@veltravia/video-intelligence-mock": "0.1.0",
     "fastify": "^5.2.0",
-    "pino": "^10.3.1",
-    "@veltravia/verification-core": "*",
-    "@veltravia/sandbox-local": "*"
+    "pino": "^10.3.1"
   },
   "devDependencies": {
     "tsx": "^4.19.2"

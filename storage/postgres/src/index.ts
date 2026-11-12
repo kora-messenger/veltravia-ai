@@ -20,6 +20,7 @@ import {
 import { PostgresUsageStore } from './repositories/usage.js';
 import { PostgresWalletStore } from './repositories/wallet.js';
 import { PostgresMessageCreditStore } from './repositories/message-credits.js';
+import { PostgresIntegrationCreditStore } from './repositories/integration-credits.js';
 
 import { PostgresRecoveryStore } from './repositories/recovery.js';
 import {
@@ -164,6 +165,7 @@ export interface PostgresStores {
   readonly usage: PostgresUsageStore;
   readonly wallet: PostgresWalletStore;
   readonly messageCredits: PostgresMessageCreditStore;
+  readonly integrationCredits: PostgresIntegrationCreditStore;
 }
 
 export function createPostgresStores(database: Database): PostgresStores {
@@ -196,6 +198,7 @@ export function createPostgresStores(database: Database): PostgresStores {
     usage: new PostgresUsageStore(database),
     wallet: new PostgresWalletStore(database),
     messageCredits: new PostgresMessageCreditStore(database),
+    integrationCredits: new PostgresIntegrationCreditStore(database),
   };
 }
 

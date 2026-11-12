@@ -29,6 +29,7 @@ import { RecoveryPanel } from './RecoveryPanel';
 import { ReliabilityPanel } from './ReliabilityPanel';
 import { UsagePanel } from './UsagePanel';
 import { MessageCreditsPanel } from './MessageCreditsPanel';
+import { IntegrationCreditsPanel } from './IntegrationCreditsPanel';
 import { WalletPanel } from './WalletPanel';
 import {
   RECOVERY_NOTIFICATION_LABEL as RECOVERY_NOTIFICATION_COPY,
@@ -761,6 +762,8 @@ export function OperationsPage() {
 
       {/* Step 53: credits, what they were spent on, and the rate table. */}
       <MessageCreditsPanel />
+      {/* Step 56: third-party and connector work, priced apart from model work. */}
+      <IntegrationCreditsPanel />
       <WalletPanel />
 
       {selectedWorker !== null && (

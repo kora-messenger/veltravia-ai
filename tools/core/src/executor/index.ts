@@ -47,7 +47,25 @@ export interface ToolExecutorHost {
   executeConnectorOperation?(
     tool: ToolDefinition,
     input: Readonly<Record<string, unknown>>,
+    context?: ConnectorExecutionContext,
   ): Promise<Record<string, unknown>>;
+}
+
+/**
+ * Identifiers of the invocation that reached the connector seam (Step 56).
+ *
+ * They exist so a billable external operation can be traced back to the exact
+ * tool call that asked for it. Optional: a caller that does not know them keeps
+ * the old two-argument contract.
+ */
+export interface ConnectorExecutionContext {
+  readonly invocationId?: string;
+  readonly correlationId?: string;
+  /**
+   * The account the invocation belongs to, when the caller knows it. Billing a
+   * connector operation needs an owner; absent means the wiring's own default.
+   */
+  readonly ownerRef?: string;
 }
 
 /**
@@ -287,7 +305,12 @@ export class ToolExecutor {
         invocationId: invocation.id,
       });
       try {
-        output = await this.host.executeConnectorOperation(tool, invocation.input);
+        output = await this.host.executeConnectorOperation(tool, invocation.input, {
+          invocationId: invocation.id,
+          ...(invocation.correlationId === undefined
+            ? {}
+            : { correlationId: invocation.correlationId }),
+        });
       } catch (error) {
         if (isToolError(error)) throw error;
         throw new ToolExecutionError(tool.id, (error as Error).message ?? 'operation failed', {

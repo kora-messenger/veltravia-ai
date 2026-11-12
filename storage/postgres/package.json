@@ -21,6 +21,7 @@
   "dependencies": {
     "@veltravia/change-integration-core": "*",
     "@veltravia/execution-core": "*",
+    "@veltravia/integration-credits-core": "*",
     "@veltravia/memory-core": "*",
     "@veltravia/message-credits-core": "*",
     "@veltravia/orchestration-core": "*",

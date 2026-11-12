@@ -541,3 +541,36 @@ an empty workspace wallet refused work the account could plainly afford.
 
 Not delivered: no payment processing, no per-seat workspace funding flow, and the token
 rates still only bite on a managed-key deployment.
+
+## Step 56 - integration credits and connector usage billing
+
+Third-party work is now priced, held and settled the way model work already was, and kept
+visibly separate from it. Every integration, connector, plugin and external-service
+operation is classified before it runs: **free**, **paid** (Veltravia supplies the
+credential, so the operation is priced in credits) or **externally billed** (the service
+charges the user's own account, so Veltravia charges nothing unless a policy explicitly
+says it may). A free integration and a service billing the user directly are recorded as
+exempt with the reason, never as a silent zero.
+
+Billable operations take a hold before the call and settle against the platform's own
+measurement (one dispatched operation and its wall clock). A refused hold happens before
+anything external runs; a failure, timeout or cancellation releases the hold instead of
+leaving it to the sweep. A retried operation carrying the same idempotency key finds its
+first charge instead of paying twice, and every charge names its owner, workspace, project,
+integration, connector, operation, connection and execution.
+
+A measurement nobody reported stays unknown: the charge records `request-count-unavailable`
+rather than counting as zero usage. The rates are **configurable defaults, not market
+prices**, per integration, per operation and per plan, and the policy endpoint says which.
+The operations dashboard gained an integration-credit panel: balance and holds, the three
+billing classes, the rate table, spending limits, where the credit went, and the charge
+ledger with its limitations. See `docs/integration-credits.md`.
+
+BYOK stays excluded: a call made with the owner's own provider key is exempt and says so, so
+provider spending is never converted into platform credits.
+
+Not delivered: no payment processing or real-money purchase of integration credits, no
+per-integration funding flow, no operator UI for refunds (the guarded route exists), and the
+hold sweep still runs on demand rather than on a schedule. Charges file under the owner that
+owns the connector connections, which is the deployment's owner; a real auth layer would pass
+the caller through the same seam.

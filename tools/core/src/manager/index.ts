@@ -111,6 +111,14 @@ export interface ConnectorOperationExecutor {
   executeConnectorOperation(
     tool: ToolDefinition,
     input: Readonly<Record<string, unknown>>,
+    context?: {
+      /** The single tool invocation this execution belongs to. */
+      readonly invocationId?: string;
+      /** Correlates related invocations across one agent conversation. */
+      readonly correlationId?: string;
+      /** The account the invocation belongs to, when the caller knows it. */
+      readonly ownerRef?: string;
+    },
   ): Promise<Record<string, unknown>>;
 }
 
@@ -160,7 +168,12 @@ export class ToolManager {
               executeConnectorOperation: (
                 tool: ToolDefinition,
                 input: Readonly<Record<string, unknown>>,
-              ) => connectorExecutor.executeConnectorOperation(tool, input),
+                context?: {
+                  invocationId?: string;
+                  correlationId?: string;
+                  ownerRef?: string;
+                },
+              ) => connectorExecutor.executeConnectorOperation(tool, input, context),
             }
           : {}),
       },

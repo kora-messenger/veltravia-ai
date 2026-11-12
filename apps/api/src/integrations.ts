@@ -22,6 +22,8 @@ import {
 import type { ToolDefinition, ToolManager } from '@veltravia/tool-core';
 import type { ConnectorOperationExecutor } from '@veltravia/tool-core';
 
+import type { IntegrationBillingGate } from './integration-credit-service.js';
+
 import type { GitHubApiConnector } from './github.js';
 import { githubIntegrationDefinition, GITHUB_INTEGRATION_ID } from '@veltravia/connector-github';
 
@@ -87,6 +89,15 @@ export interface IntegrationSystemOptions {
   readonly github: GitHubApiConnector;
   /** Audit sink for the whole integration system. */
   readonly onAudit?: (event: IntegrationAuditEvent) => void;
+  /**
+   * Step 56: the credit gate every executed operation passes through.
+   *
+   * Resolved per call rather than captured, because the wallet that pays for the
+   * work is assembled after this system: a resolver keeps one creation order and
+   * one billing decision. Absent means the deployment does not bill integration
+   * work, which is the honest state of a test harness with no wallet.
+   */
+  readonly billing?: () => IntegrationBillingGate | null;
 }
 
 export function createIntegrationSystem(options: IntegrationSystemOptions): ApiIntegrationSystem {
@@ -216,7 +227,7 @@ export function createIntegrationSystem(options: IntegrationSystemOptions): ApiI
       // input schema, permissions, connector authorization, confirmation)
       // passed. The runtime re-enforces its own boundary: connection state,
       // granted scopes, risk gate, and the secret boundary.
-      executeConnectorOperation: async (tool, input) => {
+      executeConnectorOperation: async (tool, input, context) => {
         const integrationId = tool.integrationId;
         const connectionId = typeof input['connectionId'] === 'string' ? input['connectionId'] : '';
         if (integrationId === undefined || connectionId.length === 0) {
@@ -225,14 +236,47 @@ export function createIntegrationSystem(options: IntegrationSystemOptions): ApiI
           );
         }
         const operationId = tool.connector?.operationId ?? tool.id;
-        const result = await runtime.execute({
-          integrationId,
-          connectionId,
-          owner,
-          operationId,
-          input,
-          confirmationGated: true,
-        });
+        const run = () =>
+          runtime.execute({
+            integrationId,
+            connectionId,
+            owner,
+            operationId,
+            input,
+            confirmationGated: true,
+          });
+        /*
+         * Step 56: hold the credit before the call, settle after it, release when
+         * it fails. The gate refuses here, before anything external happens, so a
+         * caller who cannot pay for the operation does not run it.
+         *
+         * The charge is filed under the owner that owns these connections - the
+         * deployment's integration owner, which is the same owner the default
+         * header resolves to. A future auth layer passes the caller through this
+         * context instead of changing the billing rule.
+         */
+        const gate = options.billing?.() ?? null;
+        if (gate === null) {
+          const result = await run();
+          return result.output;
+        }
+        const result = await gate.bill(
+          {
+            ownerRef: context?.ownerRef ?? owner.id,
+            kind: 'integration.operation',
+            operationId,
+            integrationId,
+            connectorId: integrationId,
+            connectionId,
+            ...(context?.invocationId === undefined ? {} : { requestId: context.invocationId }),
+            ...(context?.correlationId === undefined ? {} : { executionId: context.correlationId }),
+            ...(typeof input['workspaceId'] === 'string'
+              ? { workspaceId: input['workspaceId'] }
+              : {}),
+            ...(typeof input['projectId'] === 'string' ? { projectId: input['projectId'] } : {}),
+          },
+          run,
+        );
         return result.output;
       },
     };
