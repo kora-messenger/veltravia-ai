@@ -21,6 +21,7 @@ import { PostgresUsageStore } from './repositories/usage.js';
 import { PostgresWalletStore } from './repositories/wallet.js';
 import { PostgresMessageCreditStore } from './repositories/message-credits.js';
 import { PostgresIntegrationCreditStore } from './repositories/integration-credits.js';
+export { PostgresSpendingLimitStore } from './repositories/spending-limits.js';
 
 import { PostgresRecoveryStore } from './repositories/recovery.js';
 import {
@@ -134,6 +135,7 @@ import { PostgresBranchStore, PostgresRevisionStore } from './repositories/versi
 import { PostgresRunRecordStore } from './repositories/runs.js';
 import { PostgresExportJobStore } from './repositories/exports.js';
 import { PostgresSyncStore } from './repositories/sync.js';
+import { PostgresSpendingLimitStore } from './repositories/spending-limits.js';
 
 /** Every repository the platform needs, bound to one database handle. */
 export interface PostgresStores {
@@ -166,6 +168,7 @@ export interface PostgresStores {
   readonly wallet: PostgresWalletStore;
   readonly messageCredits: PostgresMessageCreditStore;
   readonly integrationCredits: PostgresIntegrationCreditStore;
+  readonly spendingLimits: PostgresSpendingLimitStore;
 }
 
 export function createPostgresStores(database: Database): PostgresStores {
@@ -199,6 +202,7 @@ export function createPostgresStores(database: Database): PostgresStores {
     wallet: new PostgresWalletStore(database),
     messageCredits: new PostgresMessageCreditStore(database),
     integrationCredits: new PostgresIntegrationCreditStore(database),
+    spendingLimits: new PostgresSpendingLimitStore(database),
   };
 }
 

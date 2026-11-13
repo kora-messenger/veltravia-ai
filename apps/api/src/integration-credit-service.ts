@@ -38,6 +38,8 @@ import {
   type IntegrationMeasurement,
   type IntegrationOperationKind,
   type IntegrationSpendingSettings,
+  type LimitUsageGroup,
+  type LimitUsageOptions,
   type MeasurementUnit,
   type UsageDimension,
   type UsageGroup,
@@ -218,6 +220,14 @@ export interface IntegrationCreditService extends IntegrationBillingGate {
     filter: Omit<ChargeFilter, 'limit'> & { readonly limit?: number },
   ): Promise<unknown>;
   usage(input: WalletRef, dimension: UsageDimension): Promise<readonly UsageGroup[]>;
+  /**
+   * Step 59: credit per integration operation kind inside one window, holds
+   * included. A spending limit counts a hold against the allowance, which the
+   * dashboard's `usage` aggregate cannot answer.
+   */
+  limitUsage(input: WalletRef, options: LimitUsageOptions): Promise<readonly LimitUsageGroup[]>;
+  /** Credit held right now by work in flight. */
+  heldCredits(input: WalletRef): Promise<number>;
   settings(input: WalletRef): Promise<IntegrationSpendingSettings>;
   updateSettings(
     input: WalletRef & {
@@ -229,6 +239,34 @@ export interface IntegrationCreditService extends IntegrationBillingGate {
     readonly wallet: unknown;
     readonly chargesWithoutEntry: number;
     readonly consistent: boolean;
+  }>;
+}
+
+/**
+ * Step 59: the account-wide credit limits, consulted before an integration hold.
+ * A getter, for the same reason the message path uses one: the limit service
+ * reads these charges, so it is built after this one.
+ */
+export interface IntegrationSpendingGuard {
+  authorize(input: {
+    readonly ownerRef: string;
+    readonly workspaceId: string | null;
+    readonly projectId: string | null;
+    readonly category: 'integrations';
+    readonly requested: number;
+    readonly actor: string;
+  }): Promise<{
+    readonly allowed: boolean;
+    readonly violation: {
+      readonly reason: string;
+      readonly message: string;
+      readonly ruleId: string | null;
+      readonly limit: number | null;
+      readonly requested: number;
+      readonly consumed: number | null;
+      readonly remaining: number | null;
+      readonly window: { readonly end: string } | null;
+    } | null;
   }>;
 }
 
@@ -244,6 +282,8 @@ export interface IntegrationCreditServiceOptions {
   readonly paidPlanId?: SubscriptionPlanId;
   /** Injected by tests that need a plan with a small allowance. */
   readonly planFor?: (planId: string) => IntegrationPlanDefinition;
+  /** Step 59: the account-wide limits, as a getter (see IntegrationSpendingGuard). */
+  readonly spendingLimits?: (() => IntegrationSpendingGuard | undefined) | undefined;
   readonly env?: NodeJS.ProcessEnv | undefined;
   readonly now?: (() => Date) | undefined;
 }
@@ -629,133 +669,176 @@ export function createIntegrationCreditService(
         };
       }
 
-      const { planId, plan, policy } = await policyFor(input);
-      const classification = classifyWith(planId, input);
-      const estimate = estimateIntegrationCharge({
-        policy,
-        billingClass: classification.billingClass,
-        ...(input.byok === true ? { byok: true } : {}),
-        credential: input.credential ?? null,
-      });
-      const settings = await settingsOf(input);
-
-      if (settings.perOperationLimit !== null && estimate.credits > settings.perOperationLimit) {
-        throw new IntegrationCreditError(
-          'OPERATION_LIMIT_EXCEEDED',
-          `This operation is estimated at ${estimate.credits} credits, above your per-operation limit of ${settings.perOperationLimit}.`,
-          400,
-          { estimated: estimate.credits, limit: settings.perOperationLimit },
-        );
-      }
-
-      const month = await monthTotals(input);
-      if (
-        settings.monthlyLimit !== null &&
-        month.credits + estimate.credits > settings.monthlyLimit
-      ) {
-        throw new IntegrationCreditError(
-          'MONTHLY_LIMIT_EXCEEDED',
-          `Your monthly integration-credit limit of ${settings.monthlyLimit} would be exceeded.`,
-          402,
-          { spent: month.credits, limit: settings.monthlyLimit, estimated: estimate.credits },
-        );
-      }
-
-      const draft: IntegrationChargeDraft = {
-        ownerRef: input.ownerRef,
-        workspaceId: input.workspaceId ?? null,
-        projectId: input.projectId ?? null,
-        integrationId: input.integrationId ?? null,
-        connectorId: input.connectorId ?? null,
-        pluginId: input.pluginId ?? null,
-        operationId: input.operationId ?? null,
-        executionId: input.executionId ?? null,
-        requestId: input.requestId ?? null,
-        connectionId: input.connectionId ?? null,
-        kind: input.kind,
-        billingClass: classification.billingClass,
-        planId,
-        estimatedCredits: estimate.credits,
-        policyId: classification.policyId ?? 'none',
-        byok: isUserCredential(input),
-        idempotencyKey,
-      };
-
-      if (!classification.billable || estimate.exempt || estimate.credits === 0) {
-        const computed = computeIntegrationCharge({
+      /*
+       * The decision and the hold it authorises are one step. They run under the
+       * owner's guard, so two simultaneous requests cannot both read the same
+       * untouched allowance and both be told yes (Step 59).
+       */
+      return store.withOwnerGuard(input.ownerRef, async () => {
+        const { planId, plan, policy } = await policyFor(input);
+        const classification = classifyWith(planId, input);
+        const estimate = estimateIntegrationCharge({
           policy,
-          planBillable: plan.billable,
           billingClass: classification.billingClass,
-          measurement: {
-            ...(input.byok === true ? { byok: true } : {}),
-            credential: input.credential ?? null,
-          },
+          ...(input.byok === true ? { byok: true } : {}),
+          credential: input.credential ?? null,
         });
-        const { charge } = await store.insertCharge(
-          materialise(draft, 'exempt', { limitations: computed.limitations }),
+        /*
+         * Step 59: the account-wide limits decide first, so a person who set a
+         * monthly integration ceiling or a workspace ceiling gets that rule named
+         * in the refusal rather than the older per-integration one.
+         */
+        const spendingGuard = options.spendingLimits?.();
+        if (spendingGuard !== undefined) {
+          const decision = await spendingGuard.authorize({
+            ownerRef: input.ownerRef,
+            workspaceId: input.workspaceId ?? null,
+            projectId: input.projectId ?? null,
+            category: 'integrations',
+            requested: estimate.credits,
+            actor: 'integration-credits',
+          });
+          if (!decision.allowed && decision.violation !== null) {
+            throw new IntegrationCreditError(
+              'SPENDING_LIMIT_REACHED',
+              decision.violation.message,
+              402,
+              {
+                reason: decision.violation.reason,
+                ruleId: decision.violation.ruleId,
+                limit: decision.violation.limit,
+                requested: decision.violation.requested,
+                consumed: decision.violation.consumed,
+                remaining: decision.violation.remaining,
+                resetsAt: decision.violation.window?.end ?? null,
+              },
+            );
+          }
+        }
+
+        const settings = await settingsOf(input);
+
+        if (settings.perOperationLimit !== null && estimate.credits > settings.perOperationLimit) {
+          throw new IntegrationCreditError(
+            'OPERATION_LIMIT_EXCEEDED',
+            `This operation is estimated at ${estimate.credits} credits, above your per-operation limit of ${settings.perOperationLimit}.`,
+            400,
+            { estimated: estimate.credits, limit: settings.perOperationLimit },
+          );
+        }
+
+        const month = await monthTotals(input);
+        if (
+          settings.monthlyLimit !== null &&
+          month.credits + estimate.credits > settings.monthlyLimit
+        ) {
+          throw new IntegrationCreditError(
+            'MONTHLY_LIMIT_EXCEEDED',
+            `Your monthly integration-credit limit of ${settings.monthlyLimit} would be exceeded.`,
+            402,
+            { spent: month.credits, limit: settings.monthlyLimit, estimated: estimate.credits },
+          );
+        }
+
+        const draft: IntegrationChargeDraft = {
+          ownerRef: input.ownerRef,
+          workspaceId: input.workspaceId ?? null,
+          projectId: input.projectId ?? null,
+          integrationId: input.integrationId ?? null,
+          connectorId: input.connectorId ?? null,
+          pluginId: input.pluginId ?? null,
+          operationId: input.operationId ?? null,
+          executionId: input.executionId ?? null,
+          requestId: input.requestId ?? null,
+          connectionId: input.connectionId ?? null,
+          kind: input.kind,
+          billingClass: classification.billingClass,
+          planId,
+          estimatedCredits: estimate.credits,
+          policyId: classification.policyId ?? 'none',
+          byok: isUserCredential(input),
+          idempotencyKey,
+        };
+
+        if (!classification.billable || estimate.exempt || estimate.credits === 0) {
+          const computed = computeIntegrationCharge({
+            policy,
+            planBillable: plan.billable,
+            billingClass: classification.billingClass,
+            measurement: {
+              ...(input.byok === true ? { byok: true } : {}),
+              credential: input.credential ?? null,
+            },
+          });
+          const { charge } = await store.insertCharge(
+            materialise(draft, 'exempt', { limitations: computed.limitations }),
+          );
+          const balances = await wallet.overview(await refOf(input));
+          return {
+            charge,
+            created: true,
+            classification,
+            estimate,
+            reservationId: null,
+            walletAvailable: balances.wallet.available,
+          };
+        }
+
+        // The row is written before the hold so a crash between the two leaves an
+        // auditable "reserved with no hold" row the sweep can close, rather than a
+        // hold nobody can explain.
+        const { charge, created } = await store.insertCharge(materialise(draft, 'reserved'));
+        if (!created) {
+          const balances = await wallet.overview(await refOf(input));
+          return {
+            charge,
+            created: false,
+            classification,
+            estimate,
+            reservationId: charge.reservationId,
+            walletAvailable: balances.wallet.available,
+          };
+        }
+
+        let reservation;
+        try {
+          reservation = await wallet.reserve({
+            ...(await refOf(input)),
+            amount: estimate.credits,
+            operationKey: `integration:${charge.id}`,
+            reason: `Integration credit hold for ${input.integrationId ?? 'an integration'} ${input.operationId}.`,
+            actor: 'integration-credits',
+          });
+        } catch (error) {
+          await save(
+            {
+              ...charge,
+              state: 'released',
+              failureReason:
+                error instanceof Error && typeof (error as { code?: unknown }).code === 'string'
+                  ? String((error as { code?: unknown }).code)
+                  : 'reservation-refused',
+              settledAt: now().toISOString(),
+            },
+            'reserved',
+          );
+          throw error;
+        }
+
+        const held = await save(
+          { ...charge, reservationId: reservation.reservation.id },
+          'reserved',
         );
         const balances = await wallet.overview(await refOf(input));
         return {
-          charge,
+          charge: held,
           created: true,
           classification,
           estimate,
-          reservationId: null,
+          reservationId: reservation.reservation.id,
           walletAvailable: balances.wallet.available,
         };
-      }
-
-      // The row is written before the hold so a crash between the two leaves an
-      // auditable "reserved with no hold" row the sweep can close, rather than a
-      // hold nobody can explain.
-      const { charge, created } = await store.insertCharge(materialise(draft, 'reserved'));
-      if (!created) {
-        const balances = await wallet.overview(await refOf(input));
-        return {
-          charge,
-          created: false,
-          classification,
-          estimate,
-          reservationId: charge.reservationId,
-          walletAvailable: balances.wallet.available,
-        };
-      }
-
-      let reservation;
-      try {
-        reservation = await wallet.reserve({
-          ...(await refOf(input)),
-          amount: estimate.credits,
-          operationKey: `integration:${charge.id}`,
-          reason: `Integration credit hold for ${input.integrationId ?? 'an integration'} ${input.operationId}.`,
-          actor: 'integration-credits',
-        });
-      } catch (error) {
-        await save(
-          {
-            ...charge,
-            state: 'released',
-            failureReason:
-              error instanceof Error && typeof (error as { code?: unknown }).code === 'string'
-                ? String((error as { code?: unknown }).code)
-                : 'reservation-refused',
-            settledAt: now().toISOString(),
-          },
-          'reserved',
-        );
-        throw error;
-      }
-
-      const held = await save({ ...charge, reservationId: reservation.reservation.id }, 'reserved');
-      const balances = await wallet.overview(await refOf(input));
-      return {
-        charge: held,
-        created: true,
-        classification,
-        estimate,
-        reservationId: reservation.reservation.id,
-        walletAvailable: balances.wallet.available,
-      };
+      });
     },
 
     async commit(input) {
@@ -1044,6 +1127,14 @@ export function createIntegrationCreditService(
         ...(filter.beforeId === undefined ? {} : { beforeId: filter.beforeId }),
         ...(filter.query === undefined ? {} : { query: filter.query }),
       });
+    },
+
+    async limitUsage(ref, options) {
+      return store.limitUsage(ref.ownerRef, options);
+    },
+
+    async heldCredits(ref) {
+      return store.heldCredits(ref.ownerRef);
     },
 
     async usage(ref, dimension) {

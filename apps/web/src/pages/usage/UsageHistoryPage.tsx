@@ -16,6 +16,7 @@ import {
   type UsageHistoryOverview,
   type UsageHistoryQuery,
 } from '../../api/usage-history';
+import { SpendingLimitsPanel, type SpendingLimitsPanelDeps } from './SpendingLimitsPanel';
 import './usage-history.css';
 
 /**
@@ -46,6 +47,8 @@ export interface UsageHistoryDeps {
   ) => Promise<UsageBreakdownView>;
   /** Injected in tests so the export link is stable. */
   readonly exportUrl?: (query: UsageHistoryQuery) => string;
+  /** The limits panel's own reads and writes, injected in tests. */
+  readonly limits?: SpendingLimitsPanelDeps;
 }
 
 type LoadState = 'loading' | 'ready' | 'error';
@@ -335,6 +338,13 @@ export function UsageHistoryPage({ deps = {} }: { deps?: UsageHistoryDeps }) {
         Credits are Veltravia&apos;s own unit. They are not a currency, and this page does not
         convert them to money.
       </p>
+
+      {/*
+        Limits sit above the history, not below it: this is the only control on
+        the page that changes what the platform will refuse, and a reader looking
+        for "why was I stopped" should meet it before a table of past charges.
+      */}
+      <SpendingLimitsPanel {...(deps?.limits === undefined ? {} : { deps: deps.limits })} />
 
       <section className="v-usage__panel" aria-labelledby="v-usage-filters">
         <h3 id="v-usage-filters">Filters</h3>

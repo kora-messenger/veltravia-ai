@@ -99,6 +99,7 @@ export default defineConfig({
       'wallet/*/src/**/*.test.ts',
       'message-credits/*/src/**/*.test.ts',
       'integration-credits/*/src/**/*.test.ts',
+      'spending-limits/*/src/**/*.test.ts',
       'export/*/src/**/*.test.ts',
       'sync/*/src/**/*.test.ts',
       'testing/*/src/**/*.test.ts',

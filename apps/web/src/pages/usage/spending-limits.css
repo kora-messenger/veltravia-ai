@@ -1,0 +1,261 @@
+/*
+ * Spending limits (Step 59).
+ *
+ * This panel sits inside the Step 58 usage page, so it reuses that page's
+ * spacing and type scale rather than introducing a second language. Four things
+ * are deliberate:
+ *
+ *  - the bar is the only strong colour, and it is filled by consumption, so a
+ *    glance answers "how much of my limit is gone" before any number is read;
+ *  - a reached limit is not red text alone: the row carries a state word, so
+ *    colour is never the only carrier of meaning;
+ *  - the form uses a two-column grid on a desktop and one column under 720px,
+ *    because a seven-field row on a phone is seven rows whatever the css says;
+ *  - numbers are tabular, matching the surrounding usage figures.
+ */
+
+.limits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-4);
+  padding: var(--v-space-5);
+  border: 1px solid var(--v-neutral-200, #e6e6e9);
+  border-radius: var(--v-radius-lg, 14px);
+  background: var(--v-neutral-0, #fff);
+  min-width: 0;
+}
+
+.limits__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.limits__title {
+  margin: 0 0 var(--v-space-1);
+  font-size: var(--v-text-xl, 1.25rem);
+  color: var(--v-neutral-900, #16161a);
+}
+
+.limits__note {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--v-text-sm, 0.875rem);
+  line-height: 1.55;
+  color: var(--v-neutral-600, #5c5c66);
+}
+
+.limits__notice,
+.limits__failure {
+  margin: 0;
+  padding: var(--v-space-3) var(--v-space-4);
+  border-radius: var(--v-radius-md, 10px);
+  font-size: var(--v-text-sm, 0.875rem);
+  line-height: 1.5;
+}
+
+.limits__notice {
+  background: var(--v-neutral-100, #f4f4f6);
+  color: var(--v-neutral-800, #2b2b33);
+}
+
+.limits__failure {
+  background: #fdecec;
+  color: #8c1d1d;
+}
+
+.limits__empty {
+  margin: 0;
+  font-size: var(--v-text-sm, 0.875rem);
+  line-height: 1.55;
+  color: var(--v-neutral-600, #5c5c66);
+}
+
+.limits__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.limits__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  padding: var(--v-space-3) var(--v-space-4);
+  border: 1px solid var(--v-neutral-200, #e6e6e9);
+  border-radius: var(--v-radius-md, 10px);
+}
+
+.limits__row--warning {
+  border-color: #e8c98a;
+  background: #fffdf5;
+}
+
+.limits__row--reached {
+  border-color: #e8a6a6;
+  background: #fff7f7;
+}
+
+.limits__rowHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.limits__rowTitle {
+  font-size: var(--v-text-sm, 0.875rem);
+  font-weight: 600;
+  color: var(--v-neutral-900, #16161a);
+  font-variant-numeric: tabular-nums;
+}
+
+.limits__bar {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--v-neutral-150, #eeeef1);
+  overflow: hidden;
+}
+
+.limits__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--v-accent-500, #3b51e5);
+  transition: width 160ms ease-out;
+}
+
+.limits__row--warning .limits__fill {
+  background: #b57b12;
+}
+
+.limits__row--reached .limits__fill {
+  background: #b3382f;
+}
+
+.limits__rowMeta {
+  margin: 0;
+  font-size: var(--v-text-xs, 0.8125rem);
+  color: var(--v-neutral-600, #5c5c66);
+  font-variant-numeric: tabular-nums;
+}
+
+.limits__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--v-space-3);
+  margin: 0;
+}
+
+.limits__facts div {
+  padding: var(--v-space-3);
+  border-radius: var(--v-radius-md, 10px);
+  background: var(--v-neutral-50, #fafafb);
+}
+
+.limits__facts dt {
+  margin: 0 0 2px;
+  font-size: var(--v-text-xs, 0.8125rem);
+  color: var(--v-neutral-600, #5c5c66);
+}
+
+.limits__facts dd {
+  margin: 0;
+  font-size: var(--v-text-lg, 1.0625rem);
+  font-weight: 600;
+  color: var(--v-neutral-900, #16161a);
+  font-variant-numeric: tabular-nums;
+}
+
+.limits__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  padding-top: var(--v-space-3);
+  border-top: 1px solid var(--v-neutral-200, #e6e6e9);
+}
+
+.limits__formTitle {
+  margin: 0;
+  font-size: var(--v-text-md, 1rem);
+  color: var(--v-neutral-900, #16161a);
+}
+
+.limits__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--v-space-3);
+}
+
+.limits__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--v-text-xs, 0.8125rem);
+  color: var(--v-neutral-600, #5c5c66);
+}
+
+.limits__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+}
+
+.limits__fine {
+  margin: 0;
+  font-size: var(--v-text-xs, 0.8125rem);
+  line-height: 1.5;
+  color: var(--v-neutral-500, #6f6f79);
+}
+
+.limits__events ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  margin: var(--v-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.limits__event {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--v-space-2) var(--v-space-3);
+  border-radius: var(--v-radius-sm, 8px);
+  background: var(--v-neutral-50, #fafafb);
+  font-size: var(--v-text-sm, 0.875rem);
+  color: var(--v-neutral-800, #2b2b33);
+}
+
+.limits__event time {
+  font-size: var(--v-text-xs, 0.8125rem);
+  color: var(--v-neutral-600, #5c5c66);
+  font-variant-numeric: tabular-nums;
+}
+
+.limits__event--limit-reached,
+.limits__event--operation-refused {
+  background: #fff7f7;
+  color: #8c1d1d;
+}
+
+@media (max-width: 720px) {
+  .limits {
+    padding: var(--v-space-4);
+  }
+
+  .limits__fields {
+    grid-template-columns: 1fr;
+  }
+}

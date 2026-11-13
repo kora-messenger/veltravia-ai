@@ -686,3 +686,36 @@ Not delivered: no payment processing or invoices; no workspace credit allocation
 since bytes written elsewhere or served by a CDN never pass through this API; token counts
 appear only when the provider reported them, and the row says what was not measured rather
 than estimating it.
+
+## Step 59 - spending limits
+
+Ceilings on what an account may spend in a window, checked **before** credit is held, plus
+the per-operation and held-credit ceilings that make one runaway operation survivable.
+`@veltravia/spending-limits-core` holds the decision and the window arithmetic; the API
+binds it to the two charge lanes and the wallet; the screen is a panel on Step 58's `#/usage`
+page rather than a fifth dashboard, because a limit belongs beside the numbers it bounds.
+
+Four rules, each of which the tests assert: **a hold counts against the allowance**
+(`consumed = committed + held − refunded`) so parallel reservations cannot slip past a check;
+**the tightest scope wins**, so a project limit cannot be escaped by a generous personal one;
+**soft and hard are different promises** (a soft rule writes one warning per threshold per
+window, a hard rule refuses with `402` before any hold exists); and **a stale write is
+refused**, not forced, so two tabs cannot overwrite each other. A policy, its events and its
+audit trail are in the database (migration 017), so a restarted instance enforces the same
+limit.
+
+The race that the first version lost is the interesting part. Eight simultaneous requests all
+read the same untouched allowance and all eight passed, because nothing held the window still
+between reading it and taking the hold. The fix is a per-owner guard around that pair:
+`pg_advisory_xact_lock` on a dedicated two-connection pool for Postgres, a promise chain per
+owner in memory. Putting that lock on the request pool deadlocked it at saturation (every
+request held one connection for its lock and needed a second to work), and wrapping the
+callback in a transaction turned a `402` refusal into a `500`; both are fixed, and the
+persistence test fires six requests across two instances and lands exactly three accepted and
+three refused. See `docs/spending-limits.md`.
+
+Not delivered: no payment or plan gating; no automatic suspension when a limit is reached; no
+workspace funding (workspace and project scopes bound spending the owner's wallet pays for);
+the guard is per lane, so an `all` rule spanning messages and integrations can be passed by
+up to one operation's worth in the worst case; and the screen offers daily, weekly and
+monthly windows only, though the API also accepts custom day counts.

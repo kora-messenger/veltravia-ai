@@ -58,6 +58,19 @@ export interface Database extends Queryable {
   readonly summary: ReturnType<typeof describeDatabaseConfig>;
   /** Runs `fn` inside a transaction; rolls back on any throw. */
   withTransaction<T>(fn: (tx: Queryable) => Promise<T>): Promise<T>;
+  /**
+   * Runs `fn` while holding a Postgres advisory lock on `key` (Step 59).
+   *
+   * Used for "read the allowance, decide, write the hold" sections: a second
+   * process asking for the same key waits instead of reading an allowance the
+   * first is about to spend. The lock is transaction-scoped, so it is released
+   * on commit, on rollback, and by the server if this process dies mid-way.
+   *
+   * The waiting happens on a small dedicated pool. A guard held on the request
+   * pool would deadlock as soon as traffic saturated it: every request would
+   * hold one connection for its lock and need a second to do the work.
+   */
+  withAdvisoryLock<T>(key: string, fn: () => Promise<T>): Promise<T>;
   /** Round-trips a trivial statement. Safe to call from a health probe. */
   health(): Promise<DatabaseHealth>;
   /** Drains the pool. Idempotent. */
@@ -97,6 +110,17 @@ export function createDatabase(
       }));
 
   const pool = factory(config);
+
+  /*
+   * The guard pool is deliberately small: a connection here is idle while it
+   * waits, and it must never be the scarce resource. Callers beyond its size
+   * queue inside pg-pool, holding nothing.
+   */
+  const guardPool = factory({ ...config, maxConnections: 2 });
+  guardPool.on('error', (error: unknown) => {
+    options.logger?.({ kind: 'pool-error', category: toDatabaseError(error).category });
+  });
+
   let closed = false;
 
   // An idle client error (server restart, network reset) is reported by the
@@ -175,6 +199,43 @@ export function createDatabase(
         client.release();
       }
     },
+    async withAdvisoryLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+      if (closed) throw new DatabaseError('unavailable', 'The database connection pool is closed.');
+      let client: pg.PoolClient;
+      try {
+        client = await guardPool.connect();
+      } catch (error) {
+        throw toDatabaseError(error);
+      }
+      let open = false;
+      try {
+        try {
+          await client.query('begin');
+          open = true;
+          await client.query('select pg_advisory_xact_lock(hashtext($1))', [key]);
+        } catch (error) {
+          throw toDatabaseError(error);
+        }
+        /*
+         * The callback's own error is rethrown untouched. A refusal that reached
+         * the caller as a payment-required 402 must not arrive as a database
+         * failure just because a transaction was involved (Step 53's lesson).
+         */
+        const result = await fn();
+        await client.query('commit');
+        open = false;
+        return result;
+      } catch (error) {
+        if (open) {
+          // Best effort: this is what releases the lock. A failure to roll back
+          // is reported by the error we are already throwing.
+          await client.query('rollback').catch(() => undefined);
+        }
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
     async health(): Promise<DatabaseHealth> {
       const started = Date.now();
       const counts = {
@@ -200,6 +261,7 @@ export function createDatabase(
     async close(): Promise<void> {
       if (closed) return;
       closed = true;
+      await guardPool.end().catch(() => undefined);
       await pool.end();
     },
     get closed() {

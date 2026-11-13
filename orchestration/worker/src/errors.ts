@@ -16,6 +16,7 @@ export type WorkerFailureCode =
   | 'WORKER_SCOPE_INVALID'
   | 'WORKER_CANCELLED'
   | 'WORKER_PROVIDER_UNAVAILABLE'
+  | 'WORKER_SPENDING_LIMIT'
   | 'WORKER_MODEL_BUDGET_EXCEEDED'
   | 'WORKER_TOKEN_BUDGET_EXCEEDED'
   | 'WORKER_TOOL_BUDGET_EXCEEDED'
@@ -34,6 +35,7 @@ const MESSAGES: Record<WorkerFailureCode, string> = {
   WORKER_NOT_CANCELLABLE: 'That worker has already finished.',
   WORKER_RETRY_REFUSED: 'This worker has used every attempt it was allowed.',
   WORKER_REVIEW_REFUSED: 'That result cannot be reviewed in its current state.',
+  WORKER_SPENDING_LIMIT: 'This work has reached its spending limit.',
   WORKER_PROVIDER_UNAVAILABLE: 'No AI provider is connected, so no worker can think about this.',
   WORKER_CANCELLED: 'The worker was cancelled before it finished.',
   WORKER_MODEL_BUDGET_EXCEEDED: 'That worker used every model call it was allowed.',
@@ -75,6 +77,7 @@ export function workerHttpStatus(code: WorkerFailureCode): number {
     case 'WORKER_SCOPE_INVALID':
     case 'WORKER_CANCELLED':
     case 'WORKER_PROVIDER_UNAVAILABLE':
+    case 'WORKER_SPENDING_LIMIT':
     case 'WORKER_MODEL_BUDGET_EXCEEDED':
     case 'WORKER_TOKEN_BUDGET_EXCEEDED':
     case 'WORKER_TOOL_BUDGET_EXCEEDED':

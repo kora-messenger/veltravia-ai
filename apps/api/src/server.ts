@@ -153,6 +153,8 @@ import {
 } from './integration-credit-service.js';
 import { describeSweep, startIntegrationCreditSweep } from './integration-credit-sweep.js';
 import { createGitHubApiConnector } from './github.js';
+import { createSpendingLimitService, type SpendingLimitService } from './spending-limit-service.js';
+import { registerSpendingLimitRoutes } from './routes/spending-limits.js';
 
 /** A positive integer from the environment, or 0 when unset or nonsense. */
 function readPositiveIntEnv(name: string): number {
@@ -564,6 +566,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       // Resolved per call: billing is assembled below, once the wallet that
       // pays for it exists.
       billing: () => operationBilling,
+      // Step 59: a worker that has reached its allowance gets no further turn.
+      spending: () =>
+        spendingLimitsRef.current === undefined
+          ? undefined
+          : {
+              authorize: (input) => spendingLimitsRef.current!.authorize(input as never) as never,
+            },
     }),
   });
   /*
@@ -619,11 +628,28 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   });
   // Step 54: message credits sit on top of both. The plan comes from the meter,
   // the money from the wallet, and the charge row is what the dashboard reads.
+  /*
+   * Step 59: the spending controls are built after the two charge lanes, because
+   * they read both. The holder below lets the lanes consult them without either
+   * one depending on the other at construction time, and leaves it empty when
+   * these routes are registered in a harness that never assembles limits.
+   */
+  const spendingLimitsRef: { current: SpendingLimitService | undefined } = {
+    current: undefined,
+  };
   const messageCreditService = createMessageCreditService({
     env,
     store: persistence?.stores?.messageCredits,
     wallet: walletService,
     planOf: async (ownerRef) => (await usageService.entitlement(ownerRef)).planId,
+    // `category` is fixed to ai_messages inside the service; the cast is only
+    // because the holder's type is the wider one the routes use.
+    spendingLimits: () =>
+      spendingLimitsRef.current === undefined
+        ? undefined
+        : {
+            authorize: (input) => spendingLimitsRef.current!.authorize(input as never) as never,
+          },
   });
 
   /*
@@ -659,6 +685,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     wallet: walletService,
     planOf: async (ownerRef) => (await usageService.entitlement(ownerRef)).planId,
     ...(paidPlanId === undefined ? {} : { paidPlanId }),
+    spendingLimits: () =>
+      spendingLimitsRef.current === undefined
+        ? undefined
+        : {
+            authorize: (input) => spendingLimitsRef.current!.authorize(input as never) as never,
+          },
   });
   integrationBillingRef.gate = integrationCreditService;
 
@@ -675,6 +707,32 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     integrationCredits: integrationCreditService,
   });
   unifiedBilling = unifiedBillingService;
+  /*
+   * Step 59: spending controls over those same lanes.
+   *
+   * Configuration lives in its own tables and usage is read from the charges
+   * that already exist, so a limit and the usage page cannot disagree. The
+   * service holds no balance and writes no charge; it answers one question
+   * before billable work starts, and records what it decided.
+   */
+  const spendingLimitService = createSpendingLimitService({
+    ...(persistence?.stores?.spendingLimits === undefined
+      ? {}
+      : { store: persistence.stores.spendingLimits }),
+    messageCredits: messageCreditService,
+    integrationCredits: integrationCreditService,
+    wallet: walletService,
+    env,
+    onEvent: (event) => {
+      // One line per new warning or refusal. A repeated crossing of the same
+      // threshold is already deduplicated by the store, so this cannot spam.
+      console.warn(
+        `[spending-limits] ${event.kind} ${event.scope} ${event.ruleId ?? '-'} ${event.message}`,
+      );
+    },
+  });
+  spendingLimitsRef.current = spendingLimitService;
+
   const billedRunsTracker = createBilledRunTracker();
   billedRuns = billedRunsTracker;
 
@@ -746,6 +804,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     usage: usageService,
   });
   registerUsageHistoryRoutes(app, { history: usageHistory });
+  registerSpendingLimitRoutes(app, { spendingLimits: spendingLimitService }, env);
 
   /*
    * Step 56: the hold sweep runs on a timer, not on somebody remembering.

@@ -41,6 +41,7 @@
     "@veltravia/sandbox-local": "*",
     "@veltravia/sandbox-mock": "*",
     "@veltravia/shared": "*",
+    "@veltravia/spending-limits-core": "*",
     "@veltravia/storage-postgres": "*",
     "@veltravia/superagent-core": "*",
     "@veltravia/sync-core": "*",

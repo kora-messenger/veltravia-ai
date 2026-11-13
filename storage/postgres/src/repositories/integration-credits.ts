@@ -14,6 +14,8 @@ import type {
   IntegrationCharge,
   IntegrationCreditStore,
   IntegrationSpendingSettings,
+  LimitUsageGroup,
+  LimitUsageOptions,
   MeasurementUnit,
   UsageDimension,
   UsageGroup,
@@ -21,6 +23,13 @@ import type {
 
 import { type Database } from '../pool.js';
 import { requireOwner } from '../owner-scope.js';
+
+/**
+ * Namespace for the Step 59 spending-decision advisory lock. A different number
+ * from any other advisory lock in the codebase, so two features can never block
+ * each other by sharing a key space.
+ */
+const SPENDING_LOCK_NAMESPACE = 5949;
 
 interface ChargeRow {
   owner_ref: string;
@@ -108,6 +117,25 @@ export class PostgresIntegrationCreditStore implements IntegrationCreditStore {
   readonly kind = 'postgres' as const;
 
   constructor(private readonly database: Database) {}
+
+  /**
+   * Serialises one owner's check-then-hold across processes (Step 59).
+   *
+   * An advisory transaction lock, taken on the owner's key and released when the
+   * transaction ends, so a second API instance blocks on the same decision
+   * rather than reading an allowance the first instance is about to spend. The
+   * callback's own queries run on the pool; what matters is that this
+   * transaction stays open until they have finished.
+   */
+  withOwnerGuard<T>(ownerRef: string, fn: () => Promise<T>): Promise<T> {
+    // One key per owner per lane. The namespaces keep a message limit and an
+    // integration limit from blocking each other, and 5949 keeps this clear of
+    // every other advisory lock in the codebase.
+    return this.database.withAdvisoryLock(
+      `veltravia:${SPENDING_LOCK_NAMESPACE}:${this.kind}:${ownerRef}`,
+      fn,
+    );
+  }
 
   private get query() {
     return this.database;
@@ -301,6 +329,60 @@ export class PostgresIntegrationCreditStore implements IntegrationCreditStore {
       charges: rows.rows.map(toCharge),
       total: Number(total.rows[0]?.total ?? '0'),
     };
+  }
+
+  /** Credit per operation kind inside one window (Step 59); holds included. */
+  async limitUsage(
+    ownerRef: string,
+    options: LimitUsageOptions,
+  ): Promise<readonly LimitUsageGroup[]> {
+    requireOwner();
+    const result = await this.query.query<{
+      key: string;
+      charges: string;
+      committed: string;
+      reserved: string;
+      refunded: string;
+    }>(
+      `select kind as key,
+              count(*)::text as charges,
+              coalesce(sum(case when state = 'committed' then credits else 0 end), 0)::text as committed,
+              coalesce(sum(case when state = 'reserved' then estimated_credits else 0 end), 0)::text as reserved,
+              coalesce(sum(case when state = 'refunded' then credits else 0 end), 0)::text as refunded
+         from integration_charges
+        where owner_ref = $1
+          and state <> 'released'
+          and created_at >= $2::timestamptz
+          and created_at < $3::timestamptz
+          and ($4::text is null or workspace_id = $4)
+          and ($5::text is null or project_id = $5)
+        group by 1`,
+      [
+        ownerRef,
+        options.since,
+        options.until,
+        options.workspaceId ?? null,
+        options.projectId ?? null,
+      ],
+    );
+    return result.rows.map((row) => ({
+      key: row.key,
+      charges: Number(row.charges),
+      committed: Number(row.committed),
+      reserved: Number(row.reserved),
+      refunded: Number(row.refunded),
+    }));
+  }
+
+  async heldCredits(ownerRef: string): Promise<number> {
+    requireOwner();
+    const result = await this.query.query<{ held: string }>(
+      `select coalesce(sum(estimated_credits), 0)::text as held
+         from integration_charges
+        where owner_ref = $1 and state = 'reserved'`,
+      [ownerRef],
+    );
+    return Number(result.rows[0]?.held ?? 0);
   }
 
   async aggregate(

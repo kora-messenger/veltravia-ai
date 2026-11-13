@@ -338,6 +338,32 @@ export interface WorkerExecutorOptions {
    * wallet, which needs the worker store for its concurrency gauge).
    */
   readonly billing?: (() => OperationBilling | undefined) | undefined;
+  /**
+   * Step 59: the account-wide credit limits, checked before each model call.
+   *
+   * The operation was authorised when it started, and its estimate is held in
+   * the window it counts against. This check is the second half: a run that has
+   * already reached its allowance does not get another turn, so credits are not
+   * spent to discover that they could not be spent. Lazy for the same reason
+   * billing is.
+   */
+  readonly spending?:
+    | (() =>
+        | {
+            authorize(input: {
+              readonly ownerRef: string;
+              readonly workspaceId: string | null;
+              readonly projectId: string | null;
+              readonly category: 'agents';
+              readonly requested: number;
+              readonly actor: string;
+            }): Promise<{
+              readonly allowed: boolean;
+              readonly violation: { readonly message: string } | null;
+            }>;
+          }
+        | undefined)
+    | undefined;
 }
 
 export function createWorkerExecutor(options: WorkerExecutorOptions): WorkerExecutor {
@@ -391,6 +417,26 @@ export function createWorkerExecutor(options: WorkerExecutorOptions): WorkerExec
           options.gateway.blockedReason ?? 'No AI provider is connected for this owner.',
         );
       }
+      /*
+       * Step 59: no allowance, no turn. A zero-credit request still evaluates the
+       * configured limits, so a window already at its ceiling refuses here rather
+       * than after another provider call has been paid for.
+       */
+      const guard = options.spending?.();
+      if (guard !== undefined) {
+        const decision = await guard.authorize({
+          ownerRef: request.ownerRef,
+          workspaceId: null,
+          projectId: request.projectId ?? null,
+          category: 'agents',
+          requested: 0,
+          actor: 'worker',
+        });
+        if (!decision.allowed && decision.violation !== null) {
+          throw new WorkerError('WORKER_SPENDING_LIMIT', decision.violation.message);
+        }
+      }
+
       const outcome = await gateway.generate(
         {
           ownerRef: request.ownerRef,

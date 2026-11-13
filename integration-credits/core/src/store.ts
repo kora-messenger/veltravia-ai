@@ -40,6 +40,22 @@ export interface IntegrationSpendingSettings {
 
 export type UsageDimension = 'integration' | 'connector' | 'operation' | 'project' | 'billingClass';
 
+/** Usage inside one spent window (Step 59), grouped by operation kind. */
+export interface LimitUsageGroup {
+  readonly key: string;
+  readonly committed: number;
+  readonly reserved: number;
+  readonly refunded: number;
+  readonly charges: number;
+}
+
+export interface LimitUsageOptions {
+  readonly since: string;
+  readonly until: string;
+  readonly workspaceId?: string | null;
+  readonly projectId?: string | null;
+}
+
 export interface IntegrationCreditStore {
   readonly kind: 'memory' | 'postgres';
   /**
@@ -58,6 +74,10 @@ export interface IntegrationCreditStore {
     expectedState: IntegrationCharge['state'],
   ): Promise<boolean>;
   listCharges(ownerRef: string, filter: ChargeFilter): Promise<ChargePage>;
+  /** Credit per operation kind inside a window, holds included. */
+  limitUsage(ownerRef: string, options: LimitUsageOptions): Promise<readonly LimitUsageGroup[]>;
+  /** Credit held right now by work in flight (Step 59). */
+  heldCredits(ownerRef: string): Promise<number>;
   /** Credits and requests grouped by one dimension. */
   aggregate(
     ownerRef: string,
@@ -79,7 +99,16 @@ export interface IntegrationCreditStore {
    * expired holds inside that account's own scope. Only the keys are returned:
    * the sweep never reads another owner's charge rows across owners.
    */
-  listOpenOwners(limit: number): Promise<readonly string[]>;
+  listOpenOwners(limit: number): Promise<readonly string[]>; /**
+   * Runs `fn` with this owner's spending decision serialised (Step 59).
+   *
+   * A limit is a read-then-write: read what has been spent, decide, then take a
+   * hold. Without a guard, eight simultaneous requests all read the same
+   * untouched allowance and all pass. This makes that section one at a time per
+   * owner - an advisory lock in Postgres, a promise chain in memory - so the
+   * check and the hold it authorises cannot interleave.
+   */
+  withOwnerGuard<T>(ownerRef: string, fn: () => Promise<T>): Promise<T>;
 }
 
 /** The id is derived once by the caller; this keeps drafts impossible to mistake. */

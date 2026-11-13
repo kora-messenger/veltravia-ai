@@ -38,6 +38,8 @@ import {
   parseChargingCatalog,
   type ChargingCatalog,
   type InteractionKind,
+  type LimitUsageGroup,
+  type LimitUsageOptions,
 } from '@veltravia/message-credits-core';
 
 import { InMemoryMessageCreditStore } from '@veltravia/message-credits-core';
@@ -157,6 +159,14 @@ export interface MessageCreditService {
     filter: Omit<ChargeFilter, 'limit'> & { readonly limit?: number },
   ): Promise<unknown>;
   usage(ref: WalletRef, dimension: UsageDimension): Promise<readonly UsageGroup[]>;
+  /**
+   * Step 59: credit per interaction kind inside one window, holds included.
+   * A spending limit needs the held credit to count against the allowance, so
+   * this read is not the dashboard's `usage` aggregate with a date on it.
+   */
+  limitUsage(ref: WalletRef, options: LimitUsageOptions): Promise<readonly LimitUsageGroup[]>;
+  /** Credit held right now by work in flight, across every category. */
+  heldCredits(ref: WalletRef): Promise<number>;
   settings(ref: WalletRef): Promise<SpendingSettings>;
   updateSettings(
     input: WalletRef & {
@@ -171,8 +181,44 @@ export interface MessageCreditService {
   }>;
 }
 
+/**
+ * Step 59: the account-wide credit limits, consulted before a hold is taken.
+ *
+ * Passed as a getter because the limit service is built *after* this one: it
+ * reads these charges, so constructing it here would be a cycle. Returning
+ * `undefined` means "no spending controls configured in this deployment", which
+ * is a real state and not an error.
+ */
+export interface SpendingGuardDecision {
+  readonly allowed: boolean;
+  readonly violation: {
+    readonly reason: string;
+    readonly message: string;
+    readonly ruleId: string | null;
+    readonly limit: number | null;
+    readonly requested: number;
+    readonly consumed: number | null;
+    readonly remaining: number | null;
+    readonly window: { readonly end: string } | null;
+  } | null;
+}
+
 export interface MessageCreditServiceOptions {
   readonly store?: MessageCreditStore | undefined;
+  readonly spendingLimits?:
+    | (() =>
+        | {
+            authorize(input: {
+              readonly ownerRef: string;
+              readonly workspaceId: string | null;
+              readonly projectId: string | null;
+              readonly category: 'ai_messages';
+              readonly requested: number;
+              readonly actor: string;
+            }): Promise<SpendingGuardDecision>;
+          }
+        | undefined)
+    | undefined;
   readonly wallet: WalletService;
   /** The owner's plan, resolved the same way Step 52 resolves allowances. */
   readonly planOf: (ownerRef: string) => Promise<string>;
@@ -470,100 +516,144 @@ export function createMessageCreditService(
         };
       }
 
-      const { plan, policy } = await policyForOwner(
-        input.ownerRef,
-        input.kind,
-        input.modelId ?? null,
-      );
-      const estimate = estimateCharge({
-        policy,
-        ...(input.byok === true ? { byok: true } : {}),
-      });
-      const settings = await settingsOf(input);
-
-      if (settings.perRequestLimit !== null && estimate.credits > settings.perRequestLimit) {
-        throw new MessageCreditError(
-          'REQUEST_LIMIT_EXCEEDED',
-          `This request is estimated at ${estimate.credits} credits, above your per-request limit of ${settings.perRequestLimit}.`,
-          400,
-          { estimated: estimate.credits, limit: settings.perRequestLimit },
+      /*
+       * The decision and the hold it authorises are one step. They run under the
+       * owner's guard, so two simultaneous requests cannot both read the same
+       * untouched allowance and both be told yes (Step 59).
+       */
+      return store.withOwnerGuard(input.ownerRef, async () => {
+        const { plan, policy } = await policyForOwner(
+          input.ownerRef,
+          input.kind,
+          input.modelId ?? null,
         );
-      }
-
-      const month = await monthTotals(input);
-      if (
-        settings.monthlyLimit !== null &&
-        month.credits + estimate.credits > settings.monthlyLimit
-      ) {
-        throw new MessageCreditError(
-          'MONTHLY_LIMIT_REACHED',
-          `Your monthly message-credit limit of ${settings.monthlyLimit} would be exceeded.`,
-          402,
-          { spent: month.credits, limit: settings.monthlyLimit, estimated: estimate.credits },
-        );
-      }
-
-      if (!plan.billable || estimate.exempt || estimate.credits === 0) {
-        const { charge } = await store.insertCharge(
-          materialise(draftCharge(input, estimate), 'exempt'),
-        );
-        const balances = await wallet.overview(await refOf(input));
-        return {
-          charge,
-          created: true,
-          estimate,
-          reservationId: null,
-          walletAvailable: balances.wallet.available,
-        };
-      }
-
-      // The row is written before the hold so a crash between the two leaves an
-      // auditable "reserved with no hold" row the sweep can close, rather than a
-      // hold nobody can explain.
-      const draft = draftCharge(input, estimate);
-      const { charge, created } = await store.insertCharge(materialise(draft, 'reserved'));
-      if (!created) {
-        const balances = await wallet.overview(await refOf(input));
-        return {
-          charge,
-          created: false,
-          estimate,
-          reservationId: charge.reservationId,
-          walletAvailable: balances.wallet.available,
-        };
-      }
-
-      let reservation;
-      try {
-        reservation = await wallet.reserve({
-          ...(await refOf(input)),
-          amount: estimate.credits,
-          operationKey: `msg:${charge.id}`,
-          reason: `Message credit hold for a ${input.kind.replace('.', ' ')}.`,
-          actor: 'message-credits',
+        const estimate = estimateCharge({
+          policy,
+          ...(input.byok === true ? { byok: true } : {}),
         });
-      } catch (error) {
-        await save(
-          {
-            ...charge,
-            state: 'released',
-            failureReason: isMessageCreditError(error) ? error.code : 'reservation-refused',
-            settledAt: now().toISOString(),
-          },
+        const settings = await settingsOf(input);
+
+        if (settings.perRequestLimit !== null && estimate.credits > settings.perRequestLimit) {
+          throw new MessageCreditError(
+            'REQUEST_LIMIT_EXCEEDED',
+            `This request is estimated at ${estimate.credits} credits, above your per-request limit of ${settings.perRequestLimit}.`,
+            400,
+            { estimated: estimate.credits, limit: settings.perRequestLimit },
+          );
+        }
+
+        /*
+         * Step 59: the account-wide limits decide before any hold is taken, and
+         * before the older per-lane monthly limit, so the refusal names the rule a
+         * person actually set. A hold is included in the usage this reads, which is
+         * what stops two operations from spending the same allowance.
+         */
+        const guard = options.spendingLimits?.();
+        if (guard !== undefined) {
+          const decision = await guard.authorize({
+            ownerRef: input.ownerRef,
+            workspaceId: input.workspaceId ?? null,
+            projectId: input.projectId ?? null,
+            category: 'ai_messages',
+            requested: estimate.credits,
+            actor: 'message-credits',
+          });
+          if (!decision.allowed && decision.violation !== null) {
+            throw new MessageCreditError(
+              'SPENDING_LIMIT_REACHED',
+              decision.violation.message,
+              402,
+              {
+                reason: decision.violation.reason,
+                ruleId: decision.violation.ruleId,
+                limit: decision.violation.limit,
+                requested: decision.violation.requested,
+                consumed: decision.violation.consumed,
+                remaining: decision.violation.remaining,
+                resetsAt: decision.violation.window?.end ?? null,
+              },
+            );
+          }
+        }
+
+        const month = await monthTotals(input);
+        if (
+          settings.monthlyLimit !== null &&
+          month.credits + estimate.credits > settings.monthlyLimit
+        ) {
+          throw new MessageCreditError(
+            'MONTHLY_LIMIT_REACHED',
+            `Your monthly message-credit limit of ${settings.monthlyLimit} would be exceeded.`,
+            402,
+            { spent: month.credits, limit: settings.monthlyLimit, estimated: estimate.credits },
+          );
+        }
+
+        if (!plan.billable || estimate.exempt || estimate.credits === 0) {
+          const { charge } = await store.insertCharge(
+            materialise(draftCharge(input, estimate), 'exempt'),
+          );
+          const balances = await wallet.overview(await refOf(input));
+          return {
+            charge,
+            created: true,
+            estimate,
+            reservationId: null,
+            walletAvailable: balances.wallet.available,
+          };
+        }
+
+        // The row is written before the hold so a crash between the two leaves an
+        // auditable "reserved with no hold" row the sweep can close, rather than a
+        // hold nobody can explain.
+        const draft = draftCharge(input, estimate);
+        const { charge, created } = await store.insertCharge(materialise(draft, 'reserved'));
+        if (!created) {
+          const balances = await wallet.overview(await refOf(input));
+          return {
+            charge,
+            created: false,
+            estimate,
+            reservationId: charge.reservationId,
+            walletAvailable: balances.wallet.available,
+          };
+        }
+
+        let reservation;
+        try {
+          reservation = await wallet.reserve({
+            ...(await refOf(input)),
+            amount: estimate.credits,
+            operationKey: `msg:${charge.id}`,
+            reason: `Message credit hold for a ${input.kind.replace('.', ' ')}.`,
+            actor: 'message-credits',
+          });
+        } catch (error) {
+          await save(
+            {
+              ...charge,
+              state: 'released',
+              failureReason: isMessageCreditError(error) ? error.code : 'reservation-refused',
+              settledAt: now().toISOString(),
+            },
+            'reserved',
+          );
+          throw error;
+        }
+
+        const held = await save(
+          { ...charge, reservationId: reservation.reservation.id },
           'reserved',
         );
-        throw error;
-      }
-
-      const held = await save({ ...charge, reservationId: reservation.reservation.id }, 'reserved');
-      const balances = await wallet.overview(await refOf(input));
-      return {
-        charge: held,
-        created: true,
-        estimate,
-        reservationId: reservation.reservation.id,
-        walletAvailable: balances.wallet.available,
-      };
+        const balances = await wallet.overview(await refOf(input));
+        return {
+          charge: held,
+          created: true,
+          estimate,
+          reservationId: reservation.reservation.id,
+          walletAvailable: balances.wallet.available,
+        };
+      });
     },
 
     async commit(input) {
@@ -823,6 +913,14 @@ export function createMessageCreditService(
       return store.aggregate(ref.ownerRef, dimension, {
         workspaceId: ref.workspaceId ?? null,
       });
+    },
+
+    async limitUsage(ref, options) {
+      return store.limitUsage(ref.ownerRef, options);
+    },
+
+    async heldCredits(ref) {
+      return store.heldCredits(ref.ownerRef);
     },
 
     settings: settingsOf,

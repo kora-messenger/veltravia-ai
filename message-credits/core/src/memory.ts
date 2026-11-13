@@ -5,13 +5,22 @@
  * idempotency key, and compare-and-set on the state.
  */
 
-import type { ChargePage, MessageCreditStore, SpendingSettings, UsageDimension } from './store.js';
+import type {
+  ChargePage,
+  LimitUsageGroup,
+  LimitUsageOptions,
+  MessageCreditStore,
+  SpendingSettings,
+  UsageDimension,
+} from './store.js';
 import type { ChargeFilter, MessageCharge, UsageGroup } from './types.js';
 
 /**
  * The free-text half of a charge filter (Step 58). Matched here the same way the
  * Postgres store matches it, so a search returns the same rows on either store.
  */
+const round = (value: number): number => Math.round((value + Number.EPSILON) * 10_000) / 10_000;
+
 function matchesQuery(charge: MessageCharge, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (needle === '') return true;
@@ -24,6 +33,33 @@ export class InMemoryMessageCreditStore implements MessageCreditStore {
   readonly kind = 'memory' as const;
   private readonly charges: MessageCharge[] = [];
   private readonly settings = new Map<string, SpendingSettings>();
+
+  /**
+   * Serialises one owner's check-then-hold (Step 59).
+   *
+   * A promise chain, which is all a single process needs: the second caller
+   * waits for the first to finish writing its hold before it reads the usage.
+   * Across processes Postgres holds the same lock as an advisory transaction.
+   */
+  private readonly ownerGuards = new Map<string, Promise<unknown>>();
+
+  async withOwnerGuard<T>(ownerRef: string, fn: () => Promise<T>): Promise<T> {
+    const previous = this.ownerGuards.get(ownerRef) ?? Promise.resolve();
+    // `then(fn, fn)` runs the work whether the previous caller resolved or threw:
+    // one refusal must not strand the queue behind it.
+    const run = previous.then(fn, fn);
+    const tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.ownerGuards.set(ownerRef, tail);
+    void tail.then(() => {
+      // Only the last queued caller clears the entry, so the map does not grow
+      // by one dead key per owner forever.
+      if (this.ownerGuards.get(ownerRef) === tail) this.ownerGuards.delete(ownerRef);
+    });
+    return run;
+  }
 
   private key(ownerRef: string, workspaceId: string | null): string {
     return `${ownerRef}\u0000${workspaceId ?? ''}`;
@@ -130,6 +166,46 @@ export class InMemoryMessageCreditStore implements MessageCreditStore {
       });
     }
     return [...groups.values()].sort((a, b) => b.credits - a.credits);
+  }
+
+  async limitUsage(
+    ownerRef: string,
+    options: LimitUsageOptions,
+  ): Promise<readonly LimitUsageGroup[]> {
+    const since = Date.parse(options.since);
+    const until = Date.parse(options.until);
+    const groups = new Map<string, LimitUsageGroup>();
+    for (const row of this.charges) {
+      if (row.ownerRef !== ownerRef) continue;
+      const at = Date.parse(row.createdAt);
+      if (!Number.isFinite(at) || at < since || at >= until) continue;
+      if (options.workspaceId != null && row.workspaceId !== options.workspaceId) continue;
+      if (options.projectId != null && row.projectId !== options.projectId) continue;
+      if (row.state === 'released') continue;
+      const current = groups.get(row.kind) ?? {
+        key: row.kind,
+        committed: 0,
+        reserved: 0,
+        refunded: 0,
+        charges: 0,
+      };
+      groups.set(row.kind, {
+        key: row.kind,
+        charges: current.charges + 1,
+        committed: round(current.committed + (row.state === 'committed' ? row.credits : 0)),
+        reserved: round(current.reserved + (row.state === 'reserved' ? row.estimatedCredits : 0)),
+        refunded: round(current.refunded + (row.state === 'refunded' ? row.credits : 0)),
+      });
+    }
+    return [...groups.values()];
+  }
+
+  async heldCredits(ownerRef: string): Promise<number> {
+    return round(
+      this.charges
+        .filter((row) => row.ownerRef === ownerRef && row.state === 'reserved')
+        .reduce((total, row) => total + row.estimatedCredits, 0),
+    );
   }
 
   async readSettings(
