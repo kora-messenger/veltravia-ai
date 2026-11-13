@@ -79,6 +79,7 @@ export default defineConfig({
       '@veltravia/wallet-core': r('./wallet/core/src/index.ts'),
       '@veltravia/message-credits-core': r('./message-credits/core/src/index.ts'),
       '@veltravia/integration-credits-core': r('./integration-credits/core/src/index.ts'),
+      '@veltravia/spending-limits-core': r('./spending-limits/core/src/index.ts'),
       '@veltravia/worker-core': r('./orchestration/worker/src/index.ts'),
       '@veltravia/superagent-core': r('./orchestration/superagent/src/index.ts'),
     },
