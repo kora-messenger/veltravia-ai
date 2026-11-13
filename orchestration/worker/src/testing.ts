@@ -40,6 +40,24 @@ export class InMemoryWorkerStore implements WorkerStore {
     return `${ownerRef}::${workerId}`;
   }
 
+  /**
+   * Number an event from the log, exactly as the durable store does.
+   *
+   * The caller's `seq` is a guess made before the write, and two concurrent
+   * writers can make the same guess: a progress report reads the worker, takes
+   * `eventSeq + 1`, and by then a sibling report has taken the same number. The
+   * durable store failed loudly on that (a duplicate key) while this one kept two
+   * events with the same number and an ordering nobody could trust. Numbering
+   * here, from the array itself, makes both stores agree.
+   */
+  private numbered(events: readonly WorkerEvent[], start: number): WorkerEvent[] {
+    let seq = start;
+    return events.map((event) => {
+      seq += 1;
+      return { ...event, seq };
+    });
+  }
+
   async insert(worker: WorkerRecord, events: readonly WorkerEvent[]): Promise<void> {
     const key = this.key(worker.ownerRef, worker.id);
     if (this.workers.has(key)) throw new WorkerError('WORKER_DUPLICATE_ASSIGNMENT');
@@ -50,8 +68,12 @@ export class InMemoryWorkerStore implements WorkerStore {
         ACTIVE.includes(entry.status),
     );
     if (activeOnTask) throw new WorkerError('WORKER_DUPLICATE_ASSIGNMENT');
-    this.workers.set(key, worker);
-    this.log.set(key, [...events]);
+    const numbered = this.numbered(events, 0);
+    this.workers.set(key, {
+      ...worker,
+      eventSeq: numbered.length === 0 ? 0 : numbered[numbered.length - 1]!.seq,
+    });
+    this.log.set(key, numbered);
   }
 
   async read(ownerRef: string, workerId: string): Promise<WorkerRecord | null> {
@@ -79,8 +101,17 @@ export class InMemoryWorkerStore implements WorkerStore {
     const existing = this.workers.get(key);
     if (existing === undefined) return false;
     if (existing.version !== expectedVersion) return false;
-    this.workers.set(key, worker);
-    this.log.set(key, [...(this.log.get(key) ?? []), ...events]);
+    const log = this.log.get(key) ?? [];
+    const numbered = this.numbered(events, log[log.length - 1]?.seq ?? 0);
+    this.workers.set(key, {
+      ...worker,
+      // The counter never moves backwards, whatever the record carried in.
+      eventSeq: Math.max(
+        existing.eventSeq,
+        numbered.length === 0 ? worker.eventSeq : numbered[numbered.length - 1]!.seq,
+      ),
+    });
+    this.log.set(key, [...log, ...numbered]);
     return true;
   }
 
@@ -93,15 +124,14 @@ export class InMemoryWorkerStore implements WorkerStore {
     const key = this.key(ownerRef, workerId);
     const existing = this.workers.get(key);
     if (existing === undefined) return;
-    // Keep the record's counter ahead of the log, exactly as the durable store
-    // does: a later save must not reuse a sequence number already written.
-    const highest = events.reduce((max, event) => Math.max(max, event.seq), 0);
+    const log = this.log.get(key) ?? [];
+    const numbered = this.numbered(events, log[log.length - 1]?.seq ?? 0);
     this.workers.set(key, {
       ...existing,
       updatedAt,
-      eventSeq: Math.max(existing.eventSeq, highest),
+      eventSeq: Math.max(existing.eventSeq, numbered[numbered.length - 1]?.seq ?? 0),
     });
-    this.log.set(key, [...(this.log.get(key) ?? []), ...events]);
+    this.log.set(key, [...log, ...numbered]);
   }
 
   async events(

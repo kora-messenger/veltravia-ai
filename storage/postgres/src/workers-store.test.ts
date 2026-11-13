@@ -181,6 +181,51 @@ describeDb('worker records in PostgreSQL', () => {
     });
   });
 
+  /**
+   * Step 59's real bug, kept as a test.
+   *
+   * A progress report is fire-and-forget: it reads the worker, takes
+   * `eventSeq + 1` and writes that number. Two in flight together used to read
+   * the same counter and claim the same sequence, and the second insert died on
+   * `worker_events_pkey` - a 500 on a worker start that looked unrelated.
+   *
+   * The store numbers events itself now, under the worker row's lock, so the
+   * eight writers below each get their own number whatever they guessed.
+   */
+  it('gives concurrent appends distinct sequence numbers', async () => {
+    await runWithOwner(owner, async () => {
+      // Its own task: one live worker per task is a real constraint, and the
+      // fixture task already holds one.
+      await database.query(
+        `insert into tasks (id, owner_ref, project_id, title, objective, status, version, created_at, updated_at)
+         values ($1, $2, $3, 'Race', 'Race fixture', 'queued', 1, now(), now())`,
+        [id('tsk_race'), owner, id('prj_workers_db')],
+      );
+      await stores.workers.insert(worker(id('wkr_race'), id('tsk_race'), 'running'), [
+        event(id('wkr_race'), 1),
+      ]);
+      const guessed = 2; // every writer makes the same stale guess on purpose
+      await Promise.all(
+        Array.from({ length: 8 }, (_unused, index) =>
+          stores.workers.appendEvents(
+            owner,
+            id('wkr_race'),
+            [{ ...event(id('wkr_race'), guessed), type: 'progress', message: `turn ${index}` }],
+            new Date().toISOString(),
+          ),
+        ),
+      );
+      const events = await stores.workers.events(owner, id('wkr_race'), 0, 50);
+      const seqs = events.map((entry) => entry.seq);
+      expect(events).toHaveLength(9);
+      // One number each, no gaps, and the order the log reports is the order written.
+      expect(new Set(seqs).size).toBe(9);
+      expect([...seqs].sort((left, right) => left - right)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      const record = await stores.workers.read(owner, id('wkr_race'));
+      expect(record?.eventSeq).toBe(9);
+    });
+  });
+
   it('records a scheduling decision with its reasons', async () => {
     await runWithOwner(owner, async () => {
       await stores.workers.recordDecision({

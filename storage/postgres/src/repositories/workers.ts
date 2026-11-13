@@ -120,7 +120,10 @@ export class PostgresWorkerStore implements WorkerStore {
         worker.endedAt,
         worker.lastHeartbeatAt,
         worker.version,
-        worker.eventSeq,
+        // The log owns the sequence: it starts at zero and every write below
+        // bumps it. Trusting the caller's number here was how two concurrent
+        // writes ended up claiming the same sequence.
+        0,
         worker.createdAt,
         worker.updatedAt,
       ],
@@ -182,7 +185,7 @@ export class PostgresWorkerStore implements WorkerStore {
               ended_at = $11,
               last_heartbeat_at = $12,
               version = $13,
-              event_seq = $14,
+              event_seq = greatest(event_seq, $14),
               updated_at = $15
         where id = $1 and owner_ref = $2 and version = $16
         returning id`,
@@ -218,17 +221,13 @@ export class PostgresWorkerStore implements WorkerStore {
   ): Promise<void> {
     const owner = requireOwner();
     if (events.length === 0) return;
-    // The row's event_seq has to move with the log. Appending without advancing
-    // it let the next save reuse a sequence number already written, so Postgres
-    // refused the insert (worker_events_pkey) while the in-memory store, which
-    // keeps a plain array, never noticed.
-    const highest = events.reduce((max, event) => Math.max(max, event.seq), 0);
+    // The counter moves inside writeEvents, one bump per event, so nothing here
+    // has to guess what the next number is.
     await this.query.query(
       `update workers
-          set updated_at = $3, last_heartbeat_at = $3,
-              event_seq = greatest(event_seq, $4)
+          set updated_at = $3, last_heartbeat_at = $3
         where id = $1 and owner_ref = $2`,
-      [workerId, owner, updatedAt, highest],
+      [workerId, owner, updatedAt],
     );
     await this.writeEvents({ id: workerId } as WorkerRecord, events);
     void ownerRef;
@@ -318,6 +317,22 @@ export class PostgresWorkerStore implements WorkerStore {
     }));
   }
 
+  /**
+   * Write events, letting the database own the sequence number.
+   *
+   * Step 59 found the bug this replaces. A progress report is fire-and-forget: it
+   * reads the worker, takes `eventSeq + 1` and writes that number. Two of them in
+   * flight together read the same counter and both claimed the same number, so
+   * the second insert failed on `worker_events_pkey` and the whole start request
+   * answered 500. The in-memory store had the same duplicate and never noticed,
+   * because it keeps a plain array with no unique constraint.
+   *
+   * Each insert now bumps `workers.event_seq` and reads the new value back in one
+   * statement. The update takes the worker's row lock, so concurrent writers
+   * queue on it and every event gets a distinct number, in the order it arrived.
+   * A caller's `seq` is ignored on purpose: it is a guess made before the write,
+   * and the log is the only thing that can number itself.
+   */
   private async writeEvents(
     worker: Pick<WorkerRecord, 'id'>,
     events: readonly WorkerEvent[],
@@ -326,13 +341,19 @@ export class PostgresWorkerStore implements WorkerStore {
     const owner = requireOwner();
     for (const event of events) {
       await this.query.query(
-        `insert into worker_events
+        `with bumped as (
+           update workers
+              set event_seq = event_seq + 1
+            where id = $1 and owner_ref = $2
+           returning event_seq as seq
+         )
+         insert into worker_events
            (worker_id, owner_ref, seq, type, actor, from_status, to_status, message, detail, at)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+         select $1, $2, bumped.seq, $3, $4, $5, $6, $7, $8, $9
+           from bumped`,
         [
           worker.id,
           owner,
-          event.seq,
           event.type,
           event.actor,
           event.fromStatus,

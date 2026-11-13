@@ -320,4 +320,46 @@ describe('retry and recovery', () => {
     expect(toStatuses).toContain('completed');
     expect(events[0]?.type).toBe('created');
   });
+
+  /**
+   * The in-memory half of the duplicate-sequence bug Step 59 found.
+   *
+   * A progress report reads the worker, takes `eventSeq + 1` and writes it, and
+   * two of them in flight together made the same guess. The durable store failed
+   * loudly on it; this store kept both events with one number and an order
+   * nobody could trust, which is the worse failure because nothing noticed.
+   */
+  it('numbers concurrent appends distinctly, in the order written', async () => {
+    const { tasks, workers, manager } = harness();
+    const { worker } = await delegate(manager, tasks);
+
+    await Promise.all(
+      Array.from({ length: 6 }, (_unused, index) =>
+        workers.appendEvents(
+          OWNER,
+          worker.id,
+          [
+            {
+              workerId: worker.id,
+              seq: 1, // every writer guesses the same, stale number
+              type: 'progress',
+              actor: 'worker',
+              at: new Date().toISOString(),
+              fromStatus: null,
+              toStatus: null,
+              message: `turn ${index}`,
+            },
+          ],
+          new Date().toISOString(),
+        ),
+      ),
+    );
+
+    const events = await workers.events(OWNER, worker.id, 0, 50);
+    const seqs = events.map((event) => event.seq);
+    // One 'created' plus six reports, numbered 1..7 with no repeats and no gaps.
+    expect(seqs).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    const stored = await workers.read(OWNER, worker.id);
+    expect(stored?.eventSeq).toBe(7);
+  });
 });
