@@ -360,7 +360,10 @@ describe('VersionPanel', () => {
     mockedCreateCheckpoint.mockResolvedValue(checkpoint());
     renderPanel();
     fireEvent.click(await screen.findByRole('tab', { name: /Checkpoints/ }));
-    const nameInput = screen.getByLabelText('Checkpoint name');
+    // The tab's panel is a fresh render, so wait for it instead of reading in the
+    // click's own tick: under a loaded full-suite run React can flush it later and
+    // a synchronous getByLabelText then fails on a panel that is about to exist.
+    const nameInput = await screen.findByLabelText('Checkpoint name');
     fireEvent.change(nameInput, { target: { value: 'Stable release' } });
     fireEvent.click(screen.getByRole('button', { name: 'Pin checkpoint' }));
     await waitFor(() => {
