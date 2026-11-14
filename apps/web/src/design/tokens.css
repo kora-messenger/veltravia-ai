@@ -19,18 +19,23 @@
   --v-brand-800: #382c8e;
   --v-brand-900: #291f66;
 
+  /* Warm stone, not the violet-tinted grey this palette started with. Measured
+     off the reference: its page canvas is stone-50 (#f8f6f4), its cards are
+     white, its hairlines are stone-200 (#e7e2dd), and its ink is a warm near
+     black. Every surface in the app reads through these neutrals, so warming
+     them here warms the whole product instead of one screen at a time. */
   --v-neutral-0: #ffffff;
-  --v-neutral-50: #fafafd;
-  --v-neutral-100: #f2f1f7;
-  --v-neutral-200: #e5e3ee;
-  --v-neutral-300: #cfccdd;
-  --v-neutral-400: #a7a3ba;
-  --v-neutral-500: #7c7892;
-  --v-neutral-600: #5d5a72;
-  --v-neutral-700: #454256;
-  --v-neutral-800: #2b2938;
-  --v-neutral-900: #1a1826;
-  --v-neutral-950: #0e0d16;
+  --v-neutral-50: #f8f6f4;
+  --v-neutral-100: #f4f1ee;
+  --v-neutral-200: #e7e2dd;
+  --v-neutral-300: #d5d0c9;
+  --v-neutral-400: #a8a19a;
+  --v-neutral-500: #7d766f;
+  --v-neutral-600: #5f5852;
+  --v-neutral-700: #47413c;
+  --v-neutral-800: #2a2724;
+  --v-neutral-900: #1c1a18;
+  --v-neutral-950: #100f0e;
 
   --v-green-600: #1f8a5b;
   --v-green-400: #3ac98b;
@@ -42,7 +47,13 @@
   --v-blue-400: #56a0e0;
 
   /* ---------- Typography ---------- */
-  --v-font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* Wix Madefor Text for reading, Display for headings: self-hosted in
+     design/fonts.css. The system stack stays behind it as the fallback, so the
+     app still reads properly if a font file is blocked. */
+  --v-font-sans:
+    'Wix Madefor Text', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --v-font-display: 'Wix Madefor Display', var(--v-font-sans);
   --v-font-mono:
     ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, 'Liberation Mono', monospace;
 
@@ -71,23 +82,40 @@
   --v-space-7: 3rem; /* 48px */
   --v-space-8: 4rem; /* 64px */
 
-  /* ---------- Radius (restrained) ---------- */
-  --v-radius-xs: 3px;
-  --v-radius-sm: 5px;
-  --v-radius-md: 8px;
-  --v-radius-lg: 12px;
+  /* ---------- Radius ----------
+     The reference's scale, in its own steps (2 / 4 / 6 / 8 / 12 / 16 / 24 / 32),
+     plus its 10px card radius and a pill. The names line up with the sizes the
+     old scale used so existing rules keep their meaning: md is still the small
+     control radius, lg still the card one. */
+  --v-radius-xs: 2px;
+  --v-radius-sm: 4px;
+  --v-radius-md: 6px;
+  --v-radius-lg: 8px;
+  --v-radius-xl: 12px;
+  --v-radius-2xl: 16px;
+  --v-radius-3xl: 24px;
+  --v-radius-4xl: 32px;
+  --v-radius-card: 10px;
   --v-radius-full: 999px;
 
-  /* ---------- Shadows (subtle elevation) ---------- */
-  --v-shadow-1: 0 1px 2px rgb(26 24 38 / 0.06), 0 1px 3px rgb(26 24 38 / 0.05);
-  --v-shadow-2: 0 4px 10px rgb(26 24 38 / 0.08), 0 1px 3px rgb(26 24 38 / 0.06);
-  --v-shadow-3: 0 12px 32px rgb(26 24 38 / 0.16), 0 4px 12px rgb(26 24 38 / 0.1);
+  /* ---------- Shadows ----------
+     Same four steps as the reference, in the same warm black it uses rather
+     than the violet-black this file had. */
+  --v-shadow-xs: 0 1px 10px 0 rgb(28 26 24 / 0.05), 1px 0 2px -0.7px rgb(28 26 24 / 0.05);
+  --v-shadow-1: 0 1px 2px rgb(28 26 24 / 0.06), 0 1px 3px rgb(28 26 24 / 0.05);
+  --v-shadow-2: 0 10px 20px rgb(28 26 24 / 0.05), 0 0 4px rgb(28 26 24 / 0.05);
+  --v-shadow-3: 0 20px 30px rgb(28 26 24 / 0.1), 0 0 4px rgb(28 26 24 / 0.1);
 
-  /* ---------- Motion (restrained) ---------- */
+  /* ---------- Motion ----------
+     The reference's five durations (80 / 120 / 180 / 260 / 360ms) under the
+     names the app already used, so nothing had to be renamed to slow down or
+     speed up by a hair. */
   --v-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --v-dur-instant: 80ms;
   --v-dur-fast: 120ms;
   --v-dur-base: 180ms;
-  --v-dur-slow: 240ms;
+  --v-dur-slow: 260ms;
+  --v-dur-slower: 360ms;
 
   /* ---------- Semantic roles: LIGHT (default) ---------- */
   --v-bg: var(--v-neutral-50);
@@ -107,6 +135,11 @@
      softer neutral text, because on the warm milk surface a 15px label with a
      1.7px glyph read washed out. */
   --v-drawer-ink: #000000;
+  /* The chat pane's own canvas. Measured off the reference capture: its message
+     area is #faf9fc (a hair cooler and lighter than the milk drawer beside it),
+     the composer card on it is #ffffff, and the drawer is #f8f6f4. Three tones,
+     which is what makes the card and the drawer read as separate surfaces. */
+  --v-chat-canvas: #faf9fc;
   --v-surface-muted: var(--v-neutral-100);
   --v-surface-hover: var(--v-neutral-100);
 
@@ -161,22 +194,23 @@
   --v-sheet-bone-b: #e9e5df;
   --v-sheet-track: #e9e5df;
 
-  --v-overlay: rgb(26 24 38 / 0.4);
+  --v-overlay: rgb(28 26 24 / 0.4);
 }
 
 /* ---------- Semantic roles: DARK ---------- */
 [data-theme='dark'] {
   --v-bg: var(--v-neutral-950);
-  --v-surface: #151420;
-  --v-surface-raised: #1b1928;
-  --v-drawer-surface: #151420;
-  --v-drawer-muted: #262334;
+  --v-surface: #171512;
+  --v-surface-raised: #1d1b18;
+  --v-drawer-surface: #171512;
+  --v-drawer-muted: #262320;
   --v-drawer-line: rgb(255 255 255 / 0.12);
   --v-drawer-edge: rgb(255 255 255 / 0.14);
   /* Black would vanish on the dark panel, so the ink turns over with the theme. */
   --v-drawer-ink: #f7f5f3;
-  --v-surface-muted: #1e1c2b;
-  --v-surface-hover: #262334;
+  --v-chat-canvas: #141312;
+  --v-surface-muted: #1f1d1a;
+  --v-surface-hover: #262320;
 
   --v-primary: var(--v-brand-400);
   --v-primary-hover: var(--v-brand-300);
@@ -192,13 +226,13 @@
   --v-danger-hover: #ef7083;
   --v-danger-fg: var(--v-neutral-950);
 
-  --v-text: #eceaf4;
-  --v-text-muted: #a5a1b8;
-  --v-text-faint: #7d7993;
+  --v-text: #ece9e5;
+  --v-text-muted: #a9a29b;
+  --v-text-faint: #837c75;
 
-  --v-border: #2a2739;
-  --v-border-strong: #3b3750;
-  --v-border-muted: #211f2e;
+  --v-border: #2a2828;
+  --v-border-strong: #3b3835;
+  --v-border-muted: #221f1d;
 
   --v-success: var(--v-green-400);
   --v-success-muted: rgb(58 201 139 / 0.12);
@@ -215,8 +249,8 @@
   --v-shadow-2: 0 4px 10px rgb(0 0 0 / 0.45);
   --v-shadow-3: 0 12px 32px rgb(0 0 0 / 0.55);
 
-  --v-sheet-bg: #1b1928;
-  --v-sheet-card: #1e1c2b;
+  --v-sheet-bg: #1d1b18;
+  --v-sheet-card: #1f1d1a;
   --v-sheet-rule: rgb(255 255 255 / 0.1);
   --v-sheet-inner-rule: rgb(255 255 255 / 0.08);
   --v-sheet-icon: #eceaf4;
@@ -230,5 +264,5 @@
   --v-sheet-bone-b: #262334;
   --v-sheet-track: #2a2739;
 
-  --v-overlay: rgb(4 3 10 / 0.6);
+  --v-overlay: rgb(10 9 8 / 0.6);
 }

@@ -27,7 +27,7 @@
      .v-shell__content--flush); the thread scrolls, the composer does not. */
   min-height: 0;
   height: 100%;
-  background: var(--v-bg);
+  background: var(--v-chat-canvas);
 }
 
 .v-chat__scroll {
@@ -339,9 +339,13 @@
      box's top edge and the control row 71dp below it, so the box is 100dp when
      empty. That is 16dp of top padding over a 24dp line, then a 44dp row. */
   padding: var(--v-space-4) var(--v-space-2) var(--v-space-2) var(--v-space-3);
-  border: 1px solid var(--v-border-strong);
+  /* A white card on the warm page, with a hairline and the softest step of
+     elevation, as in the reference: the grey-lavender fill this box used to
+     have read as a disabled field rather than a place to type. */
+  border: 1px solid var(--v-border);
   border-radius: 16px;
-  background: var(--v-surface-muted);
+  background: var(--v-surface);
+  box-shadow: var(--v-shadow-xs);
 }
 
 /* Visible to screen readers only: the field is identified by its placeholder

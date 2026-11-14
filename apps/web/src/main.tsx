@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { loadRuntimeConfig } from './config/runtime-config';
+import './design/fonts.css';
 import './design/tokens.css';
 import './design/global.css';
 import './components/ui/ui.css';
