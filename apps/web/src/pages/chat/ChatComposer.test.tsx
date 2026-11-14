@@ -138,6 +138,31 @@ describe('with a picture attached', () => {
     expect(thumb.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it('keeps the grid outside the box, so the box stays one rounded container', async () => {
+    renderComposer();
+    await attach(2);
+    const grid = document.querySelector('.v-chat-composer__attachments') as HTMLElement;
+    const box = document.querySelector('.v-chat-composer') as HTMLElement;
+    // The reference puts the tiles above a standalone box, not inside it.
+    expect(box.contains(grid)).toBe(false);
+    expect(grid.contains(document.querySelector('.v-chat-composer__thumb'))).toBe(true);
+    expect(grid.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('removes only the tile that was dismissed and keeps the others in order', async () => {
+    renderComposer();
+    await attach(5);
+    const names = () =>
+      Array.from(document.querySelectorAll('.v-chat-composer__thumb')).map((el) =>
+        el.getAttribute('alt'),
+      );
+    expect(names()).toHaveLength(5);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove shot-2.png' }));
+    await waitFor(() => expect(names()).toHaveLength(4));
+    // The rest close the gap: the third tile is gone, nothing else moved.
+    expect(names()).toEqual(['shot-0.png', 'shot-1.png', 'shot-3.png', 'shot-4.png']);
+  });
+
   it('takes the microphone away as soon as text joins the picture', async () => {
     renderComposer({ value: 'Look at this' });
     await attach();

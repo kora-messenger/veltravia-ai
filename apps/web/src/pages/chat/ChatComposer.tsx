@@ -322,15 +322,20 @@ export function ChatComposer({
   };
 
   return (
-    <div className="v-chat-composer">
+    // The picked files sit in their own block above the box rather than inside
+    // it: a grid of squares belongs over the field, and the box stays the
+    // standalone rounded container the reference shows.
+    <div className="v-chat-composer-stack">
       {attachments.length > 0 && (
-        <ul className="v-chat-composer__attachments">
+        <ul className="v-chat-composer__attachments" aria-label="Attached files">
           {attachments.map((attachment) => (
             <li className="v-chat-composer__attachment" key={attachment.id}>
               {attachment.url === null ? (
-                <span className="v-chat-composer__file">
-                  <NoteIcon size={14} />
-                  <span className="v-chat-composer__file-name">{attachment.name}</span>
+                // A file that cannot be previewed keeps the same square so the
+                // grid stays aligned; its name is on the tile and on the
+                // remove control instead of printed underneath the picture.
+                <span className="v-chat-composer__file" title={attachment.name}>
+                  <NoteIcon size={20} />
                 </span>
               ) : (
                 <img
@@ -351,182 +356,184 @@ export function ChatComposer({
           ))}
         </ul>
       )}
-      <input
-        ref={picker}
-        type="file"
-        accept="image/*,.pdf,.txt,.md,.json,.csv,.doc,.docx"
-        multiple
-        className="v-chat-composer__picker"
-        onChange={(event) => {
-          addAttachments(Array.from(event.target.files ?? []));
-          event.target.value = '';
-        }}
-      />
-      <label className="v-chat-composer__label" htmlFor="veltravia-chat-input">
-        Message
-      </label>
-      <textarea
-        id="veltravia-chat-input"
-        ref={field}
-        className="v-chat-composer__input"
-        value={value}
-        rows={1}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={onKeyDown}
-        aria-describedby="veltravia-chat-hint"
-      />
-      <div className="v-chat-composer__row">
-        <Menu
-          trigger={<PlusIcon />}
-          triggerLabel="More ways to start"
-          // The trigger sits at the bottom-left of the screen, so the panel opens
-          // upwards from it: opening downwards would fall off the bottom edge.
-          // Small and anchored to the button itself, as Base44's own is.
-          placement="compact-above-start"
-          items={[
-            {
-              id: 'attach',
-              label: 'Attach files',
-              icon: <AttachIcon />,
-              onSelect: () => picker.current?.click(),
-            },
-            {
-              id: 'note',
-              label: 'Add note',
-              icon: <NoteIcon />,
-              hint: notes.length > 0 ? String(notes.length) : undefined,
-              children: [
-                { id: 'write', label: 'Write a note…', onSelect: openNote },
-                ...notes.map((note) => ({
-                  id: note.id,
-                  label: note.text,
-                  hint: 'Remove',
-                  onSelect: () => removeNote(note.id),
-                })),
-              ],
-            },
-            {
-              id: 'drive',
-              // The reference's third row. There is no Drive connection behind
-              // it, so it is drawn as unavailable, never as a control that
-              // quietly does nothing. The reason is a tooltip and is read aloud
-              // rather than printed in the row, so the full name fits.
-              label: 'Upload from Google Drive',
-              icon: <DriveIcon />,
-              description: 'Google Drive is not connected',
-              disabled: true,
-              onSelect: () => {},
-            },
-          ]}
+      <div className="v-chat-composer">
+        <input
+          ref={picker}
+          type="file"
+          accept="image/*,.pdf,.txt,.md,.json,.csv,.doc,.docx"
+          multiple
+          className="v-chat-composer__picker"
+          onChange={(event) => {
+            addAttachments(Array.from(event.target.files ?? []));
+            event.target.value = '';
+          }}
         />
+        <label className="v-chat-composer__label" htmlFor="veltravia-chat-input">
+          Message
+        </label>
+        <textarea
+          id="veltravia-chat-input"
+          ref={field}
+          className="v-chat-composer__input"
+          value={value}
+          rows={1}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={onKeyDown}
+          aria-describedby="veltravia-chat-hint"
+        />
+        <div className="v-chat-composer__row">
+          <Menu
+            trigger={<PlusIcon />}
+            triggerLabel="More ways to start"
+            // The trigger sits at the bottom-left of the screen, so the panel opens
+            // upwards from it: opening downwards would fall off the bottom edge.
+            // Small and anchored to the button itself, as Base44's own is.
+            placement="compact-above-start"
+            items={[
+              {
+                id: 'attach',
+                label: 'Attach files',
+                icon: <AttachIcon />,
+                onSelect: () => picker.current?.click(),
+              },
+              {
+                id: 'note',
+                label: 'Add note',
+                icon: <NoteIcon />,
+                hint: notes.length > 0 ? String(notes.length) : undefined,
+                children: [
+                  { id: 'write', label: 'Write a note…', onSelect: openNote },
+                  ...notes.map((note) => ({
+                    id: note.id,
+                    label: note.text,
+                    hint: 'Remove',
+                    onSelect: () => removeNote(note.id),
+                  })),
+                ],
+              },
+              {
+                id: 'drive',
+                // The reference's third row. There is no Drive connection behind
+                // it, so it is drawn as unavailable, never as a control that
+                // quietly does nothing. The reason is a tooltip and is read aloud
+                // rather than printed in the row, so the full name fits.
+                label: 'Upload from Google Drive',
+                icon: <DriveIcon />,
+                description: 'Google Drive is not connected',
+                disabled: true,
+                onSelect: () => {},
+              },
+            ]}
+          />
 
-        {/* The chip says what will answer: the pinned model, or Automatic when
+          {/* The chip says what will answer: the pinned model, or Automatic when
             the router decides. Choosing one pins it for this person. */}
-        <Menu
-          trigger={
-            <>
-              {model === null ? <TuneIcon /> : <ProviderMark providerId={model.providerId} />}
-              <span>{providerLabel}</span>
-            </>
-          }
-          triggerLabel={`Model: ${providerLabel}. ${providerDetail}`}
-          placement="above-start"
-          items={[
-            {
-              id: 'auto',
-              icon: <TuneIcon />,
-              label: 'Automatic',
-              hint: model === null ? '✓' : undefined,
-              onSelect: () => chooseModel(null),
-            },
-            ...models.map((entry) => ({
-              id: `${entry.connectionId}:${entry.modelId}`,
-              icon: <ProviderMark providerId={entry.providerId} />,
-              label: entry.label,
-              hint:
-                model?.modelId === entry.modelId
-                  ? '✓'
-                  : `${entry.providerName}${entry.isDefaultConnection ? ' · default' : ''}`,
-              onSelect: () => chooseModel(entry),
-            })),
-          ]}
-        />
+          <Menu
+            trigger={
+              <>
+                {model === null ? <TuneIcon /> : <ProviderMark providerId={model.providerId} />}
+                <span>{providerLabel}</span>
+              </>
+            }
+            triggerLabel={`Model: ${providerLabel}. ${providerDetail}`}
+            placement="above-start"
+            items={[
+              {
+                id: 'auto',
+                icon: <TuneIcon />,
+                label: 'Automatic',
+                hint: model === null ? '✓' : undefined,
+                onSelect: () => chooseModel(null),
+              },
+              ...models.map((entry) => ({
+                id: `${entry.connectionId}:${entry.modelId}`,
+                icon: <ProviderMark providerId={entry.providerId} />,
+                label: entry.label,
+                hint:
+                  model?.modelId === entry.modelId
+                    ? '✓'
+                    : `${entry.providerName}${entry.isDefaultConnection ? ' · default' : ''}`,
+                onSelect: () => chooseModel(entry),
+              })),
+            ]}
+          />
 
-        <div className="v-chat-composer__spacer" />
+          <div className="v-chat-composer__spacer" />
 
-        {/* Right side of the row, exactly as asked:
+          {/* Right side of the row, exactly as asked:
               - an empty box shows TWO controls, the plain microphone and the
                 filled square;
               - once there is text only the microphone goes, and the square in the
                 same place becomes the send control;
               - an attachment changes nothing: only typing counts here.
             The microphone is absent only where the browser cannot dictate. */}
-        {dictation && !typed && (
-          <button
-            type="button"
-            className={
-              listening
-                ? 'v-chat-composer__mic v-chat-composer__mic--listening'
-                : 'v-chat-composer__mic'
-            }
-            onClick={startListening}
-            aria-label={listening ? 'Stop dictation' : 'Dictate a message'}
-            aria-pressed={listening}
-          >
-            <MicIcon />
-          </button>
-        )}
+          {dictation && !typed && (
+            <button
+              type="button"
+              className={
+                listening
+                  ? 'v-chat-composer__mic v-chat-composer__mic--listening'
+                  : 'v-chat-composer__mic'
+              }
+              onClick={startListening}
+              aria-label={listening ? 'Stop dictation' : 'Dictate a message'}
+              aria-pressed={listening}
+            >
+              <MicIcon />
+            </button>
+          )}
 
-        {busy && (
-          <button
-            type="button"
-            className="v-chat-composer__stop"
-            onClick={onStop}
-            aria-label="Stop the answer"
-          >
-            <StopIcon />
-          </button>
-        )}
+          {busy && (
+            <button
+              type="button"
+              className="v-chat-composer__stop"
+              onClick={onStop}
+              aria-label="Stop the answer"
+            >
+              <StopIcon />
+            </button>
+          )}
 
-        {typed ? (
-          <button
-            type="button"
-            className="v-chat-composer__send"
-            onClick={sendOrExplain}
-            disabled={busy}
-            aria-label="Send message"
-          >
-            <ArrowUpIcon />
-          </button>
-        ) : dictation ? (
-          // Nothing typed: the filled square is the dictation control, so it is
-          // never a dead button sitting where send will be.
-          <button
-            type="button"
-            className="v-chat-composer__voice"
-            onClick={startListening}
-            aria-label={listening ? 'Stop voice input' : 'Start voice input'}
-            aria-pressed={listening}
-          >
-            <WaveIcon />
-          </button>
-        ) : (
-          // No dictation in this browser, so the square would be a dead control.
-          <button
-            type="button"
-            className="v-chat-composer__send"
-            onClick={sendOrExplain}
-            disabled
-            aria-label="Send message"
-          >
-            <ArrowUpIcon />
-          </button>
-        )}
+          {typed ? (
+            <button
+              type="button"
+              className="v-chat-composer__send"
+              onClick={sendOrExplain}
+              disabled={busy}
+              aria-label="Send message"
+            >
+              <ArrowUpIcon />
+            </button>
+          ) : dictation ? (
+            // Nothing typed: the filled square is the dictation control, so it is
+            // never a dead button sitting where send will be.
+            <button
+              type="button"
+              className="v-chat-composer__voice"
+              onClick={startListening}
+              aria-label={listening ? 'Stop voice input' : 'Start voice input'}
+              aria-pressed={listening}
+            >
+              <WaveIcon />
+            </button>
+          ) : (
+            // No dictation in this browser, so the square would be a dead control.
+            <button
+              type="button"
+              className="v-chat-composer__send"
+              onClick={sendOrExplain}
+              disabled
+              aria-label="Send message"
+            >
+              <ArrowUpIcon />
+            </button>
+          )}
+        </div>
+        <p className="v-chat-composer__hint" id="veltravia-chat-hint">
+          Enter sends, Shift + Enter adds a line.
+        </p>
       </div>
-      <p className="v-chat-composer__hint" id="veltravia-chat-hint">
-        Enter sends, Shift + Enter adds a line.
-      </p>
 
       <Dialog
         open={noteOpen}

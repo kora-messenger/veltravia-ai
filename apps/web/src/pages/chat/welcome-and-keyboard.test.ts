@@ -92,3 +92,50 @@ describe('the type box', () => {
     expect(boxFocus).toEqual([]);
   });
 });
+
+/**
+ * The pick grid. jsdom computes no grid, so the shipped CSS is the only place
+ * these can be pinned.
+ */
+describe('the attachment grid', () => {
+  const css = () => read('./chat.css');
+  // Selectors here are sometimes a list split over two lines, so find the first
+  // brace after the selector text rather than expecting it on the same line.
+  // The match must be exact: `__attachment` is a prefix of `__attachments`.
+  const block = (selector: string) => {
+    const text = css();
+    const start = text.indexOf(`${selector} {`);
+    const listStart = text.indexOf(`${selector},`);
+    const at = start > -1 ? start : listStart;
+    expect(at).toBeGreaterThan(-1);
+    const open = text.indexOf('{', at);
+    return text.slice(open, text.indexOf('}', open));
+  };
+
+  it('lays the tiles out four across and wraps into rows', () => {
+    const grid = block('.v-chat-composer__attachments');
+    expect(grid).toContain('display: grid');
+    expect(grid).toContain('repeat(4');
+    // A sideways strip was the bug: it must never scroll horizontally.
+    expect(grid).not.toContain('overflow-x');
+    // Ten pictures may not push the field off the screen above the keyboard.
+    expect(grid).toContain('max-height');
+    expect(grid).toContain('overflow-y: auto');
+  });
+
+  it('keeps every tile square and the picture cropped to fill it', () => {
+    expect(block('.v-chat-composer__attachment')).toContain('aspect-ratio: 1 / 1');
+    expect(block('.v-chat-composer__thumb')).toContain('object-fit: cover');
+  });
+
+  it('draws remove as a small black dot inside the tile corner', () => {
+    const dot = block('.v-chat-composer__dismiss');
+    expect(dot).toContain('top: 4px');
+    expect(dot).toContain('right: 4px');
+    expect(dot).toContain('width: 22px');
+    expect(dot).toContain('border-radius: 50%');
+    expect(dot).toContain('color: #ffffff');
+    // No filename under a tile: the span it used to use is gone.
+    expect(css()).not.toContain('v-chat-composer__file-name');
+  });
+});

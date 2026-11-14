@@ -536,78 +536,102 @@
   background: #3b51e5;
 }
 
-/* The picture preview sits above the field, inside the same container, and is
-   absent entirely when nothing is attached. */
+/* The stack lets the picked files sit above the box instead of inside it. */
+.v-chat-composer-stack {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* Picked files are a grid of squares over the box, wrapping into rows, and
+   absent entirely when nothing is attached. They used to be one 76px strip that
+   scrolled sideways, which hid everything past the third picture. */
 .v-chat-composer__attachments {
-  display: flex;
+  display: grid;
+  /* Four across on a phone, as in the reference; the tiles are square, so the
+     numbers below are rows of 4 and then 4 and then 2. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--v-space-2);
-  /* Ten pictures would otherwise push the input off a phone screen. */
-  overflow-x: auto;
-  padding-bottom: var(--v-space-2);
-  margin: 0;
-  list-style: none;
+  /* Ten pictures would otherwise push the input off a phone screen, and the
+     keyboard makes the screen shorter still. The grid scrolls instead. */
+  max-height: 40vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   scrollbar-width: thin;
+  margin: 0 0 var(--v-space-2);
+  padding: 0;
+  list-style: none;
+}
+
+/* A desktop window with room for more tiles gets five, still inside the box's
+   720px column. */
+@media (min-width: 600px) {
+  .v-chat-composer__attachments {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
 }
 
 .v-chat-composer__attachment {
   position: relative;
-  flex: 0 0 auto;
-  width: 76px;
-  height: 76px;
-  border-radius: var(--v-radius-md);
-  overflow: visible;
-}
-
-.v-chat-composer__thumb {
-  width: 100%;
-  height: 100%;
-  border-radius: var(--v-radius-md);
-  object-fit: cover;
-  display: block;
-  border: 1px solid var(--v-border);
-}
-
-.v-chat-composer__dismiss {
-  position: absolute;
-  top: -7px;
-  right: -7px;
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid var(--v-border);
-  border-radius: 50%;
-  background: var(--v-surface);
-  color: var(--v-text);
-  box-shadow: 0 1px 3px rgba(32, 28, 52, 0.16);
-  cursor: pointer;
-}
-
-.v-chat-composer__dismiss:hover {
+  /* Square, whatever the column is wide: one ratio keeps every row aligned. */
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  overflow: hidden;
   background: var(--v-surface-hover);
 }
 
-/* A document attached to a message, which cannot be shown as a picture. */
-.v-chat-composer__file {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--v-space-1);
-  max-width: 9rem;
-  padding: 0 var(--v-space-2);
-  height: 40px;
-  border: 1px solid var(--v-border);
-  border-radius: var(--v-radius-md);
-  background: var(--v-surface);
-  color: var(--v-text-muted);
-  font-size: var(--v-text-xs);
+.v-chat-composer__thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Cropped to fill the square rather than letterboxed. */
+  object-fit: cover;
 }
 
-.v-chat-composer__file-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* A file with no preview keeps the same square: an icon, no filename printed
+   under it (the name is on the tile's title and on the remove control). */
+.v-chat-composer__file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--v-text-muted);
+}
+
+/* The remove control sits over the picture's top-right corner: a black dot with
+   a white X, not a chip hanging off the edge. */
+.v-chat-composer__dismiss {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(15 14 14 / 0.86);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+/* The dot stays 22px, but a finger needs more than that: the tap area reaches
+   34px without growing the visible circle. */
+.v-chat-composer__dismiss::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+}
+
+.v-chat-composer__dismiss:hover {
+  background: #000000;
+}
+
+.v-chat-composer__picker {
+  display: none;
 }
 
 /* Outlined, and deliberately different from the filled send control so the two
