@@ -787,3 +787,35 @@ Not delivered: no tax compliance or filings; no credit top-ups; no dunning sched
 reminders and `renewalsDue` are readable, and whoever operates the deployment schedules them); no
 proration on an upgrade; no seat or workspace membership model; no operator UI; no Play Billing in
 the Android build.
+
+## Step 62 - the first second, and a panel that narrows to its icons
+
+Two pieces of the shell, both measured against Base44's web app rather than guessed at. Nothing
+about the assistant changed; this is how the page arrives and how its navigation behaves.
+
+**The page paints its own frame before React exists.** It used to be blank until the bundle and
+`runtime-config.json` had both arrived - over four seconds on a throttled phone - where the
+reference draws its frame immediately and fills it in. `apps/web/index.html` now carries a static
+frame inside `#root`: a 56px top bar, the navigation column from 901px up, 47px rows and the
+message box, drawn with quiet placeholder bars, following the visitor's light or dark theme via the
+same storage key `ThemeProvider` writes. It carries no data, no name and no number, is
+`aria-hidden`, and the first React commit replaces it; its stylesheet is removed two animation
+frames later so the frame never flashes unstyled on the way out. `apps/web/src/boot-shell.test.ts`
+fails the build if the frame's colours, sizes or theme key drift from `tokens.css`, `shell.css`,
+`mobile-drawer.css` or `chat.css`.
+
+**The navigation panel narrows to its icons.** The control at the head's right collapses it: 324dp
+to 60dp over the page, 380dp to 60dp docked, with the page shifting to match. Labels are hidden
+visually and stay in the accessibility tree, so every row keeps its name; the mark takes the
+control's place in the head and tapping it opens the panel again. A phone's drawer forgets the
+narrowing when it closes (it is a transient state); the docked column keeps the choice its owner
+made, which is why the reset is guarded on `docked`.
+
+**The menu says it is reading, instead of saying it is empty.** The conversation list starts as
+`null` - "not read yet" - and shows three placeholder rows until storage answers and the agent's
+name has been fetched, with `aria-busy` on the section and the app's existing breathing animation
+(honoured by `prefers-reduced-motion`). No minimum display time is faked: the bars vanish as soon
+as the real state exists.
+
+Still open: sending a message with attachments is refused, because the run API takes text only, and
+the web bundle is a single 887KB chunk.
