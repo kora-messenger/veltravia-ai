@@ -86,13 +86,14 @@ export function TopBar({ route, showMenuButton = true, onOpenMobileNav }: TopBar
           aria-label="Open navigation"
           onClick={onOpenMobileNav}
         >
-          <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
-            <path
-              d="M2 4h12M2 8h12M2 12h12"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
+          {/* The menu mark: a rounded square with its left third divided off, drawn
+              from the supplied artwork (ink inset 9.4% of the box, 7.7% stroke,
+              corners at 26.5% and the divider a third in). */}
+          <svg viewBox="0 0 24 24" className="v-icon" aria-hidden="true">
+            <g fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="2.25" y="2.25" width="19.5" height="19.5" rx="5" />
+              <path d="M9 2.25v19.5" />
+            </g>
           </svg>
         </button>
       ) : null}

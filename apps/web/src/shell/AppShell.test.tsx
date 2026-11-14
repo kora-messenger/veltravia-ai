@@ -168,34 +168,32 @@ describe('AppShell', () => {
     expect(screen.queryByTestId('sidebar')).toBeNull();
   });
 
-  it('keeps the desk panel off a narrow screen and opens the phone menu instead', () => {
+  it('slides the same panel over the page on a phone, and closes it three ways', () => {
     stubWidth(false);
     renderShell();
-    // The Base44-shaped panel belongs to the wide layout. A phone must not mount
-    // it at all: it is not a phone surface.
-    expect(screen.queryByTestId('mobile-drawer')).toBeNull();
-
-    const menu = screen.getByTestId('mobile-menu');
-    expect(menu.classList.contains('v-mmenu--open')).toBe(false);
+    // One menu in two frames: a phone gets the very panel a wide screen docks.
+    const drawer = screen.getByTestId('mobile-drawer');
+    expect(drawer.classList.contains('v-drawer--docked')).toBe(false);
+    expect(drawer.classList.contains('v-drawer--open')).toBe(false);
 
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
-    expect(menu.classList.contains('v-mmenu--open')).toBe(true);
+    expect(drawer.classList.contains('v-drawer--open')).toBe(true);
 
-    // Navigating from it lands on the page and closes it.
-    fireEvent.click(within(menu).getByRole('link', { name: 'Projects' }));
+    // Navigating from the drawer lands on the page and closes the drawer.
+    fireEvent.click(within(drawer).getByRole('link', { name: 'Projects' }));
     expect(screen.getByTestId('page-projects')).toBeDefined();
-    expect(menu.classList.contains('v-mmenu--open')).toBe(false);
+    expect(drawer.classList.contains('v-drawer--open')).toBe(false);
 
     // Tapping the dimmed area closes it without navigating anywhere.
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
-    fireEvent.click(menu.querySelector('.v-mmenu__scrim') as Element);
-    expect(menu.classList.contains('v-mmenu--open')).toBe(false);
+    fireEvent.click(drawer.querySelector('.v-drawer__scrim') as Element);
+    expect(drawer.classList.contains('v-drawer--open')).toBe(false);
 
     // And so does Escape.
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
-    expect(menu.classList.contains('v-mmenu--open')).toBe(true);
+    expect(drawer.classList.contains('v-drawer--open')).toBe(true);
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(menu.classList.contains('v-mmenu--open')).toBe(false);
+    expect(drawer.classList.contains('v-drawer--open')).toBe(false);
   });
 
   it('routes to the documents page and marks it active', () => {

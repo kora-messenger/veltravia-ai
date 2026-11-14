@@ -129,7 +129,7 @@
   --v-drawer-muted: #e9e6e0;
   /* Hairlines taken off the same reference: the rule that closes the drawer's
      head (#D2CDC7 there) and the border around its agent card (#E0DDD7). */
-  --v-drawer-line: #d5d0c9;
+  --v-drawer-line: #ded9d3;
   --v-drawer-edge: #e2ded7;
   /* The drawer's ink: its row labels and their glyphs are black, not the app's
      softer neutral text, because on the warm milk surface a 15px label with a

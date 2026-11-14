@@ -62,9 +62,11 @@ pattern; toasts announce through a polite live region.
 
 `apps/web/src/shell/`:
 
-- `AppShell.tsx` — sidebar + top bar + main content area.
-- `Sidebar.tsx` — primary navigation (Dashboard, Projects, Settings) with
-  active (`aria-current="page"`), hover, focus, and collapse states.
+- `AppShell.tsx` — the navigation drawer + top bar + main content area.
+- `MobileDrawer.tsx` — the only navigation: docked as the page's column at
+  901px and up, a drawer over the page below it, in both builds.
+- `Sidebar.tsx` — the packaged app's older rail (Dashboard, Projects, Settings);
+  it is not drawn on the website.
 - `TopBar.tsx` — single-strip bar: brand mark, page context title, mobile
   navigation trigger, account menu (theme cycling; account/sign-out are
   explicitly disabled until authentication exists).
@@ -889,33 +891,11 @@ connected provider.
 
 ### The phone navigation drawer
 
-Below 900px the menu is `MobileMenu`, not the desktop sidebar slid in. It was
-laid out from a screen recording of a reference drawer (1080px capture, 2.62 px
-per dp) and checked in a browser against the same numbers:
-
-| Element            | Reference                                          | Here                                 |
-| ------------------ | -------------------------------------------------- | ------------------------------------ |
-| panel width        | 863px = 80% of the screen                          | 80% (330dp at 412dp wide)            |
-| scrim              | rgb(125) over white, ~51% black                    | rgba(0,0,0,.51)                      |
-| row pitch          | ~137px                                             | 52dp                                 |
-| icon / label / gap | 24dp / 17dp / 20dp                                 | 24dp / 17px / 20dp                   |
-| group label        | 13dp, muted, 28dp above                            | 13px, 600, 28px above                |
-| open               | ~267ms, decelerating, settles a hair past its mark | 270ms `cubic-bezier(.18,.9,.3,1.02)` |
-| close              | ~200ms                                             | 200ms ease-in                        |
-
-Two groups, both drawn from the routes the app really has: the everyday places
-first (Chat, Projects, App Builder, Files & artifacts, Dashboard), then every
-other route under one **Tools** label. Nothing is invented; a feature the app
-does not have does not get a row. The reference shows a list of pinned
-conversations, and there is no conversation history here, so that group is not
-drawn.
-
-A pill at the bottom-left starts a new chat and a profile circle at the
-bottom-right opens Settings (the circle shows the first letter of the owner's
-name, as in the thread). The list fades out beneath them instead of being cut
-off. While closed the panel is `inert` and `aria-hidden`, so it cannot be tabbed
-into or read out. Reduced-motion users get no slide. The desktop sidebar and its
-backdrop are not drawn on a phone.
+There was a phone-only drawer here (`MobileMenu`, 80% panel, 52dp rows, its own
+pill and profile circle). It is gone. A phone now opens the same panel a wide
+screen docks (`shell/MobileDrawer.tsx`), so there is one menu to change and one
+set of measurements to keep, documented under [The website navigation
+drawer](#the-website-navigation-drawer) below.
 
 ## Controls under an answer
 
@@ -994,24 +974,26 @@ conversation, projects, app builder, model settings.
 
 ## The website navigation drawer
 
-The browser gets a drawer of its own (`shell/MobileDrawer.tsx`); the packaged
-app keeps the older menu (`shell/MobileMenu.tsx`), chosen by `isPackagedApp()`
-rather than by width, because the two are built differently.
+`shell/MobileDrawer.tsx` is the product's only menu, in both builds. The packaged
+app used to keep an older drawer of its own (`MobileMenu`, now deleted), which is
+why nothing here is chosen by `isPackagedApp()` any more.
 
-**One menu, two frames.** The desktop navigation is this same menu, not a second
-design. At or above 1024px the panel stands open as the page's column at the width
-it reaches on a phone (83%, up to 380px), carrying the same head, agent card, New
-conversation, rows, conversation list and workspace footer, and measuring the same
-figures (head rule 53px down, rows 47px, 16px icons 22px in, labels 46px in, footer
-81px). Only the frame changes: no scrim, no close control, no hamburger, and the
-More card lands 11px from the panel's right edge where on a phone it lands 11px
-from the window's. Below 901px the same panel slides over the page. Because it is
+**One menu, two frames.** At 901px and up the panel stands open as the page's
+column, 300dp wide (83% capped at 300dp, the reference's own width); below 901px
+the very same panel slides over the page from the top bar's menu button. It carries
+the same head, agent row, New conversation, rows, conversation list and workspace
+footer in both frames, at the same measured figures: head rule 47dp down, rows a
+37dp pill on a 41dp pitch, 16dp icons 20dp in, labels 44dp in, footer 73dp. Only
+the frame changes: no scrim, no close control, no menu button, no icon-rail toggle,
+and the More card lands 11px from the panel's right edge where on a phone it lands
+11px from the window's. Because it is
 the website's only navigation it carries every destination: Chat, Projects,
 Dashboard, App Builder, Superagent operations, Model routing and Settings as rows,
 the ten remaining AI-workspace pages behind a folding group (open whenever the
 current page lives inside it), and Files, Memory and Data behind More. The older
 rail (`shell/Sidebar.tsx`, with its collapse control and "Platform preview"
-caption) is what the packaged app still draws; the website no longer uses it.
+caption) is what the packaged app still draws on a wide window; the website does
+not, and no phone draws it at all.
 
 The drawer is three zones, not one scrolling column: a pinned head (the brand
 lockup — the mark, a 6dp gap, then the Veltravia name — with a close control and

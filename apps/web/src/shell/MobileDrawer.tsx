@@ -26,8 +26,9 @@ import { workspaceInitials } from './workspace-initials';
  *
  * Three zones, as the recording shows: a pinned head and the two ways into a new
  * conversation, one scrolling middle holding the destinations and the saved
- * conversations, and a pinned footer with the workspace. The packaged app keeps
- * its own menu (see MobileMenu); this one is only built for the browser.
+ * conversations, and a pinned footer with the workspace. It is the only menu in
+ * the product: the phone slides it over the page, a wide screen docks it as the
+ * page's column, and the packaged app uses it too.
  *
  * Two departures from the reference, both deliberate: there is no back arrow in
  * the head, and no upgrade card, because Veltravia has no paid plan yet. Every
@@ -596,19 +597,23 @@ export function MobileDrawer({
                 <span className="v-drawer__wordmark">Veltravia</span>
               </span>
               <span className="v-drawer__head-actions">
-                <button
-                  type="button"
-                  className="v-drawer__collapse"
-                  aria-label="Collapse navigation to icons"
-                  aria-expanded={true}
-                  onClick={() => {
-                    setMenu({ kind: 'none' });
-                    setMoreOpen(false);
-                    setRail(true);
-                  }}
-                >
-                  {COLLAPSE_GLYPH}
-                </button>
+                {/* Collapsing to an icon rail is a desk gesture: on a phone the
+                    panel is either open or gone, so there is nothing to fold. */}
+                {docked ? (
+                  <button
+                    type="button"
+                    className="v-drawer__collapse"
+                    aria-label="Collapse navigation to icons"
+                    aria-expanded={true}
+                    onClick={() => {
+                      setMenu({ kind: 'none' });
+                      setMoreOpen(false);
+                      setRail(true);
+                    }}
+                  >
+                    {COLLAPSE_GLYPH}
+                  </button>
+                ) : null}
                 {docked ? null : (
                   <button
                     type="button"

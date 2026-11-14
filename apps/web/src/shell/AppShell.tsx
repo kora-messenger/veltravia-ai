@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
-import { MobileMenu } from './MobileMenu';
 import { MobileDrawer } from './MobileDrawer';
 import { isPackagedApp } from '../config/runtime-config';
 import { requestOpenConversation } from '../pages/chat/conversations';
@@ -24,8 +23,8 @@ export function AppShell({ renderPage }: AppShellProps) {
   const { route, navigate } = useHashRoute();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  // The website has two menus on purpose: the phone keeps its own drawer, and only
-  // a wide screen gets the desk-shaped panel, standing as the page's own column.
+  // One navigation surface, in two frames: a drawer over the page on a phone, the
+  // page's own column on a wide screen. Same list, same rows, same size.
   const wide = useWideLayout();
   const packaged = isPackagedApp();
   const docked = wide && !packaged;
@@ -69,38 +68,25 @@ export function AppShell({ renderPage }: AppShellProps) {
           onMobileClose={() => setMobileOpen(false)}
         />
       ) : null}
-      {/* The phone's menu, on the website and in the packaged app alike. */}
-      {packaged || !wide ? (
-        <MobileMenu
-          open={mobileOpen}
-          activeRouteId={activeNavId}
-          onNavigate={(next) => {
-            navigate(next);
-          }}
-          onNewChat={startNewChat}
-          onClose={() => setMobileOpen(false)}
-        />
-      ) : null}
-      {/* The wide screen's menu: the desk panel, docked as the page's column. It
-          is not a phone surface, so a narrow window never mounts it. */}
-      {docked ? (
-        <MobileDrawer
-          open
-          docked
-          activeRouteId={activeNavId}
-          onNavigate={(next) => {
-            navigate(next);
-          }}
-          onNewChat={startNewChat}
-          onOpenConversation={(id) => {
-            // Land on the chat first, then hand it the thread: the page that
-            // shows a conversation only exists once the route has changed.
-            navigate({ id: 'chat', hash: '#/chat', title: 'Chat' });
-            window.setTimeout(() => requestOpenConversation(id), 0);
-          }}
-          onClose={() => setMobileOpen(false)}
-        />
-      ) : null}
+      {/* The one menu: docked as the column on a wide screen, slid over the page
+          on a phone. The phone draws the same panel, the same rows and the same
+          footer, at the same 300dp; only the frame changes. */}
+      <MobileDrawer
+        open={docked || mobileOpen}
+        docked={docked}
+        activeRouteId={activeNavId}
+        onNavigate={(next) => {
+          navigate(next);
+        }}
+        onNewChat={startNewChat}
+        onOpenConversation={(id) => {
+          // Land on the chat first, then hand it the thread: the page that
+          // shows a conversation only exists once the route has changed.
+          navigate({ id: 'chat', hash: '#/chat', title: 'Chat' });
+          window.setTimeout(() => requestOpenConversation(id), 0);
+        }}
+        onClose={() => setMobileOpen(false)}
+      />
       <div className="v-shell__main">
         <BackendNotice />
         <OfflineBanner />

@@ -359,9 +359,32 @@ describe('the website drawer', () => {
   });
 });
 
+describe('the phone drawer', () => {
+  it('is the same panel a wide screen docks, at the same 300dp', () => {
+    setup();
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    // Same rows either side of the breakpoint: only the frame changes.
+    for (const label of ['New conversation', 'Projects', 'Dashboard', 'Conversations']) {
+      const node = Array.from(
+        nav.querySelectorAll('.v-drawer__label, .v-drawer__chats-title'),
+      ).find((candidate) => candidate.textContent === label);
+      expect(node, `${label} is missing from the phone panel`).not.toBeUndefined();
+    }
+    // A phone panel is neither docked nor an icon rail, and it can be closed.
+    expect(screen.getByTestId('mobile-drawer').className).not.toContain('v-drawer--docked');
+    expect(nav.className).not.toContain('v-drawer__panel--rail');
+    expect(screen.getByRole('button', { name: 'Close navigation' })).toBeDefined();
+  });
+
+  it('offers no icon-rail toggle, because a drawer is open or gone', () => {
+    setup();
+    expect(screen.queryByRole('button', { name: 'Collapse navigation to icons' })).toBeNull();
+  });
+});
+
 describe('narrowing the panel to its icons', () => {
   it('offers the toggle at the head’s right, and it narrows the panel', () => {
-    const { view } = setup();
+    const { view } = setup({ docked: true });
     const nav = screen.getByRole('navigation', { name: 'Primary' });
     const toggle = within(nav).getByRole('button', { name: 'Collapse navigation to icons' });
 
@@ -378,7 +401,7 @@ describe('narrowing the panel to its icons', () => {
   });
 
   it('leaves the mark where the toggle was, and the mark opens the panel again', () => {
-    setup();
+    setup({ docked: true });
     fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation to icons' }));
 
     const nav = screen.getByRole('navigation', { name: 'Primary' });
@@ -402,7 +425,7 @@ describe('narrowing the panel to its icons', () => {
   });
 
   it('keeps every row’s name when only the glyphs are painted', () => {
-    setup();
+    setup({ docked: true });
     fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation to icons' }));
 
     const nav = screen.getByRole('navigation', { name: 'Primary' });
@@ -430,26 +453,29 @@ describe('narrowing the panel to its icons', () => {
     expect(screen.getByRole('button', { name: 'Open navigation' })).toBeDefined();
   });
 
-  it('forgets the narrowing when a phone’s drawer closes', () => {
-    const { props, view } = setup();
+  it('drops the narrowing when the panel becomes a phone drawer', () => {
+    const { props, view } = setup({ docked: true, open: false });
     fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation to icons' }));
     expect(screen.getByRole('navigation', { name: 'Primary' }).className).toContain(
       'v-drawer__panel--rail',
     );
 
+    // Narrowed to a phone the panel is not docked, so the icon rail is not a
+    // state it can be in: closed, it forgets it, and reopening shows every row.
     view.rerender(
       <ThemeProvider>
-        <MobileDrawer {...props} open={false} />
+        <MobileDrawer {...props} docked={false} open={false} />
       </ThemeProvider>,
     );
     view.rerender(
       <ThemeProvider>
-        <MobileDrawer {...props} open={true} />
+        <MobileDrawer {...props} docked={false} open={true} />
       </ThemeProvider>,
     );
     expect(screen.getByRole('navigation', { name: 'Primary' }).className).not.toContain(
       'v-drawer__panel--rail',
     );
+    expect(screen.getByRole('button', { name: 'Close navigation' })).toBeDefined();
   });
 });
 
@@ -477,7 +503,7 @@ describe('while the panel is still reading', () => {
     first.unmount();
 
     // Settled: the real list, and no placeholder left behind.
-    const { view } = setup();
+    const { view } = setup({ docked: true });
     expect(document.querySelectorAll('.v-drawer__chat--loading').length).toBe(0);
     expect(screen.getByText('Conversation 1')).toBeDefined();
     view.unmount();

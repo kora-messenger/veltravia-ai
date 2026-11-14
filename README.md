@@ -822,15 +822,20 @@ shows the product mark or the assistant's name (every other page keeps its mark 
 is still shown in the menu's agent row, and changing it moved to the profile dialog, which now also
 has "Restore the default name" (the old header-only editor, `AgentNameDialog`, is gone).
 
-That panel is a wide-screen surface, not a phone one. A narrow window never mounts it: below 901px the
-website keeps the app's own phone drawer (`shell/MobileMenu.tsx`, opened by the top bar's hamburger),
-which is what the packaged build has always used. Past conversations live in the wide panel, so they
-are a desk feature for now.
+That panel is the only menu in the product, in two frames: below 901px it slides over the page from the
+top bar's menu button, and at 901px and up the same panel is docked as the page's own column. There is
+no second phone menu any more: the app's older drawer (`MobileMenu`) and its styles are deleted, and
+the packaged build gets this panel too, so a change to the menu is a change everywhere.
 
-Wide, the panel is the reference's own geometry, measured off Base44's drawer at 3x: 300dp wide (the
+Both frames use the reference's own geometry, measured off Base44's drawer at 3x: 300dp wide (the
 first-paint frame matches), a head whose rule sits 47dp down, rows as a 37dp pill on a 41dp pitch with
 their icons 20dp in and labels 44dp in, conversation rows on the same 41dp rhythm, and a 73dp
-workspace footer. The 2dp of air above and below each pill belongs to the row's `<li>`, because a block
+workspace footer. The colours are the reference's as well: panel `#f8f6f4`, selected row `#e9e6e0`,
+head rule `#ded9d3`, and the page dimmed to a quarter. Two deliberate departures: no back arrow in the
+head, and no "Upgrade your plan" card, because there is no paid plan to point at.
+
+The icon-rail toggle is a desk-only control: on a phone the panel is open or gone, so the head has just
+the close control. The 2dp of air above and below each pill belongs to the row's `<li>`, because a block
 button's margins collapse through that wrapper and quietly turned the 41dp pitch into 39dp. Nine rows
 plus the head and footer come to roughly 70dp less than the 380dp column's taller rows did.
 
