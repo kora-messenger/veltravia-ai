@@ -158,6 +158,8 @@ import { registerSpendingLimitRoutes } from './routes/spending-limits.js';
 import { createSubscriptionService, type SubscriptionService } from './subscription-service.js';
 import { registerSubscriptionGuards } from './subscription-guards.js';
 import { registerSubscriptionRoutes } from './routes/subscriptions.js';
+import { createPaymentService, type PaymentService } from './payment-service.js';
+import { registerPaymentRoutes } from './routes/payments.js';
 
 /** A positive integer from the environment, or 0 when unset or nonsense. */
 function readPositiveIntEnv(name: string): number {
@@ -242,6 +244,8 @@ export interface BuildAppOptions {
    * database is configured; tests and laptops get the in-memory engine.
    */
   readonly persistence?: Persistence;
+  /** Payments (Step 61). Tests inject one with a fixture transport. */
+  readonly payments?: PaymentService;
   /**
    * Environment for this instance (Step 52). Tests pass their own so a metering
    * token or deployment mode can be exercised without mutating `process.env` for
@@ -614,6 +618,28 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   });
   subscriptionGate.current = subscriptionService;
 
+  /*
+   * Step 61: payments. It sits on top of Step 60 - it may change a plan only
+   * through `subscriptionService`, and it owns no balance: a plan's allowance is a
+   * ceiling the meter already enforces. Its store is separate from the
+   * subscription store because money and entitlement are different records with
+   * different lifetimes.
+   */
+  const paymentService: PaymentService =
+    options.payments ??
+    createPaymentService({
+      ...(persistence?.stores?.payments === undefined
+        ? {}
+        : { store: persistence.stores.payments }),
+      subscriptions: subscriptionService,
+      env,
+      onNotification: (notification) => {
+        console.info(
+          `[payments] ${notification.kind} ${notification.ownerRef} ${notification.title}`,
+        );
+      },
+    });
+
   // The wallet exists before the meter because the meter bills into it: the
   // wallet is created first and handed to the usage service as a hook.
   const walletService = createWalletService({
@@ -851,6 +877,21 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       integrationCredits: { summary: (ref) => integrationCreditService.summary(ref) },
       wallet: { overview: (ref) => walletService.overview(ref) },
       usage: { snapshot: (owner, options) => usageService.snapshot(owner, options) },
+    },
+    env,
+  );
+
+  /*
+   * Step 61: the billing surface. Registered after the subscription surface so
+   * the operator token and the owner header conventions are identical, and outside
+   * the plan gate because billing must stay reachable to an account whose plan has
+   * lapsed - that is exactly who needs to pay.
+   */
+  registerPaymentRoutes(
+    app,
+    {
+      payments: paymentService,
+      subscriptions: { catalogue: () => subscriptionService.catalogue() },
     },
     env,
   );
