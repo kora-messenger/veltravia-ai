@@ -1,8 +1,6 @@
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Menu, type MenuItemDef } from '../components/ui';
 import { BrandMark } from '../components/brand/BrandMark';
-import { useAgentProfile } from '../agent/AgentProfileProvider';
-import { AgentNameDialog } from './AgentNameDialog';
 import type { RouteState } from './useHashRoute';
 
 export interface TopBarProps {
@@ -46,13 +44,11 @@ const COMPUTER_GLYPH = (
 );
 
 export function TopBar({ route, showMenuButton = true, onOpenMobileNav }: TopBarProps) {
-  const profile = useAgentProfile();
-  const [nameDialogOpen, setNameDialogOpen] = useState(false);
-
-  // The chat is a conversation with a named assistant, so the header says who
-  // that is instead of repeating the route name. Every other page keeps its
-  // own title.
-  const showsAgentName = route.id === 'chat';
+  // The chat screen carries neither the product mark nor the assistant's name in
+  // its header: the conversation is the page, and the name lives in the menu's
+  // agent row and the profile sheet, where it can still be changed. Every other
+  // page keeps its mark and its own title.
+  const isChat = route.id === 'chat';
 
   // Two rows, exactly as the reference shows them. Neither surface exists in
   // this release, so both read "Soon" and are disabled: a row that looks
@@ -100,23 +96,13 @@ export function TopBar({ route, showMenuButton = true, onOpenMobileNav }: TopBar
           </svg>
         </button>
       ) : null}
-      <span className="v-topbar__brand">
-        <BrandMark size={22} decorative />
-      </span>
+      {isChat ? null : (
+        <span className="v-topbar__brand">
+          <BrandMark size={22} decorative />
+        </span>
+      )}
       <div className="v-topbar__context">
-        {showsAgentName ? (
-          <button
-            type="button"
-            className="v-topbar__agent"
-            onClick={() => setNameDialogOpen(true)}
-            aria-label={`Name your agent (currently called ${profile.agentName})`}
-            title="Rename your agent"
-          >
-            <h1 className="v-heading-2 v-topbar__title">{profile.agentName}</h1>
-          </button>
-        ) : (
-          <h1 className="v-heading-2 v-topbar__title">{route.title}</h1>
-        )}
+        {isChat ? null : <h1 className="v-heading-2 v-topbar__title">{route.title}</h1>}
       </div>
       <div className="v-topbar__spacer" />
       <div className="v-topbar__actions">
@@ -171,9 +157,6 @@ export function TopBar({ route, showMenuButton = true, onOpenMobileNav }: TopBar
           }
         />
       </div>
-      {showsAgentName && (
-        <AgentNameDialog open={nameDialogOpen} onClose={() => setNameDialogOpen(false)} />
-      )}
     </header>
   );
 }

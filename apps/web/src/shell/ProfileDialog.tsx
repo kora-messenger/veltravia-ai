@@ -19,7 +19,7 @@ export interface ProfileDialogProps {
 }
 
 export function ProfileDialog({ open, onClose }: ProfileDialogProps) {
-  const { agentName, ownerName, saving, save } = useAgentProfile();
+  const { agentName, ownerName, isDefault, saving, save, resetName } = useAgentProfile();
   const [name, setName] = useState(ownerName ?? '');
   const [assistant, setAssistant] = useState(agentName);
   const [problem, setProblem] = useState<string | null>(null);
@@ -52,6 +52,15 @@ export function ProfileDialog({ open, onClose }: ProfileDialogProps) {
     const outcome = await save({ ownerName: yourName, agentName: assistantName });
     if (!outcome.ok) {
       setProblem(outcome.message ?? 'Your profile was not saved.');
+      return;
+    }
+    onClose();
+  };
+
+  const restoreDefault = async () => {
+    const outcome = await resetName();
+    if (!outcome.ok) {
+      setProblem(outcome.message ?? 'The default name could not be restored.');
       return;
     }
     onClose();
@@ -112,6 +121,11 @@ export function ProfileDialog({ open, onClose }: ProfileDialogProps) {
           <p className="v-field__error" role="alert">
             {problem}
           </p>
+        )}
+        {!isDefault && (
+          <Button variant="ghost" size="sm" onClick={restoreDefault} disabled={saving}>
+            Restore the default name
+          </Button>
         )}
       </form>
     </Dialog>
