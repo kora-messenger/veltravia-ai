@@ -1,0 +1,24 @@
+{
+  "name": "@veltravia/subscriptions-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia subscription plans (Step 60): a configurable plan catalogue, plan entitlements, and the subscription lifecycle that decides which plan an account is actually on.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@veltravia/usage-core": "*"
+  }
+}

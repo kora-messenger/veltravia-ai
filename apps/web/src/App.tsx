@@ -29,6 +29,7 @@ import {
   ExecutePage,
   OperationsPage,
   UsageHistoryPage,
+  SubscriptionPlanPage,
   SettingsPage,
 } from './pages';
 
@@ -92,6 +93,8 @@ export function App() {
                   return <OperationsPage />;
                 case 'usage':
                   return <UsageHistoryPage />;
+                case 'plan':
+                  return <SubscriptionPlanPage />;
                 case 'settings':
                   return <SettingsPage />;
                 default:

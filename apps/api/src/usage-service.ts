@@ -270,6 +270,26 @@ export interface UsageService {
   sweep(ownerRef: string): Promise<number>;
 }
 
+/**
+ * Step 60: what the meter needs to hear from a subscription, and nothing more.
+ *
+ * Kept as its own shape so this file never imports the subscription service: the
+ * meter asks one question ("which plan is in force for this account, and is it
+ * entitled?") and stays testable without a database.
+ */
+export interface SubscriptionAccessView {
+  readonly planId: string;
+  readonly planName: string;
+  readonly status: string;
+  /** `subscription`, `lapsed`, `suspended` or `development-allowance`. */
+  readonly source: string;
+  readonly entitled: boolean;
+  readonly managedProviders: boolean;
+  readonly byokProviders: boolean;
+  readonly quotaLimits: Readonly<Record<string, number | null>> | null;
+  readonly reason: string | null;
+}
+
 export interface UsageServiceOptions {
   /** Durable store when the deployment has a database. */
   readonly store?: UsageStore | undefined;
@@ -299,6 +319,16 @@ export interface UsageServiceOptions {
    * never turn work that already ran into an error, so it is caught and dropped.
    */
   readonly onRecorded?: ((record: UsageRecord) => Promise<void> | void) | undefined;
+  /**
+   * Step 60: the subscription that decides this account's plan.
+   *
+   * Absent means the deployment has no subscription wiring and the Step 52
+   * behaviour stands, which is what a unit test of this service gets. Present, the
+   * plan in force decides the entitlement and the quota set, so a suspended or
+   * lapsed account loses the managed keys and the paid quotas without this file
+   * knowing what a subscription is.
+   */
+  readonly subscription?: { access(ownerRef: string): Promise<SubscriptionAccessView> } | undefined;
 }
 
 /**
@@ -505,7 +535,39 @@ export function createUsageService(options: UsageServiceOptions = {}): UsageServ
 
   const window = () => monthWindow(now().toISOString());
 
-  const planFor = async (
+  const subscriptionOf = options.subscription;
+
+  /**
+   * Step 60: the subscription in force, or `null` when the account has no
+   * subscription row at all.
+   *
+   * The distinction carries the whole policy. A row - live, lapsed or suspended -
+   * owns the answer, so a lapsed subscription loses the paid quotas and a
+   * suspended one loses everything. No row means the account was never on a
+   * subscription, and the Step 52 plan switch still decides; taking that away
+   * would silently push an account an operator marked paid down to the included
+   * allowance the moment subscriptions were wired in.
+   */
+  const subscriptionOfOwner = async (ownerRef: string): Promise<SubscriptionAccessView | null> => {
+    if (subscriptionOf === undefined) return null;
+    const access = await subscriptionOf.access(ownerRef);
+    return access.source === 'development-allowance' ? null : access;
+  };
+
+  const planFromSubscription = async (
+    ownerRef: string,
+  ): Promise<{ planId: PlanId; source: 'default' | 'operator' } | null> => {
+    const access = await subscriptionOfOwner(ownerRef);
+    if (access === null) return null;
+    // A live subscription is `paid`; a lapsed or suspended one is the included
+    // allowance, so nothing keeps paid quotas by leaving a row behind.
+    return {
+      planId: access.source === 'subscription' ? 'paid' : 'development',
+      source: 'operator',
+    };
+  };
+
+  const legacyPlanFor = async (
     ownerRef: string,
   ): Promise<{ planId: PlanId; source: 'default' | 'operator' }> => {
     const stored = await storeFor(ownerRef).readPlan?.();
@@ -524,7 +586,34 @@ export function createUsageService(options: UsageServiceOptions = {}): UsageServ
     return { planId: 'development', source: 'default' };
   };
 
+  const planFor = async (
+    ownerRef: string,
+  ): Promise<{ planId: PlanId; source: 'default' | 'operator' }> => {
+    const fromSubscription = await planFromSubscription(ownerRef);
+    if (fromSubscription !== null) return fromSubscription;
+    return legacyPlanFor(ownerRef);
+  };
+
   const entitlementOf = async (ownerRef: string): Promise<UsageEntitlement> => {
+    const subscription = await subscriptionOfOwner(ownerRef);
+    if (subscription !== null) {
+      const access = subscription;
+      return {
+        planId: access.source === 'subscription' ? 'paid' : 'development',
+        label: access.planName,
+        source: 'operator',
+        developmentMode,
+        // A suspension grants neither route: not the managed keys and not the
+        // right to spend through a personal one.
+        managedProviders: access.entitled && access.managedProviders,
+        byokProviders: access.entitled && access.byokProviders,
+        note:
+          access.reason ??
+          (access.entitled
+            ? `Plan in force: ${access.planName}.`
+            : `No plan entitlements are in force: ${access.planName}.`),
+      };
+    }
     const plan = await planFor(ownerRef);
     const paid = plan.planId === 'paid';
     return {
@@ -781,9 +870,16 @@ export function createUsageService(options: UsageServiceOptions = {}): UsageServ
     scope: { plan: PlanId; owner: QuotaOverrides | null; project: QuotaOverrides | null };
   }> => {
     const scope = await overridesFor(ownerRef, projectId);
+    // Step 60: the plan in force supplies the quota set; an override still wins,
+    // and a key the plan does not state keeps the Step 52 value.
+    const planQuotas = (await subscriptionOfOwner(ownerRef))?.quotaLimits ?? null;
+    const planLimits =
+      planQuotas === null || Object.keys(planQuotas).length === 0
+        ? scope.plan
+        : { ...PLAN_CATALOG[scope.plan].limits, ...planQuotas };
     return {
       limit: resolveLimit(key, {
-        plan: scope.plan,
+        plan: planLimits,
         ...(scope.owner === null ? {} : { owner: scope.owner }),
         ...(scope.project === null ? {} : { project: scope.project }),
       }),
@@ -1060,7 +1156,23 @@ export function createUsageService(options: UsageServiceOptions = {}): UsageServ
           null,
         );
       }
-      if (input.byok) return;
+      if (input.byok) {
+        // Step 60: a personal key is not a way around a plan. Development mode is
+        // free, a paid plan includes it, and a suspended or lapsed subscription
+        // does not - which is what stops a held account from spending through a
+        // key it stored before the hold.
+        if (!entitlement.byokProviders) {
+          throw new UsageLimitError(
+            'USAGE_BYOK_NOT_IN_PLAN',
+            entitlement.note === '' || entitlement.note === undefined
+              ? 'Your own provider keys are not available on this plan right now. Nothing was sent.'
+              : `${entitlement.note} Your own provider keys are not in force right now, so nothing was sent.`,
+            402,
+            null,
+          );
+        }
+        return;
+      }
       const projectId = input.projectId ?? null;
       const { limit } = await resolveFor(input.ownerRef, 'providerTokens', projectId);
       const consumed = await consumedFor(input.ownerRef, 'providerTokens', projectId);

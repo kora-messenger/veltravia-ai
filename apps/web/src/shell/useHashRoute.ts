@@ -29,6 +29,7 @@ export const ROUTES: readonly RouteDef[] = [
   { id: 'execute', hash: '#/execute', title: 'Model runs' },
   { id: 'operations', hash: '#/operations', title: 'Superagent operations' },
   { id: 'usage', hash: '#/usage', title: 'Usage & cost' },
+  { id: 'plan', hash: '#/plan', title: 'Plan & subscription' },
   { id: 'ai-providers', hash: '#/settings/ai-providers', title: 'AI providers' },
   { id: 'model-routing', hash: '#/settings/models', title: 'Model routing' },
   { id: 'builder', hash: '#/builder', title: 'App Builder' },
@@ -78,6 +79,7 @@ export type RouteId =
   | 'execute'
   | 'operations'
   | 'usage'
+  | 'plan'
   | 'project-detail'
   | 'project-workspace'
   | 'project-builder'
@@ -154,6 +156,9 @@ function routeForHash(hash: string): RouteState {
   }
   if (hash === '#/usage') {
     return { id: 'usage', title: 'Usage & cost', projectId: null };
+  }
+  if (hash === '#/plan') {
+    return { id: 'plan', title: 'Plan & subscription', projectId: null };
   }
   if (hash === '#/settings/ai-providers') {
     return { id: 'ai-providers', title: 'AI providers', projectId: null };

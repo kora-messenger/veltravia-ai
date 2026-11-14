@@ -170,6 +170,29 @@ const ICONS: Record<string, ReactNode> = {
       />
     </svg>
   ),
+  /*
+   * A layered card: a plan is a set of tiers stacked on top of one another, and
+   * not a price tag - there is still no checkout to put a price on.
+   */
+  plan: (
+    <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
+      <path
+        d="M2.2 5.4 8 2.6l5.8 2.8L8 8.2z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M2.2 8.4 8 11.2l5.8-2.8M2.2 11.2 8 14l5.8-2.8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ),
   operations: (
     <svg viewBox="0 0 16 16" className="v-icon" aria-hidden="true">
       <rect

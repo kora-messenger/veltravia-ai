@@ -34,6 +34,7 @@ import { migration013 } from './migrations/013-message-credits.js';
 import { migration014 } from './migrations/014-measurement-source.js';
 import { migration016 } from './migrations/016-billing-charge-kinds.js';
 import { migration017 } from './migrations/017-spending-limits.js';
+import { migration018 } from './migrations/018-subscriptions.js';
 import { migration015 } from './migrations/015-integration-credits.js';
 import { migration012 } from './migrations/012-credit-wallet.js';
 
@@ -61,6 +62,7 @@ export const MIGRATIONS: readonly Migration[] = [
   migration015,
   migration016,
   migration017,
+  migration018,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 const MIGRATION_TABLE = 'veltravia_schema_migrations';

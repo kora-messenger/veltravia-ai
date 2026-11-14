@@ -719,3 +719,34 @@ workspace funding (workspace and project scopes bound spending the owner's walle
 the guard is per lane, so an `all` rule spanning messages and integrations can be passed by
 up to one operation's worth in the worst case; and the screen offers daily, weekly and
 monthly windows only, though the API also accepts custom day counts.
+
+## Step 60 - subscription plans
+
+Plans are rows, not constants. `@veltravia/subscriptions-core` holds the catalogue, the
+entitlement reader, strict plan validation and the clock-driven lifecycle; the API binds it to
+migration 018 and to a plan gate installed over every protected route family; the screen is
+`#/plan`.
+
+Four rules the tests assert: **an absent entitlement is denied**, so adding a feature closes it
+on a plan that was never granted it; **a renewal runs once per period**, claimed by an insert
+into `subscription_periods` keyed on the period being _granted_; **a plan change keeps the
+period, the credits and every project**, in both directions; and **a suspension grants nothing**,
+neither a managed key nor a personal one, refused in the meter before any provider call. The
+four paid allowances are Step 56's numbers carried forward unchanged (2,000 / 10,000 / 20,000 /
+50,000) as configurable defaults, and a test fails if the two tables ever disagree.
+
+The bug worth recording is the renewal claim. The first version keyed it on the period that had
+just ended, which the assignment had already written, so every renewal collided with the
+account's own first row and silently did nothing - a subscription advanced 32 days reported
+`applied: 0`. The lifecycle test found it; the claim now names the new period. The plan insert
+had a parameter-count mismatch that left the catalogue unseeded in Postgres while the in-memory
+store looked perfect, which is why the persistence suite runs against the real database.
+
+No price is stored, shown or implied, and there is no checkout: self-service changes are closed
+by default, because a plan change with no payment behind it is a free upgrade. See
+`docs/subscriptions.md`.
+
+Not delivered: no payment, checkout, invoices or proration; no trial automation; no seat or
+member model (a subscription belongs to one owner ref); no scheduled renewal timer - the sweep
+route exists and whoever schedules it must call it; no admin UI (the operator surface is HTTP
+only).

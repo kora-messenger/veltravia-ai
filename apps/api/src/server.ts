@@ -155,6 +155,9 @@ import { describeSweep, startIntegrationCreditSweep } from './integration-credit
 import { createGitHubApiConnector } from './github.js';
 import { createSpendingLimitService, type SpendingLimitService } from './spending-limit-service.js';
 import { registerSpendingLimitRoutes } from './routes/spending-limits.js';
+import { createSubscriptionService, type SubscriptionService } from './subscription-service.js';
+import { registerSubscriptionGuards } from './subscription-guards.js';
+import { registerSubscriptionRoutes } from './routes/subscriptions.js';
 
 /** A positive integer from the environment, or 0 when unset or nonsense. */
 function readPositiveIntEnv(name: string): number {
@@ -278,6 +281,16 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // durable query is owner-scoped and refuses to run without it. Harmless in
   // memory mode, required in postgres mode.
   registerOwnerScope(app);
+
+  /*
+   * Step 60: the plan gate is installed here, before any route, because a Fastify
+   * hook only covers routes registered after it - installing it next to the
+   * subscription routes would have left every feature route unguarded while
+   * looking enforced. The service it asks is filled in further down, once the
+   * database it may need exists.
+   */
+  const subscriptionGate: { current: SubscriptionService | undefined } = { current: undefined };
+  registerSubscriptionGuards(app, () => subscriptionGate.current);
 
   // Liveness for the load balancer, readiness for traffic. Readiness verifies
   // durable storage only when the deployment claims to have some, and the
@@ -584,6 +597,23 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
    * happens. Nothing here duplicates a worker, task or execution decision; it
    * only records what they consumed.
    */
+  /*
+   * Step 60: the subscription has to exist before the meter, because the meter
+   * asks it which plan an account is on. It owns no balance and no charge: it
+   * holds the plan catalogue and one row per account, and answers "which plan is
+   * in force".
+   */
+  const subscriptionService: SubscriptionService = createSubscriptionService({
+    ...(persistence?.stores?.subscriptions === undefined
+      ? {}
+      : { store: persistence.stores.subscriptions }),
+    env,
+    onEvent: (event) => {
+      console.warn(`[subscriptions] ${event.kind} ${event.ownerRef} ${event.message}`);
+    },
+  });
+  subscriptionGate.current = subscriptionService;
+
   // The wallet exists before the meter because the meter bills into it: the
   // wallet is created first and handed to the usage service as a hook.
   const walletService = createWalletService({
@@ -594,6 +624,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const usageService = createUsageService({
     env,
     store: persistence?.stores?.usage,
+    // Step 60: the plan in force decides the entitlement and the quota set.
+    subscription: subscriptionService,
     /*
      * Step 57: the two categories this process measures with a live meter rather
      * than a probe. Declaring them here is what lets the capability table say
@@ -805,6 +837,23 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   });
   registerUsageHistoryRoutes(app, { history: usageHistory });
   registerSpendingLimitRoutes(app, { spendingLimits: spendingLimitService }, env);
+  /*
+   * Step 60: the plan surface, and the gate that holds every protected route to
+   * the plan in force. The gate is one hook over a table of prefixes, so a browser
+   * that never opens the plan screen is held to the same answer a hand-written
+   * request gets.
+   */
+  registerSubscriptionRoutes(
+    app,
+    {
+      subscriptions: subscriptionService,
+      messageCredits: { summary: (ref) => messageCreditService.summary(ref) },
+      integrationCredits: { summary: (ref) => integrationCreditService.summary(ref) },
+      wallet: { overview: (ref) => walletService.overview(ref) },
+      usage: { snapshot: (owner, options) => usageService.snapshot(owner, options) },
+    },
+    env,
+  );
 
   /*
    * Step 56: the hold sweep runs on a timer, not on somebody remembering.
