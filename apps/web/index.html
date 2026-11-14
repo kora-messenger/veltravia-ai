@@ -12,9 +12,251 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/brand/veltravia-logo-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/brand/veltravia-logo-180.png" />
     <meta name="theme-color" content="#05060a" />
+    <!--
+      First paint. The page used to be empty until the bundle and runtime-config.json
+      had both arrived (4s+ on a throttled phone), so a visitor saw a blank screen where
+      Base44 draws its frame straight away. This block paints the application's own
+      frame (top bar, navigation column on a wide screen, the message box) with quiet
+      placeholder bars, and React replaces it when it mounts.
+
+      Rules it follows:
+      - It is static markup. It carries no data, no account, no conversation and no
+        number, so nothing here can ever be mistaken for live content.
+      - It is hidden from assistive technology and marked busy; the real page takes over
+        its live region as soon as it mounts.
+      - Its colours repeat the theme tokens (tokens.css) because that file is not loaded
+        yet. boot-shell.test.ts fails the build if the two drift apart.
+      - The theme script below only reads the same preference ThemeProvider reads, so the
+        frame is already dark for a dark-mode visitor instead of flashing white.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = window.localStorage.getItem('veltravia.theme-preference');
+          var dark =
+            stored === 'dark' ||
+            (stored !== 'light' &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        } catch (e) {
+          /* A blocked storage only means the system preference decides. */
+        }
+      })();
+    </script>
+    <style data-boot>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        background: #fafafd;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          'Helvetica Neue',
+          Arial,
+          sans-serif;
+      }
+      [data-theme='dark'] body {
+        background: #0e0d16;
+      }
+      .vb {
+        --vb-bg: #fafafd;
+        --vb-surface: #ffffff;
+        --vb-drawer: #f8f6f4;
+        --vb-line: #e5e3ee;
+        --vb-bone-a: #f3f1ef;
+        --vb-bone-b: #e9e5df;
+        --vb-box: #f2f1f7;
+        display: flex;
+        min-height: 100dvh;
+        background: var(--vb-bg);
+      }
+      [data-theme='dark'] .vb {
+        --vb-bg: #0e0d16;
+        --vb-surface: #151420;
+        --vb-drawer: #151420;
+        --vb-line: #2a2739;
+        --vb-bone-a: #1e1c2b;
+        --vb-bone-b: #2a2739;
+        --vb-box: #1e1c2b;
+      }
+      .vb__nav {
+        display: none;
+        flex: none;
+        flex-direction: column;
+        inline-size: 83%;
+        max-inline-size: 380px;
+        block-size: 100dvh;
+        background: var(--vb-drawer);
+        border-inline-end: 1px solid var(--vb-line);
+      }
+      .vb__nav-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-block-size: 53px;
+        padding: 8px 24px 4px;
+        border-block-end: 1px solid var(--vb-line);
+        box-sizing: border-box;
+      }
+      .vb__nav-head img {
+        inline-size: 22px;
+        block-size: 22px;
+      }
+      .vb__rows {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        padding: 12px 22px;
+      }
+      .vb__row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-block-size: 47px;
+      }
+      .vb__main {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-inline-size: 0;
+      }
+      .vb__bar {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        block-size: 56px;
+        flex: none;
+        padding: 0 14px 0 12px;
+        box-sizing: border-box;
+        background: var(--vb-surface);
+        border-block-end: 1px solid var(--vb-line);
+      }
+      .vb__bar img {
+        inline-size: 22px;
+        block-size: 22px;
+      }
+      .vb__body {
+        flex: 1;
+        padding: 20px 16px;
+      }
+      .vb__foot {
+        padding: 0 8px 12px;
+      }
+      .vb__box {
+        box-sizing: border-box;
+        max-inline-size: 720px;
+        margin: 0 auto;
+        block-size: 100px;
+        padding: 16px 12px 8px;
+        border: 1px solid var(--vb-line);
+        border-radius: 16px;
+        background: var(--vb-box);
+      }
+      .vb__bone {
+        display: block;
+        border-radius: 6px;
+        background: var(--vb-bone-b);
+        animation: vb-breathe 2s ease-in-out infinite;
+      }
+      @keyframes vb-breathe {
+        0%,
+        20% {
+          background-color: var(--vb-bone-a);
+        }
+        60%,
+        80% {
+          background-color: var(--vb-bone-b);
+        }
+        100% {
+          background-color: var(--vb-bone-a);
+        }
+      }
+      @media (min-width: 901px) {
+        .vb__nav {
+          display: flex;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .vb__bone {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="vb" data-boot aria-hidden="true">
+        <aside class="vb__nav">
+          <div class="vb__nav-head">
+            <img src="/brand/veltravia-logo-48.png" alt="" width="22" height="22" />
+            <span class="vb__bone" style="inline-size: 108px; block-size: 20px"></span>
+          </div>
+          <div class="vb__rows">
+            <div class="vb__row">
+              <span class="vb__bone" style="inline-size: 16px; block-size: 16px"></span
+              ><span class="vb__bone" style="inline-size: 120px; block-size: 14px"></span>
+            </div>
+            <div class="vb__row">
+              <span class="vb__bone" style="inline-size: 16px; block-size: 16px"></span
+              ><span class="vb__bone" style="inline-size: 92px; block-size: 14px"></span>
+            </div>
+            <div class="vb__row">
+              <span class="vb__bone" style="inline-size: 16px; block-size: 16px"></span
+              ><span class="vb__bone" style="inline-size: 104px; block-size: 14px"></span>
+            </div>
+            <div class="vb__row">
+              <span class="vb__bone" style="inline-size: 16px; block-size: 16px"></span
+              ><span class="vb__bone" style="inline-size: 80px; block-size: 14px"></span>
+            </div>
+            <div class="vb__row">
+              <span class="vb__bone" style="inline-size: 16px; block-size: 16px"></span
+              ><span class="vb__bone" style="inline-size: 112px; block-size: 14px"></span>
+            </div>
+            <div class="vb__row">
+              <span class="vb__bone" style="inline-size: 16px; block-size: 16px"></span
+              ><span class="vb__bone" style="inline-size: 64px; block-size: 14px"></span>
+            </div>
+          </div>
+        </aside>
+        <div class="vb__main">
+          <div class="vb__bar">
+            <img src="/brand/veltravia-logo-48.png" alt="" width="22" height="22" />
+            <span class="vb__bone" style="inline-size: 120px; block-size: 18px"></span>
+          </div>
+          <div class="vb__body">
+            <span
+              class="vb__bone"
+              style="inline-size: 62%; max-inline-size: 320px; block-size: 20px"
+            ></span>
+            <span
+              class="vb__bone"
+              style="
+                inline-size: 90%;
+                max-inline-size: 560px;
+                block-size: 14px;
+                margin-block-start: 14px;
+              "
+            ></span>
+            <span
+              class="vb__bone"
+              style="
+                inline-size: 74%;
+                max-inline-size: 480px;
+                block-size: 14px;
+                margin-block-start: 10px;
+              "
+            ></span>
+          </div>
+          <div class="vb__foot"><div class="vb__box"></div></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

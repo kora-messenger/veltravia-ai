@@ -25,4 +25,11 @@ void loadRuntimeConfig().then(() => {
       <App />
     </StrictMode>,
   );
+  // The static first-paint frame in index.html lives inside #root, so the first React
+  // commit replaces it. Its stylesheet only styles that frame, so it goes once the real
+  // page is on screen: removed in the frame after the commit, never before it, or the
+  // frame would lose its styling for a moment and flash unstyled.
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => document.querySelector('style[data-boot]')?.remove());
+  });
 });
