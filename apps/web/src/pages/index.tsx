@@ -21,6 +21,7 @@ export { ExecutePage } from './ExecutePage';
 export { OperationsPage } from './operations/OperationsPage';
 export { UsageHistoryPage } from './usage/UsageHistoryPage';
 export { SubscriptionPlanPage } from './plan/SubscriptionPlanPage';
+export { BillingPage } from './billing/BillingPage';
 export { FrontendBuilderPage } from './builder/FrontendBuilderPage';
 export { BackendBuilderPage } from './backend/BackendBuilderPage';
 export { TestingPage } from './testing/TestingPage';

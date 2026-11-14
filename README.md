@@ -750,3 +750,40 @@ Not delivered: no payment, checkout, invoices or proration; no trial automation;
 member model (a subscription belongs to one owner ref); no scheduled renewal timer - the sweep
 route exists and whoever schedules it must call it; no admin UI (the operator surface is HTTP
 only).
+
+## Step 61 - payments, invoices and billing
+
+A plan can be bought. `@veltravia/payments-core` holds integer money, the price book, three
+provider adapters (Paystack, Flutterwave, Monnify), the webhook rules, invoices, receipts and a
+PDF writer; migration 019 and `PostgresPaymentStore` persist it; the API is
+`apps/api/src/payment-service.ts` plus `routes/payments.ts`; the screen is `#/billing`.
+
+The rules the tests assert are all about not believing a browser. **The amount is decided on the
+server** - the checkout body names a plan, an interval and a provider, and a test asserts no
+amount field survives into it. **A redirect is not a receipt**: `?reference=` only starts a
+verification, which checks reference, amount, currency, status and the owning account before a
+plan is granted. **A reference is single-use**, enforced by a unique constraint, so a second
+delivery of one charge cannot buy a second period; the Postgres suite proves it with two
+simultaneous inserts. **A webhook is proved by its signature** over the exact request bytes, with
+a replay window and a `(owner-or-global, dedupe_key)` unique row, so a redelivery reports
+`duplicate: true` and changes nothing. **An invoice is issued as a snapshot** from an atomic
+counter, and editing a price afterwards does not rewrite it.
+
+The two bugs worth recording are both about money moving without an entitlement moving with it.
+Renewal first charged before the paid period had ended - collecting for time already paid for, and
+granting nothing, because Step 60's lifecycle correctly refuses to advance a period that has not
+finished; `chargeRenewal` now refuses early instead. And a refused webhook delivery consumed the
+canonical dedupe key, so a provider whose secret was misconfigured and then fixed had every retry
+of that event refused for ever; a rejected delivery is now recorded under its own key.
+
+Recurring billing is only offered where the provider can do it: Monnify cannot charge a stored
+authorization, so its renewal is a fresh checkout link and the screen says so. Tax is configuration
+and ships empty - with no rate configured, none is added and the screen says nothing here is tax
+compliant. The operator surface (providers, prices, discounts, taxes, refunds, reconciliation,
+events, audit) sits behind `VELTRAVIA_BILLING_ADMIN_TOKEN` and answers `503` when unset rather than
+falling open. See `docs/payments.md`.
+
+Not delivered: no tax compliance or filings; no credit top-ups; no dunning scheduler (grace,
+reminders and `renewalsDue` are readable, and whoever operates the deployment schedules them); no
+proration on an upgrade; no seat or workspace membership model; no operator UI; no Play Billing in
+the Android build.

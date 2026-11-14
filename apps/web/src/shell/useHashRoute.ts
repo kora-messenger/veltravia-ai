@@ -30,6 +30,7 @@ export const ROUTES: readonly RouteDef[] = [
   { id: 'operations', hash: '#/operations', title: 'Superagent operations' },
   { id: 'usage', hash: '#/usage', title: 'Usage & cost' },
   { id: 'plan', hash: '#/plan', title: 'Plan & subscription' },
+  { id: 'billing', hash: '#/billing', title: 'Billing' },
   { id: 'ai-providers', hash: '#/settings/ai-providers', title: 'AI providers' },
   { id: 'model-routing', hash: '#/settings/models', title: 'Model routing' },
   { id: 'builder', hash: '#/builder', title: 'App Builder' },
@@ -80,6 +81,7 @@ export type RouteId =
   | 'operations'
   | 'usage'
   | 'plan'
+  | 'billing'
   | 'project-detail'
   | 'project-workspace'
   | 'project-builder'
@@ -100,6 +102,7 @@ export interface RouteState {
   readonly projectId: string | null;
 }
 
+const BILLING_PATTERN = /^#\/billing(?:\?.*)?$/;
 const PROJECT_ID_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)$/;
 const WORKSPACE_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/workspace$/;
 const BUILDER_PATTERN = /^#\/projects\/([A-Za-z0-9][A-Za-z0-9._-]*)\/builder$/;
@@ -159,6 +162,11 @@ function routeForHash(hash: string): RouteState {
   }
   if (hash === '#/plan') {
     return { id: 'plan', title: 'Plan & subscription', projectId: null };
+  }
+  // A provider sends the customer back with `?reference=`; the query is part of
+  // the address but not of the route.
+  if (BILLING_PATTERN.test(hash)) {
+    return { id: 'billing', title: 'Billing', projectId: null };
   }
   if (hash === '#/settings/ai-providers') {
     return { id: 'ai-providers', title: 'AI providers', projectId: null };
