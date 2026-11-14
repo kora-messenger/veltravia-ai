@@ -841,3 +841,56 @@ plus the head and footer come to roughly 70dp less than the 380dp column's talle
 
 Still open: sending a message with attachments is refused, because the run API takes text only, and
 the web bundle is a single 887KB chunk.
+
+## Step 62 - workspace credit allocation and the personal account agent
+
+A workspace can now divide its credit before it spends it, and the assistant can read and act
+inside an account through tools the server declares.
+
+`@veltravia/allocation-core` holds the pools, the per-target allowances (member, project, agent,
+environment), the movement arithmetic, the eight distribution policies and the book the API calls;
+migration 020 and `PostgresAllocationStore` persist it. An **allocation is a ceiling over the
+workspace wallet, never a second balance**: spending still moves credit through the wallet and the
+meter, and the two lanes - AI token credits and integration credits - are kept apart and never
+converted into each other. Reservation happens inside the store's transaction, which is what stops
+two runs both being told there is room for the last thousand credits; the billing coordinator asks
+the wallet first and the allowance second, then releases the allowance when the credit lane refuses
+the work, when the operation gives up, or when it settles for less than it reserved.
+
+`@veltravia/account-agent-core` holds the closed tool registry: risk levels 1 to 4, the permission
+ladder, refusal of arguments that name an account, single-use confirmations bound to the exact
+arguments, idempotent replays and an append-only audit trail with credential redaction.
+`apps/api/src/account-agent-service.ts` implements the tools over the services that already exist,
+so each one inherits that service's ownership checks: projects and files through the Project Engine,
+credit through the wallet and both charge lanes, plan and bills through the subscription and payment
+services. Nothing reads the database directly and nothing accepts an owner from a request.
+
+Two operations are declared **unavailable with a reason** rather than faked: inviting a member (this
+build has no workspace membership) and connecting an external account (that needs an OAuth consent
+screen only a person can complete). A tool that cannot do its job says so; the alternative was a
+button that returns a cheerful success and changes nothing.
+
+The screen is the allocation panel on `#/usage`: both lanes drawn side by side and never summed, an
+unset pool shown as unset rather than as zero, each allocation with what is left in it, and the
+assistant's trail underneath - the same audit rows, not a log line. Writes report a refusal where
+the action was taken and leave the rest of the page readable.
+
+The assistant reaches those tools **from the chat**, not only over HTTP.
+`apps/api/src/account-tools.ts` declares every account operation in the platform's own tool system,
+built per owner from the session that asked, so a question about the balance is answered from the
+account rather than from the model's memory. Three consequences come free from that route: the
+arguments are validated against a schema before anything runs, a sensitive action stops for the
+person's confirmation bound to the exact input, and the refusal is written down next to the write.
+The confirmation the chat collects is passed into the account layer as the approval it is
+(`grant: { kind: 'tool_confirmation', reference }`), so nobody is asked to confirm the same action
+twice; the reference lands on the audit row.
+
+Two honest limits live in that bridge. A tool this build cannot perform is listed and **disabled
+with its reason**, which is how the assistant can say what is missing instead of implying it worked.
+A workspace-admin operation is listed but ungranted on the chat surface, because a chat run has no
+workspace in scope, so it reports as unavailable rather than silently acting on the wrong one.
+
+One core rule moved to make an argument-less operation possible: a tool schema with no fields used
+to be rejected outright, which also rejected the honest shape. It is now accepted when it is
+explicitly closed (`additionalProperties: false`), so "this operation takes nothing" is expressible
+while a schema that declares nothing and accepts anything still fails.

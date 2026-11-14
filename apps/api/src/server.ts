@@ -160,6 +160,10 @@ import { registerSubscriptionGuards } from './subscription-guards.js';
 import { registerSubscriptionRoutes } from './routes/subscriptions.js';
 import { createPaymentService, type PaymentService } from './payment-service.js';
 import { registerPaymentRoutes } from './routes/payments.js';
+import { createAllocationService, type AllocationService } from './allocation-service.js';
+import { registerAllocationRoutes } from './routes/allocations.js';
+import { createAccountAgentService, type AccountAgentService } from './account-agent-service.js';
+import { registerAccountRoutes } from './routes/account.js';
 
 /** A positive integer from the environment, or 0 when unset or nonsense. */
 function readPositiveIntEnv(name: string): number {
@@ -514,6 +518,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
    * of construction cannot decide whether something is billed.
    */
   let unifiedBilling: ReturnType<typeof createUnifiedBilling> | null = null;
+  /*
+   * Step 62: the allocation gate, wired into the unified billing coordinator
+   * below. It is declared before the coordinator so the coordinator can be handed
+   * a function that reads it: the service is built later, once the message and
+   * integration lanes exist, and a closure avoids a circular definition.
+   */
+  const allocationGateRef: { current: AllocationService | null } = { current: null };
   let billedRuns: ReturnType<typeof createBilledRunTracker> | null = null;
 
   // Agent execution endpoints: bounded runs, confirmation flow, cancellation.
@@ -763,8 +774,53 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     operationBilling,
     wallet: walletService,
     integrationCredits: integrationCreditService,
+    /*
+     * Step 62: a workspace allowance is checked before a hold is taken. The
+     * closure reads the reference, so the coordinator is built once and the
+     * service can still be created below it.
+     */
+    allocations: () => allocationGateRef.current,
   });
   unifiedBilling = unifiedBillingService;
+
+  /*
+   * Step 62: workspace credit allocation.
+   *
+   * It owns no balance. An allocation is a ceiling over the workspace wallet, so
+   * spending it still moves credit through the wallet and the meter; what this
+   * service adds is the answer to "which allowance does this run draw from, and
+   * is there room in it" before any work starts.
+   */
+  const allocationService: AllocationService = createAllocationService({
+    ...(persistence?.stores?.allocations === undefined
+      ? {}
+      : { store: persistence.stores.allocations }),
+    projects: projectEngine,
+    env,
+  });
+  allocationGateRef.current = allocationService;
+
+  /*
+   * Step 62: the Personal Account Agent.
+   *
+   * Every tool is an adapter over a service above, so it inherits that service's
+   * ownership checks. Identity comes from the authenticated request; the model
+   * never names an account.
+   */
+  const accountAgentService: AccountAgentService = createAccountAgentService({
+    projects: projectEngine,
+    wallet: walletService,
+    messageCredits: messageCreditService,
+    integrationCredits: integrationCreditService,
+    subscriptions: subscriptionService,
+    payments: paymentService,
+    allocations: allocationService,
+    tasks: taskService,
+    ...(persistence?.stores?.accountActions === undefined
+      ? {}
+      : { store: persistence.stores.accountActions }),
+    env,
+  });
   /*
    * Step 59: spending controls over those same lanes.
    *
@@ -895,6 +951,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     },
     env,
   );
+
+  /*
+   * Step 62: the allocation surface and the account agent's surface. Both take
+   * the caller from the request context and neither reads an owner from a body.
+   */
+  registerAllocationRoutes(app, { allocations: allocationService });
+  registerAccountRoutes(app, { accounts: accountAgentService }, env);
 
   /*
    * Step 56: the hold sweep runs on a timer, not on somebody remembering.
@@ -1292,6 +1355,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       documents: documentManager,
       integrations,
       appBuilder: { manager: appBuilder, projects: projectEngine },
+      // Step 62: the chat can read and act on the signed-in account. The owner is
+      // bound per run inside the service, never taken from the prompt.
+      accounts: accountAgentService,
       images: imageManager,
       videos: videoManager,
       audio: audioManager,

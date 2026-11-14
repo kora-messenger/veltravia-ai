@@ -33,12 +33,15 @@ import type { ToolManager } from '@veltravia/tool-core';
 import { mockDatabaseConnector, mockStorageConnector } from '@veltravia/integration-mocks';
 import type { ApiIntegrationSystem } from './integrations.js';
 import type { AppBuilderManager } from '@veltravia/app-builder-core';
+import type { AccountPrincipal } from '@veltravia/account-agent-core';
 import type { ProjectEngine } from '@veltravia/project-core';
 import type { AudioIntelligenceManager } from '@veltravia/audio-intelligence-core';
 import type { ImageIntelligenceManager } from '@veltravia/image-intelligence-core';
 import type { VideoIntelligenceManager } from '@veltravia/video-intelligence-core';
 import type { DocumentIntelligenceManager } from '@veltravia/document-intelligence-core';
 
+import { createAccountTools } from './account-tools.js';
+import type { AccountAgentService } from './account-agent-service.js';
 import { createToolManager } from './tools.js';
 import type { CodebaseIntelligenceManager } from '@veltravia/codebase-core';
 import type { FileIntelligenceManager } from '@veltravia/file-intelligence-core';
@@ -141,6 +144,13 @@ export interface ReasoningServiceOptions {
   readonly integrations?: ApiIntegrationSystem;
   /** App Builder and the project engine it reads, for the read-only builder tools. */
   readonly appBuilder?: { readonly manager: AppBuilderManager; readonly projects: ProjectEngine };
+  /**
+   * Step 62: the account agent. When given, the assistant can read and act on
+   * the signed-in person's own account from the chat, through the same tool
+   * system as everything else (schema, confirmation, audit), bound to the owner
+   * of the run rather than to anything the model says.
+   */
+  readonly accounts?: AccountAgentService;
   readonly simulatedFactory?: () => ReasoningProvider;
   /**
    * Step 57: called once when a run reaches a terminal state, with the finished
@@ -315,6 +325,36 @@ export class ReasoningService {
     // a human confirmation for anything risky.
     tools.grantPermission('mock.summarize', 'mock.read');
     integrations?.registerAgentTools(tools);
+    if (this.options.accounts !== undefined) {
+      const accounts = this.options.accounts;
+      const principal: AccountPrincipal = {
+        ownerRef,
+        sessionId: 'reasoning',
+        role: 'owner',
+        workspaceId: null,
+        operator: false,
+      };
+      const bundle = createAccountTools(accounts, principal);
+      for (const definition of bundle.definitions) tools.register(definition);
+      for (const implementation of bundle.implementations) {
+        tools.registerImplementation(implementation);
+      }
+      /*
+       * An account read or write is granted here for the owner's own account.
+       * A tool this deployment cannot perform stays disabled with its reason so
+       * the assistant can name what is missing rather than imply it worked; a
+       * workspace-admin tool is not granted at all, because this surface has no
+       * workspace in scope.
+       */
+      for (const definition of bundle.definitions) {
+        if (definition.requiredPermissions.some((id) => id.startsWith('account.workspace-')))
+          continue;
+        for (const permission of definition.requiredPermissions) {
+          tools.grantPermission(definition.id, permission);
+        }
+      }
+      for (const off of bundle.disabled) tools.disable(off.id, off.reason);
+    }
     return tools;
   }
 

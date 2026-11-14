@@ -1,0 +1,21 @@
+{
+  "name": "@veltravia/account-agent-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia Personal Account Agent (Step 62): a server-authorised account tool registry with risk levels, approvals, idempotency and an append-only audit trail.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
+}

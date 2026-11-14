@@ -20,7 +20,11 @@ const summarySchema = defineObjectSchema({
 
 describe('defineObjectSchema', () => {
   it('creates a validated schema and rejects malformed ones', () => {
-    expect(() => defineObjectSchema({ properties: {} })).toThrow(/at least one field/);
+    expect(() => defineObjectSchema({ properties: {} })).toThrow(/additionalProperties: false/);
+    // An operation with no arguments is a closed, empty schema - not an open one.
+    expect(defineObjectSchema({ properties: {}, additionalProperties: false }).properties).toEqual(
+      {},
+    );
     expect(() =>
       defineObjectSchema({ properties: { a: { type: 'string' } }, required: ['missing'] }),
     ).toThrow(/not declared/);

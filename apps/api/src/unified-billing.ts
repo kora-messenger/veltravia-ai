@@ -176,6 +176,7 @@ export class BillingRefusal extends Error {
   constructor(
     readonly code:
       | 'BILLING_INSUFFICIENT_CREDITS'
+      | 'BILLING_ALLOCATION_EXHAUSTED'
       | 'BILLING_UNKNOWN_OPERATION'
       | 'BILLING_REQUEST_LIMIT'
       | 'BILLING_MONTHLY_LIMIT'
@@ -191,6 +192,50 @@ export class BillingRefusal extends Error {
 
 export function isBillingRefusal(value: unknown): value is BillingRefusal {
   return value instanceof BillingRefusal;
+}
+
+/**
+ * The workspace allocation gate (Step 62).
+ *
+ * The coordinator asks one question before a hold is taken - "may this operation
+ * draw on workspace credit, and which allowance does it use" - and reports the
+ * outcome when the operation finishes. The function is a getter rather than a
+ * value so the coordinator can be built before the service exists, and a
+ * deployment without allocations simply returns null.
+ */
+export interface AllocationGateDecision {
+  readonly allowed: boolean;
+  readonly allocationId: string | null;
+  readonly amount: number;
+  readonly available: number | null;
+  readonly code: string | null;
+  readonly reason: string;
+}
+
+export interface AllocationGate {
+  authorize(input: {
+    readonly ownerRef: string;
+    readonly workspaceId: string | null;
+    readonly category: 'ai_tokens' | 'integration_credits';
+    readonly amount: number;
+    readonly operationKey: string;
+    readonly operationKind: string | null;
+    readonly projectId?: string | null;
+  }): Promise<AllocationGateDecision>;
+  settle(input: {
+    readonly ownerRef: string;
+    readonly allocationId: string;
+    readonly amount: number;
+    readonly operationKey: string;
+    readonly reason: string;
+  }): Promise<void>;
+  release(input: {
+    readonly ownerRef: string;
+    readonly allocationId: string;
+    readonly amount: number;
+    readonly operationKey: string;
+    readonly reason: string;
+  }): Promise<void>;
 }
 
 export interface BillingHandle {
@@ -249,6 +294,12 @@ export interface UnifiedBillingOptions {
   readonly operationBilling: OperationBilling;
   readonly wallet: WalletService;
   readonly integrationCredits?: IntegrationCreditService | undefined;
+  /**
+   * Step 62: the workspace allocation gate. A getter, because the allocation
+   * service is built after this coordinator; null means this deployment does not
+   * allocate workspace credit and the wallet is the only check.
+   */
+  readonly allocations?: (() => AllocationGate | null | undefined) | undefined;
   readonly now?: (() => Date) | undefined;
 }
 
@@ -390,6 +441,7 @@ export function createUnifiedBilling(options: UnifiedBillingOptions): UnifiedBil
        */
       await options.wallet.ensure({ ownerRef: ref.ownerRef });
 
+      let quotedCredits = 0;
       try {
         const quote = await options.messageCredits.estimate({
           ownerRef: ref.ownerRef,
@@ -405,6 +457,7 @@ export function createUnifiedBilling(options: UnifiedBillingOptions): UnifiedBil
             ? {}
             : { projectId: ref.projectId }),
         });
+        quotedCredits = quote.estimate.credits;
         if (!quote.affordable) {
           throw new BillingRefusal(
             'BILLING_INSUFFICIENT_CREDITS',
@@ -430,14 +483,82 @@ export function createUnifiedBilling(options: UnifiedBillingOptions): UnifiedBil
         // is the authoritative, atomic check.
       }
 
+      /*
+       * Step 62: the workspace allowance, before the hold.
+       *
+       * Order matters. The wallet is asked first (a wallet that cannot pay is a
+       * clearer answer), then the workspace allowance: an allowance is a ceiling
+       * over the wallet, so a run refused here has not touched the wallet at all.
+       * The reservation is taken inside the allocation store's transaction, which
+       * is what stops two runs both claiming the last thousand credits.
+       */
+      const gate = options.allocations?.() ?? null;
+      const operationKey = `op:${ref.kind}:${ref.operationId}`;
+      let allocationHold: { readonly allocationId: string; readonly amount: number } | null = null;
+      if (gate !== null && ref.workspaceId !== undefined && ref.workspaceId !== null) {
+        const decision = await gate.authorize({
+          ownerRef: ref.ownerRef,
+          workspaceId: ref.workspaceId,
+          category: 'ai_tokens',
+          amount: quotedCredits,
+          operationKey,
+          operationKind: definition.operation,
+          projectId: ref.projectId ?? null,
+        });
+        if (!decision.allowed) {
+          throw new BillingRefusal(
+            'BILLING_ALLOCATION_EXHAUSTED',
+            `${definition.label} was not started: ${decision.reason}`,
+            402,
+            {
+              operation: definition.operation,
+              operationLabel: definition.label,
+              requiredCredits: quotedCredits,
+              availableCredits: decision.available,
+              allocationCode: decision.code,
+              allocationId: decision.allocationId,
+              preserved: ['projects', 'files', 'settings', 'conversation history'],
+              preservesWork: true,
+              retry:
+                'Raise the allocation for this target, reclaim unspent credit, or wait for the next period.',
+            },
+          );
+        }
+        if (decision.allocationId !== null && decision.amount > 0) {
+          allocationHold = { allocationId: decision.allocationId, amount: decision.amount };
+        }
+      }
+
       let ledger;
       try {
         ledger = await options.operationBilling.begin(ref);
       } catch (error) {
+        // The hold is taken first, so a refusal from the lane below must give the
+        // allowance back rather than leave it reserved by work that never started.
+        if (allocationHold !== null && gate !== null) {
+          await gate.release({
+            ownerRef: ref.ownerRef,
+            allocationId: allocationHold.allocationId,
+            amount: allocationHold.amount,
+            operationKey,
+            reason: 'Operation refused by the credit lane',
+          });
+        }
         const refusal = mapRefusal(error, definition);
         if (refusal !== null) throw refusal;
         throw error;
       }
+
+      const releaseHold = async (reason: string): Promise<void> => {
+        if (allocationHold === null || gate === null) return;
+        await gate.release({
+          ownerRef: ref.ownerRef,
+          allocationId: allocationHold.allocationId,
+          amount: allocationHold.amount,
+          operationKey,
+          reason: reason.slice(0, MAX_REASON),
+        });
+      };
 
       return {
         ref,
@@ -447,9 +568,46 @@ export function createUnifiedBilling(options: UnifiedBillingOptions): UnifiedBil
         reservedCredits: 0,
         exempt: ledger.exempt,
         record: (usage) => options.operationBilling.record(ref, usage),
-        settle: () => options.operationBilling.settle(ref),
+        settle: async () => {
+          const settlement = await options.operationBilling.settle(ref);
+          if (allocationHold !== null && gate !== null) {
+            /*
+             * Settle what was actually spent and give the rest back. A settled
+             * charge below the reservation must not keep the difference reserved
+             * until the allocation expires; a charge above it settles at the
+             * measured amount, and the allocation store is the one that decides
+             * whether the allowance can cover it.
+             */
+            const spent = Math.max(0, Math.min(settlement.credits, allocationHold.amount));
+            const unused = Math.max(0, allocationHold.amount - spent);
+            if (spent > 0) {
+              await gate.settle({
+                ownerRef: ref.ownerRef,
+                allocationId: allocationHold.allocationId,
+                amount: spent,
+                operationKey,
+                reason: `${definition.label} settled`,
+              });
+            }
+            if (unused > 0) {
+              await gate.release({
+                ownerRef: ref.ownerRef,
+                allocationId: allocationHold.allocationId,
+                amount: unused,
+                operationKey,
+                reason: 'Unused allowance released',
+              });
+            }
+            // A settled operation releases nothing twice, even if settle is
+            // called again by a caller that did not check the answer.
+            allocationHold = null;
+          }
+          return settlement;
+        },
         release: async (reason) => {
           await options.operationBilling.abandon(ref, reason.slice(0, MAX_REASON));
+          await releaseHold(reason);
+          allocationHold = null;
         },
       };
     },

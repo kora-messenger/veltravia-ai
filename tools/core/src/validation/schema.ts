@@ -85,8 +85,14 @@ export function defineObjectSchema(input: DefineObjectSchemaInput): ToolObjectSc
     throw new Error('Object schema must provide a properties map.');
   }
   const propertyNames = Object.keys(input.properties);
-  if (propertyNames.length === 0) {
-    reasons.push('properties must declare at least one field');
+  /*
+   * An operation that takes no arguments is legitimate: it still needs a schema,
+   * because the executor validates every call against one. What must never be
+   * accepted is a schema that declares nothing AND accepts anything, so the
+   * empty map is allowed only when it is explicitly closed.
+   */
+  if (propertyNames.length === 0 && input.additionalProperties !== false) {
+    reasons.push('a schema with no fields must be closed with additionalProperties: false');
   }
   for (const [name, field] of Object.entries(input.properties)) {
     const fieldProblems = validateFieldSchema(name, field);

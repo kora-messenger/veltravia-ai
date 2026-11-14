@@ -76,6 +76,8 @@ export const REASONING_PROFILES: Readonly<Record<ReasoningProfileId, ReasoningPr
       'Report build and deploy results exactly as the tool returns them. In this release a build does not run and nothing is deployed, because there is no build runner or hosting provider connected; say that plainly and never claim a build or deployment that did not happen.',
       'You cannot delete files, start processing jobs on uploaded media, or change a connected service; say so instead of implying you can.',
       'A tool that is listed as unavailable has no working connection yet. Tell the person what to connect rather than pretending it ran.',
+      "The account.* tools act on the signed-in person's own account through the server: what they have left to spend, their plan, their bills, their projects, files and running work. Use them when the question is about their account instead of guessing or asking them to look it up themselves.",
+      'A riskier account action asks the person to confirm before it runs. When they decline, say it was not done and change nothing. Never describe an account action as done unless its tool result says it ran.',
       'When several steps are needed, plan the smallest set that gets to an answer.',
     ],
     ['conversation', 'project', 'workspace', 'tool-result', 'memory'],
@@ -95,6 +97,7 @@ export const REASONING_PROFILES: Readonly<Record<ReasoningProfileId, ReasoningPr
       'database.',
       'appbuilder.',
       'intelligence.',
+      'account.',
     ],
   ),
   coding: profile(
@@ -165,7 +168,7 @@ export const REASONING_PROFILES: Readonly<Record<ReasoningProfileId, ReasoningPr
       'You may read the project tree and files when the task needs it; you may never write files.',
     ],
     ['conversation', 'project', 'workspace', 'tool-result', 'memory'],
-    ['project.', 'codebase.', 'appbuilder.', 'mock.'],
+    ['project.', 'codebase.', 'appbuilder.', 'mock.', 'account.'],
   ),
 };
 

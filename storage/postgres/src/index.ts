@@ -21,7 +21,11 @@ import { PostgresUsageStore } from './repositories/usage.js';
 import { PostgresWalletStore } from './repositories/wallet.js';
 import { PostgresMessageCreditStore } from './repositories/message-credits.js';
 import { PostgresIntegrationCreditStore } from './repositories/integration-credits.js';
+import { PostgresAllocationStore } from './repositories/allocations.js';
+import { PostgresAccountActionStore } from './repositories/account-actions.js';
 export { PostgresSpendingLimitStore } from './repositories/spending-limits.js';
+export { PostgresAllocationStore } from './repositories/allocations.js';
+export { PostgresAccountActionStore } from './repositories/account-actions.js';
 
 import { PostgresRecoveryStore } from './repositories/recovery.js';
 import {
@@ -173,6 +177,8 @@ export interface PostgresStores {
   readonly spendingLimits: PostgresSpendingLimitStore;
   readonly subscriptions: PostgresSubscriptionStore;
   readonly payments: PostgresPaymentStore;
+  readonly allocations: PostgresAllocationStore;
+  readonly accountActions: PostgresAccountActionStore;
 }
 
 export function createPostgresStores(database: Database): PostgresStores {
@@ -209,6 +215,8 @@ export function createPostgresStores(database: Database): PostgresStores {
     spendingLimits: new PostgresSpendingLimitStore(database),
     subscriptions: new PostgresSubscriptionStore(database),
     payments: new PostgresPaymentStore(database),
+    allocations: new PostgresAllocationStore(database),
+    accountActions: new PostgresAccountActionStore(database),
   };
 }
 

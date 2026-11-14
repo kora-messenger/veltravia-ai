@@ -17,6 +17,7 @@ import {
   type UsageHistoryQuery,
 } from '../../api/usage-history';
 import { SpendingLimitsPanel, type SpendingLimitsPanelDeps } from './SpendingLimitsPanel';
+import { AllocationPanel, type AllocationPanelDeps } from './AllocationPanel';
 import './usage-history.css';
 
 /**
@@ -49,6 +50,10 @@ export interface UsageHistoryDeps {
   readonly exportUrl?: (query: UsageHistoryQuery) => string;
   /** The limits panel's own reads and writes, injected in tests. */
   readonly limits?: SpendingLimitsPanelDeps;
+  /** The allocation panel's own reads and writes, injected in tests. */
+  readonly allocations?: AllocationPanelDeps;
+  /** The workspace whose allocations are shown; null hides the panel. */
+  readonly workspaceId?: string | null;
 }
 
 type LoadState = 'loading' | 'ready' | 'error';
@@ -345,6 +350,16 @@ export function UsageHistoryPage({ deps = {} }: { deps?: UsageHistoryDeps }) {
         for "why was I stopped" should meet it before a table of past charges.
       */}
       <SpendingLimitsPanel {...(deps?.limits === undefined ? {} : { deps: deps.limits })} />
+
+      {/*
+        Step 62: what the workspace has set aside, and what the assistant did with
+        it. Below the limits, because a limit bounds spending and an allocation
+        divides it - and above the history, because it explains the next refusal.
+      */}
+      <AllocationPanel
+        workspaceId={deps?.workspaceId ?? null}
+        {...(deps?.allocations === undefined ? {} : { deps: deps.allocations })}
+      />
 
       <section className="v-usage__panel" aria-labelledby="v-usage-filters">
         <h3 id="v-usage-filters">Filters</h3>

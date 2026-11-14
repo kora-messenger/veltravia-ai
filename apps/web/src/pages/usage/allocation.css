@@ -1,0 +1,230 @@
+/*
+ * Workspace credit allocation (Step 62).
+ *
+ * It sits inside the usage page, so it borrows that page's spacing and type
+ * scale. Three deliberate choices:
+ *
+ *  - the two credit lanes are equal columns, never stacked into one total, so
+ *    they cannot be read as a single balance;
+ *  - every figure is tabular, because these numbers are compared by eye;
+ *  - a non-active row is dimmed and carries its state word, so colour is never
+ *    the only carrier of meaning.
+ */
+
+.v-alloc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-4);
+  padding: var(--v-space-5);
+  border: 1px solid var(--v-neutral-200, #e6e6e9);
+  border-radius: var(--v-radius-lg, 14px);
+  background: var(--v-neutral-0, #fff);
+  min-width: 0;
+}
+
+.v-alloc__head h3 {
+  margin: 0 0 var(--v-space-1);
+  font-size: var(--v-text-xl, 1.25rem);
+  color: var(--v-neutral-900, #16161a);
+}
+
+.v-alloc__note,
+.v-alloc__state,
+.v-alloc__empty,
+.v-alloc__notice {
+  margin: 0;
+  font-size: var(--v-text-sm, 0.875rem);
+  color: var(--v-neutral-600, #5b5b66);
+  line-height: 1.5;
+}
+
+.v-alloc__state {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+}
+
+.v-alloc__lanes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--v-space-4);
+}
+
+.v-alloc__lane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  padding: var(--v-space-4);
+  border: 1px solid var(--v-neutral-200, #e6e6e9);
+  border-radius: var(--v-radius-md, 10px);
+  background: var(--v-neutral-50, #fafafa);
+  min-width: 0;
+}
+
+.v-alloc__lane h4,
+.v-alloc__form h4,
+.v-alloc__trail h4 {
+  margin: 0;
+  font-size: var(--v-text-sm, 0.875rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--v-neutral-700, #40404a);
+}
+
+.v-alloc__figures {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--v-space-2);
+  margin: 0;
+}
+
+.v-alloc__figures div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.v-alloc__figures dt {
+  font-size: var(--v-text-xs, 0.75rem);
+  color: var(--v-neutral-500, #6f6f7a);
+}
+
+.v-alloc__figures dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--v-text-md, 1rem);
+  font-weight: 600;
+  color: var(--v-neutral-900, #16161a);
+}
+
+.v-alloc__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.v-alloc__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--v-space-2) var(--v-space-3);
+  border: 1px solid var(--v-neutral-200, #e6e6e9);
+  border-radius: var(--v-radius-sm, 8px);
+  background: #fff;
+}
+
+.v-alloc__row[data-state='revoked'],
+.v-alloc__row[data-state='expired'] {
+  opacity: 0.6;
+}
+
+.v-alloc__row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--v-space-2);
+  min-width: 0;
+}
+
+.v-alloc__target {
+  font-weight: 600;
+  color: var(--v-neutral-900, #16161a);
+  overflow-wrap: anywhere;
+}
+
+.v-alloc__kind {
+  font-size: var(--v-text-xs, 0.75rem);
+  color: var(--v-neutral-500, #6f6f7a);
+}
+
+.v-alloc__row-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-3);
+  font-size: var(--v-text-xs, 0.75rem);
+  font-variant-numeric: tabular-nums;
+  color: var(--v-neutral-600, #5b5b66);
+}
+
+.v-alloc__row-actions {
+  display: flex;
+  gap: var(--v-space-2);
+}
+
+.v-alloc__forms,
+.v-alloc__trail {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--v-space-4);
+}
+
+.v-alloc__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  padding: var(--v-space-4);
+  border: 1px dashed var(--v-neutral-300, #d5d5dc);
+  border-radius: var(--v-radius-md, 10px);
+  min-width: 0;
+}
+
+.v-alloc__form button {
+  align-self: flex-start;
+  margin-top: var(--v-space-1);
+}
+
+.v-alloc__events {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: var(--v-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.v-alloc__events li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--v-space-2);
+  font-size: var(--v-text-sm, 0.875rem);
+  color: var(--v-neutral-700, #40404a);
+  min-width: 0;
+}
+
+.v-alloc__event-kind {
+  text-transform: capitalize;
+  font-weight: 600;
+}
+
+.v-alloc__event-when {
+  margin-left: auto;
+  font-size: var(--v-text-xs, 0.75rem);
+  color: var(--v-neutral-500, #6f6f7a);
+  white-space: nowrap;
+}
+
+.v-alloc__notice {
+  padding: var(--v-space-2) var(--v-space-3);
+  border-radius: var(--v-radius-sm, 8px);
+  background: var(--v-neutral-50, #fafafa);
+  border: 1px solid var(--v-neutral-200, #e6e6e9);
+  color: var(--v-neutral-800, #26262e);
+}
+
+@media (max-width: 900px) {
+  .v-alloc__lanes,
+  .v-alloc__forms,
+  .v-alloc__trail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .v-alloc__figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
