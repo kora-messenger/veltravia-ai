@@ -230,9 +230,11 @@
   font-size: var(--v-text-lg);
   line-height: 1.5;
   overflow-wrap: anywhere;
-}
-
-.v-chat__answer {
+  /* The person's own line breaks, blank lines and indentation, exactly as
+     typed or pasted. Without this a pasted brief collapses into one paragraph. */
+  white-space: pre-wrap;
+  /* Long unbroken strings wrap inside the bubble instead of widening it. */
+  word-break: break-word;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -243,7 +245,6 @@
   line-height: 1.6;
   color: var(--v-text);
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
 }
 
 .v-chat__thinking {
@@ -1460,4 +1461,259 @@
 .v-chat-composer__mic--listening {
   color: #3b51e5;
   background: var(--v-primary-muted);
+}
+
+/* The answer is a flex item beside the turn, so it needs `min-width: 0` to be
+   allowed to shrink: without it a single long table row or code line sets the
+   column's minimum width and the answer runs off the page. */
+.v-chat__answer {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+   Rendered answers (Markdown).
+
+   Two rules govern the whole block, and both exist because the obvious version
+   silently does nothing:
+
+   1. Every margin reset carries `:where()`, so it has no specificity. A plain
+      `.v-md p { margin: 0 }` out-specifies `.v-md > * + *` and flattens the gap
+      between every paragraph, list and quote to zero.
+   2. All the spacing rules come last, so equal-specificity resets cannot win by
+      order.
+
+   Spacing is then a single vertical rhythm: each block sits 0.85em below the one
+   above it, with more air before a heading.
+   ------------------------------------------------------------------------- */
+.v-md {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* ---- resets (zero specificity) ------------------------------------------- */
+
+.v-md :where(p, li, blockquote, ul, ol, h1, h2, h3, h4, h5, h6, pre, figure) {
+  margin: 0;
+}
+
+.v-md :where(ul, ol) {
+  padding-left: 1.5em;
+}
+
+/* ---- element shapes ------------------------------------------------------ */
+
+.v-md h1,
+.v-md h2,
+.v-md h3,
+.v-md h4,
+.v-md h5,
+.v-md h6 {
+  color: var(--v-text);
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.v-md h1 {
+  font-size: 1.35em;
+}
+
+.v-md h2 {
+  font-size: 1.2em;
+}
+
+.v-md h3 {
+  font-size: 1.07em;
+}
+
+.v-md h4,
+.v-md h5,
+.v-md h6 {
+  font-size: 1em;
+}
+
+.v-md h6 {
+  color: var(--v-text-muted);
+}
+
+.v-md li > :where(ul, ol) {
+  padding-left: 1.5em;
+}
+
+.v-md .v-md__task {
+  list-style: none;
+  margin-left: -1.35em;
+}
+
+.v-md .v-md__task > input {
+  margin: 0 0.5em 0 0;
+  vertical-align: -1px;
+}
+
+.v-md .v-md__lead {
+  display: inline;
+}
+
+.v-md blockquote {
+  padding: 0.1em 0 0.1em 0.9em;
+  border-left: 3px solid var(--v-border);
+  color: var(--v-text-muted);
+}
+
+.v-md hr {
+  border: 0;
+  border-top: 1px solid var(--v-border);
+}
+
+.v-md a {
+  color: var(--v-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.v-md__code-inline {
+  padding: 0.12em 0.4em;
+  border-radius: var(--v-radius-sm, 4px);
+  background: var(--v-surface-muted);
+  font-family: var(--v-font-mono);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+
+/* A code block scrolls sideways on its own; it never widens the bubble or page. */
+.v-md__code {
+  display: block;
+  max-width: 100%;
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface-muted);
+  overflow: hidden;
+}
+
+.v-md__code-label {
+  display: block;
+  padding: 4px var(--v-space-3, 12px);
+  border-bottom: 1px solid var(--v-border);
+  color: var(--v-text-muted);
+  font-family: var(--v-font-mono);
+  font-size: 0.75em;
+  text-transform: lowercase;
+}
+
+.v-md__code pre {
+  padding: var(--v-space-3, 12px);
+  overflow-x: auto;
+  font-family: var(--v-font-mono);
+  font-size: 0.875em;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+  tab-size: 2;
+  -webkit-overflow-scrolling: touch;
+}
+
+.v-md__code pre code {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* A code block inside the person's own bubble keeps the bubble's rhythm, so it
+   reads as part of their message rather than as a rendered banner. */
+.v-chat__bubble .v-md__code,
+.v-md__code--user {
+  background: var(--v-surface);
+  white-space: normal;
+}
+
+.v-chat__bubble a {
+  color: var(--v-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+
+/* A table scrolls inside its own frame, so a wide one stays usable at 360dp. */
+.v-md__table {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  -webkit-overflow-scrolling: touch;
+}
+
+.v-md__table table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.93em;
+}
+
+.v-md__table th,
+.v-md__table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--v-border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: normal;
+  min-width: 6ch;
+}
+
+.v-md__table th {
+  background: var(--v-surface-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.v-md__table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.v-md__code pre:focus-visible,
+.v-md__table:focus-visible {
+  outline: 2px solid var(--v-primary);
+  outline-offset: -2px;
+}
+
+/* ---- rhythm (last, so nothing above can out-order it) -------------------- */
+
+.v-md > * + * {
+  margin-top: 0.85em;
+}
+
+.v-md li + li {
+  margin-top: 0.35em;
+}
+
+/* Nested blocks sit tight under the item that owns them. */
+.v-md li > :where(ul, ol, blockquote) {
+  margin-top: 0.35em;
+}
+
+.v-md li > .v-md__code,
+.v-md li > .v-md__table,
+.v-md li > p {
+  margin-top: 0.4em;
+}
+
+.v-md blockquote > * + * {
+  margin-top: 0.5em;
+}
+
+.v-md hr {
+  margin: 1.3em 0;
+}
+
+/* A heading after something starts a new section: more air than a paragraph. */
+.v-md > * + :where(h1, h2, h3, h4, h5, h6) {
+  margin-top: 1.4em;
+}
+
+/* A heading's own text sits close to what it introduces. */
+.v-md :where(h1, h2, h3, h4, h5, h6) + * {
+  margin-top: 0.4em;
 }

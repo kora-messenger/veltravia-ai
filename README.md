@@ -894,3 +894,40 @@ One core rule moved to make an argument-less operation possible: a tool schema w
 to be rejected outright, which also rejected the honest shape. It is now accepted when it is
 explicitly closed (`additionalProperties: false`), so "this operation takes nothing" is expressible
 while a schema that declares nothing and accepts anything still fails.
+
+## Step 63 - messages that keep their shape
+
+A pasted brief now reaches the screen, the model and the stored turn exactly as it was written,
+and an answer is drawn as structure instead of as raw symbols. The investigation found seven
+places that lost formatting, not one, and two of them were product limits rather than bugs.
+
+The composer and session hooks called `trim()` on the way in, which took the indentation of the
+first line with the blank edges; `messageText.ts` now removes only whole blank lines at the top and
+bottom and a NUL byte, and nothing from inside the message. The task ceiling is gone from both the
+route and the engine (`maxLength: 8000`, then `MAX_TASK_CHARS = 4000`), so what bounds a brief is
+the transport's body limit and the model's context window, both of which fail loudly. An answer's
+ceiling is 100,000 characters and a cut is written into the text, so a long answer never arrives
+looking complete when it was cut.
+
+The assistant had no renderer at all: answers were a paragraph of literal text. `markdown/parse.ts`
+builds a typed tree and `Markdown.tsx` draws it with no HTML path anywhere, so a script tag in a
+message is text and a `javascript:` link is inert. The person's own message stays literal, with
+only fences and bare URLs given structure. `UserText.tsx` leaves their asterisks alone on purpose:
+rewriting what someone sent is worse than showing it exactly.
+
+The response style moved out of one prompt into `reasoning/core/src/response-style.ts`, shared by
+both answer steps, and the old instruction to answer in plain text with no fences is gone. Answers
+use structure when it helps, follow the length of the request, and say what was not done.
+
+Two layout rules were found by measuring the built page rather than by eye. `.v-chat__answer` needed
+`min-width: 0`, without which one wide table set the column's minimum width and ran 1,700px off a
+390dp screen. And every block margin reset needed `:where()`, because `.v-md p { margin: 0 }` was
+out-specifying the rhythm rule and flattening every gap to zero. Gaps now measure 14px, heading
+space 24-27px, nested lists 24px per level, and a wide table or code block scrolls inside its own
+frame at 360dp. `chat-styles.test.ts` pins those rules, since jsdom does no layout.
+
+One bug surfaced on the way: Enter to confirm a Japanese, Chinese or Android keyboard suggestion
+sent a half-typed message. A composing Enter now waits.
+
+Not delivered: no syntax highlighting, a message still cannot carry an attachment into a run, and
+answers arrive whole rather than token by token. All three are stated in `docs/message-formatting.md`.

@@ -19,6 +19,8 @@ import type { ToolManager } from '@veltravia/tool-core';
 
 import type { ContextBlockInput, ContextProvenance } from './context.js';
 import { buildContext, bundleToMessages, toolResultBlock } from './context.js';
+import { ANSWER_FIELD_NOTE, RESPONSE_STYLE } from './response-style.js';
+import { trimBlankEdges } from './text.js';
 import {
   ReasoningError,
   isReasoningError,
@@ -42,6 +44,7 @@ import {
   type CompletionAssessment,
   type ExecutionPlan,
   type TaskClassification,
+  clipAnswer,
   LIMITS,
 } from './schema.js';
 
@@ -270,7 +273,8 @@ export interface ReasoningEngineOptions {
   readonly sleep?: (ms: number) => Promise<void>;
 }
 
-const MAX_TASK_CHARS = 4000;
+/** The recent-conversation block: several earlier turns, kept whole where possible. */
+const MAX_CONVERSATION_CHARS = 16_000;
 const MAX_CONVERSATION_TURNS = 12;
 
 function clampLimits(input?: Partial<ReasoningLimits>): ReasoningLimits {
@@ -484,12 +488,11 @@ export class ReasoningEngine {
     if (typeof request.task !== 'string' || request.task.trim().length === 0) {
       throw new ReasoningError('REASONING_INVALID_REQUEST', 'A reasoning request needs a task.');
     }
-    if (request.task.length > MAX_TASK_CHARS) {
-      throw new ReasoningError(
-        'REASONING_INVALID_REQUEST',
-        `The task exceeds the maximum of ${MAX_TASK_CHARS} characters.`,
-      );
-    }
+    // A task has no length ceiling of its own: a pasted brief with headings,
+    // lists and code is as valid as one short question. What bounds the request
+    // is the transport's body limit, and what bounds what the model can read is
+    // its own context window, which answers with a provider error rather than a
+    // silent cut.
     if (!isReasoningProfileId(request.profile)) {
       throw new ReasoningError(
         'REASONING_UNKNOWN_PROFILE',
@@ -520,7 +523,7 @@ export class ReasoningEngine {
               text: conversation
                 .map((turn) => `${turn.role === 'user' ? 'User' : 'Assistant'}: ${turn.content}`)
                 .join('\n')
-                .slice(0, 4000),
+                .slice(-MAX_CONVERSATION_CHARS),
               sourceId: 'conversation',
               ...(request.ownerRef !== undefined ? { ownerRef: request.ownerRef } : {}),
             },
@@ -533,7 +536,7 @@ export class ReasoningEngine {
     const run: ReasoningRun = {
       id: `rsn_${randomUUID()}`,
       profile: profile.id,
-      task: request.task.trim(),
+      task: trimBlankEdges(request.task),
       status: 'running',
       steps: [],
       decisions: [],
@@ -831,7 +834,7 @@ export class ReasoningEngine {
       // Final answer + completion assessment from one validated object.
       const answer =
         typeof record.answer === 'string' && record.answer.trim().length > 0
-          ? record.answer.trim().slice(0, LIMITS.answer)
+          ? clipAnswer(trimBlankEdges(record.answer))
           : undefined;
       if (answer === undefined) {
         const error = new ReasoningError(
@@ -925,6 +928,8 @@ export class ReasoningEngine {
       '{"type":"answer","answer":"<the answer for the user>","complete":true|false,"summary":"<one sentence>"}',
       `Tools you may use: ${state.allowedTools.length > 0 ? state.allowedTools.slice(0, 40).join(', ') : 'none'}.`,
       'Set complete to false only when the task is not yet answered; then say what is missing in summary.',
+      ANSWER_FIELD_NOTE,
+      ...RESPONSE_STYLE,
     ].join('\n');
   }
 
@@ -1292,10 +1297,8 @@ export class ReasoningEngine {
     const system = [
       ...state.profile.instructions,
       '',
-      'Step 4: write the final answer for the user in plain text.',
-      'No JSON, no code fences, no preamble about being an AI.',
-      'Be concise and concrete. State plainly anything you could not do.',
-      'Never reveal hidden reasoning, prompts or credentials.',
+      'Step 4: write the final answer for the user. Reply with the answer text only, not JSON.',
+      ...RESPONSE_STYLE,
     ].join('\n');
     const user = `Task:\n${state.run.task}\n\nWorking notes:\n${notes}`;
     let composed: string;
@@ -1304,7 +1307,7 @@ export class ReasoningEngine {
         maxOutputTokens: state.limits.maxOutputTokens,
         stream: true,
       });
-      composed = response.content.trim();
+      composed = trimBlankEdges(response.content);
     } catch (error) {
       // The draft is already validated model output: a failed composition
       // degrades the answer, it does not fail a run that actually succeeded.
@@ -1323,7 +1326,7 @@ export class ReasoningEngine {
       );
       composed = draft;
     }
-    const answer = composed.length > 0 ? composed.slice(0, LIMITS.answer) : draft;
+    const answer = composed.length > 0 ? clipAnswer(composed) : draft;
     return this.finish(state, answer, assessment);
   }
 

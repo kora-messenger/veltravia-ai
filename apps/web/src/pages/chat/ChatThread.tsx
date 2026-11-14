@@ -4,6 +4,8 @@ import { AgentActivityTimeline } from './AgentActivityTimeline';
 import { ChatAnswerActions } from './ChatAnswerActions';
 import { ChatErrorState, failureReason } from './ChatErrorState';
 import { FinalReportCard } from './FinalReportCard';
+import { Markdown } from './markdown/Markdown';
+import { UserText } from './markdown/UserText';
 import { UserAvatar } from './UserAvatar';
 import type { ChatBudget, ChatMessage } from './useChat';
 
@@ -105,7 +107,9 @@ export function Message({
   if (message.role === 'user') {
     return (
       <div className="v-chat__turn v-chat__turn--user">
-        <div className="v-chat__bubble">{message.text}</div>
+        <div className="v-chat__bubble">
+          <UserText text={message.text} />
+        </div>
         <UserAvatar name={ownerName} />
       </div>
     );
@@ -177,7 +181,9 @@ export function Message({
           </p>
         ) : null}
 
-        {message.text !== '' && !thinking && <p className="v-chat__text">{message.text}</p>}
+        {message.text !== '' && !thinking && (
+          <Markdown className="v-chat__text" text={message.text} />
+        )}
 
         {message.report !== null && message.phase === 'finished' ? (
           <FinalReportCard report={message.report} />

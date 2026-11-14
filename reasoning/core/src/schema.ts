@@ -9,6 +9,7 @@
  */
 
 import { ReasoningError } from './errors.js';
+import { trimBlankEdges } from './text.js';
 
 /** The task kinds the classifier may return. Closed set. */
 export const REASONING_TASK_TYPES = [
@@ -62,7 +63,7 @@ export const LIMITS = {
   rationale: 400,
   intent: 300,
   goal: 500,
-  answer: 20_000,
+  answer: 100_000,
   summary: 600,
   toolId: 120,
   maxPlanSteps: 6,
@@ -265,10 +266,20 @@ export function parseCompletionAssessment(raw: unknown): CompletionAssessment {
   };
 }
 
+/**
+ * The visible ceiling on an answer. A cut is marked, never silent: a person who
+ * asked for a long document is told where it stopped rather than handed a
+ * shorter one that looks complete.
+ */
+export function clipAnswer(text: string): string {
+  if (text.length <= LIMITS.answer) return text;
+  return `${text.slice(0, LIMITS.answer)}\n\n[... the answer was cut here at ${LIMITS.answer.toLocaleString('en-US')} characters ...]`;
+}
+
 /** Validates a plain-text final answer (no JSON required for the last step). */
 export function parseFinalAnswer(content: unknown): string {
   if (typeof content !== 'string' || content.trim().length === 0) {
     throw invalid('The model returned no final answer.');
   }
-  return content.trim().slice(0, LIMITS.answer);
+  return clipAnswer(trimBlankEdges(content));
 }

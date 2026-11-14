@@ -14,6 +14,7 @@ import {
   TuneIcon,
   WaveIcon,
 } from './chatIcons';
+import { hasContent, trimBlankEdges } from './messageText';
 
 /** The slice of the Web Speech API used here, declared locally. */
 interface SpeechResultLike {
@@ -260,13 +261,18 @@ export function ChatComposer({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter while an input method is composing confirms the candidate; it must
+    // not send. Some Android keyboards report that as keyCode 229 instead of
+    // isComposing, so both are honoured.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    // Shift+Enter is the new-line gesture: left to the textarea, never sent.
     if (event.key === 'Enter' && event.shiftKey === false) {
       event.preventDefault();
       sendOrExplain();
     }
   };
 
-  const typed = value.trim() !== '';
+  const typed = hasContent(value);
   // The reference swaps the far-right control: a voice control while there is
   // nothing to send, the send arrow as soon as there is a message or an image.
   // Only typed words change the row. An attachment does not hide the microphone,
@@ -298,7 +304,7 @@ export function ChatComposer({
     // The notes are the person's own words, so they travel with the message
     // rather than being summarised or dropped.
     const block = notes.map((note) => `- ${note.text}`).join('\n');
-    onSend(`${value.trim()}\n\nNotes from the owner:\n${block}`);
+    onSend(`${trimBlankEdges(value)}\n\nNotes from the owner:\n${block}`);
   };
 
   const openNote = () => {

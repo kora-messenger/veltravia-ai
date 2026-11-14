@@ -2,6 +2,7 @@ import { useToast } from '../../components/ui';
 import { setChatModel, type AvailableModel, type ChatModelChoice } from '../../api/reasoning';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useChat, type ChatMessage } from './useChat';
+import { hasContent, trimBlankEdges } from './messageText';
 import {
   CONVERSATIONS_CHANGED_EVENT,
   OPEN_CONVERSATION_EVENT,
@@ -46,7 +47,7 @@ export interface ChatSession {
  */
 function finishedTurns(messages: readonly ChatMessage[]): readonly StoredTurn[] {
   return messages
-    .filter((message) => message.state === 'done' && message.text.trim() !== '')
+    .filter((message) => message.state === 'done' && hasContent(message.text))
     .map((message) => ({ id: message.id, role: message.role, text: message.text }));
 }
 
@@ -162,7 +163,7 @@ export function useChatSession(): ChatSession {
   const send = (text?: string) => {
     // The composer passes the words when it has attached notes to them; the
     // surface sends what is in the box otherwise.
-    const body = (text ?? draft).trim();
+    const body = trimBlankEdges(text ?? draft);
     if (body === '' || chat.busy) return;
     chat.send(body);
     setDraft('');

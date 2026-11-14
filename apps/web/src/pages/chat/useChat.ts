@@ -41,6 +41,7 @@ import {
 } from '../../api/reasoning';
 import { getActivitySnapshot } from '../../api/activity';
 import { RunFollower, type FollowConnection } from './followRun';
+import { clipForHistory, trimBlankEdges } from './messageText';
 
 export type ChatRole = 'user' | 'assistant';
 
@@ -153,6 +154,8 @@ export function readCapabilities(value: unknown): ReasoningCapabilities | null {
 
 /** Turns of context sent with each question. */
 const HISTORY_TURNS = 10;
+/** A turn sent back to the model as history; the engine bounds the whole block. */
+const HISTORY_TURN_CHARS = 3500;
 /** Long enough for a real run to be created, short enough not to hang a phone. */
 const START_TIMEOUT_MS = 20_000;
 
@@ -414,7 +417,10 @@ export function useChat(): UseChatResult {
             message.state === 'done' && message.id !== questionId && message.id !== answerId,
         )
         .slice(-HISTORY_TURNS * 2)
-        .map((message) => ({ role: message.role, content: message.text }));
+        .map((message) => ({
+          role: message.role,
+          content: clipForHistory(message.text, HISTORY_TURN_CHARS),
+        }));
       lastQuestion.current = text;
       setBusy(true);
 
@@ -472,7 +478,9 @@ export function useChat(): UseChatResult {
 
   const send = useCallback(
     (raw: string) => {
-      const text = raw.trim();
+      // Only blank lines at either end go. A first line's own indentation, every
+      // blank line inside and every line break are the person's words.
+      const text = trimBlankEdges(raw);
       // One send at a time: a second tap while thinking would run the request
       // twice and produce two runs for one message.
       if (text === '' || busy) return;

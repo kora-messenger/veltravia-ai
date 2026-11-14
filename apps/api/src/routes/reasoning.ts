@@ -98,7 +98,8 @@ const RUN_BODY = {
   additionalProperties: false,
   required: ['task'],
   properties: {
-    task: { type: 'string', minLength: 1, maxLength: 8000 },
+    // No maximum: the ceiling here was a product limit, not a technical one.
+    task: { type: 'string', minLength: 1 },
     profile: { type: 'string', enum: Object.keys(REASONING_PROFILES) },
     mode: { type: 'string', enum: ['gateway', 'simulated'] },
     projectId: { type: 'string', minLength: 1, maxLength: 128 },
