@@ -1,6 +1,7 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { UserAvatar } from '../pages/chat/UserAvatar';
 import { useAgentProfile } from '../agent/AgentProfileProvider';
+import { ProfileDialog } from './ProfileDialog';
 import { AI_WORKSPACE_IDS, AI_WORKSPACE_LABEL, ROUTES, type RouteDef } from './useHashRoute';
 
 /**
@@ -159,6 +160,7 @@ export function MobileMenu({
 }: MobileMenuProps) {
   const profile = useAgentProfile();
   const panel = useRef<HTMLElement>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // Opening hands focus to the panel so a keyboard or screen reader lands inside
   // it, and closing is left to Escape or the scrim, as the shell already does.
@@ -232,21 +234,22 @@ export function MobileMenu({
             {NEW_CHAT_GLYPH}
             <span>Chat</span>
           </button>
-          <a
+          {/* The names behind the circle: yours and your assistant's. Settings
+              keeps its own row, so this opens the profile itself. */}
+          <button
+            type="button"
             className="v-mmenu__profile"
-            href="#/settings"
-            aria-label={`Settings for ${profile.ownerName ?? 'your account'}`}
-            onClick={(event) => {
-              event.preventDefault();
-              const settings = ROUTES.find((route) => route.id === 'settings');
-              if (settings !== undefined) onNavigate(settings);
+            aria-label={`Profile for ${profile.ownerName ?? 'your account'}`}
+            onClick={() => {
               onClose();
+              setProfileOpen(true);
             }}
           >
             <UserAvatar name={profile.ownerName} size={40} />
-          </a>
+          </button>
         </div>
       </nav>
+      <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }

@@ -110,11 +110,14 @@ describe('the phone navigation drawer', () => {
     expect(props.onNavigate).not.toHaveBeenCalled();
   });
 
-  it('reaches settings from the profile circle', () => {
+  it('opens the profile from the circle, where both names can be changed', () => {
     const props = setup();
     fireEvent.click(document.querySelector('.v-mmenu__profile') as Element);
-    expect(props.onNavigate).toHaveBeenCalledWith(expect.objectContaining({ id: 'settings' }));
     expect(props.onClose).toHaveBeenCalledTimes(1);
+    // Settings keeps its own row; the circle is the profile itself.
+    expect(screen.getByRole('dialog')).toBeDefined();
+    expect(screen.getByLabelText('Your name')).toBeDefined();
+    expect(screen.getByLabelText("Your assistant's name")).toBeDefined();
   });
 
   it('is hidden from keyboards and screen readers while closed', () => {
@@ -136,6 +139,6 @@ describe('the phone navigation drawer', () => {
   it('names no icon-only control without a label', () => {
     setup();
     const profile = document.querySelector('.v-mmenu__profile') as HTMLElement;
-    expect(profile.getAttribute('aria-label')).toMatch(/^Settings for /);
+    expect(profile.getAttribute('aria-label')).toMatch(/^Profile for /);
   });
 });
