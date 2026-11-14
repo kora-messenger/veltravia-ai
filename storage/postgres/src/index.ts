@@ -137,6 +137,7 @@ import { PostgresExportJobStore } from './repositories/exports.js';
 import { PostgresSyncStore } from './repositories/sync.js';
 import { PostgresSpendingLimitStore } from './repositories/spending-limits.js';
 import { PostgresSubscriptionStore } from './repositories/subscriptions.js';
+import { PostgresPaymentStore } from './repositories/payments.js';
 
 /** Every repository the platform needs, bound to one database handle. */
 export interface PostgresStores {
@@ -171,6 +172,7 @@ export interface PostgresStores {
   readonly integrationCredits: PostgresIntegrationCreditStore;
   readonly spendingLimits: PostgresSpendingLimitStore;
   readonly subscriptions: PostgresSubscriptionStore;
+  readonly payments: PostgresPaymentStore;
 }
 
 export function createPostgresStores(database: Database): PostgresStores {
@@ -206,6 +208,7 @@ export function createPostgresStores(database: Database): PostgresStores {
     integrationCredits: new PostgresIntegrationCreditStore(database),
     spendingLimits: new PostgresSpendingLimitStore(database),
     subscriptions: new PostgresSubscriptionStore(database),
+    payments: new PostgresPaymentStore(database),
   };
 }
 

@@ -1,0 +1,21 @@
+{
+  "name": "@veltravia/payments-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Veltravia payments (Step 61): integer money, a configurable price book, provider adapters for Paystack, Flutterwave and Monnify, verified webhooks, invoices and PDF receipts.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
+}
