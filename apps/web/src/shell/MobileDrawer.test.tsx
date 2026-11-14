@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { MobileDrawer } from './MobileDrawer';
@@ -354,5 +356,143 @@ describe('the website drawer', () => {
     expect(panel.getAttribute('aria-hidden')).toBe('false');
     expect(panel.hasAttribute('inert')).toBe(false);
     expect(document.activeElement).toBe(panel);
+  });
+});
+
+describe('narrowing the panel to its icons', () => {
+  it('offers the toggle at the head’s right, and it narrows the panel', () => {
+    const { view } = setup();
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    const toggle = within(nav).getByRole('button', { name: 'Collapse navigation to icons' });
+
+    // It sits in the head, after the brand lockup: the row's last control.
+    const head = nav.querySelector('.v-drawer__head');
+    expect(head?.contains(toggle)).toBe(true);
+    expect(head?.lastElementChild?.contains(toggle)).toBe(true);
+
+    expect(nav.className).not.toContain('v-drawer__panel--rail');
+    fireEvent.click(toggle);
+    const panel = screen.getByRole('navigation', { name: 'Primary' });
+    expect(panel.className).toContain('v-drawer__panel--rail');
+    view.unmount();
+  });
+
+  it('leaves the mark where the toggle was, and the mark opens the panel again', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation to icons' }));
+
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    // Narrowed, the toggle and the close control are gone and the mark stands alone.
+    expect(within(nav).queryByRole('button', { name: 'Collapse navigation to icons' })).toBeNull();
+    expect(within(nav).queryByRole('button', { name: 'Close navigation' })).toBeNull();
+    const expand = within(nav).getByRole('button', { name: 'Open navigation' });
+    expect(expand.querySelector('.v-brand-mark img')).not.toBeNull();
+    // The name goes with the labels: narrowed, the mark is the whole head.
+    expect(nav.querySelector('.v-drawer__wordmark')).toBeNull();
+
+    fireEvent.click(expand);
+    expect(screen.getByRole('navigation', { name: 'Primary' }).className).not.toContain(
+      'v-drawer__panel--rail',
+    );
+    // Opened again: the lockup and both controls are back.
+    expect(screen.getByRole('button', { name: 'Collapse navigation to icons' })).toBeDefined();
+    expect(
+      screen.getByRole('navigation', { name: 'Primary' }).querySelector('.v-drawer__wordmark'),
+    ).not.toBeNull();
+  });
+
+  it('keeps every row’s name when only the glyphs are painted', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation to icons' }));
+
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    // The labels are visually hidden, never removed, so a screen reader still
+    // hears the destinations and every row keeps its own name.
+    for (const label of ['New conversation', 'Projects', 'Dashboard']) {
+      const node = Array.from(nav.querySelectorAll('.v-drawer__row .v-drawer__label')).find(
+        (candidate) => candidate.textContent === label,
+      );
+      expect(node, `${label} lost its label`).not.toBeUndefined();
+    }
+    expect(within(nav).getByRole('button', { name: 'New conversation' })).toBeDefined();
+    expect(within(nav).getByRole('link', { name: 'Projects' })).toBeDefined();
+  });
+
+  it('is the docked column too, and survives its own re-render', () => {
+    setup({ docked: true, open: false });
+    expect(screen.queryByRole('button', { name: 'Close navigation' })).toBeNull();
+    const toggle = screen.getByRole('button', { name: 'Collapse navigation to icons' });
+    fireEvent.click(toggle);
+    // A docked panel is never "closed", so its state must not be reset behind it.
+    expect(screen.getByRole('navigation', { name: 'Primary' }).className).toContain(
+      'v-drawer__panel--rail',
+    );
+    expect(screen.getByRole('button', { name: 'Open navigation' })).toBeDefined();
+  });
+
+  it('forgets the narrowing when a phone’s drawer closes', () => {
+    const { props, view } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation to icons' }));
+    expect(screen.getByRole('navigation', { name: 'Primary' }).className).toContain(
+      'v-drawer__panel--rail',
+    );
+
+    view.rerender(
+      <ThemeProvider>
+        <MobileDrawer {...props} open={false} />
+      </ThemeProvider>,
+    );
+    view.rerender(
+      <ThemeProvider>
+        <MobileDrawer {...props} open={true} />
+      </ThemeProvider>,
+    );
+    expect(screen.getByRole('navigation', { name: 'Primary' }).className).not.toContain(
+      'v-drawer__panel--rail',
+    );
+  });
+});
+
+describe('while the panel is still reading', () => {
+  it('draws placeholder rows instead of claiming there are none', () => {
+    seed(2);
+    // A fresh panel has not read storage yet on its first paint.
+    const first = render(
+      <ThemeProvider>
+        <MobileDrawer
+          open={true}
+          activeRouteId="chat"
+          onNavigate={vi.fn()}
+          onNewChat={vi.fn()}
+          onOpenConversation={vi.fn()}
+          onClose={vi.fn()}
+        />
+      </ThemeProvider>,
+    );
+    // Reading happens in an effect, so the first commit is the loading state; the
+    // real rows land immediately after it.
+    const loading = document.querySelector('[data-loading="true"]');
+    expect(loading === null || loading.getAttribute('aria-hidden') === 'true').toBe(true);
+    expect(screen.queryByText('No conversations yet. What you ask here is kept on this device.'));
+    first.unmount();
+
+    // Settled: the real list, and no placeholder left behind.
+    const { view } = setup();
+    expect(document.querySelectorAll('.v-drawer__chat--loading').length).toBe(0);
+    expect(screen.getByText('Conversation 1')).toBeDefined();
+    view.unmount();
+  });
+
+  it('gives the placeholders the same breathing animation the app already uses', () => {
+    const css = readFileSync(resolve(__dirname, './mobile-drawer.css'), 'utf8');
+    const bone = css.slice(
+      css.indexOf('.v-drawer__bone {'),
+      css.indexOf('}', css.indexOf('.v-drawer__bone {')),
+    );
+    expect(bone).toContain('animation: v-sheet-breathe');
+    // And stops it for anyone who asked for less motion.
+    expect(css).toMatch(
+      /prefers-reduced-motion: reduce\)\s*{\s*\.v-drawer__bone\s*{\s*animation:\s*none/,
+    );
   });
 });

@@ -169,6 +169,31 @@ const ICONS: Record<string, ReactNode> = {
 };
 
 const CLOSE_GLYPH = glyph(<path d="m6 6 12 12M18 6 6 18" />);
+/* The panel's own toggle: a frame with a filled left column and an arrow pointing
+   into it. It says "narrow this panel to its icons", which is what it does. */
+const COLLAPSE_GLYPH = (
+  <svg viewBox="0 0 24 24" className="v-drawer__icon" aria-hidden="true">
+    <rect
+      x="3.5"
+      y="4.5"
+      width="17"
+      height="15"
+      rx="2.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+    />
+    <rect x="6.5" y="7.5" width="4.5" height="9" rx="1.2" fill="currentColor" opacity="0.35" />
+    <path
+      d="M15.2 9 13 12l2.2 3"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
 const PLUS_GLYPH = glyph(<path d="M12 5.5v13M5.5 12h13" />);
 const CHEVRON_GLYPH = glyph(<path d="m8 10 4 4 4-4" />);
 const FILTER_GLYPH = glyph(<path d="M4 6.5h16M7 12h10M10 17.5h4" />);
@@ -254,9 +279,12 @@ export function MobileDrawer({
 }: MobileDrawerProps) {
   const profile = useAgentProfile();
   const panel = useRef<HTMLElement>(null);
-  const [conversations, setConversations] = useState<readonly ConversationRecord[]>(() =>
-    listConversations(),
-  );
+  /**
+   * `null` until storage has been read. The first read happens in the effect
+   * below, not in the initial state, so the panel has a real "not known yet"
+   * moment to show placeholders in instead of guessing that the list is empty.
+   */
+  const [conversations, setConversations] = useState<readonly ConversationRecord[] | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [chatsOpen, setChatsOpen] = useState(true);
@@ -270,6 +298,8 @@ export function MobileDrawer({
   const moreWrap = useRef<HTMLDivElement>(null);
   const moreButton = useRef<HTMLButtonElement>(null);
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
+  /** The panel narrowed to its icons: the state its own toggle switches to. */
+  const [rail, setRail] = useState(false);
 
   // Docked, the panel is simply part of the page: it is never closed and never
   // takes focus on its own.
@@ -290,6 +320,12 @@ export function MobileDrawer({
       setExpanded(false);
     }
   }, [open]);
+
+  // A phone's drawer forgets it was narrowed once it closes; the docked column is
+  // part of the page and keeps the state its owner chose.
+  useEffect(() => {
+    if (!open && !docked) setRail(false);
+  }, [open, docked]);
 
   // The list is storage's, so it is re-read whenever storage says it changed
   // (a rename here, a thread saved by the chat page, another tab).
@@ -324,7 +360,7 @@ export function MobileDrawer({
         // column, so its right edge plays the same part and the card lands where
         // the same menu puts it on a phone.
         left: Math.round(
-          (docked
+          (docked || rail
             ? (panel.current?.getBoundingClientRect().right ?? window.innerWidth)
             : window.innerWidth) -
             MORE_CARD_INSET -
@@ -347,9 +383,10 @@ export function MobileDrawer({
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [moreOpen, docked]);
+  }, [moreOpen, docked, rail]);
 
-  const visible = conversations.filter((record) => showArchived || !record.archived);
+  const known = conversations ?? [];
+  const visible = known.filter((record) => showArchived || !record.archived);
   const shown = expanded ? visible : visible.slice(0, RECENT_LIMIT);
   const more = visible.length > RECENT_LIMIT;
 
@@ -518,7 +555,12 @@ export function MobileDrawer({
 
   return (
     <div
-      className={['v-drawer', isOpen ? 'v-drawer--open' : '', docked ? 'v-drawer--docked' : '']
+      className={[
+        'v-drawer',
+        isOpen ? 'v-drawer--open' : '',
+        docked ? 'v-drawer--docked' : '',
+        rail ? 'v-drawer--rail' : '',
+      ]
         .filter(Boolean)
         .join(' ')}
       data-testid="mobile-drawer"
@@ -526,7 +568,7 @@ export function MobileDrawer({
       {docked ? null : <div className="v-drawer__scrim" onClick={onClose} aria-hidden="true" />}
       <nav
         ref={panel}
-        className="v-drawer__panel"
+        className={rail ? 'v-drawer__panel v-drawer__panel--rail' : 'v-drawer__panel'}
         aria-label="Primary"
         aria-hidden={!isOpen}
         tabIndex={-1}
@@ -534,21 +576,51 @@ export function MobileDrawer({
         inert={!isOpen ? true : undefined}
       >
         <header className="v-drawer__head">
-          {/* The reference head is a brand lockup, not a lone mark: the mark, a
-              6dp gap, then the product's name, with the close control opposite. */}
-          <span className="v-drawer__brand">
-            <BrandMark size={32} decorative />
-            <span className="v-drawer__wordmark">Veltravia</span>
-          </span>
-          {docked ? null : (
+          {rail ? (
+            /* Narrow, the mark takes the place its toggle had, and tapping it opens
+               the panel again. It is the only control left in the head. */
             <button
               type="button"
-              className="v-drawer__close"
-              aria-label="Close navigation"
-              onClick={onClose}
+              className="v-drawer__expand"
+              aria-label="Open navigation"
+              onClick={() => setRail(false)}
             >
-              {CLOSE_GLYPH}
+              <BrandMark size={26} decorative />
             </button>
+          ) : (
+            <>
+              {/* The reference head is a brand lockup, not a lone mark: the mark, a
+                  6dp gap, then the product's name, with the controls opposite. */}
+              <span className="v-drawer__brand">
+                <BrandMark size={32} decorative />
+                <span className="v-drawer__wordmark">Veltravia</span>
+              </span>
+              <span className="v-drawer__head-actions">
+                <button
+                  type="button"
+                  className="v-drawer__collapse"
+                  aria-label="Collapse navigation to icons"
+                  aria-expanded={true}
+                  onClick={() => {
+                    setMenu({ kind: 'none' });
+                    setMoreOpen(false);
+                    setRail(true);
+                  }}
+                >
+                  {COLLAPSE_GLYPH}
+                </button>
+                {docked ? null : (
+                  <button
+                    type="button"
+                    className="v-drawer__close"
+                    aria-label="Close navigation"
+                    onClick={onClose}
+                  >
+                    {CLOSE_GLYPH}
+                  </button>
+                )}
+              </span>
+            </>
           )}
         </header>
 
@@ -562,7 +634,16 @@ export function MobileDrawer({
               if (settings !== null) go(settings);
             }}
           >
-            <span className="v-drawer__agent-name">{profile.agentName}</span>
+            {profile.loading ? (
+              <span
+                className="v-drawer__bone"
+                style={{ inlineSize: 96 }}
+                aria-hidden="true"
+                data-loading="true"
+              />
+            ) : (
+              <span className="v-drawer__agent-name">{profile.agentName}</span>
+            )}
           </a>
         </div>
 
@@ -637,7 +718,12 @@ export function MobileDrawer({
             ) : null}
           </div>
 
-          <section className="v-drawer__chats" aria-label="Conversations">
+          <section
+            className="v-drawer__chats"
+            aria-label="Conversations"
+            /* Real state, announced: the list is being read, not empty. */
+            aria-busy={conversations === null || profile.loading}
+          >
             <div className="v-drawer__chats-head">
               <h2 className="v-drawer__chats-heading">
                 <button
@@ -682,7 +768,21 @@ export function MobileDrawer({
 
             {chatsOpen ? (
               <div id="v-drawer-chats">
-                {shown.length === 0 ? (
+                {conversations === null || profile.loading ? (
+                  /* The list has not been read yet: three quiet bars in the shape of
+                     rows, so the panel does not flash "no conversations" first. */
+                  <ul className="v-drawer__chat-list" aria-hidden="true" data-loading="true">
+                    {[0, 1, 2].map((index) => (
+                      <li key={index} className="v-drawer__chat v-drawer__chat--loading">
+                        <span className="v-drawer__bone v-drawer__bone--dot" />
+                        <span
+                          className="v-drawer__bone"
+                          style={{ inlineSize: ['78%', '64%', '70%'][index] }}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                ) : shown.length === 0 ? (
                   <p className="v-drawer__chats-empty">
                     {showArchived
                       ? 'Nothing archived yet.'

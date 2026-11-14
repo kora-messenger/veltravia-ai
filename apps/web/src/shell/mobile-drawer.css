@@ -1075,3 +1075,124 @@
 .v-drawer__chevron--closed {
   transform: rotate(-90deg);
 }
+
+/* ---------------------- Narrowed panel: icons only ------------------------- */
+/* The panel's own toggle: full width it shows every label, narrowed it shows only
+   the glyphs, which is the state the toggle at the head's right switches to. The
+   head then carries nothing but the mark, and tapping the mark opens the panel
+   again. Width is set by the same number in both frames so a phone and a desktop
+   narrow to the same column. */
+
+.v-drawer__head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.v-drawer__collapse,
+.v-drawer__expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 40px;
+  block-size: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--v-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.v-drawer__collapse:hover,
+.v-drawer__expand:hover {
+  background: var(--v-drawer-muted, rgb(0 0 0 / 0.06));
+  color: var(--v-text);
+}
+.v-drawer__expand {
+  color: inherit;
+}
+
+.v-drawer__panel--rail {
+  inline-size: 60px;
+  max-inline-size: 60px;
+}
+.v-drawer__panel--rail .v-drawer__head {
+  justify-content: center;
+  padding-inline: 0;
+}
+.v-drawer__panel--rail .v-drawer__row {
+  justify-content: center;
+  padding: 0;
+  gap: 0;
+}
+/* The labels stay in the document, so every row still has an accessible name and
+   a tooltip: only their paint is removed. */
+.v-drawer__panel--rail .v-drawer__label {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.v-drawer__panel--rail .v-drawer__chevron,
+.v-drawer__panel--rail .v-drawer__agent,
+.v-drawer__panel--rail .v-drawer__chats,
+.v-drawer__panel--rail .v-drawer__workspace-text {
+  display: none;
+}
+.v-drawer__panel--rail .v-drawer__list,
+.v-drawer__panel--rail .v-drawer__more-wrap {
+  padding-inline: 0;
+}
+.v-drawer__panel--rail .v-drawer__foot {
+  padding: 0 0 12px;
+}
+.v-drawer__panel--rail .v-drawer__workspace {
+  justify-content: center;
+  padding: 0;
+}
+
+/* Placeholders: the same breathing bars the workspace sheet uses, so a panel that
+   is still reading its list looks like the rest of the app while it waits. */
+.v-drawer__chat--loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 34px;
+  padding: 0 12px 0 22px;
+}
+.v-drawer__bone {
+  display: block;
+  block-size: 12px;
+  border-radius: 6px;
+  background: var(--v-sheet-bone-b);
+  animation: v-sheet-breathe 2s ease-in-out infinite;
+}
+.v-drawer__bone--dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .v-drawer__bone {
+    animation: none;
+  }
+}
+
+/* Docked, the column itself narrows: the wrapper owns the width on a wide screen,
+   so both it and the panel inside it have to be told, or the panel would shrink
+   inside a full-width column and leave the page offset by a panel's worth of
+   empty milk. */
+@media (min-width: 901px) {
+  .v-drawer--docked.v-drawer--rail,
+  .v-drawer--docked.v-drawer--rail .v-drawer__panel {
+    inline-size: 60px;
+    max-inline-size: 60px;
+  }
+}
