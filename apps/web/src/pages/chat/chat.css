@@ -327,7 +327,11 @@
 /* The reference's box is a little taller than a field plus a control row: its
    bottom padding is 26px against this page's 20. */
 /* The reference's box: a light grey fill inside a thin grey border, one field
-   over a control row, and no drop shadow. Radius stays the measured 16px. */
+   over a control row, and no drop shadow. Radius stays the measured 16px.
+   The edge is the box's only chrome and it does not change while somebody
+   types: it used to turn brand purple and gain a shadow on focus-within, which
+   drew a glowing rectangle around the whole composer the moment the caret
+   landed in it. The caret and the typed words are the focus cue. */
 .v-chat-composer {
   max-width: 720px;
   margin: 0 auto;
@@ -338,11 +342,6 @@
   border: 1px solid var(--v-border-strong);
   border-radius: 16px;
   background: var(--v-surface-muted);
-}
-
-.v-chat-composer:focus-within {
-  border-color: var(--v-brand-400);
-  box-shadow: var(--v-shadow-2);
 }
 
 /* Visible to screen readers only: the field is identified by its placeholder
@@ -358,26 +357,39 @@
   white-space: nowrap;
 }
 
+/* The field is bare text inside the box: no frame, no fill, and no ring of its
+   own. A textarea matches `:focus-visible` for as long as the caret sits in it,
+   so the global focus rule painted a 4px brand-purple rectangle around the text
+   the whole time somebody was typing. The caret is the focus cue here. */
 .v-chat-composer__input {
   display: block;
   width: 100%;
   max-height: 180px;
   padding: 0 var(--v-space-2) 0 0;
   border: 0;
-  background: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  appearance: none;
   resize: none;
   font: inherit;
   font-size: var(--v-text-lg);
   line-height: 1.5;
   color: var(--v-text);
+  /* Explicit, so a dark field styling change can never leave the caret invisible. */
+  caret-color: var(--v-text);
 }
 
 .v-chat-composer__input::placeholder {
   color: var(--v-text-faint);
 }
 
-.v-chat-composer__input:focus {
+.v-chat-composer__input:focus,
+.v-chat-composer__input:focus-visible {
   outline: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .v-chat-composer__row {
@@ -577,8 +589,25 @@
   background: var(--v-surface-hover);
 }
 
-.v-chat-composer__picker {
-  display: none;
+/* A document attached to a message, which cannot be shown as a picture. */
+.v-chat-composer__file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--v-space-1);
+  max-width: 9rem;
+  padding: 0 var(--v-space-2);
+  height: 40px;
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-md);
+  background: var(--v-surface);
+  color: var(--v-text-muted);
+  font-size: var(--v-text-xs);
+}
+
+.v-chat-composer__file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Outlined, and deliberately different from the filled send control so the two
@@ -1378,27 +1407,6 @@
   display: inline-flex;
   align-items: center;
   color: var(--v-text-muted);
-}
-
-/* A document attached to a message, which cannot be shown as a picture. */
-.v-chat-composer__file {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--v-space-1);
-  max-width: 9rem;
-  padding: 0 var(--v-space-2);
-  height: 40px;
-  border: 1px solid var(--v-border);
-  border-radius: var(--v-radius-md);
-  background: var(--v-surface);
-  color: var(--v-text-muted);
-  font-size: var(--v-text-xs);
-}
-
-.v-chat-composer__file-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* The plain microphone: a transparent 32px control at the end of the row, with the

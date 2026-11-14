@@ -48,3 +48,47 @@ describe('the welcome', () => {
     expect(block).not.toContain('1.375rem');
   });
 });
+
+/**
+ * The ring the composer used to draw inside itself. jsdom applies no stylesheet,
+ * so the only place this can be pinned is the shipped CSS.
+ */
+describe('the type box', () => {
+  const css = () => read('./chat.css');
+  // Selectors here are sometimes a list split over two lines, so find the first
+  // brace after the selector text rather than expecting it on the same line.
+  const block = (selector: string) => {
+    const text = css();
+    const start = text.indexOf(selector);
+    expect(start).toBeGreaterThan(-1);
+    const open = text.indexOf('{', start);
+    expect(open).toBeGreaterThan(-1);
+    return text.slice(open, text.indexOf('}', open));
+  };
+
+  it('lets the box own the only edge, so the field itself is frameless', () => {
+    const field = block('.v-chat-composer__input');
+    // A border, a fill or a radius on the field draws a rectangle inside the box.
+    expect(field).toContain('border: 0');
+    expect(field).toContain('border-radius: 0');
+    expect(field).toContain('background: transparent');
+    expect(field).toContain('box-shadow: none');
+    // The caret is the only thing marking focus, so it must stay visible.
+    expect(field).toContain('caret-color: var(--v-text)');
+  });
+
+  it('cancels the global focus ring while the caret is in the field', () => {
+    const focus = block('.v-chat-composer__input:focus,');
+    // The global `:focus-visible` rule paints a brand ring on every control, and
+    // a textarea matches it for as long as it holds the caret.
+    expect(focus).toContain('outline: none');
+    expect(focus).toContain('box-shadow: none');
+  });
+
+  it('never recolours the composer edge when the caret lands in it', () => {
+    // The box used to go brand purple with a drop shadow on focus, which is the
+    // second rectangle in the report. No rule may touch the box on focus at all.
+    const boxFocus = css().match(/\.v-chat-composer:(focus|focus-within)[^{]*\{[^}]*\}/g) ?? [];
+    expect(boxFocus).toEqual([]);
+  });
+});
