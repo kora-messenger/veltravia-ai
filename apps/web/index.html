@@ -51,7 +51,7 @@
         height: 100%;
       }
       body {
-        background: #fafafd;
+        background: #f8f6f4;
         font-family:
           system-ui,
           -apple-system,
@@ -62,35 +62,36 @@
           sans-serif;
       }
       [data-theme='dark'] body {
-        background: #0e0d16;
+        background: #100f0e;
       }
       .vb {
-        --vb-bg: #fafafd;
+        --vb-bg: #faf9fc;
         --vb-surface: #ffffff;
         --vb-drawer: #f8f6f4;
-        --vb-line: #e5e3ee;
+        --vb-line: #e7e2dd;
         --vb-bone-a: #f3f1ef;
         --vb-bone-b: #e9e5df;
-        --vb-box: #f2f1f7;
+        /* The message box is a white card now, not the grey field it was. */
+        --vb-box: #ffffff;
         display: flex;
         min-height: 100dvh;
         background: var(--vb-bg);
       }
       [data-theme='dark'] .vb {
-        --vb-bg: #0e0d16;
-        --vb-surface: #151420;
-        --vb-drawer: #151420;
-        --vb-line: #2a2739;
-        --vb-bone-a: #1e1c2b;
-        --vb-bone-b: #2a2739;
-        --vb-box: #1e1c2b;
+        --vb-bg: #141312;
+        --vb-surface: #171512;
+        --vb-drawer: #171512;
+        --vb-line: #2a2828;
+        --vb-bone-a: #1f1d1a;
+        --vb-bone-b: #2a2828;
+        --vb-box: #171512;
       }
       .vb__nav {
         display: none;
         flex: none;
         flex-direction: column;
         inline-size: 83%;
-        max-inline-size: 380px;
+        max-inline-size: 300px;
         block-size: 100dvh;
         background: var(--vb-drawer);
         border-inline-end: 1px solid var(--vb-line);
@@ -99,8 +100,8 @@
         display: flex;
         align-items: center;
         gap: 6px;
-        min-block-size: 53px;
-        padding: 8px 24px 4px;
+        min-block-size: 47px;
+        padding: 4px 24px 4px;
         border-block-end: 1px solid var(--vb-line);
         box-sizing: border-box;
       }
@@ -112,13 +113,13 @@
         display: flex;
         flex-direction: column;
         gap: 0;
-        padding: 12px 22px;
+        padding: 8px 20px;
       }
       .vb__row {
         display: flex;
         align-items: center;
         gap: 8px;
-        min-block-size: 47px;
+        min-block-size: 41px;
       }
       .vb__main {
         display: flex;

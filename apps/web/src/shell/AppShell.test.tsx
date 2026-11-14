@@ -55,8 +55,12 @@ describe('AppShell', () => {
   it('starts on the assistant chat route', () => {
     renderShell();
     expect(screen.getByTestId('page-chat')).toBeDefined();
-    // The chat header names the assistant instead of repeating the route.
-    expect(screen.getByRole('heading', { name: 'My Engineer' })).toBeDefined();
+    // The chat header is bare: no product mark and no name in the bar. The
+    // assistant's name lives in the menu's agent row.
+    const bar = screen.getByTestId('topbar');
+    expect(bar.querySelector('.v-topbar__brand')).toBeNull();
+    expect(bar.querySelector('.v-topbar__title')).toBeNull();
+    expect(bar.textContent).not.toContain('My Engineer');
   });
 
   it('marks the active navigation item with aria-current', () => {
@@ -164,31 +168,34 @@ describe('AppShell', () => {
     expect(screen.queryByTestId('sidebar')).toBeNull();
   });
 
-  it('opens the phone drawer, navigates from it, and closes via the scrim and Escape', () => {
+  it('keeps the desk panel off a narrow screen and opens the phone menu instead', () => {
     stubWidth(false);
     renderShell();
-    // The browser gets the website drawer; the packaged app keeps its own menu.
-    const drawer = screen.getByTestId('mobile-drawer');
-    expect(drawer.classList.contains('v-drawer--open')).toBe(false);
+    // The Base44-shaped panel belongs to the wide layout. A phone must not mount
+    // it at all: it is not a phone surface.
+    expect(screen.queryByTestId('mobile-drawer')).toBeNull();
+
+    const menu = screen.getByTestId('mobile-menu');
+    expect(menu.classList.contains('v-mmenu--open')).toBe(false);
 
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
-    expect(drawer.classList.contains('v-drawer--open')).toBe(true);
+    expect(menu.classList.contains('v-mmenu--open')).toBe(true);
 
-    // Navigating from the drawer lands on the page and closes the drawer.
-    fireEvent.click(within(drawer).getByRole('link', { name: 'Projects' }));
+    // Navigating from it lands on the page and closes it.
+    fireEvent.click(within(menu).getByRole('link', { name: 'Projects' }));
     expect(screen.getByTestId('page-projects')).toBeDefined();
-    expect(drawer.classList.contains('v-drawer--open')).toBe(false);
+    expect(menu.classList.contains('v-mmenu--open')).toBe(false);
 
     // Tapping the dimmed area closes it without navigating anywhere.
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
-    fireEvent.click(drawer.querySelector('.v-drawer__scrim') as Element);
-    expect(drawer.classList.contains('v-drawer--open')).toBe(false);
+    fireEvent.click(menu.querySelector('.v-mmenu__scrim') as Element);
+    expect(menu.classList.contains('v-mmenu--open')).toBe(false);
 
     // And so does Escape.
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
-    expect(drawer.classList.contains('v-drawer--open')).toBe(true);
+    expect(menu.classList.contains('v-mmenu--open')).toBe(true);
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(drawer.classList.contains('v-drawer--open')).toBe(false);
+    expect(menu.classList.contains('v-mmenu--open')).toBe(false);
   });
 
   it('routes to the documents page and marks it active', () => {
@@ -228,6 +235,8 @@ describe('AppShell', () => {
   });
 
   it('builds the bar as one strip: brand mark, title, then the account control', () => {
+    // Any page but the chat: the chat's header carries neither the mark nor a title.
+    window.location.hash = '#/settings';
     const { container } = renderShell();
 
     const bar = container.querySelector('.v-topbar');

@@ -57,22 +57,25 @@ describe('the first-paint frame', () => {
     const dark = block(tokens, "[data-theme='dark'] {");
     const frame = html.slice(html.indexOf('<style data-boot>'), html.indexOf('</style>'));
 
-    // Light: page, raised surface, the drawer's own milk, hairline.
+    // Light: the chat pane the frame stands in for, the raised card surface,
+    // the drawer's own milk, hairline.
+    expect(light).toContain('--v-chat-canvas: #faf9fc');
     expect(light).toContain('--v-drawer-surface: #f8f6f4');
     expect(frame).toContain('--vb-drawer: #f8f6f4');
-    expect(frame).toContain('--vb-bg: #fafafd');
+    expect(frame).toContain('--vb-bg: #faf9fc');
     expect(frame).toContain('--vb-surface: #ffffff');
-    expect(frame).toContain('--vb-line: #e5e3ee');
+    expect(frame).toContain('--vb-line: #e7e2dd');
     expect(frame).toContain('--vb-bone-a: #f3f1ef');
     expect(frame).toContain('--vb-bone-b: #e9e5df');
 
     // Dark: the same roles as tokens.css names them.
-    expect(dark).toContain('--v-surface: #151420');
-    expect(dark).toContain('--v-border: #2a2739');
-    expect(frame).toContain('--vb-surface: #151420');
-    expect(frame).toContain('--vb-drawer: #151420');
-    expect(frame).toContain('--vb-line: #2a2739');
-    expect(frame).toContain('--vb-bg: #0e0d16');
+    expect(dark).toContain('--v-surface: #171512');
+    expect(dark).toContain('--v-border: #2a2828');
+    expect(frame).toContain('--vb-surface: #171512');
+    expect(frame).toContain('--vb-drawer: #171512');
+    expect(frame).toContain('--vb-line: #2a2828');
+    expect(dark).toContain('--v-chat-canvas: #141312');
+    expect(frame).toContain('--vb-bg: #141312');
   });
 
   it('matches the shell geometry it stands in for', () => {
@@ -85,17 +88,19 @@ describe('the first-paint frame', () => {
     expect(frame).toMatch(/\.vb__bar\s*{[^}]*block-size:\s*56px/);
     expect(frame).toMatch(/\.vb__bar\s*{[^}]*padding:\s*0 14px 0 12px/);
 
-    // Docked navigation column: 83% up to 380px, from 901px, head rule 53px down.
+    // Docked navigation column: 83% up to 300px, from 901px, head rule 47px down.
     expect(drawer).toContain('@media (min-width: 901px)');
-    expect(drawer).toMatch(/\.v-drawer--docked\s*{[^}]*max-inline-size:\s*380px/);
+    expect(drawer).toMatch(/\.v-drawer--docked\s*{[^}]*max-inline-size:\s*300px/);
     expect(frame).toContain('@media (min-width: 901px)');
     expect(frame).toMatch(/\.vb__nav\s*{[^}]*inline-size:\s*83%/);
-    expect(frame).toMatch(/\.vb__nav\s*{[^}]*max-inline-size:\s*380px/);
-    expect(frame).toMatch(/\.vb__nav-head\s*{[^}]*min-block-size:\s*53px/);
+    expect(frame).toMatch(/\.vb__nav\s*{[^}]*max-inline-size:\s*300px/);
+    expect(frame).toMatch(/\.vb__nav-head\s*{[^}]*min-block-size:\s*47px/);
 
-    // Navigation row pitch 47dp; message box 100dp tall, 16px radius, 720px wide.
-    expect(block(drawer, '.v-drawer__row {')).toContain('min-height: 47px');
-    expect(frame).toMatch(/\.vb__row\s*{[^}]*min-block-size:\s*47px/);
+    // Navigation row pitch 41dp (a 37dp pill plus 2dp either side), the
+    // reference's rhythm; message box 100dp tall, 16px radius, 720px wide.
+    expect(block(drawer, '.v-drawer__row {')).toContain('min-height: 37px');
+    expect(block(drawer, '.v-drawer__list > li {')).toContain('padding-block: 2px');
+    expect(frame).toMatch(/\.vb__row\s*{[^}]*min-block-size:\s*41px/);
     const chat = read('./pages/chat/chat.css');
     expect(block(chat, '.v-chat-composer {')).toContain('max-width: 720px');
     expect(block(chat, '.v-chat-composer {')).toContain('border-radius: 16px');

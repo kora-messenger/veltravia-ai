@@ -150,7 +150,7 @@ describe('the website drawer', () => {
     document.querySelector('.v-drawer__scroll')?.scrollTo?.(0, 0);
     fireEvent.click(screen.getByRole('button', { name: 'More' }));
     const card = screen.getByRole('menu', { name: 'More' }) as HTMLElement;
-    // 193dp wide, 11dp from the screen edge, so it overhangs the 380dp panel.
+    // 193dp wide, 11dp from the screen edge, so it overhangs the 300dp panel.
     expect(card.style.left).toBe(`${window.innerWidth - 11 - 193}px`);
     expect(card.style.top).toBe('0px');
   });

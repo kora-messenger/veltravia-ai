@@ -817,5 +817,22 @@ name has been fetched, with `aria-busy` on the section and the app's existing br
 (honoured by `prefers-reduced-motion`). No minimum display time is faked: the bars vanish as soon
 as the real state exists.
 
+**The chat header is bare, and the menu is Base44's size.** On the chat screen the top bar no longer
+shows the product mark or the assistant's name (every other page keeps its mark and title). The name
+is still shown in the menu's agent row, and changing it moved to the profile dialog, which now also
+has "Restore the default name" (the old header-only editor, `AgentNameDialog`, is gone).
+
+That panel is a wide-screen surface, not a phone one. A narrow window never mounts it: below 901px the
+website keeps the app's own phone drawer (`shell/MobileMenu.tsx`, opened by the top bar's hamburger),
+which is what the packaged build has always used. Past conversations live in the wide panel, so they
+are a desk feature for now.
+
+Wide, the panel is the reference's own geometry, measured off Base44's drawer at 3x: 300dp wide (the
+first-paint frame matches), a head whose rule sits 47dp down, rows as a 37dp pill on a 41dp pitch with
+their icons 20dp in and labels 44dp in, conversation rows on the same 41dp rhythm, and a 73dp
+workspace footer. The 2dp of air above and below each pill belongs to the row's `<li>`, because a block
+button's margins collapse through that wrapper and quietly turned the 41dp pitch into 39dp. Nine rows
+plus the head and footer come to roughly 70dp less than the 380dp column's taller rows did.
+
 Still open: sending a message with attachments is refused, because the run API takes text only, and
 the web bundle is a single 887KB chunk.

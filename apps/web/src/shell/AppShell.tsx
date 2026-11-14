@@ -24,8 +24,8 @@ export function AppShell({ renderPage }: AppShellProps) {
   const { route, navigate } = useHashRoute();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  // The website's navigation is one panel in two frames: a drawer over the page on
-  // a phone, the page's own column on a wide screen.
+  // The website has two menus on purpose: the phone keeps its own drawer, and only
+  // a wide screen gets the desk-shaped panel, standing as the page's own column.
   const wide = useWideLayout();
   const packaged = isPackagedApp();
   const docked = wide && !packaged;
@@ -69,7 +69,8 @@ export function AppShell({ renderPage }: AppShellProps) {
           onMobileClose={() => setMobileOpen(false)}
         />
       ) : null}
-      {packaged ? (
+      {/* The phone's menu, on the website and in the packaged app alike. */}
+      {packaged || !wide ? (
         <MobileMenu
           open={mobileOpen}
           activeRouteId={activeNavId}
@@ -79,11 +80,13 @@ export function AppShell({ renderPage }: AppShellProps) {
           onNewChat={startNewChat}
           onClose={() => setMobileOpen(false)}
         />
-      ) : (
-        /* The website's drawer: the app keeps its own menu above. */
+      ) : null}
+      {/* The wide screen's menu: the desk panel, docked as the page's column. It
+          is not a phone surface, so a narrow window never mounts it. */}
+      {docked ? (
         <MobileDrawer
-          open={docked || mobileOpen}
-          docked={docked}
+          open
+          docked
           activeRouteId={activeNavId}
           onNavigate={(next) => {
             navigate(next);
@@ -97,7 +100,7 @@ export function AppShell({ renderPage }: AppShellProps) {
           }}
           onClose={() => setMobileOpen(false)}
         />
-      )}
+      ) : null}
       <div className="v-shell__main">
         <BackendNotice />
         <OfflineBanner />

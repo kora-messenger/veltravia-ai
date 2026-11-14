@@ -1,8 +1,9 @@
 /* ---------------------- Website navigation drawer (phone) ------------------ */
-/* Measured from a capture of the reference drawer on a 411dp phone:
-   the panel covers 343dp (83%), rows are 47dp apart with labels 47dp in from
-   the panel's left edge, and a row's menu is a white card about 203 x 120dp
-   with 32dp rows and 8dp corners, right-aligned under its three dots.
+/* Measured from the reference drawer (300dp panel, 1080 x 2400 capture at 3x):
+   rows are a 37dp pill on a 41dp pitch, labels start 44dp in, the head's rule
+   is 47dp down and the workspace footer is 73dp tall. A row's menu is a white
+   card about 203 x 120dp with 32dp rows and 8dp corners, right-aligned under
+   its three dots.
    The panel has three zones - pinned head, scrolling middle, pinned footer -
    because the recording shows the head and the footer holding still while the
    middle scrolls. */
@@ -38,7 +39,9 @@
   display: flex;
   flex-direction: column;
   width: 83%;
-  max-width: 380px;
+  /* Base44's panel is 300dp (measured, 83% of a 360dp phone) and stays 300dp on
+     a larger screen instead of growing with it. */
+  max-width: 300px;
   background: var(--v-drawer-surface, var(--v-surface));
   color: var(--v-text);
   outline: none;
@@ -62,9 +65,9 @@
   align-items: center;
   justify-content: space-between;
   flex: none;
-  /* 8 + the 40dp close control + 4 puts the rule 53dp down the panel, where
-     the reference draws it, and centres the mark's ink at 17dp. */
-  padding: calc(var(--v-safe-top, 0px) + 8px) 10px 4px 24px;
+  /* 4 + the 38dp close control + 4 puts the rule 47dp down the panel, which is
+     exactly where the reference draws it: its head is 47dp on every width. */
+  padding: calc(var(--v-safe-top, 0px) + 4px) 10px 4px 24px;
   border-bottom: 1px solid var(--v-drawer-line);
 }
 .v-drawer__brand {
@@ -84,11 +87,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   padding: 0;
   border: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   background: transparent;
   color: var(--v-text);
   cursor: pointer;
@@ -100,9 +103,9 @@
 /* --- pinned top: the agent, and a new conversation ---------------------- */
 .v-drawer__pinned {
   flex: none;
-  /* The card sits 13dp in from the panel's edge and 13dp below the head's
-     rule, both measured off the reference. */
-  padding: 13px 13px 10px;
+  /* 8dp below the head's rule and 8dp above the first row, so the agent card
+     sits on the same 41dp rhythm as the rows under it. */
+  padding: 8px 12px 8px;
 }
 /* The agent line is the name and nothing else: the reference's avatar square
    and its glyph are gone, so the name is the only thing in the card. It is
@@ -111,8 +114,8 @@
 .v-drawer__agent {
   display: flex;
   align-items: center;
-  height: 42px;
-  padding: 0 12px 0 32px;
+  height: 40px;
+  padding: 0 10px 0 32px;
   border: 1px solid var(--v-drawer-edge);
   border-radius: 6px;
   color: var(--v-text);
@@ -147,15 +150,27 @@
   padding: 0;
   list-style: none;
 }
+/* A row's 2dp of air above and below belongs to its <li>, not to the button:
+   a block button's own margins collapse through this wrapper, so the pill and
+   its gap would have totalled 39dp instead of the reference's 41dp. */
+.v-drawer__list > li {
+  padding-block: 2px;
+}
 
 .v-drawer__row {
   display: flex;
   align-items: center;
-  /* Reference row: icon 22dp in and 16dp wide, label box 46dp in. */
+  /* Reference row: a 37dp pill on a 41dp pitch, icon 16dp wide with its left
+     edge 20dp in, so the label box lands 44dp in. The 2dp margins above and
+     below are the gap between one pill and the next. */
   gap: 8px;
-  width: 100%;
-  min-height: 47px;
-  padding: 0 12px 0 22px;
+  /* A button's auto width is shrink-to-fit, not the row's width, so the 6dp
+     insets are taken out here rather than left to the margins. */
+  width: calc(100% - 12px);
+  margin: 0 6px;
+  min-height: 37px;
+  padding: 0 6px 0 14px;
+  border-radius: 10px;
   border: 0;
   background: transparent;
   color: var(--v-drawer-ink);
@@ -179,6 +194,13 @@
   width: 16px;
   height: 16px;
 }
+/* The global focus rule squares whatever it rings to a 2px radius; these three
+   are pills, so they keep their own corners while focused. */
+.v-drawer__row:focus-visible,
+.v-drawer__chat-open:focus-visible,
+.v-drawer__group-toggle:focus-visible {
+  border-radius: 10px;
+}
 .v-drawer__label {
   flex: 1;
   min-width: 0;
@@ -193,6 +215,7 @@
    45dp in at 16px. Corners 8dp, white surface, soft shadow. */
 .v-drawer__more-wrap {
   position: relative;
+  padding-block: 2px;
 }
 .v-drawer__chevron {
   display: inline-flex;
@@ -337,7 +360,7 @@
 
 /* --- conversations ----------------------------------------------------- */
 .v-drawer__chats {
-  margin-top: 14px;
+  margin-top: 10px;
 }
 .v-drawer__chats-head {
   display: flex;
@@ -427,10 +450,12 @@
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
-  min-height: 47px;
-  padding: 0 4px 0 18px;
+  margin: 2px 6px;
+  min-height: 37px;
+  padding: 0 4px 0 14px;
+  border-radius: 10px;
   border: 0;
   background: transparent;
   color: var(--v-drawer-ink);
@@ -446,8 +471,8 @@
 }
 .v-drawer__chat-dot {
   flex: none;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border: 1.7px dashed var(--v-text-muted);
   border-radius: 50%;
 }
@@ -470,9 +495,9 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  margin-right: 6px;
+  width: 32px;
+  height: 32px;
+  margin-right: 4px;
   padding: 0;
   border: 0;
   border-radius: 8px;
@@ -539,7 +564,9 @@
    rather than the app's cool border. */
 .v-drawer__foot {
   flex: none;
-  padding: 18px 13px calc(var(--v-safe-bottom, 0px) + 18px);
+  /* 15 + the 43dp workspace tile + 14 + the rule = 73dp, the reference's
+     footer band. */
+  padding: 15px 13px calc(var(--v-safe-bottom, 0px) + 14px);
   border-top: 1px solid var(--v-drawer-edge);
   background: transparent;
 }
@@ -1005,7 +1032,7 @@
 /* The website's desktop navigation is this panel standing open as a column, not a
    second design: the same head, agent card, rows, conversations and workspace
    footer as the phone's menu, at the same width it reaches on a large phone
-   (83%, up to 380px). Only the frame changes: no scrim, nothing to close. */
+   (83%, up to 300px, as Base44's is). Only the frame changes: no scrim, nothing to close. */
 @media (min-width: 901px) {
   .v-drawer--docked {
     position: sticky;
@@ -1017,7 +1044,7 @@
     /* The phone menu's own width, so the desktop column is that menu and not a
        narrower cousin of it. */
     inline-size: 83%;
-    max-inline-size: 380px;
+    max-inline-size: 300px;
     block-size: 100dvh;
     pointer-events: auto;
   }
@@ -1038,12 +1065,11 @@
   .v-drawer--docked .v-drawer__close {
     display: none;
   }
-  /* The head keeps its rule 53dp down the panel, the height the close control
+  /* The head keeps its rule 47dp down the panel, the height the close control
      gives it on a phone, so the same menu measures the same either way. */
   .v-drawer--docked .v-drawer__head {
-    /* 8 + 40 + 4 + the rule: the height the 40dp close control gives it on a
-       phone, so the same menu measures the same either way. */
-    min-block-size: 53px;
+    /* 4 + 38 + 4 + the rule: the height the phone's head reaches. */
+    min-block-size: 47px;
   }
 }
 
@@ -1056,9 +1082,11 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  min-height: 40px;
-  padding: 0 12px 0 22px;
+  min-height: 37px;
+  margin: 0 6px;
+  padding: 0 6px 0 15px;
   border: 0;
+  border-radius: 10px;
   background: transparent;
   color: var(--v-text-muted);
   font: inherit;
@@ -1094,8 +1122,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  inline-size: 40px;
-  block-size: 40px;
+  inline-size: 38px;
+  block-size: 38px;
   padding: 0;
   border: 0;
   border-radius: 10px;
@@ -1163,8 +1191,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-block-size: 34px;
-  padding: 0 12px 0 22px;
+  min-block-size: 37px;
+  margin: 0 6px;
+  padding: 0 6px 0 14px;
 }
 .v-drawer__bone {
   display: block;
