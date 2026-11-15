@@ -1058,6 +1058,14 @@ in the middle of the screen, the welcome is a headline again (its widest line
 of covering it: the tips and the box rise together and the welcome scrolls out
 behind them.
 
+The ways in belong to the empty conversation. Sending the first message takes
+them off the screen and a new chat brings them back; the block is not drawn at
+all while a thread exists, so nothing holds space above the box. This is a
+deliberate departure from the reference, which keeps the two lines under a
+conversation already in progress: under this page's thread they sat below the
+person's own message, which reads as advice given after they had already asked
+(Ijezie, 2026-11-15). Typing does not remove them; only a sent message does.
+
 ## The workspace sheet
 
 Tapping the drawer's profile line opens a bottom sheet, measured from a screen

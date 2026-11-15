@@ -85,6 +85,11 @@ export function ChatPage() {
   // ever wrote. Null means they have not told us a name, so no name is invented.
   const name = profile.ownerName;
   const visible = SUGGESTIONS.filter((suggestion) => !dismissed.includes(suggestion.id));
+  // The ways in belong to an empty conversation. The moment a first message is
+  // sent the thread is the subject, so they step aside instead of sitting under
+  // somebody's own words for the rest of the conversation. A new chat clears the
+  // thread and brings them back.
+  const showTips = !session.started && visible.length > 0;
 
   /** Writes a suggestion's words into the type box. Nothing is sent. */
   const fillPrompt = (prompt: string) => {
@@ -139,7 +144,7 @@ export function ChatPage() {
             keyboard resizes the page they travel up with the box instead of
             being covered. The packaged app draws them in its own landing
             (MobileLanding), so they are not repeated there. */}
-        {app || visible.length === 0 ? null : (
+        {app || !showTips ? null : (
           <div className="v-chat__tips">
             <SuggestionList suggestions={visible} onDismiss={dismiss} onPrompt={fillPrompt} />
           </div>

@@ -167,14 +167,31 @@ describe('the chat landing page', () => {
     expect(document.activeElement).toBe(box);
   });
 
-  it('keeps the tips while the conversation runs, as the reference does', async () => {
+  it('takes the ways in away once a message is sent', async () => {
+    startRun.mockResolvedValue(run());
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Connect email address' })).toBeDefined();
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Hello' } });
+    // Words in the box are not a conversation: only a sent message clears them.
+    expect(screen.getByRole('button', { name: 'Connect email address' })).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    await screen.findByText('Here is what I found.');
+    // The conversation is the subject now, so the empty-conversation rows go,
+    // and no empty block stays behind holding space above the box.
+    expect(screen.queryByRole('button', { name: 'Connect email address' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Open document intelligence' })).toBeNull();
+    expect(document.querySelector('.v-chat__tips')).toBeNull();
+  });
+
+  it('brings the ways in back for a new conversation', async () => {
     startRun.mockResolvedValue(run());
     renderPage();
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Hello' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    fireEvent.keyDown(screen.getByLabelText('Message'), { key: 'Enter' });
     await screen.findByText('Here is what I found.');
-    // A chat in progress still shows them above the type box.
-    expect(screen.getByRole('button', { name: 'Connect email address' })).toBeDefined();
+    expect(document.querySelector('.v-chat__tips')).toBeNull();
+    fireEvent(window, new CustomEvent('veltravia:new-chat'));
+    expect(await screen.findByRole('button', { name: 'Connect email address' })).toBeDefined();
   });
 
   it('says answers are simulated when no provider is connected', async () => {
